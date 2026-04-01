@@ -484,12 +484,12 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
             <p>
               <strong>3.</strong> Cliente que alquila el vestido para el evento pero realiza el <strong>PRE-XV</strong> con otro proveedor:<br />
               Cuando el cliente haya alquilado el vestido para el evento principal pero decida realizar la sesión <strong>PRE-XV</strong> con un proveedor diferente a <strong>ÁMBAR COUTURE</strong>, la empresa únicamente autorizará el uso del vestido.<br />
-              En este caso el cliente deberá asumir únicamente: el costo de <strong>lavandería</strong> del vestido. <strong>No se cobrará alquiler adicional del vestido.</strong>
+              En este caso el cliente deberá asumir únicamente el compromiso del cuidado de la prenda. <strong>No se cobrará alquiler adicional del vestido si lo hace dentro de la semana de entrega del vestido.</strong>
             </p>
 
             <p>
               <strong>4.</strong> Cliente que alquila el vestido exclusivamente para sesión <strong>PRE-XV</strong>:<br />
-              Cuando el vestido sea solicitado únicamente para realizar la sesión <strong>PRE-XV</strong> y no para el evento principal, el cliente deberá cancelar: <strong>70% del valor del alquiler del vestido</strong> y <strong>el costo de lavandería</strong>. Este servicio no incluye fotografía, maquillaje ni peinado, los cuales deberán ser contratados por el cliente por su cuenta si así lo desea.
+              Cuando el vestido sea solicitado únicamente para realizar la sesión <strong>PRE-XV</strong> y no para el evento principal, el cliente deberá cancelar: <strong>70% del valor del alquiler del vestido</strong>. Este servicio no incluye fotografía, maquillaje ni peinado, los cuales deberán ser contratados por el cliente por su cuenta si así lo desea.
             </p>
 
             <p>
