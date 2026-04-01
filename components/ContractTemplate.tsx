@@ -328,13 +328,18 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
 
             <p>
               <strong>PARÁGRAFO TERCERO – RESERVA DE AGENDA DE SERVICIOS ASOCIADOS</strong><br />
-              Cuando el servicio contratado incluya la participación de proveedores o recursos que requieren reserva previa de agenda, tales como fotógrafo, maquillaje, peinado, caballos u otros servicios asociados a la sesión <strong>PRE XV</strong>, <strong>EL CONTRATANTE/ARRENDATARIO</strong> reconoce que dichos servicios requieren la separación previa de fecha y disponibilidad.<br />
-              Para garantizar dicha disponibilidad, <strong>EL CONTRATANTE/ARRENDATARIO</strong> deberá realizar un pago por concepto de reserva de agenda, cuyos valores serán los siguientes:
+              Cuando el servicio contratado incluya la participación de proveedores o recursos que requieren reserva previa de agenda, tales como fotógrafo, maquillaje, peinado, caballos u otros servicios asociados a la sesión <strong>PRE XV</strong>, <strong>EL CONTRATANTE/ARRENDATARIO</strong> reconoce que dichos servicios requieren la separación previa de fecha y disponibilidad, gestión que será ejecutada por <strong>ÁMBAR EVENTOS</strong> en su calidad de operador logístico al servicio de <strong>AMBAR COUTURE</strong> y del cliente.<br /><br />
+              Para garantizar dicha disponibilidad, <strong>ÁMBAR EVENTOS</strong> separará del valor cancelado por <strong>EL CONTRATANTE/ARRENDATARIO</strong> una fracción destinada exclusivamente a la reserva de agenda de cada proveedor, cuyos valores son los siguientes:
             </p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li>Reserva de fotógrafo: <strong>$70.000</strong></li>
-              <li>Reserva de maquillaje y peinado: <strong>$40.000</strong></li>
+            <ul className="list-disc pl-6 space-y-1 mb-4">
+              <li>Reserva de fotógrafo: <strong>$100.000</strong></li>
+              <li>Reserva de maquillaje y peinado: <strong>$60.000</strong></li>
+              <li>Reserva de sesión con caballo: <strong>$250.000</strong></li>
             </ul>
+            <p>
+              Estos valores no constituyen un cobro adicional al precio del servicio, sino que hacen parte integral del valor total ya pactado y cancelado por <strong>EL CONTRATANTE/ARRENDATARIO</strong>, siendo <strong>ÁMBAR EVENTOS</strong> quien los destina internamente a la reserva y coordinación de cada proveedor.<br /><br />
+              En caso de cancelación, desistimiento o no realización del servicio por decisión de <strong>EL CONTRATANTE/ARRENDATARIO</strong>, los valores correspondientes a la reserva de agenda no serán reembolsables, por cuanto <strong>ÁMBAR EVENTOS</strong> ya habrá comprometido dicha fracción ante los proveedores para garantizar la disponibilidad de la fecha programada. Lo anterior no constituye penalidad ni sanción, sino el reconocimiento de un costo real ya causado por la separación y coordinación de los servicios contratados.
+            </p>
           </div>
           <p>
             <strong>SÉPTIMA. Arreglos:</strong> Los arreglos no están incluidos en el precio del alquiler cuando se obtiene 
