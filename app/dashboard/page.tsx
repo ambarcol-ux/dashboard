@@ -1920,6 +1920,16 @@ export default function DashboardPage() {
     return result;
   }, [contratos, activeTabLogistica, searchTerm, filtroSede, filtroHito, filtroRango, fechaDesde, fechaHasta]);
 
+  // -- KPI STATS CALCULATION (Imagen 5 Request Restore) --
+  const stats = React.useMemo(() => {
+    return {
+      totalPendiente: contratosFiltrados.reduce((acc, c) => acc + (Number(c.saldo) || 0) + (Number(c.total_multas) || 0), 0),
+      totalContratos: contratosFiltrados.length,
+      totalEnEvento: tabCounts.en_evento,
+      activeBranch: filtroSede
+    };
+  }, [contratosFiltrados, tabCounts, filtroSede]);
+
   const uniqueSedes = Array.from(new Set(contratos.map(c => c.sede)));
 
   const renderLogisticsDate = (contrato: any, label: string, dateString: string | null, stateField: string, stateValue: string) => {
@@ -2018,6 +2028,39 @@ export default function DashboardPage() {
                <Plus className="w-5 h-5" /> NUEVO CONTRATO
              </Link>
           </div>
+        </div>
+
+        {/* SUMMARY STATS (Imagen 5 Restore) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
+           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5 group hover:border-rose-200 transition-all">
+              <div className="p-4 bg-rose-50 rounded-2xl text-rose-500 group-hover:rotate-6 transition-transform">
+                 <ClipboardList className="w-6 h-6" />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Contratos {stats.activeBranch !== 'Todas' ? `(${stats.activeBranch})` : 'Globales'}</p>
+                 <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">{stats.totalContratos}</h3>
+              </div>
+           </div>
+
+           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5 group hover:border-indigo-200 transition-all">
+              <div className="p-4 bg-indigo-50 rounded-2xl text-indigo-500 group-hover:rotate-6 transition-transform">
+                 <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Vestidos en Evento</p>
+                 <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">{stats.totalEnEvento}</h3>
+              </div>
+           </div>
+
+           <div className="bg-white p-6 rounded-3xl shadow-sm border-2 border-emerald-100 flex items-center gap-5 group hover:bg-emerald-50 transition-all bg-emerald-50/20">
+              <div className="p-4 bg-emerald-500 rounded-2xl text-white shadow-lg shadow-emerald-100 group-hover:scale-110 transition-transform">
+                 <DollarSign className="w-6 h-6" />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-1">Pendiente por Recaudar</p>
+                 <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">{formatCurrency(stats.totalPendiente)}</h3>
+              </div>
+           </div>
         </div>
 
         {/* NEW: KPI QUICK VIEW (Imagen 5 Request) */}
