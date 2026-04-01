@@ -107,19 +107,22 @@ export default function UsersManagementPage() {
       });
 
       if (!result.success) {
-        throw new Error(result.message);
+        // Mostramos el mensaje detallado que viene del servidor
+        toast.error(`Error: ${result.message}`);
+        return;
       }
 
-      toast.success(`✅ Asesora creada con éxito. Ya puede iniciar sesión.`);
+      toast.success(`✅ Usuario ${formData.nombre} creado con éxito. Ya puede iniciar sesión.`);
       setIsModalOpen(false);
       setFormData({ email: '', nombre: '', sede_id: '', rol: 'asesora', password: '' });
       fetchData();
     } catch (err: any) {
-      toast.error('Error al crear usuario: ' + err.message);
-      console.error(err);
+      toast.error('Ocurrió un fallo inesperado al comunicarse con el servidor.');
+      console.error('Error en handleInvite:', err);
     } finally {
       setInviteModalLoading(false);
     }
+
   };
 
   const filteredUsers = users.filter(u => {
