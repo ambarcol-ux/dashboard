@@ -28,7 +28,7 @@ export default function UsersManagementPage() {
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [inviteModalLoading, setInviteModalLoading] = useState(false);
+  const [createModalLoading, setCreateModalLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
     nombre: '',
@@ -85,7 +85,7 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleInvite = async (e: React.FormEvent) => {
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.email || !formData.nombre || !formData.sede_id || !formData.password) {
       return toast.error('Todos los campos son obligatorios.');
@@ -95,9 +95,9 @@ export default function UsersManagementPage() {
       return toast.error('La contraseña debe tener al menos 6 caracteres.');
     }
 
-    setInviteModalLoading(true);
+    setCreateModalLoading(true);
     try {
-      // Llamar a la Server Action para creación segura
+      // Llamar a la Server Action para creación segura (Directa en DB/Auth)
       const result = await createUserAction({
         email: formData.email,
         password: formData.password,
@@ -118,9 +118,9 @@ export default function UsersManagementPage() {
       fetchData();
     } catch (err: any) {
       toast.error('Ocurrió un fallo inesperado al comunicarse con el servidor.');
-      console.error('Error en handleInvite:', err);
+      console.error('Error en handleCreateUser:', err);
     } finally {
-      setInviteModalLoading(false);
+      setCreateModalLoading(false);
     }
 
   };
@@ -246,7 +246,7 @@ export default function UsersManagementPage() {
           </div>
         )}
 
-      {/* Modal de Invitación */}
+      {/* Modal de Creación Directa */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white rounded-[3rem] w-full max-w-lg p-10 shadow-2xl animate-in zoom-in duration-300 relative">
@@ -265,7 +265,7 @@ export default function UsersManagementPage() {
               <p className="text-gray-500 font-medium mt-1">El usuario se activará de inmediato con la clave asignada.</p>
             </div>
 
-            <form onSubmit={handleInvite} className="space-y-6">
+            <form onSubmit={handleCreateUser} className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Nombre Completo</label>
@@ -333,10 +333,10 @@ export default function UsersManagementPage() {
 
               <div className="pt-4">
                 <button 
-                  disabled={inviteModalLoading}
+                  disabled={createModalLoading}
                   className="w-full py-5 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-[1.5rem] shadow-xl shadow-rose-200 transition-all flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
                 >
-                  {inviteModalLoading ? (
+                  {createModalLoading ? (
                     <Loader2 className="w-6 h-6 animate-spin" />
                   ) : (
                     <>
