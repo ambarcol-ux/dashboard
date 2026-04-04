@@ -2243,26 +2243,28 @@ export default function DashboardPage() {
                       {renderLogisticsDate(c, 'Prueba Final', c.fecha_prueba_final, 'estado_prueba_final', c.estado_prueba_final)}
                       {renderLogisticsDate(c, 'P. de Entrega', c.fecha_entrega_envio, 'estado_entrega_envio', c.estado_entrega_envio)}
                       
-                      {/* Tarjeta Pre-XV (Verde) */}
-                      <div 
-                        onClick={() => openPreXvModal(c)}
-                        className="flex items-center justify-between p-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 rounded-lg cursor-pointer transition-all animate-in fade-in slide-in-from-right-2 duration-300 group/prexv"
-                      >
-                        <div className="flex items-center gap-2">
-                          <div className="p-1.5 bg-white text-emerald-600 rounded-md shadow-sm group-hover/prexv:scale-110 transition-transform">
-                            <Camera className="w-3.5 h-3.5" />
+                      {/* Tarjeta Pre-XV (Verde) - Solo si tiene fecha_pre_xv */}
+                      {c.fecha_pre_xv && (
+                        <div 
+                          onClick={() => openPreXvModal(c)}
+                          className="flex items-center justify-between p-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 rounded-lg cursor-pointer transition-all animate-in fade-in slide-in-from-right-2 duration-300 group/prexv"
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className="p-1.5 bg-white text-emerald-600 rounded-md shadow-sm group-hover/prexv:scale-110 transition-transform">
+                              <Camera className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 leading-none mb-0.5">Sesión Pre-XV</span>
+                              <span className="text-xs font-bold text-emerald-600 leading-tight">
+                                {c.prexv_fotografo ? c.prexv_fotografo : 'Asignar Proveedores'}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex flex-col">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 leading-none mb-0.5">Sesión Pre-XV</span>
-                            <span className="text-xs font-bold text-emerald-600 leading-tight">
-                              {c.prexv_fotografo ? c.prexv_fotografo : 'Asignar Proveedores'}
-                            </span>
-                          </div>
+                          {c.prexv_fotografo && (
+                            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                          )}
                         </div>
-                        {c.prexv_fotografo && (
-                          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                        )}
-                      </div>
+                      )}
                     </div>
                     
                     <div className="flex justify-between items-end mt-2 pt-2 border-t border-gray-100">
@@ -2337,21 +2339,23 @@ export default function DashboardPage() {
                         {renderLogisticsDate(c, 'Prueba Final', c.fecha_prueba_final, 'estado_prueba_final', c.estado_prueba_final)}
                         {renderLogisticsDate(c, 'P. de Entrega', c.fecha_entrega_envio, 'estado_entrega_envio', c.estado_entrega_envio)}
                         
-                        {/* Tarjeta Pre-XV (Verde) Desktop */}
-                        <div 
-                          onClick={() => openPreXvModal(c)}
-                          className="mt-1 flex items-center justify-between p-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 rounded-lg cursor-pointer transition-all group/prexv"
-                        >
-                          <div className="flex items-center gap-2">
-                            <Camera className="w-3.5 h-3.5 text-emerald-600" />
-                            <div className="flex flex-col">
-                              <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 leading-none">Sesión Pre-XV</span>
-                              <span className="text-[11px] font-bold text-emerald-600 leading-tight">
-                                {c.prexv_fotografo ? c.prexv_fotografo : 'Asignar sesión'}
-                              </span>
+                        {/* Tarjeta Pre-XV (Verde) Desktop - Solo si tiene fecha_pre_xv */}
+                        {c.fecha_pre_xv && (
+                          <div 
+                            onClick={() => openPreXvModal(c)}
+                            className="mt-1 flex items-center justify-between p-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 rounded-lg cursor-pointer transition-all group/prexv"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                              <div className="flex flex-col">
+                                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 leading-none">Sesión Pre-XV</span>
+                                <span className="text-[11px] font-bold text-emerald-600 leading-tight">
+                                  {c.prexv_fotografo ? c.prexv_fotografo : 'Asignar sesión'}
+                                </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-700">
                         {c.vestidos?.length || 0}
