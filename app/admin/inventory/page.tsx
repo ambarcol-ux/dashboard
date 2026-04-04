@@ -28,6 +28,8 @@ export default function InventoryPage() {
     sede_actual_id: ''
   });
   const [user, setUser] = useState<any>(null);
+  const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal
+  const [editState, setEditState] = useState<Record<number, any>>({}); // Estado local de edición por vestidoid
 
   useEffect(() => {
     const checkUser = async () => {
@@ -153,58 +155,76 @@ export default function InventoryPage() {
     setLoading(false);
   };
 
-  const updateSede = async (vestidoId: number, sedeId: string) => {
-    setUpdatingId(vestidoId);
-    try {
-      const { error } = await supabase
-        .from('vestidos')
-        .update({ 
-          sede_actual_id: sedeId,
-          estado: 'Sede' // Al mover manualmente, asumimos que llegó a la sede
-        })
-        .eq('id', vestidoId);
-      
-      if (error) throw error;
-      toast.success('Sede y estado actualizados');
-      loadData();
-    } catch (err) {
-      console.error(err);
-      toast.error('Error al mover vestido');
-    } finally {
-      setUpdatingId(null);
-    }
+  const handleEditChange = (id: number, field: string, value: any) => {
+    setEditState(prev => ({
+      ...prev,
+      [id]: { 
+        ...(prev[id] || {}), 
+        [field]: field === 'precio_sugerido' || field === 'stock_total' ? Number(value) : value 
+      }
+    }));
   };
 
-  const updateField = async (vestidoId: number, fieldName: 'precio_sugerido' | 'stock_total', value: string) => {
-    const numValue = Number(value);
-    if (isNaN(numValue)) return toast.error('Valor inválido');
-    
-    setUpdatingId(vestidoId);
+  const handleSaveVestido = async (id: number) => {
+    const changes = editState[id];
+    if (!changes) return;
+
+    setUpdatingId(id);
     try {
       const { error } = await supabase
         .from('vestidos')
-        .update({ [fieldName]: numValue })
-        .eq('id', vestidoId);
+        .update(changes)
+        .eq('id', id);
       
       if (error) throw error;
-      toast.success('Inventario actualizado');
-      // No forzamos un loadData completo si no queremos que la UI salte,
-      // pero actualizamos localmente el state param para mantener reactividad:
-      setVestidos(prev => prev.map(v => v.id === vestidoId ? { ...v, [fieldName]: numValue } : v));
+      toast.success('Cambios guardados con éxito 💎');
+      
+      // Limpiar estado de edición para esta fila y recargar
+      setEditState(prev => {
+        const newState = { ...prev };
+        delete newState[id];
+        return newState;
+      });
+      loadData();
     } catch (err: any) {
       console.error(err);
       toast.error('Error al guardar: ' + err.message);
-      loadData(); // Revert on error
     } finally {
       setUpdatingId(null);
     }
   };
 
-  const filtered = vestidos.filter(v => 
-    (v.codigo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (v.categoria && v.categoria.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (v.nombre && v.nombre.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const handleDeleteVestido = async (id: number, codigo: string) => {
+    if (!confirm(`¿Estás seguro de eliminar el vestido ${codigo}? Esta acción no se puede deshacer.`)) return;
+    
+    setUpdatingId(id);
+    try {
+      const { error } = await supabase
+        .from('vestidos')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      toast.success('Vestido eliminado del inventario 🔥');
+      loadData();
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Error al borrar: ' + err.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const filtered = vestidos.filter(v => {
+    const searchMatch = 
+      (v.codigo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (v.categoria && v.categoria.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (v.nombre && v.nombre.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    const sedeMatch = sedeFilter === '' || v.sede_principal_id === sedeFilter;
+    
+    return searchMatch && sedeMatch;
+  });
 
   if (loading && vestidos.length === 0) {
     return (
@@ -272,6 +292,17 @@ export default function InventoryPage() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 pr-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 transition-all"
             />
+          </div>
+
+          <div className="w-full md:w-64">
+            <select 
+              className="w-full px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
+              value={sedeFilter}
+              onChange={(e) => setSedeFilter(e.target.value)}
+            >
+              <option value="">🏠 Todas las Sedes</option>
+              {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+            </select>
           </div>
           <div className="flex items-center gap-3 w-full md:w-auto">
              <div className="px-6 py-4 bg-gray-50 rounded-2xl text-gray-400 font-black text-[10px] uppercase tracking-widest border border-gray-100 italic">
@@ -398,7 +429,7 @@ export default function InventoryPage() {
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Precio Sugerido</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Stock</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ubicación / Logística</th>
-                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Acción</th>
+                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -415,12 +446,18 @@ export default function InventoryPage() {
                           </div>
                           <div>
                             <div className="font-black text-gray-900 text-base tracking-tighter uppercase leading-none mb-1">{v.codigo}</div>
-                            <div className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{v.nombre || 'Sin nombre'}</div>
+                            <input 
+                              type="text"
+                              value={editState[v.id]?.nombre !== undefined ? editState[v.id].nombre : (v.nombre || '')}
+                              onChange={(e) => handleEditChange(v.id, 'nombre', e.target.value)}
+                              className="text-[10px] text-gray-700 bg-gray-50 border border-transparent hover:border-gray-200 focus:bg-white focus:border-rose-300 w-full rounded-md px-1 py-0.5 font-bold uppercase tracking-widest transition-all outline-none"
+                              placeholder="Sin nombre"
+                            />
                           </div>
                         </div>
                       </td>
                       <td className="px-8 py-6">
-                         <div className="flex flex-wrap gap-1.5">
+                         <div className="flex flex-wrap gap-1.5 items-center">
                             <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[9px] font-black uppercase tracking-tighter border border-gray-200">
                               {v.categoria || 'N/A'}
                             </span>
@@ -438,13 +475,9 @@ export default function InventoryPage() {
                           <input 
                             type="number"
                             className="bg-transparent w-full py-2 text-gray-700 font-bold text-center outline-none"
-                            defaultValue={v.precio_sugerido || 0}
+                            value={editState[v.id]?.precio_sugerido !== undefined ? editState[v.id].precio_sugerido : (v.precio_sugerido || 0)}
+                            onChange={(e) => handleEditChange(v.id, 'precio_sugerido', e.target.value)}
                             placeholder="0"
-                            onBlur={(e) => {
-                               if (e.target.value !== String(v.precio_sugerido || 0)) {
-                                 updateField(v.id, 'precio_sugerido', e.target.value);
-                               }
-                            }}
                           />
                         </div>
                       </td>
@@ -452,14 +485,10 @@ export default function InventoryPage() {
                          <div className="w-16 mx-auto">
                             <input 
                               type="number"
-                              min="1"
+                              min="0"
                               className="w-full bg-white border border-gray-200 rounded-lg px-2 py-2 text-center text-sm font-black text-gray-700 outline-none focus:ring-2 focus:ring-rose-200"
-                              defaultValue={v.stock_total || 1}
-                              onBlur={(e) => {
-                                 if (e.target.value !== String(v.stock_total || 1)) {
-                                   updateField(v.id, 'stock_total', e.target.value);
-                                 }
-                              }}
+                              value={editState[v.id]?.stock_total !== undefined ? editState[v.id].stock_total : (v.stock_total || 0)}
+                              onChange={(e) => handleEditChange(v.id, 'stock_total', e.target.value)}
                             />
                          </div>
                       </td>
@@ -480,18 +509,25 @@ export default function InventoryPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-6 text-right">
-                        <select 
-                          className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[11px] font-black text-gray-700 outline-none focus:ring-2 focus:ring-rose-200 disabled:opacity-50"
-                          value={v.sede_actual_id || ''}
-                          disabled={updatingId === v.id}
-                          onChange={(e) => updateSede(v.id, e.target.value)}
-                        >
-                          <option value="">Cambiar Sede...</option>
-                          {sedes.map((s) => (
-                            <option key={s.id} value={s.id}>{s.nombre}</option>
-                          ))}
-                        </select>
+                      <td className="px-6 py-6">
+                        <div className="flex items-center justify-center gap-2">
+                          <button 
+                            onClick={() => handleSaveVestido(v.id)}
+                            disabled={!editState[v.id] || updatingId === v.id}
+                            className="p-3 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 text-white rounded-xl shadow-lg shadow-blue-100 transition-all active:scale-95 group"
+                            title="Guardar Cambios"
+                          >
+                            {updatingId === v.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteVestido(v.id, v.codigo)}
+                            disabled={updatingId === v.id}
+                            className="p-3 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl transition-all active:scale-95 group"
+                            title="Eliminar del Sistema"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -532,12 +568,8 @@ export default function InventoryPage() {
                        <input 
                          type="number"
                          className="w-full bg-gray-50 border border-gray-100 rounded-lg px-3 py-2 text-center text-xs font-black text-gray-700 outline-none focus:ring-2 focus:ring-rose-200"
-                         defaultValue={v.stock_total || 1}
-                         onBlur={(e) => {
-                            if (e.target.value !== String(v.stock_total || 1)) {
-                              updateField(v.id, 'stock_total', e.target.value);
-                            }
-                         }}
+                         value={editState[v.id]?.stock_total !== undefined ? editState[v.id].stock_total : (v.stock_total || 0)}
+                         onChange={(e) => handleEditChange(v.id, 'stock_total', e.target.value)}
                        />
                      </div>
                      <div>
@@ -547,32 +579,30 @@ export default function InventoryPage() {
                           <input 
                             type="number"
                             className="w-full text-xs font-black text-gray-700 bg-transparent py-2 outline-none"
-                            defaultValue={v.precio_sugerido || 0}
-                            onBlur={(e) => {
-                               if (e.target.value !== String(v.precio_sugerido || 0)) {
-                                 updateField(v.id, 'precio_sugerido', e.target.value);
-                               }
-                            }}
+                            value={editState[v.id]?.precio_sugerido !== undefined ? editState[v.id].precio_sugerido : (v.precio_sugerido || 0)}
+                            onChange={(e) => handleEditChange(v.id, 'precio_sugerido', e.target.value)}
                           />
                        </div>
                      </div>
                   </div>
 
-                  <div className="flex items-center justify-between text-xs font-bold text-gray-400 uppercase tracking-wider">
-                    <span>Ubicación</span>
-                    <span className="text-gray-900">{v.sede?.nombre || '---'}</span>
+                  <div className="flex items-center justify-between gap-3 pt-6">
+                    <button 
+                      onClick={() => handleSaveVestido(v.id)}
+                      disabled={!editState[v.id] || updatingId === v.id}
+                      className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2"
+                    >
+                      {updatingId === v.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                      GUARDAR
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteVestido(v.id, v.codigo)}
+                      disabled={updatingId === v.id}
+                      className="p-3 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl transition-all"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  <select 
-                    className="w-full bg-gray-50 border-none rounded-xl px-4 py-3 text-xs font-black text-gray-600 outline-none focus:ring-2 focus:ring-rose-100 transition-all"
-                    value={v.sede_actual_id || ''}
-                    disabled={updatingId === v.id}
-                    onChange={(e) => updateSede(v.id, e.target.value)}
-                  >
-                    <option value="">REUBICAR VESTIDO...</option>
-                    {sedes.map((s) => (
-                      <option key={s.id} value={s.id}>{s.nombre}</option>
-                    ))}
-                  </select>
                 </div>
               </div>
             ))}
