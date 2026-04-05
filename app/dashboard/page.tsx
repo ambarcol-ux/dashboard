@@ -1452,68 +1452,81 @@ export default function DashboardPage() {
   };
 
   const handleRemoveDress = async () => {
+    // Validaciones preventivas
     if (!selectedContract || !removingItem || !removeReason || removeReason.length < 5) {
       toast.error('Debes proporcionar un motivo válido (mín. 5 caracteres).');
       return;
     }
 
-    const { id: itemId, vestido } = removingItem;
-    const vestidoId = vestido?.id;
-    const dressCodigo = vestido?.codigo || 'V-PEND';
+    const vestidoId = removingItem.vestido?.id;
+    const dressCodigo = removingItem.vestido?.codigo || 'V-PEND';
 
     setModalLoading(true);
     try {
-      // 1. BITÁCORA DE ELIMINACIÓN (Paso crítico preventivo)
-      const { data: profile } = await supabase.from('profiles').select('nombre').eq('id', user?.id).single();
-      const editorName = profile?.nombre || user?.email || 'Administrador';
-
+      // 1. REGISTRO DE AUDITORÍA (Campo: 'detalle')
+      // Solo procedemos si esto se guarda
       const { error: errLog } = await supabase.from('bitacora_eliminaciones_contrato').insert({
         contrato_id: selectedContract.id,
         vestido_id: vestidoId,
         codigo_vestido_eliminado: dressCodigo,
-        motivo: 'Eliminación Administrativa',
+        detalle: removeReason, // Campo 'detalle' como solicitaste
         usuario_id: user?.id,
-        detalle: removeReason // El motivo escrito por el usuario
+        motivo: 'Eliminación Profesional'
       });
 
-      if (errLog) throw new Error(`Fallo al registrar auditoría: ${errLog.message}`);
+      if (errLog) {
+        throw new Error(`Error de Auditoría: ${errLog.message}`);
+      }
 
-      // 2. ELIMINAR VÍNCULO Y LIBERAR VESTIDO (Solo si la bitácora fue exitosa)
-      const [delRes, updRes] = await Promise.all([
-        supabase
-          .from('contrato_items_vestidos')
-          .delete()
-          .eq('id', itemId),
-        supabase
-          .from('vestidos')
-          .update({ estado: 'Disponible' })
-          .eq('id', vestidoId)
-      ]);
-      
-      if (delRes.error) throw delRes.error;
-      if (updRes.error) throw updRes.error;
+      // 2. BORRADO REAL EN BASE DE DATOS (Usando .match)
+      const { error: deleteError } = await supabase
+        .from('contrato_items_vestidos')
+        .delete()
+        .match({ 
+          contrato_id: selectedContract.id, 
+          vestido_id: vestidoId 
+        });
 
-      // 3. ACTUALIZACIÓN LOCAL INMEDIATA
+      // VERIFICACIÓN CRÍTICA
+      if (deleteError) {
+        throw new Error(`Error de Borrado DB: ${deleteError.message}`);
+      }
+
+      // 3. LIBERACIÓN DE INVENTARIO
+      const { error: inventoryError } = await supabase
+        .from('vestidos')
+        .update({ estado: 'Disponible' })
+        .eq('id', vestidoId);
+
+      if (inventoryError) {
+        throw new Error(`Error de Inventario: ${inventoryError.message}`);
+      }
+
+      // 4. ACTUALIZACIÓN DE ESTADO Y REFRESCO DE VERDAD
+      // Eliminamos del estado local para feedback visual instantáneo
       setSelectedContract((prev: any) => {
         if (!prev) return prev;
         return {
           ...prev,
-          prendas: prev.prendas?.filter((v: any) => v.id !== itemId) || []
+          prendas: prev.prendas?.filter((p: any) => p.vestido?.id !== vestidoId) || []
         };
       });
 
-      toast.success('Vestido eliminado y auditado con éxito 🗑️');
+      // Cerramos modal y limpiamos
       setShowRemoveModal(false);
       setRemovingItem(null);
       setRemoveReason('');
 
-      // 4. ACTUALIZACIÓN GLOBAL
-      await fetchContratos();
+      // RECARGA COMPLETA DESDE EL SERVIDOR
+      await fetchContratos(); 
       router.refresh();
 
+      toast.success(`Vestido ${dressCodigo} eliminado físicamente y liberado.`);
+
     } catch (err: any) {
-      console.error('Error al quitar vestido:', err);
-      toast.error('Error en la operación: ' + (err.message || 'Error de DB'));
+      console.error('FALLO CRÍTICO EN ELIMINACIÓN:', err);
+      // Solo aquí mostramos error, NUNCA éxito si algo falló arriba
+      toast.error(err.message || 'Error desconocido en la base de datos');
     } finally {
       setModalLoading(false);
     }
