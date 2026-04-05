@@ -1452,12 +1452,21 @@ export default function DashboardPage() {
       return;
     }
 
+    // VERIFICACIÓN DINÁMICA - LOG REQUERIDO POR ADMIN
+    console.log("ID DESTINO:", selectedContract.id);
+    console.log("CONTRATO ACTUAL:", selectedContract.numero_contrato);
+
     setModalLoading(true);
     const oldDressId = substitutingItem.vestido_id; // Este es el vestido actual en el contrato
     const oldDressCodigo = substitutingItem.vestido?.codigo || 'V-ANTERIOR';
 
     try {
       // 0. VERIFICACIÓN DE DISPONIBILIDAD (Seguridad extra)
+      const { data: checkDress, error: errCheck } = await supabase
+        .from('vestidos')
+        .select('estado, codigo')
+        .eq('id', newDressToSubstitute)
+        .single();
       const { data: checkDress, error: errCheck } = await supabase
         .from('vestidos')
         .select('estado, codigo')
