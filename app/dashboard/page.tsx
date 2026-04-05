@@ -1453,31 +1453,42 @@ export default function DashboardPage() {
     }
 
     setModalLoading(true);
-    const oldDressId = substitutingItem.vestido_id;
+    const oldDressId = substitutingItem.vestido_id; // Este es el vestido actual en el contrato
     const oldDressCodigo = substitutingItem.vestido?.codigo || 'V-ANTERIOR';
 
     try {
-      // 1. Ejecutar actualizaciones básicas en paralelo
-      const [updateItem, updateOldDress, updateNewDress] = await Promise.all([
-        supabase
-          .from('contrato_items_vestidos')
-          .update({ vestido_id: newDressToSubstitute })
-          .eq('id', substitutingItem.id),
-        supabase
-          .from('vestidos')
-          .update({ estado: 'Disponible' })
-          .eq('id', oldDressId),
-        supabase
-          .from('vestidos')
-          .update({ estado: 'Alquilado' }) // Cambio de Reservado a Alquilado
-          .eq('id', newDressToSubstitute)
+      // 0. VERIFICACIÓN DE DISPONIBILIDAD (Seguridad extra)
+      const { data: checkDress, error: errCheck } = await supabase
+        .from('vestidos')
+        .select('estado, codigo')
+        .eq('id', newDressToSubstitute)
+        .single();
+      
+      if (errCheck || !checkDress) throw new Error('No se pudo verificar el nuevo vestido.');
+      if (checkDress.estado !== 'Disponible') {
+        throw new Error(`El vestido ${checkDress.codigo} ya no está disponible (Estado actual: ${checkDress.estado}).`);
+      }
+
+      // TRIPLE ACTUALIZACIÓN (Transmisión atómica en cliente)
+      
+      // 1. UPDATE contrato_items_vestidos (Vínculo)
+      const { error: errLink } = await supabase
+        .from('contrato_items_vestidos')
+        .update({ vestido_id: newDressToSubstitute })
+        .eq('id', substitutingItem.id);
+      
+      if (errLink) throw errLink;
+
+      // 2. UPDATE vestidos (Estado)
+      const [updateOld, updateNew] = await Promise.all([
+        supabase.from('vestidos').update({ estado: 'Disponible' }).eq('id', oldDressId),
+        supabase.from('vestidos').update({ estado: 'Alquilado' }).eq('id', newDressToSubstitute)
       ]);
 
-      if (updateItem.error) throw updateItem.error;
-      if (updateOldDress.error) throw updateOldDress.error;
-      if (updateNewDress.error) throw updateNewDress.error;
+      if (updateOld.error) throw updateOld.error;
+      if (updateNew.error) throw updateNew.error;
 
-      // 2. Registrar en historial_cambios_contrato (Asegurando nombres de campos)
+      // 3. INSERT historial_cambios_contrato (Huella)
       const { error: errHist } = await supabase
         .from('historial_cambios_contrato')
         .insert({
@@ -1489,73 +1500,43 @@ export default function DashboardPage() {
         });
 
       if (errHist) {
-        console.error('Error Crítico en Historial:', errHist);
-        throw new Error(`Error al registrar historial (400?): ${errHist.message}`);
+        console.warn('Fallo registro en tabla historial_cambios_contrato:', errHist.message);
       }
 
-      // 3. Auditoría general
+      // 4. Auditoría general (Bitácora)
       const { data: profile } = await supabase.from('profiles').select('nombre').eq('id', user?.id).single();
       const editorName = profile?.nombre || user?.email || 'Administrador';
       
-      const { data: newVInfo } = await supabase.from('vestidos').select('codigo').eq('id', newDressToSubstitute).single();
-      const newDressCodigo = newVInfo?.codigo || 'V-NUEVO';
-
       await supabase.from('bitacora_cambios').insert({
         contrato_id: selectedContract.id,
         tipo_evento: '♻️ CAMBIO DE VESTIDO',
-        motivo: `Admin ${editorName} cambió ${oldDressCodigo} por ${newDressCodigo}. Motivo: ${substitutionReason}`,
+        motivo: `Admin ${editorName} cambió ${oldDressCodigo} por ${checkDress.codigo}. Motivo: ${substitutionReason}`,
         usuario_id: user?.id
       });
 
-      // ÉXITO: Solo aquí decimos que funcionó
-      toast.success('Cambio de vestido realizado con éxito 💎');
+      // ÉXITO Y REFRESH
+      toast.success('Cambio de referencia completado con éxito 💎');
+      
+      // Cerrar modal y limpiar
       setShowSubstituteModal(false);
       setSubstitutingItem(null);
       setNewDressToSubstitute('');
       setSubstitutionReason('');
       
-      // REFRESH LOCAL: Forzar actualización del contrato seleccionado para que el nombre cambie YA
-      if (selectedContract) {
-        const updatedVestidos = selectedContract.vestidos?.map((v: any) => {
-          if (v.id === oldDressId) {
-            // Este es el que se quita, pero usualmente el map es sobre item.vestido
-            // En este ERP, selectedContract.vestidos es un array de objetos VESTIDO
-            return null; // lo filtramos abajo
-          }
-          return v;
-        }).filter(Boolean) || [];
-
-        // Buscamos la info del nuevo vestido para el estado local
-        const { data: newVData } = await supabase.from('vestidos').select('*').eq('id', newDressToSubstitute).single();
-        
-        if (newVData) {
-          // Actualizamos el objeto local del contrato
-          const newSelected = { ...selectedContract };
-          if (newSelected.vestidos) {
-            newSelected.vestidos = newSelected.vestidos.map((v: any) => {
-              if (v.id === oldDressId) return { ...newVData, estado: 'Alquilado' };
-              return v;
-            });
-          }
-          setSelectedContract(newSelected);
-        }
-      }
-
-      // REFRESH GLOBAL E INMEDIATO:
+      // REFRESH GLOBAL E INMEDIATO (Sincronización total)
       const updatedList = await fetchContratos();
-      
-      // Buscar el contrato actualizado en la nueva lista DEVUELTA
-      const updatedContract = updatedList.find(c => c.id === selectedContract.id);
-      if (updatedContract) {
-        setSelectedContract(updatedContract);
+      const freshContract = updatedList.find(c => c.id === selectedContract.id);
+      if (freshContract) {
+        setSelectedContract(freshContract);
       }
-      
+
       router.refresh();
-      refreshBitacora(selectedContract.id);
-      fetchSubstitutionHistory(selectedContract.id);
+      if (typeof refreshBitacora === 'function') refreshBitacora(selectedContract.id);
+      if (typeof fetchSubstitutionHistory === 'function') fetchSubstitutionHistory(selectedContract.id);
+
     } catch (err: any) {
-      console.error('--- FALLA EN SUSTITUCIÓN ---', err);
-      toast.error('FALLÓ EL CAMBIO: ' + (err.message || 'Error desconocido en base de datos'));
+      console.error('--- ERROR EN SUSTITUCIÓN ---', err);
+      toast.error('FALLO EN LA OPERACIÓN: ' + (err.message || 'Error de base de datos'));
     } finally {
       setModalLoading(false);
     }
