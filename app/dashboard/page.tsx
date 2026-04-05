@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Toaster, toast } from 'sonner';
+import { useRouter } from 'next/navigation';
 import { 
   FileText, 
   Clock, 
@@ -53,6 +54,7 @@ import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
 import Sidebar from '@/components/Sidebar';
 
 export default function DashboardPage() {
+  const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<'contratos' | 'vencimientos' | 'logistica'>('contratos');
   const [allVestidos, setAllVestidos] = useState<any[]>([]);
@@ -1469,7 +1471,7 @@ export default function DashboardPage() {
           .eq('id', oldDressId),
         supabase
           .from('vestidos')
-          .update({ estado: 'Reservado' }) // Bloquear el nuevo vestido
+          .update({ estado: 'Alquilado' }) // Cambio de Reservado a Alquilado
           .eq('id', newDressToSubstitute)
       ]);
 
@@ -1514,12 +1516,36 @@ export default function DashboardPage() {
       setNewDressToSubstitute('');
       setSubstitutionReason('');
       
-      // REFRESH: Refrescar el contrato seleccionado para actualizar la vista inmediatamente
+      // REFRESH LOCAL: Forzar actualización del contrato seleccionado para que el nombre cambie YA
+      if (selectedContract) {
+        const updatedVestidos = selectedContract.vestidos?.map((v: any) => {
+          if (v.id === oldDressId) {
+            // Este es el que se quita, pero usualmente el map es sobre item.vestido
+            // En este ERP, selectedContract.vestidos es un array de objetos VESTIDO
+            return null; // lo filtramos abajo
+          }
+          return v;
+        }).filter(Boolean) || [];
+
+        // Buscamos la info del nuevo vestido para el estado local
+        const { data: newVData } = await supabase.from('vestidos').select('*').eq('id', newDressToSubstitute).single();
+        
+        if (newVData) {
+          // Actualizamos el objeto local del contrato
+          const newSelected = { ...selectedContract };
+          if (newSelected.vestidos) {
+            newSelected.vestidos = newSelected.vestidos.map((v: any) => {
+              if (v.id === oldDressId) return { ...newVData, estado: 'Alquilado' };
+              return v;
+            });
+          }
+          setSelectedContract(newSelected);
+        }
+      }
+
+      // REFRESH GLOBAL
       await fetchContratos();
-      
-      // Buscar el contrato actualizado en la nueva lista para refrescar el drawer
-      const updatedContract = contratos.find(c => c.id === selectedContract.id);
-      if (updatedContract) setSelectedContract(updatedContract);
+      router.refresh();
 
       refreshBitacora(selectedContract.id);
       fetchSubstitutionHistory(selectedContract.id);
