@@ -1464,27 +1464,27 @@ export default function DashboardPage() {
       // 0. VERIFICACIÓN DE DISPONIBILIDAD (Seguridad extra)
       const { data: checkDress, error: errCheck } = await supabase
         .from('vestidos')
-        .select('estado, codigo')
-        .eq('id', newDressToSubstitute)
-        .single();
-      const { data: checkDress, error: errCheck } = await supabase
-        .from('vestidos')
-        .select('estado, codigo')
+        .select('estado, codigo, color, nombre, talla')
         .eq('id', newDressToSubstitute)
         .single();
       
       if (errCheck || !checkDress) throw new Error('No se pudo verificar el nuevo vestido.');
-      if (checkDress.estado !== 'Disponible') {
-        throw new Error(`El vestido ${checkDress.codigo} ya no está disponible (Estado actual: ${checkDress.estado}).`);
+      if (checkDress.estado !== 'Disponible' && checkDress.estado !== 'Alquilado') {
+        // Permitimos Alquilado si ya se procesó pero refrescamos, pero idealmente Disponible
+        if (checkDress.estado !== 'Disponible') {
+           throw new Error(`El vestido ${checkDress.codigo} ya no está disponible (Estado actual: ${checkDress.estado}).`);
+        }
       }
 
       // TRIPLE ACTUALIZACIÓN (Transmisión atómica en cliente)
       
       // 1. UPDATE contrato_items_vestidos (Vínculo)
+      // Usamos el ID del contrato y el ID del vestido anterior como pide el Admin
       const { error: errLink } = await supabase
         .from('contrato_items_vestidos')
         .update({ vestido_id: newDressToSubstitute })
-        .eq('id', substitutingItem.id);
+        .eq('contrato_id', selectedContract.id)
+        .eq('vestido_id', oldDressId);
       
       if (errLink) throw errLink;
 
@@ -1523,9 +1523,26 @@ export default function DashboardPage() {
         usuario_id: user?.id
       });
 
-      // ÉXITO Y REFRESH
+      // ÉXITO Y REFRESH INSTANTÁNEO
       toast.success('Cambio de referencia completado con éxito 💎');
       
+      // -- ACTUALIZACIÓN LOCAL INMEDIATA DEL DRAWER --
+      // Esto hace que el nombre cambie en pantalla antes de que Supabase responda el refresh global
+      if (selectedContract.vestidos) {
+        const newSelected = { ...selectedContract };
+        newSelected.vestidos = newSelected.vestidos.map((v: any) => {
+           if (v.id === oldDressId || v.vestido_id === oldDressId) {
+              return { 
+                ...v, 
+                vestido_id: newDressToSubstitute,
+                vestido: { ...checkDress, id: newDressToSubstitute, estado: 'Alquilado' }
+              };
+           }
+           return v;
+        });
+        setSelectedContract(newSelected);
+      }
+
       // Cerrar modal y limpiar
       setShowSubstituteModal(false);
       setSubstitutingItem(null);
