@@ -135,11 +135,9 @@ export default function DashboardPage() {
   });
 
   const [modalLoading, setModalLoading] = useState(false);
-  const [showSubstituteModal, setShowSubstituteModal] = useState(false);
-  const [substitutingItem, setSubstitutingItem] = useState<any>(null);
-  const [substitutionReason, setSubstitutionReason] = useState('');
-  const [newDressToSubstitute, setNewDressToSubstitute] = useState('');
-  const [substitutionHistory, setSubstitutionHistory] = useState<any[]>([]);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [removingItem, setRemovingItem] = useState<any>(null);
+  const [removeReason, setRemoveReason] = useState('');
 
   // -- Follow-up Notes State --
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
@@ -1446,16 +1444,41 @@ export default function DashboardPage() {
     }
   };
 
-  const handleRemoveDress = async (itemId: string, vestidoId: string, dressCodigo: string) => {
-    if (!selectedContract) return;
+  // -- Professional Removal Workflow --
+  const openRemoveModal = (item: any) => {
+    setRemovingItem(item);
+    setRemoveReason('');
+    setShowRemoveModal(true);
+  };
 
-    if (!window.confirm(`¿Estás seguro de quitar el vestido ${dressCodigo} de este contrato? El vestido volverá a estar Disponible.`)) {
+  const handleRemoveDress = async () => {
+    if (!selectedContract || !removingItem || !removeReason || removeReason.length < 5) {
+      toast.error('Debes proporcionar un motivo válido (mín. 5 caracteres).');
       return;
     }
 
+    const { id: itemId, vestido } = removingItem;
+    const vestidoId = vestido?.id;
+    const dressCodigo = vestido?.codigo || 'V-PEND';
+
     setModalLoading(true);
     try {
-      // 1. ELIMINAR VÍNCULO Y LIBERAR VESTIDO (En una sola ráfaga)
+      // 1. BITÁCORA DE ELIMINACIÓN (Paso crítico preventivo)
+      const { data: profile } = await supabase.from('profiles').select('nombre').eq('id', user?.id).single();
+      const editorName = profile?.nombre || user?.email || 'Administrador';
+
+      const { error: errLog } = await supabase.from('bitacora_eliminaciones_contrato').insert({
+        contrato_id: selectedContract.id,
+        vestido_id: vestidoId,
+        codigo_vestido_eliminado: dressCodigo,
+        motivo: 'Eliminación Administrativa',
+        usuario_id: user?.id,
+        detalle: removeReason // El motivo escrito por el usuario
+      });
+
+      if (errLog) throw new Error(`Fallo al registrar auditoría: ${errLog.message}`);
+
+      // 2. ELIMINAR VÍNCULO Y LIBERAR VESTIDO (Solo si la bitácora fue exitosa)
       const [delRes, updRes] = await Promise.all([
         supabase
           .from('contrato_items_vestidos')
@@ -1470,8 +1493,7 @@ export default function DashboardPage() {
       if (delRes.error) throw delRes.error;
       if (updRes.error) throw updRes.error;
 
-      // -- ACTUALIZACIÓN LOCAL INMEDIATA DEL ESTADO (Vista 360) --
-      // Esto quita el vestido de la pantalla SIN esperar a que la red refresque todo.
+      // 3. ACTUALIZACIÓN LOCAL INMEDIATA
       setSelectedContract((prev: any) => {
         if (!prev) return prev;
         return {
@@ -1480,41 +1502,18 @@ export default function DashboardPage() {
         };
       });
 
-      toast.success('Vestido quitado del contrato y liberado con éxito 🗑️');
+      toast.success('Vestido eliminado y auditado con éxito 🗑️');
+      setShowRemoveModal(false);
+      setRemovingItem(null);
+      setRemoveReason('');
 
-      // 2. BITÁCORA (Operación tolerante a fallos, no bloquea al usuario)
-      try {
-        const { data: profile } = await supabase.from('profiles').select('nombre').eq('id', user?.id).single();
-        const editorName = profile?.nombre || user?.email || 'Administrador';
-
-        const { error: errLog } = await supabase.from('bitacora_eliminaciones_contrato').insert({
-          contrato_id: selectedContract.id,
-          vestido_id: vestidoId,
-          motivo: 'Eliminación manual por Admin/Usuario',
-          usuario_id: user?.id,
-          detalle: `El usuario ${editorName} eliminó el vestido ${dressCodigo} del contrato.`
-        });
-
-        if (errLog) {
-           console.warn('Fallo bitácora específica, intentando general:', errLog.message);
-           await supabase.from('bitacora_cambios').insert({
-             contrato_id: selectedContract.id,
-             tipo_evento: '🗑️ ELIMINACIÓN DE PRENDA',
-             motivo: `Admin ${editorName} eliminó ${dressCodigo} del contrato.`,
-             usuario_id: user?.id
-           });
-        }
-      } catch (logErr) {
-        console.warn('Error en auditoría (no crítico):', logErr);
-      }
-
-      // 3. ACTUALIZACIÓN GLOBAL (Segundo plano para sincronizar el resto del dashboard)
-      const updatedList = await fetchContratos();
+      // 4. ACTUALIZACIÓN GLOBAL
+      await fetchContratos();
       router.refresh();
 
     } catch (err: any) {
       console.error('Error al quitar vestido:', err);
-      toast.error('Error al quitar la prenda: ' + (err.message || 'Error de DB'));
+      toast.error('Error en la operación: ' + (err.message || 'Error de DB'));
     } finally {
       setModalLoading(false);
     }
@@ -3080,7 +3079,7 @@ export default function DashboardPage() {
 
                                    {(user?.role === 'admin' || user?.email === 'dubian.h88@gmail.com') && (
                                      <button 
-                                       onClick={() => handleRemoveDress(item.id, v.id, v.codigo)}
+                                       onClick={() => openRemoveModal(item)}
                                        className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-[9px] font-black rounded-lg transition-all shadow-sm border-b-2 border-rose-700 flex items-center gap-1"
                                      >
                                        <Trash2 className="w-3 h-3" /> QUITAR
@@ -3092,9 +3091,6 @@ export default function DashboardPage() {
                        })}
                        {(!selectedContract.prendas || selectedContract.prendas.length === 0) && (
                          <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                            <Package className="w-8 h-8 text-gray-200 mx-auto mb-2" />
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">No hay prendas vinculadas</p>
-   <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                             <Package className="w-8 h-8 text-gray-200 mx-auto mb-2" />
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">No hay prendas vinculadas</p>
                             <button 
@@ -3235,32 +3231,6 @@ export default function DashboardPage() {
                       </button>
                     </div>
                   </section>
-
-                  {/* NEW: HISTORIAL DE CAMBIOS DE VESTIDO */}
-                  {substitutionHistory.length > 0 && (
-                    <section className="animate-in fade-in slide-in-from-bottom-2 duration-500 mb-8">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className="p-2 bg-blue-100 rounded-lg text-blue-600"><RefreshCw className="w-5 h-5"/></div>
-                        <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Historial de Cambios de Vestido</h3>
-                      </div>
-                      <div className="space-y-3">
-                        {substitutionHistory.map((sh) => (
-                           <div key={sh.id} className="p-4 bg-gray-50 rounded-2xl border-l-4 border-blue-500 shadow-sm space-y-1">
-                              <div className="flex justify-between items-start">
-                                <p className="text-[10px] font-black text-gray-900 uppercase">
-                                  {sh.vestido_anterior?.codigo} ➔ {sh.vestido_nuevo?.codigo}
-                                </p>
-                                <span className="text-[8px] font-bold text-gray-400 uppercase">{new Date(sh.created_at).toLocaleDateString()}</span>
-                              </div>
-                              <p className="text-[11px] text-gray-600 italic">"{sh.motivo}"</p>
-                              <p className="text-[8px] font-black text-blue-600 uppercase tracking-widest mt-1">
-                                Autorizado por: {sh.profiles?.nombre || 'Admin'}
-                              </p>
-                           </div>
-                        ))}
-                      </div>
-                    </section>
-                  )}
 
                   {/* HISTORIAL Y BITÁCORA (Always Visible) */}
                   <section className="animate-in slide-in-from-bottom-4 duration-500">
@@ -3808,9 +3778,73 @@ export default function DashboardPage() {
                          {modalLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirmar Recepción'}
                        </button>
                     </div>
+                     <div className="flex gap-4 pt-4">
+                        <button
+                          onClick={() => setTriageModalOpen(false)}
+                          className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black rounded-2xl transition-all active:scale-95 uppercase text-xs"
+                        >Cancelar</button>
+                        <button
+                          onClick={submitTriage}
+                          disabled={modalLoading}
+                          className="flex-[1.5] py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl shadow-lg shadow-amber-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-b-4 border-amber-700 active:border-b-0 active:translate-y-1 uppercase text-xs"
+                        >
+                          {modalLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Confirmar Recepción"}
+                        </button>
+                     </div>
+                  </div>
+               </div>
+            </div>
+         </div>
+      )}
+      {showRemoveModal && removingItem && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-rose-600 p-6 text-center">
+               <h2 className="text-xl font-black text-white uppercase tracking-tight italic">Justificación de Eliminación</h2>
+               <p className="text-rose-100 text-[10px] font-bold uppercase tracking-widest mt-1">Control de Inventario Crítico</p>
+            </div>
+            <div className="p-8 space-y-6 text-center">
+               <div className="flex flex-col items-center gap-2">
+                 <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mb-2">
+                   <Trash2 className="w-8 h-8" />
                  </div>
-              </div>
-           </div>
+                 <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest leading-none">Prenda a Quitar</p>
+                 <p className="text-lg font-black text-gray-900 tracking-tight">{removingItem.vestido?.codigo} - {removingItem.vestido?.nombre}</p>
+               </div>
+               <div className="space-y-2 text-left">
+                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">¿Por qué deseas quitar este vestido del contrato?</label>
+                 <textarea
+                   rows={3}
+                   className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-bold text-gray-700 outline-none focus:border-rose-500 transition-all placeholder:text-gray-300 shadow-inner"
+                   placeholder="Mínimo 5 caracteres: Ej: Cambio por talla, prenda dañada, etc."
+                   value={removeReason}
+                   onChange={(e) => setRemoveReason(e.target.value)}
+                 />
+                 {removeReason.length > 0 && removeReason.length < 5 && (
+                   <p className="text-[9px] font-bold text-rose-500 ml-1 italic animate-pulse tracking-tight">Motivo demasiado corto...</p>
+                 )}
+               </div>
+               <div className="flex gap-3 pt-2">
+                 <button
+                   onClick={() => setShowRemoveModal(false)}
+                   className="flex-1 py-4 bg-gray-100 text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all active:scale-95"
+                 >
+                   Cancelar
+                 </button>
+                 <button
+                   onClick={handleRemoveDress}
+                   disabled={removeReason.length < 5 || modalLoading}
+                   className="flex-[1.5] py-4 bg-rose-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-rose-100 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2 border-b-4 border-rose-800 active:border-b-0 active:translate-y-1"
+                 >
+                   {modalLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : (
+                     <>
+                        <ShieldAlert className="w-4 h-4" /> CONFIRMAR Y QUITAR
+                     </>
+                   )}
+                 </button>
+               </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
