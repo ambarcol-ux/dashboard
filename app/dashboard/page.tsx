@@ -333,6 +333,7 @@ export default function DashboardPage() {
 
   const fetchContratos = async () => {
     setLoading(true);
+    let allData: any[] = [];
     try {
       const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser();
       if (authErr || !authUser) throw new Error("No autenticado");
@@ -443,15 +444,12 @@ export default function DashboardPage() {
       }
 
       setContratos(mappedData);
-
-      // Sincronizar selectedContract si el drawer está abierto
-      if (selectedContract) {
-        const updated = mappedData.find(c => c.id === selectedContract.id);
-        if (updated) setSelectedContract(updated);
-      }
-    } catch (err: any) {
+      setLoading(false);
+      return mappedData;
+    } catch (err) {
       console.error(err);
       toast.error('Error al cargar la lista de contratos.');
+      return [];
     } finally {
       setLoading(false);
     }
@@ -1543,10 +1541,16 @@ export default function DashboardPage() {
         }
       }
 
-      // REFRESH GLOBAL
-      await fetchContratos();
+      // REFRESH GLOBAL E INMEDIATO:
+      const updatedList = await fetchContratos();
+      
+      // Buscar el contrato actualizado en la nueva lista DEVUELTA
+      const updatedContract = updatedList.find(c => c.id === selectedContract.id);
+      if (updatedContract) {
+        setSelectedContract(updatedContract);
+      }
+      
       router.refresh();
-
       refreshBitacora(selectedContract.id);
       fetchSubstitutionHistory(selectedContract.id);
     } catch (err: any) {
@@ -1575,6 +1579,7 @@ export default function DashboardPage() {
       console.error('Error fetching history:', err);
     }
   };
+
 
   const fetchAllVestidos = async () => {
     if (!selectedContract?.sede_id) {
