@@ -1457,32 +1457,28 @@ export default function DashboardPage() {
     const oldDressCodigo = substitutingItem.vestido?.codigo || 'V-ANTERIOR';
 
     try {
-      // 1. Actualizar contrato_items_vestidos con el nuevo ID
-      const { error: errUpdate } = await supabase
-        .from('contrato_items_vestidos')
-        .update({ vestido_id: newDressToSubstitute })
-        .eq('id', substitutingItem.id);
-      
-      if (errUpdate) throw errUpdate;
+      // 1. Ejecutar actualizaciones básicas en paralelo
+      const [updateItem, updateOldDress, updateNewDress] = await Promise.all([
+        supabase
+          .from('contrato_items_vestidos')
+          .update({ vestido_id: newDressToSubstitute })
+          .eq('id', substitutingItem.id),
+        supabase
+          .from('vestidos')
+          .update({ estado: 'Disponible' })
+          .eq('id', oldDressId),
+        supabase
+          .from('vestidos')
+          .update({ estado: 'Reservado' }) // Bloquear el nuevo vestido
+          .eq('id', newDressToSubstitute)
+      ]);
 
-      // 2. Liberar el vestido viejo
-      await supabase
-        .from('vestidos')
-        .update({ estado: 'Disponible' })
-        .eq('id', oldDressId);
+      if (updateItem.error) throw updateItem.error;
+      if (updateOldDress.error) throw updateOldDress.error;
+      if (updateNewDress.error) throw updateNewDress.error;
 
-      // 3. Registrar en historial_cambios_contrato
-      const { data: profile } = await supabase.from('profiles').select('nombre').eq('id', user?.id).single();
-      const editorName = profile?.nombre || user?.email || 'Administrador';
-
-      const { data: newVInfo } = await supabase
-        .from('vestidos')
-        .select('codigo')
-        .eq('id', newDressToSubstitute)
-        .single();
-      const newDressCodigo = newVInfo?.codigo || 'V-NUEVO';
-
-      await supabase
+      // 2. Registrar en historial_cambios_contrato (Asegurando nombres de campos)
+      const { error: errHist } = await supabase
         .from('historial_cambios_contrato')
         .insert({
           contrato_id: selectedContract.id,
@@ -1492,7 +1488,18 @@ export default function DashboardPage() {
           usuario_id: user?.id
         });
 
-      // 4. Auditoría general
+      if (errHist) {
+        console.error('Error Crítico en Historial:', errHist);
+        throw new Error(`Error al registrar historial (400?): ${errHist.message}`);
+      }
+
+      // 3. Auditoría general
+      const { data: profile } = await supabase.from('profiles').select('nombre').eq('id', user?.id).single();
+      const editorName = profile?.nombre || user?.email || 'Administrador';
+      
+      const { data: newVInfo } = await supabase.from('vestidos').select('codigo').eq('id', newDressToSubstitute).single();
+      const newDressCodigo = newVInfo?.codigo || 'V-NUEVO';
+
       await supabase.from('bitacora_cambios').insert({
         contrato_id: selectedContract.id,
         tipo_evento: '♻️ CAMBIO DE VESTIDO',
@@ -1500,18 +1507,25 @@ export default function DashboardPage() {
         usuario_id: user?.id
       });
 
+      // ÉXITO: Solo aquí decimos que funcionó
       toast.success('Cambio de vestido realizado con éxito 💎');
       setShowSubstituteModal(false);
       setSubstitutingItem(null);
       setNewDressToSubstitute('');
       setSubstitutionReason('');
       
-      fetchContratos();
+      // REFRESH: Refrescar el contrato seleccionado para actualizar la vista inmediatamente
+      await fetchContratos();
+      
+      // Buscar el contrato actualizado en la nueva lista para refrescar el drawer
+      const updatedContract = contratos.find(c => c.id === selectedContract.id);
+      if (updatedContract) setSelectedContract(updatedContract);
+
       refreshBitacora(selectedContract.id);
       fetchSubstitutionHistory(selectedContract.id);
     } catch (err: any) {
-      console.error(err);
-      toast.error('Error al realizar el cambio: ' + err.message);
+      console.error('--- FALLA EN SUSTITUCIÓN ---', err);
+      toast.error('FALLÓ EL CAMBIO: ' + (err.message || 'Error desconocido en base de datos'));
     } finally {
       setModalLoading(false);
     }
