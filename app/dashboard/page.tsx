@@ -1450,14 +1450,15 @@ export default function DashboardPage() {
     console.log('--- DEBUG: Buscador Inicia ---');
     console.log('ID de Sede enviado (selectedContract.sede_id):', selectedContract.sede_id);
 
-    // Buscamos todos los vestidos de la sede para descartar problemas de estado
+    // Buscamos solo vestidos DISPONIBLES de la sede
     const { data, error } = await supabase
       .from('vestidos')
       .select('id, codigo, talla, color, estado, sede_actual_id')
       .eq('sede_actual_id', selectedContract.sede_id)
+      .eq('estado', 'Disponible')
       .order('codigo');
     
-    console.log('Vestidos encontrados en DB:', data);
+    console.log('Vestidos disponibles encontrados:', data);
     
     if (error) {
       console.error('Error en fetchAllVestidos:', error.message);

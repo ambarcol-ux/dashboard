@@ -168,11 +168,11 @@ export default function NuevoContratoPage() {
         const selectedSedeId = formData.sede_id;
         console.log('Filtrando vestidos activos globally para Typeahead de Sede:', selectedSedeId);
         
-        // Removemos el .eq('sede_actual_id') para permitir encontrar vestidos en otras sedes (Bypass cross-branch)
+        // Solo mostramos vestidos DISPONIBLES para nuevos contratos
         const { data, error } = await supabase
           .from('vestidos')
           .select('*, sedes:sede_actual_id(nombre), stock_total, precio_sugerido')
-          .neq('estado', 'De Baja');
+          .eq('estado', 'Disponible');
         
         if (error) {
           console.error('[DATABASE ERROR] Vestidos:', error);

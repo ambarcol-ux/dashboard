@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Search, Package, MapPin, ArrowLeftRight, Loader2, 
-  Trash2, Plus, Filter, LayoutGrid, List as ListIcon, CheckCircle2, ChevronLeft
+  Trash2, Plus, Filter, LayoutGrid, List as ListIcon, CheckCircle2, ChevronLeft, ShieldAlert, ChevronDown
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import Link from 'next/link';
@@ -107,6 +107,28 @@ export default function InventoryPage() {
     }
   };
 
+  const handleDeBajaVestido = async (id: number, codigo: string) => {
+    const motivo = confirm(`¿Dar de BAJA el vestido ${codigo} por DAÑO? OK para DAÑO, Cancelar para VENTA.`);
+    const nuevoEstado = motivo ? 'Dañado/Baja' : 'Vendido';
+    
+    setUpdatingId(id);
+    try {
+      const { error } = await supabase
+        .from('vestidos')
+        .update({ estado: nuevoEstado })
+        .eq('id', id);
+      
+      if (error) throw error;
+      toast.success(`Vestido marcado como ${nuevoEstado} 💎`);
+      loadData();
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Error al dar de baja: ' + err.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     let sData: any[] = [];
@@ -189,6 +211,46 @@ export default function InventoryPage() {
     } catch (err: any) {
       console.error(err);
       toast.error('Error al guardar: ' + err.message);
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
+  const handleTransfer = async (v: any, newSedeId: string) => {
+    if (!newSedeId || newSedeId === v.sede_actual_id) return;
+    
+    setUpdatingId(v.id);
+    try {
+      // 1. Insertar en traslados_bitacora
+      const { error: bitacoraError } = await supabase
+        .from('traslados_bitacora')
+        .insert({
+          vestido_id: v.id,
+          sede_origen_id: v.sede_actual_id,
+          sede_destino_id: newSedeId,
+          motivo: 'Traslado de inventario por baja rotación',
+          usuario_id: user?.id
+        });
+      
+      if (bitacoraError) throw bitacoraError;
+
+      // 2. Actualizar vestido (sede_principal y sede_actual)
+      const { error: dressError } = await supabase
+        .from('vestidos')
+        .update({ 
+          sede_principal_id: newSedeId,
+          sede_actual_id: newSedeId,
+          estado: 'Disponible' // Al trasladar vuelve a estar disponible en sede
+        })
+        .eq('id', v.id);
+      
+      if (dressError) throw dressError;
+
+      toast.success('Traslado registrado en historial y completado con éxito 💎');
+      loadData();
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Error al procesar traslado: ' + err.message);
     } finally {
       setUpdatingId(null);
     }
@@ -494,13 +556,28 @@ export default function InventoryPage() {
                       </td>
                       <td className="px-6 py-6">
                         <div className="flex flex-col gap-2">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                            <span className="font-black text-gray-700 uppercase text-[11px] tracking-tight">{v.sede?.nombre || 'ALMACÉN CENTRAL'}</span>
+                          <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Sede Actual</label>
+                          <div className="relative group/select">
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-rose-400 z-10" />
+                            <select 
+                              className="w-full bg-white border border-gray-200 hover:border-rose-300 rounded-xl pl-8 pr-10 py-2.5 text-[10px] font-black text-gray-700 outline-none focus:ring-2 focus:ring-rose-200 transition-all cursor-pointer appearance-none shadow-sm hover:bg-rose-50/50"
+                              value={v.sede_actual_id || ''}
+                              disabled={updatingId === v.id}
+                              onChange={(e) => {
+                                if (window.confirm(`¿Confirmar traslado de ${v.codigo} a la sede seleccionada?`)) {
+                                  handleTransfer(v, e.target.value);
+                                }
+                              }}
+                            >
+                               {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                            </select>
+                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-hover/select:text-rose-500 transition-colors pointer-events-none" />
                           </div>
                           <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border text-center ${
-                            v.estado === 'De Baja'
+                            v.estado === 'De Baja' || v.estado === 'Dañado/Baja'
                             ? 'bg-rose-600 text-white border-rose-700 shadow-sm'
+                            : v.estado === 'Vendido'
+                            ? 'bg-gray-800 text-white border-gray-900'
                             : v.estado === 'Traslado' 
                             ? 'bg-amber-100 text-amber-700 border-amber-200' 
                             : 'bg-emerald-100 text-emerald-700 border-emerald-200'
@@ -527,6 +604,16 @@ export default function InventoryPage() {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
+                          {user?.role === 'admin' && (
+                            <button 
+                              onClick={() => handleDeBajaVestido(v.id, v.codigo)}
+                              disabled={updatingId === v.id || v.estado === 'Vendido' || v.estado === 'Dañado/Baja'}
+                              className="p-3 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all active:scale-95 group"
+                              title="Dar de Baja (Venta/Daño)"
+                            >
+                              <ShieldAlert className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -586,6 +673,26 @@ export default function InventoryPage() {
                      </div>
                   </div>
 
+                  <div className="space-y-2 pt-4 border-t border-gray-50">
+                      <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Sede / Ubicación</label>
+                      <div className="relative group/select">
+                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-rose-400 z-10" />
+                        <select 
+                          className="w-full bg-white border border-gray-200 hover:border-rose-300 rounded-xl pl-10 pr-12 py-3 text-xs font-black text-gray-700 outline-none focus:ring-2 focus:ring-rose-200 transition-all cursor-pointer appearance-none shadow-sm hover:bg-rose-50/50"
+                          value={v.sede_actual_id || ''}
+                          disabled={updatingId === v.id}
+                          onChange={(e) => {
+                            if (window.confirm(`¿Confirmar traslado de ${v.codigo} a la sede seleccionada?`)) {
+                              handleTransfer(v, e.target.value);
+                            }
+                          }}
+                        >
+                           {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                        </select>
+                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-hover/select:text-rose-500 transition-colors pointer-events-none" />
+                      </div>
+                  </div>
+
                   <div className="flex items-center justify-between gap-3 pt-6">
                     <button 
                       onClick={() => handleSaveVestido(v.id)}
@@ -602,6 +709,16 @@ export default function InventoryPage() {
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
+                    {user?.role === 'admin' && (
+                      <button 
+                        onClick={() => handleDeBajaVestido(v.id, v.codigo)}
+                        disabled={updatingId === v.id || v.estado === 'Vendido' || v.estado === 'Dañado/Baja'}
+                        className="p-3 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all"
+                        title="Dar de Baja"
+                      >
+                        <ShieldAlert className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

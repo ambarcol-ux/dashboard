@@ -7,6 +7,13 @@ function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
+  // Debug (Safe Log for Developer)
+  console.log('🔍 [DEBUG] Env Check:', { 
+    hasUrl: !!url, 
+    keyPrefix: serviceKey ? serviceKey.substring(0, 5) + '...' : 'undefined',
+    expectedName: 'SUPABASE_SERVICE_ROLE_KEY' 
+  });
+
   if (!url || !serviceKey) {
     console.error('❌ CONFIG ERROR: Missing Supabase URL or SERVICE_ROLE_KEY');
     return null;
@@ -37,8 +44,11 @@ export async function createUserAction(params: CreateUserParams) {
 
   // Validación explícita de password para evitar que Supabase intente enviar un "Invite" (lo hace si el password está vacío)
   if (!params.password || params.password.trim().length < 6) {
-    return { success: false, message: "La contraseña es obligatoria y debe ser de al menos 6 caracteres." };
+    return { success: false, message: "La contraseña es obligatoria (mínimo 6 caracteres). Sin contraseña, Supabase intenta modo 'Invitar' el cual no está configurado." };
   }
+
+  // Normalización de Roles para integridad de datos
+  const finalRol = params.rol === 'admin' ? 'ADMIN' : params.rol;
 
   console.log('🚀 [ADMIN_CREATE] Iniciando flujo para:', params.email);
 
@@ -51,7 +61,7 @@ export async function createUserAction(params: CreateUserParams) {
       email_confirm: true, // Esto es CRÍTICO para que no envíe correos y el usuario quede activo.
       user_metadata: {
         nombre: params.nombre,
-        rol: params.rol
+        rol: finalRol
       }
     });
 
@@ -80,7 +90,7 @@ export async function createUserAction(params: CreateUserParams) {
         email: params.email,
         nombre: params.nombre,
         sede_id: params.sede_id,
-        rol: params.rol
+        rol: finalRol
       }], { onConflict: 'id' });
 
     if (profileErr) {
