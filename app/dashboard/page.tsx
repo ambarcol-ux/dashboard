@@ -133,6 +133,11 @@ export default function DashboardPage() {
   });
 
   const [modalLoading, setModalLoading] = useState(false);
+  const [showSubstituteModal, setShowSubstituteModal] = useState(false);
+  const [substitutingItem, setSubstitutingItem] = useState<any>(null);
+  const [substitutionReason, setSubstitutionReason] = useState('');
+  const [newDressToSubstitute, setNewDressToSubstitute] = useState('');
+  const [substitutionHistory, setSubstitutionHistory] = useState<any[]>([]);
 
   // -- Follow-up Notes State --
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
@@ -1438,6 +1443,96 @@ export default function DashboardPage() {
       toast.error('Error al asignar vestido: ' + (err.message || 'Ver consola'));
     } finally {
       setModalLoading(false);
+    }
+  };
+
+  const handleSubstituteDress = async () => {
+    if (!selectedContract || !substitutingItem || !newDressToSubstitute || !substitutionReason) {
+      toast.error('Faltan campos obligatorios para el cambio.');
+      return;
+    }
+
+    setModalLoading(true);
+    const oldDressId = substitutingItem.vestido_id;
+    const oldDressCodigo = substitutingItem.vestido?.codigo || 'V-ANTERIOR';
+
+    try {
+      // 1. Actualizar contrato_items_vestidos con el nuevo ID
+      const { error: errUpdate } = await supabase
+        .from('contrato_items_vestidos')
+        .update({ vestido_id: newDressToSubstitute })
+        .eq('id', substitutingItem.id);
+      
+      if (errUpdate) throw errUpdate;
+
+      // 2. Liberar el vestido viejo
+      await supabase
+        .from('vestidos')
+        .update({ estado: 'Disponible' })
+        .eq('id', oldDressId);
+
+      // 3. Registrar en historial_cambios_contrato
+      const { data: profile } = await supabase.from('profiles').select('nombre').eq('id', user?.id).single();
+      const editorName = profile?.nombre || user?.email || 'Administrador';
+
+      const { data: newVInfo } = await supabase
+        .from('vestidos')
+        .select('codigo')
+        .eq('id', newDressToSubstitute)
+        .single();
+      const newDressCodigo = newVInfo?.codigo || 'V-NUEVO';
+
+      await supabase
+        .from('historial_cambios_contrato')
+        .insert({
+          contrato_id: selectedContract.id,
+          vestido_anterior_id: oldDressId,
+          vestido_nuevo_id: newDressToSubstitute,
+          motivo: substitutionReason,
+          usuario_id: user?.id
+        });
+
+      // 4. Auditoría general
+      await supabase.from('bitacora_cambios').insert({
+        contrato_id: selectedContract.id,
+        tipo_evento: '♻️ CAMBIO DE VESTIDO',
+        motivo: `Admin ${editorName} cambió ${oldDressCodigo} por ${newDressCodigo}. Motivo: ${substitutionReason}`,
+        usuario_id: user?.id
+      });
+
+      toast.success('Cambio de vestido realizado con éxito 💎');
+      setShowSubstituteModal(false);
+      setSubstitutingItem(null);
+      setNewDressToSubstitute('');
+      setSubstitutionReason('');
+      
+      fetchContratos();
+      refreshBitacora(selectedContract.id);
+      fetchSubstitutionHistory(selectedContract.id);
+    } catch (err: any) {
+      console.error(err);
+      toast.error('Error al realizar el cambio: ' + err.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const fetchSubstitutionHistory = async (contractId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('historial_cambios_contrato')
+        .select(`
+          *,
+          vestido_anterior:vestido_anterior_id(codigo),
+          vestido_nuevo:vestido_nuevo_id(codigo),
+          profiles:usuario_id(nombre)
+        `)
+        .eq('contrato_id', contractId)
+        .order('created_at', { ascending: false });
+      
+      if (!error && data) setSubstitutionHistory(data);
+    } catch (err) {
+      console.error('Error fetching history:', err);
     }
   };
 
@@ -2978,6 +3073,17 @@ export default function DashboardPage() {
                                       📥 RECIBIR PRENDA
                                     </button>
                                   )}
+{(user?.role === 'admin' || user?.email === 'dubian.h88@gmail.com') && (
+                                     <button 
+                                       onClick={() => {
+                                          setSubstitutingItem(item);
+                                          setShowSubstituteModal(true);
+                                       }}
+                                       className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[9px] font-black rounded-lg transition-all shadow-sm border-b-2 border-blue-700"
+                                     >
+                                       ♻️ CAMBIAR REFERENCIA
+                                     </button>
+                                   )}
                                </div>
                             </div>
                           );
@@ -3124,6 +3230,32 @@ export default function DashboardPage() {
                       </button>
                     </div>
                   </section>
+
+                  {/* NEW: HISTORIAL DE CAMBIOS DE VESTIDO */}
+                  {substitutionHistory.length > 0 && (
+                    <section className="animate-in fade-in slide-in-from-bottom-2 duration-500 mb-8">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-blue-100 rounded-lg text-blue-600"><RefreshCw className="w-5 h-5"/></div>
+                        <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Historial de Cambios de Vestido</h3>
+                      </div>
+                      <div className="space-y-3">
+                        {substitutionHistory.map((sh) => (
+                           <div key={sh.id} className="p-4 bg-gray-50 rounded-2xl border-l-4 border-blue-500 shadow-sm space-y-1">
+                              <div className="flex justify-between items-start">
+                                <p className="text-[10px] font-black text-gray-900 uppercase">
+                                  {sh.vestido_anterior?.codigo} ➔ {sh.vestido_nuevo?.codigo}
+                                </p>
+                                <span className="text-[8px] font-bold text-gray-400 uppercase">{new Date(sh.created_at).toLocaleDateString()}</span>
+                              </div>
+                              <p className="text-[11px] text-gray-600 italic">"{sh.motivo}"</p>
+                              <p className="text-[8px] font-black text-blue-600 uppercase tracking-widest mt-1">
+                                Autorizado por: {sh.profiles?.nombre || 'Admin'}
+                              </p>
+                           </div>
+                        ))}
+                      </div>
+                    </section>
+                  )}
 
                   {/* HISTORIAL Y BITÁCORA (Always Visible) */}
                   <section className="animate-in slide-in-from-bottom-4 duration-500">
@@ -3674,6 +3806,64 @@ export default function DashboardPage() {
                  </div>
               </div>
            </div>
+        </div>
+      )}
+      {/* MODAL: CAMBIO DE REFERENCIA ADMIN */}
+      {showSubstituteModal && substitutingItem && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-blue-600 p-6 text-center">
+               <h2 className="text-xl font-black text-white uppercase tracking-tight">Cambiar Referencia</h2>
+               <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1">Autorización Administrativa</p>
+            </div>
+            <div className="p-8 space-y-6">
+               <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                 <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Vestido Actual / Anterior</p>
+                 <p className="text-sm font-black text-blue-900">{substitutingItem.vestido?.codigo} - {substitutingItem.vestido?.nombre}</p>
+               </div>
+
+               <div className="space-y-2">
+                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nuevo Vestido (Sede: {selectedContract.sede})</label>
+                 <select 
+                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-300"
+                   value={newDressToSubstitute}
+                   onChange={(e) => setNewDressToSubstitute(e.target.value)}
+                 >
+                   <option value="">Selecciona reemplazo...</option>
+                   {allVestidos.map(v => (
+                     <option key={v.id} value={v.id}>{v.codigo} - {v.color} ({v.talla})</option>
+                   ))}
+                 </select>
+               </div>
+
+               <div className="space-y-2">
+                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Motivo del Cambio</label>
+                 <textarea 
+                   rows={3}
+                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-300"
+                   placeholder="Ej: A la cliente no le gustó el color..."
+                   value={substitutionReason}
+                   onChange={(e) => setSubstitutionReason(e.target.value)}
+                 />
+               </div>
+
+               <div className="flex gap-3 pt-2">
+                 <button 
+                   onClick={() => setShowSubstituteModal(false)}
+                   className="flex-1 py-4 bg-gray-100 text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all"
+                 >
+                   Cancelar
+                 </button>
+                 <button 
+                   onClick={handleSubstituteDress}
+                   disabled={!newDressToSubstitute || !substitutionReason || modalLoading}
+                   className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all disabled:opacity-50"
+                 >
+                   {modalLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'CONFIRMAR CAMBIO'}
+                 </button>
+               </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
