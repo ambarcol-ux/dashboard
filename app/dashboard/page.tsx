@@ -1455,57 +1455,66 @@ export default function DashboardPage() {
 
     setModalLoading(true);
     try {
-      // 1. Eliminar vínculo
-      const { error: errDel } = await supabase
-        .from('contrato_items_vestidos')
-        .delete()
-        .eq('id', itemId);
+      // 1. ELIMINAR VÍNCULO Y LIBERAR VESTIDO (En una sola ráfaga)
+      const [delRes, updRes] = await Promise.all([
+        supabase
+          .from('contrato_items_vestidos')
+          .delete()
+          .eq('id', itemId),
+        supabase
+          .from('vestidos')
+          .update({ estado: 'Disponible' })
+          .eq('id', vestidoId)
+      ]);
       
-      if (errDel) throw errDel;
+      if (delRes.error) throw delRes.error;
+      if (updRes.error) throw updRes.error;
 
-      // 2. Liberar vestido
-      const { error: errUpd } = await supabase
-        .from('vestidos')
-        .update({ estado: 'Disponible' })
-        .eq('id', vestidoId);
-      
-      if (errUpd) throw errUpd;
+      // -- ACTUALIZACIÓN LOCAL INMEDIATA DEL ESTADO (Vista 360) --
+      // Esto quita el vestido de la pantalla SIN esperar a que la red refresque todo.
+      setSelectedContract((prev: any) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          vestidos: prev.vestidos?.filter((v: any) => v.id !== itemId) || []
+        };
+      });
 
-      // 3. Bitácora de eliminación
-      const { data: profile } = await supabase.from('profiles').select('nombre').eq('id', user?.id).single();
-      const editorName = profile?.nombre || user?.email || 'Administrador';
+      toast.success('Vestido quitado del contrato y liberado con éxito 🗑️');
 
-      await supabase.from('bitacora_eliminaciones_contrato').insert({
-        contrato_id: selectedContract.id,
-        vestido_id: vestidoId,
-        motivo: 'Eliminación manual por Admin/Usuario',
-        usuario_id: user?.id,
-        detalle: `El usuario ${editorName} eliminó el vestido ${dressCodigo} del contrato.`
-      }).select().then(({ error }) => {
-        if (error) {
-           // Fallback a bitacora_cambios si la tabla específica no existe
-           supabase.from('bitacora_cambios').insert({
+      // 2. BITÁCORA (Operación tolerante a fallos, no bloquea al usuario)
+      try {
+        const { data: profile } = await supabase.from('profiles').select('nombre').eq('id', user?.id).single();
+        const editorName = profile?.nombre || user?.email || 'Administrador';
+
+        const { error: errLog } = await supabase.from('bitacora_eliminaciones_contrato').insert({
+          contrato_id: selectedContract.id,
+          vestido_id: vestidoId,
+          motivo: 'Eliminación manual por Admin/Usuario',
+          usuario_id: user?.id,
+          detalle: `El usuario ${editorName} eliminó el vestido ${dressCodigo} del contrato.`
+        });
+
+        if (errLog) {
+           console.warn('Fallo bitácora específica, intentando general:', errLog.message);
+           await supabase.from('bitacora_cambios').insert({
              contrato_id: selectedContract.id,
              tipo_evento: '🗑️ ELIMINACIÓN DE PRENDA',
              motivo: `Admin ${editorName} eliminó ${dressCodigo} del contrato.`,
              usuario_id: user?.id
-           }).then(() => {});
+           });
         }
-      });
-
-      toast.success('Vestido eliminado y liberado con éxito 🗑️');
-      
-      // 4. Refresh
-      const updatedList = await fetchContratos();
-      const freshContract = updatedList.find(c => c.id === selectedContract.id);
-      if (freshContract) {
-        setSelectedContract(freshContract);
+      } catch (logErr) {
+        console.warn('Error en auditoría (no crítico):', logErr);
       }
+
+      // 3. ACTUALIZACIÓN GLOBAL (Segundo plano para sincronizar el resto del dashboard)
+      const updatedList = await fetchContratos();
       router.refresh();
 
     } catch (err: any) {
-      console.error('Error al eliminar vestido:', err);
-      toast.error('Error al eliminar: ' + (err.message || 'Error de DB'));
+      console.error('Error al quitar vestido:', err);
+      toast.error('Error al quitar la prenda: ' + (err.message || 'Error de DB'));
     } finally {
       setModalLoading(false);
     }
