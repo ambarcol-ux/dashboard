@@ -1446,123 +1446,66 @@ export default function DashboardPage() {
     }
   };
 
-  const handleSubstituteDress = async () => {
-    if (!selectedContract || !substitutingItem || !newDressToSubstitute || !substitutionReason) {
-      toast.error('Faltan campos obligatorios para el cambio.');
+  const handleRemoveDress = async (itemId: string, vestidoId: string, dressCodigo: string) => {
+    if (!selectedContract) return;
+
+    if (!window.confirm(`¿Estás seguro de quitar el vestido ${dressCodigo} de este contrato? El vestido volverá a estar Disponible.`)) {
       return;
     }
 
-    // VERIFICACIÓN DINÁMICA - LOG REQUERIDO POR ADMIN
-    console.log("ID DESTINO:", selectedContract.id);
-    console.log("CONTRATO ACTUAL:", selectedContract.numero_contrato);
-
     setModalLoading(true);
-    const oldDressId = substitutingItem.vestido_id; // Este es el vestido actual en el contrato
-    const oldDressCodigo = substitutingItem.vestido?.codigo || 'V-ANTERIOR';
-
     try {
-      // 0. VERIFICACIÓN DE DISPONIBILIDAD (Seguridad extra)
-      const { data: checkDress, error: errCheck } = await supabase
-        .from('vestidos')
-        .select('estado, codigo, color, nombre, talla')
-        .eq('id', newDressToSubstitute)
-        .single();
-      
-      if (errCheck || !checkDress) throw new Error('No se pudo verificar el nuevo vestido.');
-      if (checkDress.estado !== 'Disponible' && checkDress.estado !== 'Alquilado') {
-        // Permitimos Alquilado si ya se procesó pero refrescamos, pero idealmente Disponible
-        if (checkDress.estado !== 'Disponible') {
-           throw new Error(`El vestido ${checkDress.codigo} ya no está disponible (Estado actual: ${checkDress.estado}).`);
-        }
-      }
-
-      // TRIPLE ACTUALIZACIÓN (Transmisión atómica en cliente)
-      
-      // 1. UPDATE contrato_items_vestidos (Vínculo)
-      // Usamos el ID del contrato y el ID del vestido anterior como pide el Admin
-      const { error: errLink } = await supabase
+      // 1. Eliminar vínculo
+      const { error: errDel } = await supabase
         .from('contrato_items_vestidos')
-        .update({ vestido_id: newDressToSubstitute })
-        .eq('contrato_id', selectedContract.id)
-        .eq('vestido_id', oldDressId);
+        .delete()
+        .eq('id', itemId);
       
-      if (errLink) throw errLink;
+      if (errDel) throw errDel;
 
-      // 2. UPDATE vestidos (Estado)
-      const [updateOld, updateNew] = await Promise.all([
-        supabase.from('vestidos').update({ estado: 'Disponible' }).eq('id', oldDressId),
-        supabase.from('vestidos').update({ estado: 'Alquilado' }).eq('id', newDressToSubstitute)
-      ]);
+      // 2. Liberar vestido
+      const { error: errUpd } = await supabase
+        .from('vestidos')
+        .update({ estado: 'Disponible' })
+        .eq('id', vestidoId);
+      
+      if (errUpd) throw errUpd;
 
-      if (updateOld.error) throw updateOld.error;
-      if (updateNew.error) throw updateNew.error;
-
-      // 3. INSERT historial_cambios_contrato (Huella)
-      const { error: errHist } = await supabase
-        .from('historial_cambios_contrato')
-        .insert({
-          contrato_id: selectedContract.id,
-          vestido_anterior_id: oldDressId,
-          vestido_nuevo_id: newDressToSubstitute,
-          motivo: substitutionReason,
-          usuario_id: user?.id
-        });
-
-      if (errHist) {
-        console.warn('Fallo registro en tabla historial_cambios_contrato:', errHist.message);
-      }
-
-      // 4. Auditoría general (Bitácora)
+      // 3. Bitácora de eliminación
       const { data: profile } = await supabase.from('profiles').select('nombre').eq('id', user?.id).single();
       const editorName = profile?.nombre || user?.email || 'Administrador';
-      
-      await supabase.from('bitacora_cambios').insert({
+
+      await supabase.from('bitacora_eliminaciones_contrato').insert({
         contrato_id: selectedContract.id,
-        tipo_evento: '♻️ CAMBIO DE VESTIDO',
-        motivo: `Admin ${editorName} cambió ${oldDressCodigo} por ${checkDress.codigo}. Motivo: ${substitutionReason}`,
-        usuario_id: user?.id
+        vestido_id: vestidoId,
+        motivo: 'Eliminación manual por Admin/Usuario',
+        usuario_id: user?.id,
+        detalle: `El usuario ${editorName} eliminó el vestido ${dressCodigo} del contrato.`
+      }).select().then(({ error }) => {
+        if (error) {
+           // Fallback a bitacora_cambios si la tabla específica no existe
+           supabase.from('bitacora_cambios').insert({
+             contrato_id: selectedContract.id,
+             tipo_evento: '🗑️ ELIMINACIÓN DE PRENDA',
+             motivo: `Admin ${editorName} eliminó ${dressCodigo} del contrato.`,
+             usuario_id: user?.id
+           }).then(() => {});
+        }
       });
 
-      // ÉXITO Y REFRESH INSTANTÁNEO
-      toast.success('Cambio de referencia completado con éxito 💎');
+      toast.success('Vestido eliminado y liberado con éxito 🗑️');
       
-      // -- ACTUALIZACIÓN LOCAL INMEDIATA DEL DRAWER --
-      // Esto hace que el nombre cambie en pantalla antes de que Supabase responda el refresh global
-      if (selectedContract.vestidos) {
-        const newSelected = { ...selectedContract };
-        newSelected.vestidos = newSelected.vestidos.map((v: any) => {
-           if (v.id === oldDressId || v.vestido_id === oldDressId) {
-              return { 
-                ...v, 
-                vestido_id: newDressToSubstitute,
-                vestido: { ...checkDress, id: newDressToSubstitute, estado: 'Alquilado' }
-              };
-           }
-           return v;
-        });
-        setSelectedContract(newSelected);
-      }
-
-      // Cerrar modal y limpiar
-      setShowSubstituteModal(false);
-      setSubstitutingItem(null);
-      setNewDressToSubstitute('');
-      setSubstitutionReason('');
-      
-      // REFRESH GLOBAL E INMEDIATO (Sincronización total)
+      // 4. Refresh
       const updatedList = await fetchContratos();
       const freshContract = updatedList.find(c => c.id === selectedContract.id);
       if (freshContract) {
         setSelectedContract(freshContract);
       }
-
       router.refresh();
-      if (typeof refreshBitacora === 'function') refreshBitacora(selectedContract.id);
-      if (typeof fetchSubstitutionHistory === 'function') fetchSubstitutionHistory(selectedContract.id);
 
     } catch (err: any) {
-      console.error('--- ERROR EN SUSTITUCIÓN ---', err);
-      toast.error('FALLO EN LA OPERACIÓN: ' + (err.message || 'Error de base de datos'));
+      console.error('Error al eliminar vestido:', err);
+      toast.error('Error al eliminar: ' + (err.message || 'Error de DB'));
     } finally {
       setModalLoading(false);
     }
@@ -3125,15 +3068,12 @@ export default function DashboardPage() {
                                       📥 RECIBIR PRENDA
                                     </button>
                                   )}
-{(user?.role === 'admin' || user?.email === 'dubian.h88@gmail.com') && (
+                                   {(user?.role === 'admin' || user?.email === 'dubian.h88@gmail.com') && (
                                      <button 
-                                       onClick={() => {
-                                          setSubstitutingItem(item);
-                                          setShowSubstituteModal(true);
-                                       }}
-                                       className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-[9px] font-black rounded-lg transition-all shadow-sm border-b-2 border-blue-700"
+                                       onClick={() => handleRemoveDress(item.id, v.id, v.codigo)}
+                                       className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-[9px] font-black rounded-lg transition-all shadow-sm border-b-2 border-rose-700 flex items-center gap-1"
                                      >
-                                       ♻️ CAMBIAR REFERENCIA
+                                       <Trash2 className="w-3 h-3" /> QUITAR
                                      </button>
                                    )}
                                </div>
@@ -3858,64 +3798,6 @@ export default function DashboardPage() {
                  </div>
               </div>
            </div>
-        </div>
-      )}
-      {/* MODAL: CAMBIO DE REFERENCIA ADMIN */}
-      {showSubstituteModal && substitutingItem && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-gray-900/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="bg-blue-600 p-6 text-center">
-               <h2 className="text-xl font-black text-white uppercase tracking-tight">Cambiar Referencia</h2>
-               <p className="text-blue-100 text-[10px] font-bold uppercase tracking-widest mt-1">Autorización Administrativa</p>
-            </div>
-            <div className="p-8 space-y-6">
-               <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
-                 <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1">Vestido Actual / Anterior</p>
-                 <p className="text-sm font-black text-blue-900">{substitutingItem.vestido?.codigo} - {substitutingItem.vestido?.nombre}</p>
-               </div>
-
-               <div className="space-y-2">
-                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nuevo Vestido (Sede: {selectedContract.sede})</label>
-                 <select 
-                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-300"
-                   value={newDressToSubstitute}
-                   onChange={(e) => setNewDressToSubstitute(e.target.value)}
-                 >
-                   <option value="">Selecciona reemplazo...</option>
-                   {allVestidos.map(v => (
-                     <option key={v.id} value={v.id}>{v.codigo} - {v.color} ({v.talla})</option>
-                   ))}
-                 </select>
-               </div>
-
-               <div className="space-y-2">
-                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Motivo del Cambio</label>
-                 <textarea 
-                   rows={3}
-                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 outline-none focus:ring-2 focus:ring-blue-300"
-                   placeholder="Ej: A la cliente no le gustó el color..."
-                   value={substitutionReason}
-                   onChange={(e) => setSubstitutionReason(e.target.value)}
-                 />
-               </div>
-
-               <div className="flex gap-3 pt-2">
-                 <button 
-                   onClick={() => setShowSubstituteModal(false)}
-                   className="flex-1 py-4 bg-gray-100 text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all"
-                 >
-                   Cancelar
-                 </button>
-                 <button 
-                   onClick={handleSubstituteDress}
-                   disabled={!newDressToSubstitute || !substitutionReason || modalLoading}
-                   className="flex-1 py-4 bg-blue-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all disabled:opacity-50"
-                 >
-                   {modalLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'CONFIRMAR CAMBIO'}
-                 </button>
-               </div>
-            </div>
-          </div>
         </div>
       )}
     </div>
