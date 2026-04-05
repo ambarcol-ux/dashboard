@@ -396,10 +396,10 @@ export default function DashboardPage() {
         throw errC;
       }
 
-      // Rename 'items' to 'vestidos' to match component expectations
+      // Rename 'items' to 'prendas' to match component expectations
       const mappedData = (finalData || []).map(c => ({
         ...c,
-        vestidos: (c as any).items || []
+        prendas: (c as any).items || []
       }));
 
       // 0. Auto-Cleanup de Pendientes / Borradores (Expirados tras 3 días)
@@ -411,9 +411,9 @@ export default function DashboardPage() {
       );
       
       for (const exp of expired) {
-        // 1. Liberar vestidos vinculados (importante para pendiente_admin)
-        if (exp.vestidos && exp.vestidos.length > 0) {
-           for (const item of exp.vestidos) {
+        // 1. Liberar prendas vinculadas (importante para pendiente_admin)
+        if (exp.prendas && exp.prendas.length > 0) {
+           for (const item of exp.prendas) {
              if (item.vestido_id) {
                 await supabase.from('vestidos')
                   .update({ estado: 'Disponible' })
@@ -1476,7 +1476,7 @@ export default function DashboardPage() {
         if (!prev) return prev;
         return {
           ...prev,
-          vestidos: prev.vestidos?.filter((v: any) => v.id !== itemId) || []
+          prendas: prev.prendas?.filter((v: any) => v.id !== itemId) || []
         };
       });
 
@@ -3026,7 +3026,7 @@ export default function DashboardPage() {
                      )}
 
                      <div className="space-y-3">
-                       {selectedContract.vestidos?.map((item: any, idx: number) => {
+                       {selectedContract.prendas?.map((item: any, idx: number) => {
                           const v = item.vestido;
                           const isDifferentSede = v?.sede_actual_id !== selectedContract.sede_id;
                           const isInTransit = v?.estado === 'Traslado';
@@ -3077,6 +3077,7 @@ export default function DashboardPage() {
                                       📥 RECIBIR PRENDA
                                     </button>
                                   )}
+
                                    {(user?.role === 'admin' || user?.email === 'dubian.h88@gmail.com') && (
                                      <button 
                                        onClick={() => handleRemoveDress(item.id, v.id, v.codigo)}
@@ -3089,8 +3090,11 @@ export default function DashboardPage() {
                             </div>
                           );
                        })}
-                       {(!selectedContract.vestidos || selectedContract.vestidos.length === 0) && (
+                       {(!selectedContract.prendas || selectedContract.prendas.length === 0) && (
                          <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                            <Package className="w-8 h-8 text-gray-200 mx-auto mb-2" />
+                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">No hay prendas vinculadas</p>
+   <div className="p-8 text-center bg-gray-50 rounded-2xl border border-dashed border-gray-200">
                             <Package className="w-8 h-8 text-gray-200 mx-auto mb-2" />
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">No hay prendas vinculadas</p>
                             <button 
