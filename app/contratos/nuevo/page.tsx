@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Toaster, toast } from 'sonner';
-import { 
-  Save, User, Calendar, DollarSign, MapPin, Phone, Mail, 
+import {
+  Save, User, Calendar, DollarSign, MapPin, Phone, Mail,
   FileText, Briefcase, Camera, Scissors, ShieldCheck, Tag, Plus, Trash2, CheckCircle2, Loader2, AlertTriangle, Clock,
   ChevronLeft, XCircle
 } from 'lucide-react';
@@ -16,19 +16,19 @@ export default function NuevoContratoPage() {
   const [sedesList, setSedesList] = useState<any[]>([]);
   const [alistamientoData, setAlistamientoData] = useState<any>(null);
   const [isSubmittingException, setIsSubmittingException] = useState(false);
-  
+
   // -- New States for Conflict Logic --
   const [conflictSeverity, setConflictSeverity] = useState<'red' | 'yellow' | null>(null);
   const [conflictType, setConflictType] = useState<'preparacion' | 'logistica' | null>(null);
   const [conflictDressCode, setConflictDressCode] = useState('');
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [showYellowModal, setShowYellowModal] = useState(false);
-  
+
   // -- New States for Cross-Branch & Pricing --
   const [userRole, setUserRole] = useState<string>('user');
   const [crossBranchWarning, setCrossBranchWarning] = useState<{ active: boolean; origin: string; codigo: string }>({ active: false, origin: '', codigo: '' });
   const [adminAuthorizedTransfer, setAdminAuthorizedTransfer] = useState(false);
-  
+
   // -- State Principal --
   const [formData, setFormData] = useState({
     // Básicos
@@ -42,7 +42,7 @@ export default function NuevoContratoPage() {
     cliente_email: '',
     direccion: '',
     quinceanera_name: '',
-    
+
     // Logística
     tipo_evento: 'Evento', // Evento | PreXV | Ambos
     fecha_evento: '',
@@ -54,17 +54,18 @@ export default function NuevoContratoPage() {
     prueba_final: '',
     fecha_entrega: '',
     tipo_entrega: 'Local', // Local | Nacional
-    
+
     // Finanzas
     valor_total: '',
     anticipo: '',
-    
+
     // Depósito
     valor_deposito: '',
     deposito_banco: '',
     deposito_tipo_cuenta: '',
     deposito_numero: '',
-    deposito_titular: ''
+    deposito_titular: '',
+    autoriza_uso_imagen: false
   });
 
   // Items Multi-Vestido
@@ -80,7 +81,7 @@ export default function NuevoContratoPage() {
 
   // Arreglos dinámicos
   const [arreglos, setArreglos] = useState<{ tipo: string; cm: string; precio: string }[]>([]);
-  
+
   // Totales Calculados
   const [totalArreglos, setTotalArreglos] = useState(0);
   const [saldoCalc, setSaldoCalc] = useState(0);
@@ -95,9 +96,9 @@ export default function NuevoContratoPage() {
   // -- Helper de UX: Confirmación al Salir --
   const isFormDirty = () => {
     return !!(
-      formData.cliente_nombre || 
-      formData.cliente_documento || 
-      formData.whatsapp || 
+      formData.cliente_nombre ||
+      formData.cliente_documento ||
+      formData.whatsapp ||
       vestidos[0].referencia ||
       formData.valor_total
     );
@@ -119,7 +120,7 @@ export default function NuevoContratoPage() {
     const fetchSedesYAsesoras = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        
+
         let userProfile = null;
         if (user) {
           const { data: pData } = await supabase
@@ -134,12 +135,12 @@ export default function NuevoContratoPage() {
         const { data: sedes, error } = await supabase.from('sedes').select('*').eq('activo', true).order('nombre');
         if (!error && sedes) {
           setSedesList(sedes);
-          
+
           // Auto-seleccionamos la sede si el perfil la tiene
           if (userProfile?.sede_id) {
             const mySede = sedes.find(s => s.id === userProfile.sede_id);
             if (mySede) {
-               setFormData(prev => ({ ...prev, sede_id: mySede.id, sede: mySede.nombre }));
+              setFormData(prev => ({ ...prev, sede_id: mySede.id, sede: mySede.nombre }));
             }
           }
         }
@@ -157,9 +158,9 @@ export default function NuevoContratoPage() {
   // -- Fetch Vestidos Dinámico por Sede --
   useEffect(() => {
     if (!formData.sede_id) {
-       setVestidosMaestro([]);
-       setLoadingVestidos(false);
-       return;
+      setVestidosMaestro([]);
+      setLoadingVestidos(false);
+      return;
     }
 
     const fetchVestidosSede = async () => {
@@ -167,13 +168,13 @@ export default function NuevoContratoPage() {
       try {
         const selectedSedeId = formData.sede_id;
         console.log('Filtrando vestidos activos globally para Typeahead de Sede:', selectedSedeId);
-        
+
         // Solo mostramos vestidos DISPONIBLES para nuevos contratos
         const { data, error } = await supabase
           .from('vestidos')
           .select('*, sedes:sede_actual_id(nombre), stock_total, precio_sugerido')
           .eq('estado', 'Disponible');
-        
+
         if (error) {
           console.error('[DATABASE ERROR] Vestidos:', error);
           throw error;
@@ -196,17 +197,17 @@ export default function NuevoContratoPage() {
   // -- Cascading Filter for Asesoras --
   useEffect(() => {
     if (formData.sede_id) {
-       const filtered = asesorasList.filter(a => a.sede_id === formData.sede_id);
-       setAsesorasFiltradas(filtered);
-       // Reset asesora if not in filtered list anymore
-       if (formData.asesora_id && !filtered.find(a => a.id === formData.asesora_id)) {
-          setFormData(prev => ({ ...prev, asesora_id: '', asesora: '' }));
-       }
+      const filtered = asesorasList.filter(a => a.sede_id === formData.sede_id);
+      setAsesorasFiltradas(filtered);
+      // Reset asesora if not in filtered list anymore
+      if (formData.asesora_id && !filtered.find(a => a.id === formData.asesora_id)) {
+        setFormData(prev => ({ ...prev, asesora_id: '', asesora: '' }));
+      }
     } else {
-       setAsesorasFiltradas([]);
+      setAsesorasFiltradas([]);
     }
   }, [formData.sede_id, asesorasList]);
-  
+
   // -- Lógica de Disponibilidad Dinámica --
   // -- Helper de Lógica de Disponibilidad Inteligente --
   const parseSafeDate = (dateStr: string) => {
@@ -229,18 +230,18 @@ export default function NuevoContratoPage() {
   const getZoneSeverity = (pointTime: number, baseTime: number) => {
     // Unificamos a la regla de los 5/10 días solicitada por el usuario
     const diffDays = Math.abs(Math.round((pointTime - baseTime) / (24 * 60 * 60 * 1000)));
-    
+
     if (diffDays < 5) return 'red'; // Bloqueo Total
     if (diffDays <= 10) return 'yellow'; // Zona de Permiso
-    
+
     return null;
   };
 
   useEffect(() => {
     if (!formData.sede_id) return;
     if (!formData.fecha_evento && !formData.fecha_fotografia) {
-       setBusyVestidoIds(new Set());
-       return;
+      setBusyVestidoIds(new Set());
+      return;
     }
 
     const checkAllAvailability = async () => {
@@ -270,7 +271,7 @@ export default function NuevoContratoPage() {
           const c = item.contratos;
           const vInfo = item.vestidos;
           const vId = item.vestido_id;
-          
+
           if (!stockTable[vId]) stockTable[vId] = vInfo?.stock_total || 1;
 
           const otherDates: Array<{ date: string; label: string }> = [];
@@ -288,17 +289,17 @@ export default function NuevoContratoPage() {
 
             // BLOQUEO POR DISPONIBILIDAD REAL (Mantenimiento)
             if (c.fecha_disponibilidad_real) {
-               const tRelease = new Date(c.fecha_disponibilidad_real).getTime();
-               if (tReq < tRelease && tReq >= (deliveryTime || (new Date(c.fecha_evento).getTime() - (2 * 24 * 60 * 60 * 1000)))) {
-                  hasLocalConflict = true;
-                  break;
-               }
+              const tRelease = new Date(c.fecha_disponibilidad_real).getTime();
+              if (tReq < tRelease && tReq >= (deliveryTime || (new Date(c.fecha_evento).getTime() - (2 * 24 * 60 * 60 * 1000)))) {
+                hasLocalConflict = true;
+                break;
+              }
             }
 
             // CHECK 1: "Vestido en Evento" - El vestido está fuera de tienda
             if (deliveryTime && returnTime && tReq >= deliveryTime && tReq <= returnTime) {
-                hasLocalConflict = true;
-                break;
+              hasLocalConflict = true;
+              break;
             }
 
             // CHECK 2: Standard point-to-point check
@@ -314,15 +315,15 @@ export default function NuevoContratoPage() {
           }
 
           if (hasLocalConflict) {
-             conflictCounts[vId] = (conflictCounts[vId] || 0) + 1;
+            conflictCounts[vId] = (conflictCounts[vId] || 0) + 1;
           }
         });
 
         const busyIds = new Set<string>();
         Object.keys(conflictCounts).forEach(id => {
-           if (conflictCounts[id] >= stockTable[id]) {
-              busyIds.add(id);
-           }
+          if (conflictCounts[id] >= stockTable[id]) {
+            busyIds.add(id);
+          }
         });
 
         // Determinamos severidad basada en hallazgos globales
@@ -330,11 +331,11 @@ export default function NuevoContratoPage() {
         const cType = busyIds.size > 0 ? 'logistica' : null;
 
         if (currentSeverity) {
-           setConflictSeverity(currentSeverity);
-           setConflictType(cType);
+          setConflictSeverity(currentSeverity);
+          setConflictType(cType);
         } else {
-           setConflictSeverity(null);
-           setConflictType(null);
+          setConflictSeverity(null);
+          setConflictType(null);
         }
         setBusyVestidoIds(busyIds);
       } catch (err) {
@@ -369,10 +370,10 @@ export default function NuevoContratoPage() {
     // Calculo dinámico de finanzas
     const valorAlquiler = parseFloat(formData.valor_total) || 0;
     const anticipo = parseFloat(formData.anticipo) || 0;
-    
+
     const sumArreglos = arreglos.reduce((acc, curr) => acc + (parseFloat(curr.precio) || 0), 0);
     setTotalArreglos(sumArreglos);
-    
+
     const nuevoSaldo = (valorAlquiler + sumArreglos) - anticipo;
     setSaldoCalc(Math.max(0, nuevoSaldo));
   }, [formData.valor_total, formData.anticipo, arreglos]);
@@ -391,8 +392,8 @@ export default function NuevoContratoPage() {
   };
 
   const handleCheckboxArray = (
-    item: string, 
-    list: string[], 
+    item: string,
+    list: string[],
     setList: React.Dispatch<React.SetStateAction<string[]>>
   ) => {
     if (list.includes(item)) {
@@ -429,70 +430,70 @@ export default function NuevoContratoPage() {
   };
 
   const resolveVestidoIds = async (vestidosList: any[]) => {
-    const resolved: { 
-      idx: number; 
-      id: string; 
-      referencia: string; 
-      tipo: string; 
-      observaciones: string; 
+    const resolved: {
+      idx: number;
+      id: string;
+      referencia: string;
+      tipo: string;
+      observaciones: string;
       stock_total: number;
       sede_actual_id: string;
       sede_nombre: string;
     }[] = [];
 
     for (let i = 0; i < vestidosList.length; i++) {
-       const v = vestidosList[i];
-       if (!v.referencia.trim()) continue;
-       const codigoUpper = v.referencia.trim().toUpperCase();
+      const v = vestidosList[i];
+      if (!v.referencia.trim()) continue;
+      const codigoUpper = v.referencia.trim().toUpperCase();
 
-       const { data: existing } = await supabase
-         .from('vestidos')
-         .select('id, estado, sede_actual_id, stock_total, precio_sugerido, sedes:sede_actual_id(nombre)')
-         .eq('codigo', codigoUpper)
-         .maybeSingle();
-         
-       if (existing && existing.id) {
-          if (existing.estado === 'De Baja') {
-             throw new Error(`❌ El vestido ${codigoUpper} no está disponible (Estado: De Baja)`);
-          }
-          resolved.push({ 
-             idx: i, 
-             id: existing.id, 
-             referencia: codigoUpper, 
-             tipo: v.tipo, 
-             observaciones: v.observaciones, 
-             stock_total: existing.stock_total || 1,
-             sede_actual_id: existing.sede_actual_id,
-             sede_nombre: (Array.isArray(existing.sedes) ? (existing.sedes[0] as any)?.nombre : (existing.sedes as any)?.nombre) || 'Otra Sede'
-          });
-       } else {
-          // Si no existe, lo creamos asignándolo a la sede del contrato
-          const { data: newV, error: errCreate } = await supabase.from('vestidos').insert([{ 
-            codigo: codigoUpper, 
-            estado: 'Disponible',
-            sede_actual_id: formData.sede_id,
-            sede_principal_id: formData.sede_id
-          }]).select('id').single();
-          
-          if (errCreate) throw new Error(`No se pudo crear el vestido ${codigoUpper} para la sede seleccionada: ${errCreate.message}`);
-          resolved.push({ 
-             idx: i, 
-             id: newV.id, 
-             referencia: codigoUpper, 
-             tipo: v.tipo, 
-             observaciones: v.observaciones, 
-             stock_total: 1,
-             sede_actual_id: formData.sede_id,
-             sede_nombre: formData.sede
-          });
-       }
+      const { data: existing } = await supabase
+        .from('vestidos')
+        .select('id, estado, sede_actual_id, stock_total, precio_sugerido, sedes:sede_actual_id(nombre)')
+        .eq('codigo', codigoUpper)
+        .maybeSingle();
+
+      if (existing && existing.id) {
+        if (existing.estado === 'De Baja') {
+          throw new Error(`❌ El vestido ${codigoUpper} no está disponible (Estado: De Baja)`);
+        }
+        resolved.push({
+          idx: i,
+          id: existing.id,
+          referencia: codigoUpper,
+          tipo: v.tipo,
+          observaciones: v.observaciones,
+          stock_total: existing.stock_total || 1,
+          sede_actual_id: existing.sede_actual_id,
+          sede_nombre: (Array.isArray(existing.sedes) ? (existing.sedes[0] as any)?.nombre : (existing.sedes as any)?.nombre) || 'Otra Sede'
+        });
+      } else {
+        // Si no existe, lo creamos asignándolo a la sede del contrato
+        const { data: newV, error: errCreate } = await supabase.from('vestidos').insert([{
+          codigo: codigoUpper,
+          estado: 'Disponible',
+          sede_actual_id: formData.sede_id,
+          sede_principal_id: formData.sede_id
+        }]).select('id').single();
+
+        if (errCreate) throw new Error(`No se pudo crear el vestido ${codigoUpper} para la sede seleccionada: ${errCreate.message}`);
+        resolved.push({
+          idx: i,
+          id: newV.id,
+          referencia: codigoUpper,
+          tipo: v.tipo,
+          observaciones: v.observaciones,
+          stock_total: 1,
+          sede_actual_id: formData.sede_id,
+          sede_nombre: formData.sede
+        });
+      }
     }
     return resolved;
   };
 
   const checkInventory = async (resolvedVestidos: any[]) => {
     if (resolvedVestidos.length === 0) return true;
-    
+
     try {
       const requestedDates: Array<{ date: string; type: string }> = [];
       const mainType = formData.tipo_evento === 'PreXV' ? 'PreXV' : 'Evento';
@@ -503,108 +504,108 @@ export default function NuevoContratoPage() {
         toast.error('Debe seleccionar al menos una fecha para validar disponibilidad.');
         return false;
       }
-      
+
       const ONE_DAY = 24 * 60 * 60 * 1000;
-      
+
       for (const v of resolvedVestidos) {
-         if (!v.id) continue;
+        if (!v.id) continue;
 
-         const { data, error } = await supabase
-           .from('contrato_items_vestidos')
-           .select('contrato_id, contratos!inner(numero_contrato, fecha_evento, fecha_pre_xv, fecha_entrega_envio, fecha_disponibilidad_real, sede, estado, tipo_evento, tipo_entrega)')
-           .eq('vestido_id', v.id)
-           .not('contratos.estado', 'in', '("cancelado","rechazado","CANCELADO","RECHAZADO","borrador","BORRADOR")');
-            
-         const existingRentals = data as any[];
-         if (error) {
-           console.error('Error al validar disponibilidad del vestido:', error);
-           toast.error('Error al validar disponibilidad del vestido. Intente de nuevo.');
-           return false; 
-         }
+        const { data, error } = await supabase
+          .from('contrato_items_vestidos')
+          .select('contrato_id, contratos!inner(numero_contrato, fecha_evento, fecha_pre_xv, fecha_entrega_envio, fecha_disponibilidad_real, sede, estado, tipo_evento, tipo_entrega)')
+          .eq('vestido_id', v.id)
+          .not('contratos.estado', 'in', '("cancelado","rechazado","CANCELADO","RECHAZADO","borrador","BORRADOR")');
 
-         for (const rd of requestedDates) {
-            let conflictCount = 0;
-            let lastConflictYellow = false;
-            let lastConflictRed = false;
-            let lastConflictType: 'logistica' | 'preparacion' = 'logistica';
-            let lastAlistamiento = null;
-            
-            for (const rental of existingRentals) {
-               const oc = rental.contratos;
-               const otherOccupiedDates: Array<{ date: string; type: string }> = [];
-               
-               const otherMainType = oc.tipo_evento === 'PreXV' ? 'PreXV' : 'Evento';
-               if (oc.fecha_evento) otherOccupiedDates.push({ date: oc.fecha_evento, type: otherMainType });
-               if (oc.fecha_pre_xv) otherOccupiedDates.push({ date: oc.fecha_pre_xv, type: 'PreXV' });
+        const existingRentals = data as any[];
+        if (error) {
+          console.error('Error al validar disponibilidad del vestido:', error);
+          toast.error('Error al validar disponibilidad del vestido. Intente de nuevo.');
+          return false;
+        }
 
-               const mDays = getMaintenanceDays(oc.tipo_evento);
-               const deliveryTime = oc.fecha_entrega_envio ? new Date(oc.fecha_entrega_envio).getTime() : null;
-               const returnTime = deliveryTime ? deliveryTime + (mDays * 24 * 60 * 60 * 1000) : null;
+        for (const rd of requestedDates) {
+          let conflictCount = 0;
+          let lastConflictYellow = false;
+          let lastConflictRed = false;
+          let lastConflictType: 'logistica' | 'preparacion' = 'logistica';
+          let lastAlistamiento = null;
 
-               let localConflict = false;
+          for (const rental of existingRentals) {
+            const oc = rental.contratos;
+            const otherOccupiedDates: Array<{ date: string; type: string }> = [];
 
-               for (const od of otherOccupiedDates) {
-                   const tReq = parseSafeDate(rd.date);
-                   const tExt = parseSafeDate(od.date);
-                   
-                   // REGLA DE ORO: Bloqueo por Mantenimiento (Maintenance Lockout)
-                   if (oc.fecha_disponibilidad_real) {
-                      const tRelease = new Date(oc.fecha_disponibilidad_real).getTime();
-                      if (tReq < tRelease && tReq >= (deliveryTime || (tExt - (2 * 24 * 60 * 60 * 1000)))) {
-                         localConflict = true;
-                         lastConflictRed = true;
-                         lastConflictType = 'logistica';
-                      }
-                   }
+            const otherMainType = oc.tipo_evento === 'PreXV' ? 'PreXV' : 'Evento';
+            if (oc.fecha_evento) otherOccupiedDates.push({ date: oc.fecha_evento, type: otherMainType });
+            if (oc.fecha_pre_xv) otherOccupiedDates.push({ date: oc.fecha_pre_xv, type: 'PreXV' });
 
-                   // CHECK 1: "Vestido en Evento" - El vestido está fuera de tienda
-                   if (!localConflict && deliveryTime && returnTime && tReq >= deliveryTime && tReq <= returnTime) {
-                      localConflict = true;
-                      lastConflictRed = true;
-                      lastConflictType = 'logistica';
-                   }
-                   
-                   const s1 = getZoneSeverity(tReq, tExt);
-                   const s2 = getZoneSeverity(tExt, tReq);
+            const mDays = getMaintenanceDays(oc.tipo_evento);
+            const deliveryTime = oc.fecha_entrega_envio ? new Date(oc.fecha_entrega_envio).getTime() : null;
+            const returnTime = deliveryTime ? deliveryTime + (mDays * 24 * 60 * 60 * 1000) : null;
 
-                  if (!localConflict && (s1 === 'red' || s2 === 'red')) {
-                     localConflict = true;
-                     lastConflictRed = true;
-                     lastConflictType = s1 === 'red' ? 'logistica' : 'preparacion';
-                  }
+            let localConflict = false;
 
-                  if (!localConflict && (s1 === 'yellow' || s2 === 'yellow')) {
-                     localConflict = true;
-                     lastConflictYellow = true;
-                     lastAlistamiento = {
-                       referencia: v.referencia,
-                       contratoPadre: oc.numero_contrato,
-                       fechaOcupado: new Date(tExt).toLocaleDateString(),
-                       sede: oc.sede
-                     };
-                  }
-               }
-               
-               if (localConflict) {
-                  conflictCount++;
-               }
-            }
-            
-            // VALIDACIÓN AL FINALIZAR TODOS LOS CONTRATOS CONTRA EL STOCK_TOTAL
-            if (conflictCount >= (v.stock_total || 1)) {
-                if (lastConflictRed) {
-                    setConflictDressCode(v.referencia || 'Seleccionado');
-                    setConflictType(lastConflictType);
-                    setShowConflictModal(true);
-                    return false;
-                } else if (lastConflictYellow && lastAlistamiento) {
-                    setAlistamientoData(lastAlistamiento);
-                    setConflictSeverity('yellow');
-                    setShowYellowModal(true);
-                    return false;
+            for (const od of otherOccupiedDates) {
+              const tReq = parseSafeDate(rd.date);
+              const tExt = parseSafeDate(od.date);
+
+              // REGLA DE ORO: Bloqueo por Mantenimiento (Maintenance Lockout)
+              if (oc.fecha_disponibilidad_real) {
+                const tRelease = new Date(oc.fecha_disponibilidad_real).getTime();
+                if (tReq < tRelease && tReq >= (deliveryTime || (tExt - (2 * 24 * 60 * 60 * 1000)))) {
+                  localConflict = true;
+                  lastConflictRed = true;
+                  lastConflictType = 'logistica';
                 }
+              }
+
+              // CHECK 1: "Vestido en Evento" - El vestido está fuera de tienda
+              if (!localConflict && deliveryTime && returnTime && tReq >= deliveryTime && tReq <= returnTime) {
+                localConflict = true;
+                lastConflictRed = true;
+                lastConflictType = 'logistica';
+              }
+
+              const s1 = getZoneSeverity(tReq, tExt);
+              const s2 = getZoneSeverity(tExt, tReq);
+
+              if (!localConflict && (s1 === 'red' || s2 === 'red')) {
+                localConflict = true;
+                lastConflictRed = true;
+                lastConflictType = s1 === 'red' ? 'logistica' : 'preparacion';
+              }
+
+              if (!localConflict && (s1 === 'yellow' || s2 === 'yellow')) {
+                localConflict = true;
+                lastConflictYellow = true;
+                lastAlistamiento = {
+                  referencia: v.referencia,
+                  contratoPadre: oc.numero_contrato,
+                  fechaOcupado: new Date(tExt).toLocaleDateString(),
+                  sede: oc.sede
+                };
+              }
             }
-         }
+
+            if (localConflict) {
+              conflictCount++;
+            }
+          }
+
+          // VALIDACIÓN AL FINALIZAR TODOS LOS CONTRATOS CONTRA EL STOCK_TOTAL
+          if (conflictCount >= (v.stock_total || 1)) {
+            if (lastConflictRed) {
+              setConflictDressCode(v.referencia || 'Seleccionado');
+              setConflictType(lastConflictType);
+              setShowConflictModal(true);
+              return false;
+            } else if (lastConflictYellow && lastAlistamiento) {
+              setAlistamientoData(lastAlistamiento);
+              setConflictSeverity('yellow');
+              setShowYellowModal(true);
+              return false;
+            }
+          }
+        }
       }
       return true;
     } catch (err) {
@@ -615,47 +616,47 @@ export default function NuevoContratoPage() {
   };
 
   const handleSolicitarAutorizacion = async () => {
-     setIsSubmittingException(true);
-     try {
-        // 1. Resolver IDs de vestidos primero
-        const resolved = await resolveVestidoIds(vestidos);
-        if (!resolved || resolved.length === 0) {
-           toast.error('No se pudieron resolver los vestidos del contrato.');
-           return;
-        }
-       
-       // 2. Crear contrato con estado 'pendiente_admin'
-       const prefixMap: Record<string, string> = {
+    setIsSubmittingException(true);
+    try {
+      // 1. Resolver IDs de vestidos primero
+      const resolved = await resolveVestidoIds(vestidos);
+      if (!resolved || resolved.length === 0) {
+        toast.error('No se pudieron resolver los vestidos del contrato.');
+        return;
+      }
+
+      // 2. Crear contrato con estado 'pendiente_admin'
+      const prefixMap: Record<string, string> = {
         'Villavicencio': 'VILL',
         'Bogotá': 'BOG',
         'Bogota': 'BOG',
         'Barranquilla': 'BARR'
-       };
-       const prefix = prefixMap[formData.sede] || formData.sede.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 4);
-       const year = new Date().getFullYear();
+      };
+      const prefix = prefixMap[formData.sede] || formData.sede.toUpperCase().replace(/[^A-Z]/g, '').substring(0, 4);
+      const year = new Date().getFullYear();
 
-       const { data: lastContratos, error: countError } = await supabase
+      const { data: lastContratos, error: countError } = await supabase
         .from('contratos')
         .select('numero_contrato')
         .like('numero_contrato', `${prefix}-${year}-%`)
         .order('created_at', { ascending: false })
         .limit(1);
 
-       if (countError) throw countError;
+      if (countError) throw countError;
 
-       let correlativo = 1;
-       if (lastContratos && lastContratos.length > 0) {
+      let correlativo = 1;
+      if (lastContratos && lastContratos.length > 0) {
         const parts = lastContratos[0].numero_contrato.split('-');
         if (parts.length === 3) correlativo = parseInt(parts[2], 10) + 1;
-       }
-       const numero_contrato = `${prefix}-${year}-${String(correlativo).padStart(4, '0')}`;
+      }
+      const numero_contrato = `${prefix}-${year}-${String(correlativo).padStart(4, '0')}`;
 
-       const validArreglos = arreglos.filter(a => a.tipo.trim() !== '');
+      const validArreglos = arreglos.filter(a => a.tipo.trim() !== '');
 
-       const payload = {
+      const payload = {
         numero_contrato,
         estado: 'borrador',
-        
+
         // Cliente
         cliente_nombre: formData.cliente_nombre.trim(),
         cliente_documento: formData.cliente_documento.trim(),
@@ -663,7 +664,7 @@ export default function NuevoContratoPage() {
         cliente_email: formData.cliente_email.trim(),
         cliente_direccion: formData.direccion.trim(),
         quinceanera_name: formData.quinceanera_name.trim(),
-        
+
         // Logística
         sede: formData.sede,
         sede_id: formData.sede_id,
@@ -671,20 +672,20 @@ export default function NuevoContratoPage() {
         tipo_entrega: formData.tipo_entrega,
         asesora: formData.asesora.trim(),
         asesora_id: formData.asesora_id,
-        
+
         // Fechas
         fecha_evento: formData.tipo_evento === 'PreXV' ? formData.fecha_fotografia : formData.fecha_evento,
         fecha_pre_xv: formData.fecha_fotografia || null,
         fecha_cita_medidas: formData.cita_medidas || null,
         fecha_prueba_final: formData.prueba_final || null,
         fecha_entrega_envio: formData.fecha_entrega || null,
-        
+
         // Finanzas
         valor_total: parseFloat(formData.valor_total) || 0,
         anticipo: parseFloat(formData.anticipo) || 0,
         total_arreglos: totalArreglos,
         valor_deposito: parseFloat(formData.valor_deposito) || null,
-        
+
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
         tipo_cuenta_deposito: formData.deposito_tipo_cuenta || null,
@@ -694,75 +695,75 @@ export default function NuevoContratoPage() {
         // Extras Mantenidos
         accesorios: accesoriosSeleccionados,
         metodos_pago: metodosPago,
-        
+
         // Vestido Principal (para consistencia con Dashboard)
         vestido_id: resolved.length > 0 ? resolved[0].id : null,
 
         // Estado de Aprobación (Zona Amarilla)
         estado_aprobacion: 'pendiente_admin'
-       };
+      };
 
-       const { data: newDoc, error: errC } = await supabase
-         .from('contratos')
-         .insert([payload])
-         .select('id')
-         .single();
+      const { data: newDoc, error: errC } = await supabase
+        .from('contratos')
+        .insert([payload])
+        .select('id')
+        .single();
 
-       if (errC) throw errC;
+      if (errC) throw errC;
 
-       // 3. Vincular vestidos
-       const itemPayload = resolved.map(rv => ({
-         contrato_id: newDoc.id,
-         vestido_id: rv.id,
-         tipo_uso: rv.tipo,
-         observaciones: rv.observaciones
-       }));
+      // 3. Vincular vestidos
+      const itemPayload = resolved.map(rv => ({
+        contrato_id: newDoc.id,
+        vestido_id: rv.id,
+        tipo_uso: rv.tipo,
+        observaciones: rv.observaciones
+      }));
 
-       const { error: errV } = await supabase.from('contrato_items_vestidos').insert(itemPayload);
-       if (errV) throw errV;
+      const { error: errV } = await supabase.from('contrato_items_vestidos').insert(itemPayload);
+      if (errV) throw errV;
 
-       // 4. Inserción de Tabla Relacional de Arreglos
-       if (validArreglos.length > 0 && newDoc) {
+      // 4. Inserción de Tabla Relacional de Arreglos
+      if (validArreglos.length > 0 && newDoc) {
         const arreglosPayload = validArreglos.map(a => ({
-           contrato_id: newDoc.id,
-           tipo: a.tipo.trim(),
-           cm: a.cm.trim() ? a.cm.trim() : null,
-           precio: parseFloat(a.precio) || 0
+          contrato_id: newDoc.id,
+          tipo: a.tipo.trim(),
+          cm: a.cm.trim() ? a.cm.trim() : null,
+          precio: parseFloat(a.precio) || 0
         }));
         const { error: arreglosError } = await supabase.from('arreglos').insert(arreglosPayload);
         if (arreglosError) {
-           console.error("Error al insertar los arreglos en la solicitud de excepción", arreglosError);
+          console.error("Error al insertar los arreglos en la solicitud de excepción", arreglosError);
         }
-       }
+      }
 
-       // 5. Registrar en Bitácora
-       const { data: { user } } = await supabase.auth.getUser();
-       const detalleMilestones = [
-         formData.fecha_evento && `Evento: ${formData.fecha_evento}`,
-         formData.fecha_fotografia && `Sesión Pre-XV: ${formData.fecha_fotografia}`
-       ].filter(Boolean).join(' | ');
+      // 5. Registrar en Bitácora
+      const { data: { user } } = await supabase.auth.getUser();
+      const detalleMilestones = [
+        formData.fecha_evento && `Evento: ${formData.fecha_evento}`,
+        formData.fecha_fotografia && `Sesión Pre-XV: ${formData.fecha_fotografia}`
+      ].filter(Boolean).join(' | ');
 
-       await supabase.from('bitacora_contratos').insert([{
-         contrato_id: newDoc.id,
-         usuario_email: user?.email,
-         accion: 'Solicitud de excepción por alistamiento',
-         detalle: `Vestido ${alistamientoData?.referencia} (Alerta en #${alistamientoData?.contratoPadre}). Logística: ${detalleMilestones}`
-       }]);
+      await supabase.from('bitacora_contratos').insert([{
+        contrato_id: newDoc.id,
+        usuario_email: user?.email,
+        accion: 'Solicitud de excepción por alistamiento',
+        detalle: `Vestido ${alistamientoData?.referencia} (Alerta en #${alistamientoData?.contratoPadre}). Logística: ${detalleMilestones}`
+      }]);
 
-       toast.success(`✅ Solicitud enviada. El contrato #${numero_contrato} quedó pendiente de aprobación.`);
-       setShowYellowModal(false);
-       router.push('/dashboard');
-     } catch (err: any) {
-       console.error('Error al procesar solicitud de excepción:', err.message, err);
-       toast.error('Error al procesar solicitud: ' + err.message);
-     } finally {
-       setIsSubmittingException(false);
-     }
+      toast.success(`✅ Solicitud enviada. El contrato #${numero_contrato} quedó pendiente de aprobación.`);
+      setShowYellowModal(false);
+      router.push('/dashboard');
+    } catch (err: any) {
+      console.error('Error al procesar solicitud de excepción:', err.message, err);
+      toast.error('Error al procesar solicitud: ' + err.message);
+    } finally {
+      setIsSubmittingException(false);
+    }
   };
 
-   const handleSubmit = async (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    
+
     // 0. Validación de Vestido Obligatorio
     const hasValidDress = vestidos.some(v => v.vestido_id || v.referencia.trim().length > 0);
     if (!hasValidDress) {
@@ -778,11 +779,11 @@ export default function NuevoContratoPage() {
     // 1. Resolución de códigos a IDs de vestidos
     let resolvedVestidos: any[] = [];
     try {
-        resolvedVestidos = await resolveVestidoIds(vestidos);
+      resolvedVestidos = await resolveVestidoIds(vestidos);
     } catch (err: any) {
-        toast.error(err.message);
-        setLoading(false);
-        return;
+      toast.error(err.message);
+      setLoading(false);
+      return;
     }
 
     // 2. PRIORIDAD 1: Validar Inventario (Calendario Global)
@@ -795,12 +796,12 @@ export default function NuevoContratoPage() {
     // 3. PRIORIDAD 2: Validar Sede (Cruce de Sedes)
     const conflictSede = resolvedVestidos.find(rv => rv.sede_actual_id !== formData.sede_id);
     if (conflictSede) {
-       setCrossBranchWarning({ active: true, origin: conflictSede.sede_nombre, codigo: conflictSede.referencia });
-       if (!adminAuthorizedTransfer && userRole !== 'admin') {
-          toast.error(`⚠️ El vestido ${conflictSede.referencia} pertenece a la sede ${conflictSede.sede_nombre}. Autoriza el traslado.`);
-          setLoading(false);
-          return;
-       }
+      setCrossBranchWarning({ active: true, origin: conflictSede.sede_nombre, codigo: conflictSede.referencia });
+      if (!adminAuthorizedTransfer && userRole !== 'admin') {
+        toast.error(`⚠️ El vestido ${conflictSede.referencia} pertenece a la sede ${conflictSede.sede_nombre}. Autoriza el traslado.`);
+        setLoading(false);
+        return;
+      }
     }
 
     try {
@@ -837,7 +838,7 @@ export default function NuevoContratoPage() {
       const payload = {
         numero_contrato,
         estado: 'borrador',
-        
+
         // Cliente
         cliente_nombre: formData.cliente_nombre.trim(),
         cliente_documento: formData.cliente_documento.trim(),
@@ -845,7 +846,7 @@ export default function NuevoContratoPage() {
         cliente_email: formData.cliente_email.trim(),
         cliente_direccion: formData.direccion.trim(),
         quinceanera_name: formData.quinceanera_name.trim(),
-        
+
         // Logística
         sede: formData.sede,
         sede_id: formData.sede_id,
@@ -853,20 +854,20 @@ export default function NuevoContratoPage() {
         tipo_entrega: formData.tipo_entrega,
         asesora: formData.asesora.trim(),
         asesora_id: formData.asesora_id,
-        
+
         // Fechas
         fecha_evento: formData.tipo_evento === 'PreXV' ? formData.fecha_fotografia : formData.fecha_evento,
         fecha_pre_xv: formData.fecha_fotografia || null,
         fecha_cita_medidas: formData.cita_medidas || null,
         fecha_prueba_final: formData.prueba_final || null,
         fecha_entrega_envio: formData.fecha_entrega || null,
-        
+
         // Finanzas
         valor_total: parseFloat(formData.valor_total) || 0,
         anticipo: parseFloat(formData.anticipo) || 0,
         total_arreglos: totalArreglos,
         valor_deposito: parseFloat(formData.valor_deposito) || null,
-        
+
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
         tipo_cuenta_deposito: formData.deposito_tipo_cuenta || null,
@@ -876,12 +877,13 @@ export default function NuevoContratoPage() {
         // Extras Mantenidos
         accesorios: accesoriosSeleccionados,
         metodos_pago: metodosPago,
-        
+
         // Vestido Principal (para consistencia con Dashboard)
         vestido_id: resolvedVestidos.length > 0 ? resolvedVestidos[0].id : null,
 
         // Estado de Aprobación (Zona Amarilla)
-        estado_aprobacion: 'aprobado'
+        estado_aprobacion: 'aprobado',
+        autoriza_uso_imagen: formData.autoriza_uso_imagen
       };
 
       const { data: insertedContract, error: insertError } = await supabase.from('contratos').insert([payload]).select('id').single();
@@ -891,10 +893,10 @@ export default function NuevoContratoPage() {
       // 6. Inserción del Array Múltiple de Vestidos (usando vestido_id numérico)
       if (resolvedVestidos.length > 0 && insertedContract) {
         const vestidosPayload = resolvedVestidos.map(v => ({
-           contrato_id: insertedContract.id,
-           vestido_id: v.id,
-           tipo_uso: v.tipo,
-           observaciones: v.observaciones.trim()
+          contrato_id: insertedContract.id,
+          vestido_id: v.id,
+          tipo_uso: v.tipo,
+          observaciones: v.observaciones.trim()
         }));
         const { error: vestidosError } = await supabase.from('contrato_items_vestidos').insert(vestidosPayload);
         if (vestidosError) {
@@ -905,14 +907,14 @@ export default function NuevoContratoPage() {
       // 7. Inserción de Tabla Relacional de Arreglos
       if (validArreglos.length > 0 && insertedContract) {
         const arreglosPayload = validArreglos.map(a => ({
-           contrato_id: insertedContract.id,
-           tipo: a.tipo.trim(),
-           cm: a.cm.trim() ? a.cm.trim() : null,
-           precio: parseFloat(a.precio) || 0
+          contrato_id: insertedContract.id,
+          tipo: a.tipo.trim(),
+          cm: a.cm.trim() ? a.cm.trim() : null,
+          precio: parseFloat(a.precio) || 0
         }));
         const { error: arreglosError } = await supabase.from('arreglos').insert(arreglosPayload);
         if (arreglosError) {
-           console.error("Error al insertar los arreglos", arreglosError);
+          console.error("Error al insertar los arreglos", arreglosError);
         }
       }
 
@@ -920,12 +922,12 @@ export default function NuevoContratoPage() {
       if (false && insertedContract) {
         const targetId = (insertedContract as any).id;
         const { data: { user } } = await supabase.auth.getUser();
-        
+
         await supabase.from('bitacora_contratos').insert([{
-           contrato_id: targetId,
-           usuario_email: user?.email || 'Sistema',
-           accion: 'Solicitud de excepción por alistamiento',
-           detalle: `Se solicita alquilar vestido ${vestidos[0]?.referencia || 'N/A'} en periodo de preparación (Alistamiento)`
+          contrato_id: targetId,
+          usuario_email: user?.email || 'Sistema',
+          accion: 'Solicitud de excepción por alistamiento',
+          detalle: `Se solicita alquilar vestido ${vestidos[0]?.referencia || 'N/A'} en periodo de preparación (Alistamiento)`
         }]);
 
         toast.success(`✅ Solicitud enviada. El contrato #${numero_contrato} quedó pendiente de aprobación.`);
@@ -937,10 +939,10 @@ export default function NuevoContratoPage() {
         ].filter(Boolean).join(' | ');
 
         await supabase.from('bitacora_contratos').insert([{
-           contrato_id: insertedContract.id,
-           usuario_email: authUser?.email || 'Sistema',
-           accion: 'Creación de contrato (Solo Vestidos)',
-           detalle: `Contrato administrativo generado. Logística: ${detail}`
+          contrato_id: insertedContract.id,
+          usuario_email: authUser?.email || 'Sistema',
+          accion: 'Creación de contrato (Solo Vestidos)',
+          detalle: `Contrato administrativo generado. Logística: ${detail}`
         }]);
 
         toast.success(`✅ Contrato ${numero_contrato} registrado exitosamente ERP`);
@@ -957,7 +959,7 @@ export default function NuevoContratoPage() {
   };
 
   // Auxiliares visuales
-  const renderTextInput = (label: string, name: keyof typeof formData, icon: React.ReactNode, type="text", req=false, extraClasses="") => (
+  const renderTextInput = (label: string, name: keyof typeof formData, icon: React.ReactNode, type = "text", req = false, extraClasses = "") => (
     <div className={`space-y-1 ${extraClasses}`}>
       <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
         {icon} {label} {req && <span className="text-rose-500">*</span>}
@@ -976,14 +978,14 @@ export default function NuevoContratoPage() {
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center py-8 font-sans px-2 sm:px-4 pb-24">
       <Toaster position="top-right" richColors />
-      
-      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-200">
-        
 
-      {/* MODAL DE FIRMA (Actual) */}
+      <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-200">
+
+
+        {/* MODAL DE FIRMA (Actual) */}
         {/* Header Hero */}
         <div className="bg-gradient-to-r from-gray-900 to-rose-900 px-8 py-10 text-center relative overflow-hidden flex flex-col md:flex-row items-center justify-center gap-6">
-          <button 
+          <button
             type="button"
             onClick={handleBack}
             className="absolute left-8 top-1/2 -translate-y-1/2 p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl border border-white/20 transition-all active:scale-95 group"
@@ -991,17 +993,17 @@ export default function NuevoContratoPage() {
           >
             <ChevronLeft className="w-6 h-6 group-hover:-translate-x-1 transition-transform" />
           </button>
-          
+
           <div className="relative z-10">
             <h1 className="text-3xl font-black text-white tracking-wide uppercase">Nuevo Contrato ERP</h1>
             <p className="text-rose-200 mt-1 font-medium tracking-[0.3em] uppercase opacity-80">Ambar Couture</p>
           </div>
-          
+
           <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 -translate-y-10 translate-x-10 animate-pulse"></div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 sm:p-10 space-y-10">
-          
+
           {/* SECCIÓN 1: DATOS BÁSICOS */}
           <section className="space-y-6">
             <h2 className="text-2xl font-bold border-b border-gray-200 pb-2 text-gray-800 flex items-center gap-2">
@@ -1012,14 +1014,14 @@ export default function NuevoContratoPage() {
                 <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-rose-500" /> Sede <span className="text-rose-500">*</span>
                 </label>
-                <select 
-                  name="sede_id" 
-                  value={formData.sede_id} 
+                <select
+                  name="sede_id"
+                  value={formData.sede_id}
                   onChange={(e) => {
                     const selected = sedesList.find(s => s.id === e.target.value);
                     setFormData(prev => ({ ...prev, sede_id: e.target.value, sede: selected?.nombre || '' }));
-                  }} 
-                  className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300" 
+                  }}
+                  className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300"
                   required
                 >
                   <option value="">Selecciona Sede...</option>
@@ -1031,15 +1033,15 @@ export default function NuevoContratoPage() {
                 <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
                   <Briefcase className="w-4 h-4 text-rose-500" /> Asesora Responsable <span className="text-rose-500">*</span>
                 </label>
-                <select 
-                  name="asesora_id" 
-                  value={formData.asesora_id} 
+                <select
+                  name="asesora_id"
+                  value={formData.asesora_id}
                   onChange={(e) => {
                     const selected = asesorasList.find(a => a.id === e.target.value);
                     setFormData(prev => ({ ...prev, asesora_id: e.target.value, asesora: selected?.nombre_completo || '' }));
                   }}
                   disabled={!formData.sede_id}
-                  className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300 disabled:opacity-50" 
+                  className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300 disabled:opacity-50"
                   required
                 >
                   {!formData.sede_id ? (
@@ -1056,12 +1058,12 @@ export default function NuevoContratoPage() {
                   )}
                 </select>
               </div>
-              {renderTextInput("Nombre Completo", "cliente_nombre", <User className="w-4 h-4 text-rose-500"/>, "text", true)}
-              {renderTextInput("Documento/CC", "cliente_documento", <FileText className="w-4 h-4 text-rose-500"/>, "text", true)}
-              {renderTextInput("WhatsApp", "whatsapp", <Phone className="w-4 h-4 text-rose-500"/>, "tel", true)}
-              {renderTextInput("Correo", "cliente_email", <Mail className="w-4 h-4 text-rose-500"/>, "email", true)}
-              {renderTextInput("Dirección", "direccion", <MapPin className="w-4 h-4 text-rose-500"/>, "text", false, "lg:col-span-2")}
-              {renderTextInput("Nombre de la Quinceañera", "quinceanera_name", <User className="w-4 h-4 text-emerald-500"/>, "text", true, "lg:col-span-2")}
+              {renderTextInput("Nombre Completo", "cliente_nombre", <User className="w-4 h-4 text-rose-500" />, "text", true)}
+              {renderTextInput("Documento/CC", "cliente_documento", <FileText className="w-4 h-4 text-rose-500" />, "text", true)}
+              {renderTextInput("WhatsApp", "whatsapp", <Phone className="w-4 h-4 text-rose-500" />, "tel", true)}
+              {renderTextInput("Correo", "cliente_email", <Mail className="w-4 h-4 text-rose-500" />, "email", true)}
+              {renderTextInput("Dirección", "direccion", <MapPin className="w-4 h-4 text-rose-500" />, "text", false, "lg:col-span-2")}
+              {renderTextInput("Nombre de la Quinceañera", "quinceanera_name", <User className="w-4 h-4 text-emerald-500" />, "text", true, "lg:col-span-2")}
             </div>
           </section>
 
@@ -1070,7 +1072,7 @@ export default function NuevoContratoPage() {
             <h2 className="text-2xl font-bold border-b border-rose-200 pb-2 text-gray-800 flex items-center gap-2">
               <Calendar className="text-rose-500" /> Logística de Evento
             </h2>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-1">
                 <label className="text-sm font-semibold text-gray-700">Tipo de Evento</label>
@@ -1080,12 +1082,12 @@ export default function NuevoContratoPage() {
                   <option value="Ambos">Ambos (Combo)</option>
                 </select>
               </div>
-              
+
               {/* Dependencia: Fecha Evento */}
-              {(formData.tipo_evento === 'Evento' || formData.tipo_evento === 'Ambos') && 
-                renderTextInput("Fecha del Evento", "fecha_evento", <Calendar className="w-4 h-4 text-rose-500"/>, "date", true)
+              {(formData.tipo_evento === 'Evento' || formData.tipo_evento === 'Ambos') &&
+                renderTextInput("Fecha del Evento", "fecha_evento", <Calendar className="w-4 h-4 text-rose-500" />, "date", true)
               }
-              
+
               {/* Dependencia: Tipo Envío */}
               {(formData.tipo_evento === 'Evento' || formData.tipo_evento === 'Ambos') && (
                 <div className="space-y-1 transition-opacity">
@@ -1098,16 +1100,15 @@ export default function NuevoContratoPage() {
               )}
             </div>
 
-            <div className={`transition-all duration-500 overflow-hidden ${
-              formData.tipo_evento === 'PreXV' || formData.tipo_evento === 'Ambos' 
-              ? 'max-h-[500px] opacity-100 mt-4' 
-              : 'max-h-0 opacity-0 mt-0 pointer-events-none'
-            }`}>
+            <div className={`transition-all duration-500 overflow-hidden ${formData.tipo_evento === 'PreXV' || formData.tipo_evento === 'Ambos'
+                ? 'max-h-[500px] opacity-100 mt-4'
+                : 'max-h-0 opacity-0 mt-0 pointer-events-none'
+              }`}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-5 rounded-xl border border-rose-100 shadow-sm transition-all hover:border-rose-200">
                 <div className="md:col-span-2 flex items-center gap-2 border-b pb-2">
-                  <Camera className="text-rose-500 w-5 h-5"/> <h3 className="font-bold text-gray-800">Logística de Vestido: Sesión Pre-XV</h3>
+                  <Camera className="text-rose-500 w-5 h-5" /> <h3 className="font-bold text-gray-800">Logística de Vestido: Sesión Pre-XV</h3>
                 </div>
-                {renderTextInput("Fecha Sesión Pre-XV", "fecha_fotografia", <Calendar className="w-4 h-4 text-rose-500"/>, "date", formData.tipo_evento !== 'Evento', "md:col-span-2")}
+                {renderTextInput("Fecha Sesión Pre-XV", "fecha_fotografia", <Calendar className="w-4 h-4 text-rose-500" />, "date", formData.tipo_evento !== 'Evento', "md:col-span-2")}
                 {/* 
                   Campos Ocultos Temporalmente (Solo Vestidos Launch)
                   {renderTextInput("Fecha Maquillaje", "fecha_maquillaje", <Calendar className="w-4 h-4 text-rose-500"/>, "datetime-local")}
@@ -1129,9 +1130,9 @@ export default function NuevoContratoPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-              {renderTextInput("Cita Medidas", "cita_medidas", <Calendar className="w-4 h-4 text-rose-500"/>, "date")}
-              {renderTextInput("Prueba Final", "prueba_final", <Calendar className="w-4 h-4 text-rose-500"/>, "date")}
-              {renderTextInput("Entrega/Envío Vestido", "fecha_entrega", <Calendar className="w-4 h-4 text-rose-500"/>, "date")}
+              {renderTextInput("Cita Medidas", "cita_medidas", <Calendar className="w-4 h-4 text-rose-500" />, "date")}
+              {renderTextInput("Prueba Final", "prueba_final", <Calendar className="w-4 h-4 text-rose-500" />, "date")}
+              {renderTextInput("Entrega/Envío Vestido", "fecha_entrega", <Calendar className="w-4 h-4 text-rose-500" />, "date")}
             </div>
           </section>
 
@@ -1140,61 +1141,60 @@ export default function NuevoContratoPage() {
             <h2 className="text-2xl font-bold border-b border-gray-200 pb-2 text-gray-800 flex items-center gap-2">
               <Tag className="text-rose-500" /> Vestido & Adaptaciones
             </h2>
-            
+
             <div className="flex justify-between items-center mb-4 mt-2 border-b border-gray-200 pb-2">
-               <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2"><Tag className="w-5 h-5 text-rose-500"/> Vestidos Seleccionados</h3>
-               <button type="button" onClick={addVestido} className="flex items-center gap-1 text-sm bg-rose-100 text-rose-700 px-4 py-2 rounded-lg hover:bg-rose-200 transition-colors font-bold shadow-sm border border-rose-200">
-                 <Plus className="w-4 h-4"/> Agregar Referencia
-               </button>
+              <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2"><Tag className="w-5 h-5 text-rose-500" /> Vestidos Seleccionados</h3>
+              <button type="button" onClick={addVestido} className="flex items-center gap-1 text-sm bg-rose-100 text-rose-700 px-4 py-2 rounded-lg hover:bg-rose-200 transition-colors font-bold shadow-sm border border-rose-200">
+                <Plus className="w-4 h-4" /> Agregar Referencia
+              </button>
             </div>
 
             <div className="space-y-4">
-              
+
               {/* Datalist Oculto para Combobox Nativo */}
               <datalist id="vestidos-opts">
                 {vestidosMaestro.map((vm, i) => (
-                   <option key={i} value={vm.codigo_referencia}>{vm.nombre} ({vm.talla})</option>
+                  <option key={i} value={vm.codigo_referencia}>{vm.nombre} ({vm.talla})</option>
                 ))}
               </datalist>
 
               {vestidos.map((v, idx) => (
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-6 rounded-2xl border border-gray-200 relative group transition-all hover:border-rose-200">
                   {vestidos.length > 1 && (
-                     <button type="button" onClick={()=>removeVestido(idx)} title="Eliminar este vestido" className="absolute top-4 right-4 text-gray-400 hover:text-rose-600 p-2 bg-white rounded-full shadow-sm hover:shadow transition-all border border-gray-100 z-20">
-                       <Trash2 className="w-4 h-4"/>
-                     </button>
+                    <button type="button" onClick={() => removeVestido(idx)} title="Eliminar este vestido" className="absolute top-4 right-4 text-gray-400 hover:text-rose-600 p-2 bg-white rounded-full shadow-sm hover:shadow transition-all border border-gray-100 z-20">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   )}
                   <div className="space-y-1 relative">
                     <label className="text-sm font-semibold text-gray-700">Buscador de Vestido *</label>
                     <div className="relative">
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         autoComplete="off"
-                        placeholder={formData.sede_id ? "Busca por código o nombre..." : "⚠️ Primero elige una Sede"} 
-                        value={v.referencia} 
+                        placeholder={formData.sede_id ? "Busca por código o nombre..." : "⚠️ Primero elige una Sede"}
+                        value={v.referencia}
                         onChange={(e) => {
                           const val = e.target.value.toUpperCase();
                           updateVestidoMulti(idx, { referencia: val });
-                          const found = vestidosMaestro.find(vm => 
+                          const found = vestidosMaestro.find(vm =>
                             (vm.codigo || '').trim().toUpperCase() === val ||
                             (vm.nombre || '').trim().toUpperCase() === val
                           );
                           if (found) {
-                            updateVestidoMulti(idx, { 
-                              referencia: found.codigo, 
-                              vestido_id: found.id 
+                            updateVestidoMulti(idx, {
+                              referencia: found.codigo,
+                              vestido_id: found.id
                             });
                           } else {
                             updateVestidoMulti(idx, { vestido_id: null });
                           }
-                        }} 
-                        className={`w-full bg-white border text-gray-900 rounded-xl px-4 py-3 focus:ring-2 font-bold tracking-widest uppercase transition-all pr-10 relative z-10 ${
-                          v.referencia && !v.vestido_id 
-                            ? 'border-amber-400 bg-amber-50 ring-amber-100' 
-                            : busyVestidoIds.has(v.vestido_id || '') 
+                        }}
+                        className={`w-full bg-white border text-gray-900 rounded-xl px-4 py-3 focus:ring-2 font-bold tracking-widest uppercase transition-all pr-10 relative z-10 ${v.referencia && !v.vestido_id
+                            ? 'border-amber-400 bg-amber-50 ring-amber-100'
+                            : busyVestidoIds.has(v.vestido_id || '')
                               ? (conflictSeverity === 'yellow' ? 'border-amber-400 ring-amber-100 bg-amber-50' : 'border-rose-500 ring-rose-200 bg-rose-50')
                               : 'border-gray-200 focus:ring-rose-300'
-                        }`} 
+                          }`}
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2 z-20 pointer-events-none">
                         {loadingVestidos ? (
@@ -1213,8 +1213,8 @@ export default function NuevoContratoPage() {
                     {v.referencia.length > 1 && !v.vestido_id && vestidosMaestro.length > 0 && (
                       <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-2xl z-50 max-h-48 overflow-y-auto animate-in slide-in-from-top-2 duration-200">
                         {vestidosMaestro
-                          .filter(vm => 
-                            (vm.codigo || '').toLowerCase().includes(v.referencia.toLowerCase()) || 
+                          .filter(vm =>
+                            (vm.codigo || '').toLowerCase().includes(v.referencia.toLowerCase()) ||
                             (vm.nombre || '').toLowerCase().includes(v.referencia.toLowerCase())
                           )
                           .slice(0, 8)
@@ -1236,14 +1236,14 @@ export default function NuevoContratoPage() {
                                 });
                                 // --- PRECIO DINÁMICO ---
                                 if (!formData.valor_total && vm.precio_sugerido) {
-                                   setFormData(prev => ({...prev, valor_total: vm.precio_sugerido.toString()}));
-                                   toast.success(`Precio base aplicado: $${vm.precio_sugerido.toLocaleString()}`);
+                                  setFormData(prev => ({ ...prev, valor_total: vm.precio_sugerido.toString() }));
+                                  toast.success(`Precio base aplicado: $${vm.precio_sugerido.toLocaleString()}`);
                                 }
                                 // --- ALERTA CROSS-BRANCH ---
                                 if (vm.sede_actual_id !== formData.sede_id) {
-                                   setCrossBranchWarning({ active: true, origin: vm.sedes?.nombre || 'Otra Sede', codigo: vm.codigo });
+                                  setCrossBranchWarning({ active: true, origin: vm.sedes?.nombre || 'Otra Sede', codigo: vm.codigo });
                                 } else {
-                                   setCrossBranchWarning({ active: false, origin: '', codigo: '' });
+                                  setCrossBranchWarning({ active: false, origin: '', codigo: '' });
                                 }
                                 setLoadingVestidos(false);
                               }}
@@ -1258,12 +1258,12 @@ export default function NuevoContratoPage() {
                                   vestido_id: vm.id
                                 });
                                 if (!formData.valor_total && vm.precio_sugerido) {
-                                   setFormData(prev => ({...prev, valor_total: vm.precio_sugerido.toString()}));
+                                  setFormData(prev => ({ ...prev, valor_total: vm.precio_sugerido.toString() }));
                                 }
                                 if (vm.sede_actual_id !== formData.sede_id) {
-                                   setCrossBranchWarning({ active: true, origin: vm.sedes?.nombre || 'Otra Sede', codigo: vm.codigo });
+                                  setCrossBranchWarning({ active: true, origin: vm.sedes?.nombre || 'Otra Sede', codigo: vm.codigo });
                                 } else {
-                                   setCrossBranchWarning({ active: false, origin: '', codigo: '' });
+                                  setCrossBranchWarning({ active: false, origin: '', codigo: '' });
                                 }
                                 setLoadingVestidos(false);
                               }}
@@ -1278,28 +1278,27 @@ export default function NuevoContratoPage() {
                                   <span className="text-[8px] bg-rose-100 text-rose-700 px-1.5 py-0.5 rounded mt-1 font-black inline-block w-fit">CONOCER DISPONIBILIDAD</span>
                                 )}
                               </div>
-                              <span className={`text-[8px] px-2 py-1 rounded-md font-black border ${
-                                busyVestidoIds.has(vm.id) ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'
-                              }`}>
+                              <span className={`text-[8px] px-2 py-1 rounded-md font-black border ${busyVestidoIds.has(vm.id) ? 'bg-amber-50 text-amber-700 border-amber-100' : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                }`}>
                                 {busyVestidoIds.has(vm.id) ? 'RESERVADO' : 'DISPONIBLE'}
                               </span>
                             </button>
                           ))
                         }
-                        {vestidosMaestro.filter(vm => 
+                        {vestidosMaestro.filter(vm =>
                           (vm.codigo || '').toLowerCase().includes(v.referencia.toLowerCase()) ||
                           (vm.nombre || '').toLowerCase().includes(v.referencia.toLowerCase())
                         ).length === 0 && (
-                          <div className="p-4 text-center">
-                            <p className="text-xs text-gray-400 font-bold italic">No se encontraron coincidencias exactas.</p>
-                          </div>
-                        )}
+                            <div className="p-4 text-center">
+                              <p className="text-xs text-gray-400 font-bold italic">No se encontraron coincidencias exactas.</p>
+                            </div>
+                          )}
                       </div>
                     )}
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm font-semibold text-gray-700">Clasificación / Uso</label>
-                    <select value={v.tipo} onChange={(e)=>updateVestido(idx, 'tipo', e.target.value)} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:ring-2 focus:ring-rose-300 font-medium h-[50px]">
+                    <select value={v.tipo} onChange={(e) => updateVestido(idx, 'tipo', e.target.value)} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:ring-2 focus:ring-rose-300 font-medium h-[50px]">
                       <option value="XV">XV Años</option>
                       <option value="Gala">Gala</option>
                       <option value="Cambio">Vestido Retoque / Cambio</option>
@@ -1309,7 +1308,7 @@ export default function NuevoContratoPage() {
                   </div>
                   <div className="md:col-span-2 space-y-1">
                     <label className="text-sm font-semibold text-gray-700">Observaciones del Estado o Entrega</label>
-                    <textarea value={v.observaciones} onChange={(e)=>updateVestido(idx, 'observaciones', e.target.value)} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:ring-2 focus:ring-rose-300 transition-all focus:bg-white" rows={2} placeholder="Ej: Talla ajustable, requiere tintorería express..."></textarea>
+                    <textarea value={v.observaciones} onChange={(e) => updateVestido(idx, 'observaciones', e.target.value)} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:ring-2 focus:ring-rose-300 transition-all focus:bg-white" rows={2} placeholder="Ej: Talla ajustable, requiere tintorería express..."></textarea>
                   </div>
                 </div>
               ))}
@@ -1318,15 +1317,15 @@ export default function NuevoContratoPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               {/* Accesorios */}
               <div className="space-y-3">
-                <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2"><Briefcase className="w-4 h-4 text-rose-500"/> Accesorios Incluidos</h3>
+                <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2"><Briefcase className="w-4 h-4 text-rose-500" /> Accesorios Incluidos</h3>
                 <div className="grid grid-cols-2 gap-3 p-4 border border-gray-200 rounded-xl bg-white shadow-sm">
                   {opcionesAccesorios.map(ac => (
                     <label key={ac} className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer hover:text-rose-600 transition-colors">
-                      <input 
-                        type="checkbox" 
-                        checked={accesoriosSeleccionados.includes(ac)} 
-                        onChange={() => handleCheckboxArray(ac, accesoriosSeleccionados, setAccesoriosSeleccionados)} 
-                        className="w-4 h-4 accent-rose-500 rounded" 
+                      <input
+                        type="checkbox"
+                        checked={accesoriosSeleccionados.includes(ac)}
+                        onChange={() => handleCheckboxArray(ac, accesoriosSeleccionados, setAccesoriosSeleccionados)}
+                        className="w-4 h-4 accent-rose-500 rounded"
                       />
                       {ac}
                     </label>
@@ -1337,9 +1336,9 @@ export default function NuevoContratoPage() {
               {/* Arreglos */}
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2"><Scissors className="w-4 h-4 text-rose-500"/> Módulo Arreglos</h3>
+                  <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2"><Scissors className="w-4 h-4 text-rose-500" /> Módulo Arreglos</h3>
                   <button type="button" onClick={addArreglo} className="flex items-center gap-1 text-sm bg-rose-100 text-rose-700 px-3 py-1.5 rounded-lg hover:bg-rose-200 transition-colors font-bold shadow-sm">
-                    <Plus className="w-4 h-4"/> Fila
+                    <Plus className="w-4 h-4" /> Fila
                   </button>
                 </div>
                 {arreglos.length === 0 ? (
@@ -1348,10 +1347,10 @@ export default function NuevoContratoPage() {
                   <div className="space-y-2">
                     {arreglos.map((arr, idx) => (
                       <div key={idx} className="flex gap-2 items-center bg-white p-2 border border-gray-200 rounded-xl shadow-sm">
-                        <input type="text" placeholder="Ej. Dobladillo" value={arr.tipo} onChange={(e)=>updateArreglo(idx, 'tipo', e.target.value)} className="w-1/3 p-2 bg-gray-50 rounded-lg text-sm border-gray-200 outline-none focus:ring-1 focus:ring-rose-300"/>
-                        <input type="text" placeholder="5 cm" value={arr.cm} onChange={(e)=>updateArreglo(idx, 'cm', e.target.value)} className="w-1/4 p-2 bg-gray-50 rounded-lg text-sm border-gray-200 outline-none focus:ring-1 focus:ring-rose-300"/>
-                        <input type="number" placeholder="$ Precio" value={arr.precio} onChange={(e)=>updateArreglo(idx, 'precio', e.target.value)} className="w-1/3 p-2 bg-gray-50 rounded-lg text-sm border-gray-200 outline-none font-bold text-rose-700 focus:ring-1 focus:ring-rose-300"/>
-                        <button type="button" onClick={()=>removeArreglo(idx)} className="p-2 text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"><Trash2 className="w-4 h-4"/></button>
+                        <input type="text" placeholder="Ej. Dobladillo" value={arr.tipo} onChange={(e) => updateArreglo(idx, 'tipo', e.target.value)} className="w-1/3 p-2 bg-gray-50 rounded-lg text-sm border-gray-200 outline-none focus:ring-1 focus:ring-rose-300" />
+                        <input type="text" placeholder="5 cm" value={arr.cm} onChange={(e) => updateArreglo(idx, 'cm', e.target.value)} className="w-1/4 p-2 bg-gray-50 rounded-lg text-sm border-gray-200 outline-none focus:ring-1 focus:ring-rose-300" />
+                        <input type="number" placeholder="$ Precio" value={arr.precio} onChange={(e) => updateArreglo(idx, 'precio', e.target.value)} className="w-1/3 p-2 bg-gray-50 rounded-lg text-sm border-gray-200 outline-none font-bold text-rose-700 focus:ring-1 focus:ring-rose-300" />
+                        <button type="button" onClick={() => removeArreglo(idx)} className="p-2 text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     ))}
                   </div>
@@ -1365,12 +1364,12 @@ export default function NuevoContratoPage() {
             <h2 className="text-2xl font-bold border-b border-gray-200 pb-2 text-gray-800 flex items-center gap-2">
               <DollarSign className="text-emerald-500" /> Finanzas & Depósitos
             </h2>
-            
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Costos Centrales */}
               <div className="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100 shadow-sm space-y-5">
                 <div className="grid grid-cols-2 gap-4">
-                  {renderTextInput("Valor Alquiler Base", "valor_total", <DollarSign className="w-4 h-4 text-emerald-600"/>, "number", true)}
+                  {renderTextInput("Valor Alquiler Base", "valor_total", <DollarSign className="w-4 h-4 text-emerald-600" />, "number", true)}
                   <div className="space-y-1">
                     <label className="text-sm font-semibold text-gray-600 flex items-center gap-2 px-1">Costo Arreglos (+)</label>
                     <div className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold text-lg opacity-80 cursor-not-allowed">
@@ -1379,7 +1378,7 @@ export default function NuevoContratoPage() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4 items-end">
-                  {renderTextInput("Abono Inicial", "anticipo", <DollarSign className="w-4 h-4 text-emerald-600"/>, "number", true)}
+                  {renderTextInput("Abono Inicial", "anticipo", <DollarSign className="w-4 h-4 text-emerald-600" />, "number", true)}
                   <div className="p-3 bg-white rounded-xl shadow-inner border border-rose-200 text-center relative overflow-hidden group">
                     <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block mb-1">Saldo Final Real</span>
                     <span className="text-2xl font-black text-rose-600">${saldoCalc.toLocaleString('es-CO')}</span>
@@ -1388,21 +1387,21 @@ export default function NuevoContratoPage() {
                 </div>
 
                 <div className="pt-2 border-t border-emerald-200/50">
-                   <h3 className="font-bold text-gray-700 mb-2 text-sm">Métodos de Pago Utilizados (Abono)</h3>
-                   <div className="flex flex-wrap gap-2">
+                  <h3 className="font-bold text-gray-700 mb-2 text-sm">Métodos de Pago Utilizados (Abono)</h3>
+                  <div className="flex flex-wrap gap-2">
                     {opcionesPago.map(mp => (
                       <label key={mp} className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold cursor-pointer hover:border-emerald-300 transition-colors">
                         <input type="checkbox" checked={metodosPago.includes(mp)} onChange={() => handleCheckboxArray(mp, metodosPago, setMetodosPago)} className="w-4 h-4 accent-emerald-500" /> {mp}
                       </label>
                     ))}
-                   </div>
+                  </div>
                 </div>
               </div>
 
               {/* Info Garante */}
               <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 text-gray-800 mb-2 border-b border-gray-200 pb-2">
-                  <ShieldCheck className="w-5 h-5 text-gray-500"/>
+                  <ShieldCheck className="w-5 h-5 text-gray-500" />
                   <h3 className="font-bold">Datos Cuenta Bancaria (Devolución Garantía)</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -1422,39 +1421,71 @@ export default function NuevoContratoPage() {
           {/* Alerta de Conflicto de Sede (Cross-Branch) */}
           {crossBranchWarning.active && (
             <div className="bg-orange-50 border border-orange-200 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm animate-in zoom-in-95 duration-200">
-                <div className="flex items-center gap-4">
-                   <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-orange-200">
-                      <MapPin className="w-6 h-6 text-white" />
-                   </div>
-                   <div>
-                      <h3 className="font-black text-orange-900 text-lg uppercase tracking-tight">⚠️ Cruce de Sedes Detectado</h3>
-                      <p className="text-orange-800 font-medium text-sm">
-                        El vestido <span className="font-bold">{crossBranchWarning.codigo}</span> está ubicado físicamente en <span className="font-black">{crossBranchWarning.origin}</span>.
-                      </p>
-                   </div>
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-orange-200">
+                  <MapPin className="w-6 h-6 text-white" />
                 </div>
-                <div className="flex items-center gap-3 w-full md:w-auto">
-                   {(userRole === 'admin' || adminAuthorizedTransfer) ? (
-                     <div className="flex items-center gap-2 bg-emerald-100 text-emerald-800 px-4 py-3 rounded-xl font-bold text-sm shadow-inner uppercase tracking-wider">
-                        <CheckCircle2 className="w-5 h-5"/> Traslado Autorizado
-                     </div>
-                   ) : (
-                     <button 
-                       type="button"
-                       onClick={() => setAdminAuthorizedTransfer(true)}
-                       className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-black rounded-xl shadow-xl shadow-orange-200 transition-all active:scale-95 text-sm uppercase tracking-wider flex items-center gap-2"
-                     >
-                       <ShieldCheck className="w-4 h-4" /> Autorizar Traslado
-                     </button>
-                   )}
+                <div>
+                  <h3 className="font-black text-orange-900 text-lg uppercase tracking-tight">⚠️ Cruce de Sedes Detectado</h3>
+                  <p className="text-orange-800 font-medium text-sm">
+                    El vestido <span className="font-bold">{crossBranchWarning.codigo}</span> está ubicado físicamente en <span className="font-black">{crossBranchWarning.origin}</span>.
+                  </p>
                 </div>
+              </div>
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                {(userRole === 'admin' || adminAuthorizedTransfer) ? (
+                  <div className="flex items-center gap-2 bg-emerald-100 text-emerald-800 px-4 py-3 rounded-xl font-bold text-sm shadow-inner uppercase tracking-wider">
+                    <CheckCircle2 className="w-5 h-5" /> Traslado Autorizado
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAdminAuthorizedTransfer(true)}
+                    className="w-full md:w-auto px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-black rounded-xl shadow-xl shadow-orange-200 transition-all active:scale-95 text-sm uppercase tracking-wider flex items-center gap-2"
+                  >
+                    <ShieldCheck className="w-4 h-4" /> Autorizar Traslado
+                  </button>
+                )}
+              </div>
             </div>
           )}
+
+          {/* CLÁUSULA DÉCIMO SÉPTIMA: USO DE IMAGEN */}
+          <section className="bg-white p-6 rounded-3xl border-2 border-rose-100 shadow-sm space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 mt-6">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-rose-100 rounded-lg flex items-center justify-center">
+                    <Camera className="w-5 h-5 text-rose-600" />
+                  </div>
+                  <h3 className="font-black text-gray-900 uppercase tracking-tight">Autorización de Uso de Imagen</h3>
+                </div>
+                <p className="text-xs text-gray-500 leading-relaxed font-medium mt-2">
+                  EL CONTRATANTE/ARRENDATARIO, y LA QUINCEAÑERA, autorizan el uso de su imagen y datos personales en cualquier material publicitario, promocional y de marketing (Redes Sociales, Medios impresos, Medios audiovisuales). Válido por 10 años. Renuncian a compensación.
+                </p>
+              </div>
+
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <label className="relative inline-flex items-center cursor-pointer group">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={formData.autoriza_uso_imagen}
+                    onChange={(e) => setFormData({ ...formData, autoriza_uso_imagen: e.target.checked })}
+                  />
+                  <div className="w-14 h-7 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[4px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-rose-500 shadow-inner"></div>
+                </label>
+                <span className={`text-[10px] font-black uppercase tracking-widest ${formData.autoriza_uso_imagen ? 'text-rose-600' : 'text-gray-400'}`}>
+                  {formData.autoriza_uso_imagen ? 'Aprobado (Cláusula 17)' : 'No Autorizado'}
+                </span>
+              </div>
+            </div>
+          </section>
 
           {/* Submit */}
           <div className="pt-6 border-t border-gray-200">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button 
+              <button
                 type="button"
                 onClick={handleBack}
                 className="w-full py-4 px-6 bg-white hover:bg-gray-50 text-gray-400 hover:text-gray-600 font-black text-lg transition-all rounded-2xl border-2 border-gray-100 flex items-center justify-center gap-2 shadow-sm uppercase tracking-widest"
@@ -1462,11 +1493,11 @@ export default function NuevoContratoPage() {
                 <XCircle className="w-5 h-5" /> Cancelar
               </button>
 
-              <button 
+              <button
                 type="button"
                 onClick={handleSubmit}
                 disabled={
-                  loading || 
+                  loading ||
                   vestidos.some(v => !v.vestido_id || busyVestidoIds.has(v.vestido_id || '')) ||
                   (crossBranchWarning.active && !adminAuthorizedTransfer && userRole !== 'admin')
                 }
@@ -1482,89 +1513,89 @@ export default function NuevoContratoPage() {
 
         </form>
         {/* Modal de Conflicto de Disponibilidad */}
-    {showConflictModal && (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
-          <div className="bg-rose-600 p-6 text-center text-white">
-            <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/30">
-               <AlertTriangle className="w-8 h-8 text-white" />
+        {showConflictModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-200">
+              <div className="bg-rose-600 p-6 text-center text-white">
+                <div className="bg-white/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border border-white/30">
+                  <AlertTriangle className="w-8 h-8 text-white" />
+                </div>
+                <h3 className="text-xl font-black uppercase tracking-tight">🚫 Vestido No Disponible</h3>
+              </div>
+              <div className="p-8 text-center space-y-4">
+                <p className="text-gray-600 font-medium leading-relaxed">
+                  El Vestido <span className="font-black text-gray-900 underline decoration-rose-500 decoration-2">{conflictDressCode}</span> está en un <span className="text-rose-600 font-bold uppercase">Bloqueo Total</span>.
+                  <br /><br />
+                  La diferencia entre fechas es <strong>menor a 5 días</strong>, lo cual no permite tiempo suficiente para lavandería y arreglos. No es posible solicitar autorización para este periodo.
+                </p>
+                <p className="text-sm border-l-4 border-rose-500 bg-rose-50 p-3 italic text-gray-500 font-semibold rounded-r-xl">
+                  🚫 No Disponible (Menos de 5 días)
+                </p>
+                <button
+                  onClick={() => setShowConflictModal(false)}
+                  className="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-4 rounded-2xl transition-all shadow-lg hover:shadow-gray-200 uppercase tracking-widest text-sm"
+                >
+                  Aceptar
+                </button>
+              </div>
             </div>
-            <h3 className="text-xl font-black uppercase tracking-tight">🚫 Vestido No Disponible</h3>
           </div>
-          <div className="p-8 text-center space-y-4">
-            <p className="text-gray-600 font-medium leading-relaxed">
-              El Vestido <span className="font-black text-gray-900 underline decoration-rose-500 decoration-2">{conflictDressCode}</span> está en un <span className="text-rose-600 font-bold uppercase">Bloqueo Total</span>.
-              <br/><br/>
-              La diferencia entre fechas es <strong>menor a 5 días</strong>, lo cual no permite tiempo suficiente para lavandería y arreglos. No es posible solicitar autorización para este periodo.
-            </p>
-            <p className="text-sm border-l-4 border-rose-500 bg-rose-50 p-3 italic text-gray-500 font-semibold rounded-r-xl">
-              🚫 No Disponible (Menos de 5 días)
-            </p>
-            <button 
-              onClick={() => setShowConflictModal(false)}
-              className="w-full bg-gray-900 hover:bg-gray-800 text-white font-bold py-4 rounded-2xl transition-all shadow-lg hover:shadow-gray-200 uppercase tracking-widest text-sm"
-            >
-              Aceptar
-            </button>
-          </div>
-        </div>
-      </div>
-    )}
-    {/* Modal de Alistamiento (Yellow Zone) Optimized */}
-    {showYellowModal && (
-      <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6 animate-in fade-in duration-300">
-        <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border-4 border-amber-400">
-           <div className="p-8 bg-amber-400 text-gray-900">
-              <div className="flex items-center gap-4">
-                 <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg">
+        )}
+        {/* Modal de Alistamiento (Yellow Zone) Optimized */}
+        {showYellowModal && (
+          <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-[110] flex items-center justify-center p-6 animate-in fade-in duration-300">
+            <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border-4 border-amber-400">
+              <div className="p-8 bg-amber-400 text-gray-900">
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center shadow-lg">
                     <Clock className="w-8 h-8 text-amber-500" />
-                 </div>
-                 <div>
+                  </div>
+                  <div>
                     <h2 className="text-2xl font-black uppercase tracking-tight">Alerta de Alistamiento</h2>
                     <p className="text-amber-900 text-xs font-black uppercase tracking-widest opacity-80">Zona Amarilla Logística</p>
-                 </div>
+                  </div>
+                </div>
               </div>
-           </div>
-           
-           <div className="p-8 space-y-6">
-              <div className="bg-amber-50 border-2 border-amber-200 p-6 rounded-3xl space-y-3">
-                 <p className="font-bold text-gray-800 leading-relaxed text-sm">
+
+              <div className="p-8 space-y-6">
+                <div className="bg-amber-50 border-2 border-amber-200 p-6 rounded-3xl space-y-3">
+                  <p className="font-bold text-gray-800 leading-relaxed text-sm">
                     El vestido <span className="text-amber-700 font-black">"{alistamientoData?.referencia || conflictDressCode}"</span> entra en el rango de <span className="text-amber-600 font-black uppercase">Permiso Especial</span> (5 a 10 días).
                     {alistamientoData?.contratoPadre && (
                       <span className="block mt-2 text-xs text-gray-500">
                         Cruce con contrato: #{alistamientoData.contratoPadre} (Evento: {alistamientoData.fechaOcupado})
                       </span>
                     )}
-                 </p>
-                 <div className="flex items-center gap-2 text-amber-600 font-black text-[10px] uppercase tracking-widest bg-white/50 p-2 rounded-lg border border-amber-100">
+                  </p>
+                  <div className="flex items-center gap-2 text-amber-600 font-black text-[10px] uppercase tracking-widest bg-white/50 p-2 rounded-lg border border-amber-100">
                     <Clock className="w-4 h-4" />
                     Requiere Autorización del Administrador
-                 </div>
-              </div>
+                  </div>
+                </div>
 
-              <p className="text-xs text-gray-400 font-medium px-2 text-center">
-                 ¿Deseas solicitar una autorización especial para alquilar esta prenda en este periodo? El contrato se creará con estado <span className="font-bold underline">"Pendiente de Aprobación"</span>.
-              </p>
+                <p className="text-xs text-gray-400 font-medium px-2 text-center">
+                  ¿Deseas solicitar una autorización especial para alquilar esta prenda en este periodo? El contrato se creará con estado <span className="font-bold underline">"Pendiente de Aprobación"</span>.
+                </p>
 
-              <div className="flex gap-4 pt-4">
-                 <button 
-                  onClick={() => setShowYellowModal(false)}
-                  className="flex-1 py-4 border-2 border-gray-100 rounded-2xl font-black text-gray-400 hover:bg-gray-50 transition-all uppercase tracking-widest text-[10px]"
-                 >
+                <div className="flex gap-4 pt-4">
+                  <button
+                    onClick={() => setShowYellowModal(false)}
+                    className="flex-1 py-4 border-2 border-gray-100 rounded-2xl font-black text-gray-400 hover:bg-gray-50 transition-all uppercase tracking-widest text-[10px]"
+                  >
                     Cancelar
-                 </button>
-                 <button 
-                  onClick={handleSolicitarAutorizacion}
-                  disabled={isSubmittingException}
-                  className="flex-[2] py-4 bg-gray-900 hover:bg-black text-white rounded-2xl font-black transition-all shadow-lg shadow-amber-100 disabled:opacity-50 uppercase tracking-widest text-[10px] flex items-center justify-center gap-2"
-                 >
+                  </button>
+                  <button
+                    onClick={handleSolicitarAutorizacion}
+                    disabled={isSubmittingException}
+                    className="flex-[2] py-4 bg-gray-900 hover:bg-black text-white rounded-2xl font-black transition-all shadow-lg shadow-amber-100 disabled:opacity-50 uppercase tracking-widest text-[10px] flex items-center justify-center gap-2"
+                  >
                     {isSubmittingException ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Solicitar Autorización'}
-                 </button>
+                  </button>
+                </div>
               </div>
-           </div>
-        </div>
-      </div>
-    )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -35,6 +35,7 @@ export interface ContractData {
   titular_cuenta_deposito?: string;
   asesora?: string;
   quinceanera_name?: string;
+  autoriza_uso_imagen?: boolean;
 }
 
 interface ContractTemplateProps {
@@ -151,8 +152,13 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
               <span className="text-gray-500 text-xs mt-1">Ref Principal: {(data.vestidos && data.vestidos.length > 0) ? (data.vestidos[0].vestido?.codigo || data.vestidos[0].vestido?.codigo_referencia || '—') : '—'}</span>
             </h2>
            <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-             <div className="col-span-2 sm:col-span-1 border-b sm:border-b-0 sm:border-r border-dashed border-gray-400 pb-2 sm:pb-0 sm:pr-4">
-                <strong>Tipo de Servicio:</strong> {data.tipo_evento === 'PreXV' ? 'Fotografía Pre-XV' : (data.tipo_evento || '—')} <br/>
+              <div className="col-span-2 sm:col-span-1 border-b sm:border-b-0 sm:border-r border-dashed border-gray-400 pb-2 sm:pb-0 sm:pr-4">
+                <strong>Tipo de Servicio:</strong> {
+                  data.tipo_evento === 'Evento' ? 'alquiler de vestido destinado exclusivamente para evento' :
+                  data.tipo_evento === 'PreXV' ? 'alquiler de vestido destinado exclusivamente para sesión prexv' :
+                  data.tipo_evento === 'Ambos' ? 'servicio de alquiler de vestido para evento y sesión prexv' :
+                  (data.tipo_evento || '—')
+                } <br/>
                 
                 {data.tipo_evento === 'PreXV' ? (
                   <>
@@ -161,7 +167,7 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
                 ) : (
                   <>
                     <strong>Día del Evento:</strong> {formatDate(data.fecha_evento)} <br/>
-                    {data.tipo_evento !== 'Evento' && (
+                   {(data.tipo_evento === 'PreXV' || data.tipo_evento === 'Ambos') && (
                       <div className="mt-1 border-t border-gray-200 pt-1">
                       <strong>P. Fotografía:</strong> {formatDate(data.fecha_pre_xv)}<br/>
                       </div>
@@ -398,8 +404,7 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
 
             <p>
               <strong>PARAGRAFO SEGUNDO: ANTICIPO PARA PROCESO DE ADQUISICIÓN DEL VESTIDO “ESTRENO”.</strong><br />
-              Cuando el vestido contratado corresponda a la modalidad de alquiler “estreno”, importación o adquisición especial para la cliente, <strong>EL CONTRATANTE/ARRENDATARIO</strong> deberá cancelar como mínimo el ochenta por ciento (<strong>80%</strong>) del valor total del contrato al momento de la firma del mismo, requisito indispensable para que <strong>AMBAR COUTURE</strong> inicie el proceso de pedido, adquisición, importación, confección o gestión logística del vestido.<br />
-              Este anticipo se justifica en que el vestido será gestionado o producido específicamente para la cliente, generando compromisos económicos inmediatos con proveedores, procesos de producción, transporte y logística.
+            Este anticipo se justifica en que el vestido será gestionado o producido específicamente para la cliente, generando compromisos económicos inmediatos con proveedores, procesos de producción, transporte y logística.
             </p>
           </div>
           <div className="space-y-4 text-justify">
@@ -418,139 +423,140 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
               <strong>PARÁGRAFO-DAÑOS EN TIARA:</strong><br />
               En caso de fractura, ruptura estructural o daño grave de la tiara entregada, <strong>EL CONTRATANTE/ARRENDATARIO</strong> autoriza expresamente a <strong>EL PRESTADOR/ARRENDADOR</strong> a cobrar un valor por concepto de reposición o reparación, el cual será del valor de venta del producto (accesorio) por parte del prestador/arrendador la cual podrá el contratante/arrendatario tener conocimiento en el instante de la entrega o en el momento de realizar el alquiler, suma que podrá ser descontada del depósito en garantía o cobrada directamente al cliente si dicho valor supera el monto del depósito.
             </p>
-            <p>
-              Se aclara expresamente que la caída o desprendimiento de piedras, cristales o elementos decorativos adheridos, cuando estos sean reparables mediante fijación, será asumida por <strong>EL PRESTADOR/ARRENDADOR</strong> y no generará cobro adicional al cliente, por tratarse de un desgaste normal del uso del accesorio.
-            </p>
           </div>
-          <div className="space-y-4 text-justify">
-            <p><strong>DÉCIMA. Alquiler para Pre XV (Aplicable a Alquiler General):</strong></p>
-            <p>
-              Si <strong>EL CONTRATANTE/ARRENDATARIO</strong> quiere alquilar el vestido para un evento Pre XV, debe estar al día con su factura para que la prenda pueda salir de la tienda y debe pagar el respectivo depósito, si aplica. Además, <strong>EL CONTRATANTE/ARRENDATARIO</strong> deberá pagar <strong>$140.000</strong> por concepto de lavandería.
-            </p>
+             {(data.tipo_evento === 'PreXV' || data.tipo_evento === 'Ambos') && (
+            <div className="space-y-4 text-justify">
+              <p><strong>DÉCIMA. Alquiler para Pre XV (Aplicable a Alquiler General):</strong></p>
+              <p>
+                Si <strong>EL CONTRATANTE/ARRENDATARIO</strong> quiere alquilar el vestido para un evento Pre XV, debe estar al día con su factura para que la prenda pueda salir de la tienda y debe pagar el respectivo depósito, si aplica. Además, <strong>EL CONTRATANTE/ARRENDATARIO</strong> deberá pagar <strong>$140.000</strong> por concepto de lavandería.
+              </p>
 
-            <p>
-              <strong>PARAGRAFO PRIMERO. Condición de pago previo para cualquier uso del vestido:</strong><br />
-              En los servicios de Alquiler PRE XV, se establece expresamente que cualquier uso del vestido posterior a su selección, ya sea dentro o fuera de las instalaciones de <strong>AMBAR COUTURE</strong>, incluyendo, pero sin limitarse a <strong>pruebas, sesiones fotográficas, grabaciones, generación de contenido, ensayos o cualquier otra utilización</strong>, requerirá que la factura se encuentre pagada en su totalidad, así como el depósito correspondiente si aplica.<br />
-              En consecuencia, ningún vestido podrá ser utilizado, manipulado o dispuesto para fines distintos a la simple selección inicial, mientras exista saldo pendiente por pagar.
-            </p>
+              <p>
+                <strong>PARAGRAFO PRIMERO. Condición de pago previo para cualquier uso del vestido:</strong><br />
+                En los servicios de Alquiler PRE XV, se establece expresamente que cualquier uso del vestido posterior a su selección, ya sea dentro o fuera de las instalaciones de <strong>AMBAR COUTURE</strong>, incluyendo, pero sin limitarse a <strong>pruebas, sesiones fotográficas, grabaciones, generación de contenido, ensayos o cualquier otra utilización</strong>, requerirá que la factura se encuentre pagada en su totalidad, así como el depósito correspondiente si aplica.<br />
+                En consecuencia, ningún vestido podrá ser utilizado, manipulado o dispuesto para fines distintos a la simple selección inicial, mientras exista saldo pendiente por pagar.
+              </p>
 
-            <p>
-              <strong>PARAGRAFO SEGUNDO: CONDICIONES DE LA CITA Y SESIÓN PRE XV</strong><br />
-              Para la correcta prestación del servicio de Pre XV, <strong>EL CONTRATANTE/ARRENDATARIO</strong> y <strong>LA QUINCEAÑERA</strong> se obligan a cumplir las siguientes condiciones, las cuales hacen parte integral del presente contrato:
-            </p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li><strong>Preparación personal:</strong> <strong>LA QUINCEAÑERA</strong> deberá asistir a la cita y/o sesión con el cabello limpio y completamente seco, y con las cejas previamente depiladas, a fin de garantizar el adecuado desarrollo del servicio de maquillaje y peinado.</li>
-              <li><strong>Vestimenta:</strong> Se recomienda asistir con ropa cómoda, preferiblemente camisa de botones, con el fin de evitar daños al peinado y maquillaje una vez finalizados.</li>
-              <li><strong>Acompañantes:</strong> Se permitirá un máximo de un (1) acompañante durante la cita o sesión, salvo autorización expresa del <strong>PRESTADOR/ARRENDADOR</strong>.</li>
-              <li><strong>Puntualidad:</strong> <strong>EL CONTRATANTE/ARRENDATARIO</strong> reconoce que la puntualidad es obligatoria. Un retraso superior a quince (15) minutos podrá afectar el desarrollo de la sesión y las citas posteriores, sin que ello genere derecho a reprogramación, devolución o compensación alguna.</li>
-              <li><strong>Inasistencia o cancelación:</strong> En caso de no poder asistir a la cita o sesión programada, <strong>EL CONTRATANTE/ARRENDATARIO</strong> deberá informar con antelación suficiente. La inasistencia injustificada se considerará cita utilizada para todos los efectos contractuales.</li>
-              <li><strong>Decoración y elementos adicionales:</strong> Cualquier elemento decorativo para la sesión fotográfica, tales como <strong>tortas, globos, flores, bengalas, mascotas u otros</strong>, deberá ser definido y aportado previamente por <strong>EL CONTRATANTE/ARRENDATARIO</strong>, entendiéndose que la decoración no se encuentra incluida dentro del valor del servicio contratado.</li>
-              <li><strong>Participación de terceros en las fotos:</strong> Los padres o familiares podrán participar en la sesión fotográfica únicamente si se informa previamente al fotógrafo y se ajusta a la logística y tiempos del servicio.</li>
-              <li><strong>Estilo y locación de la sesión:</strong> <strong>EL CONTRATANTE/ARRENDATARIO</strong> declara conocer y aceptar que la sesión se realizará conforme a las locaciones, estilo y línea estética previamente trabajadas por <strong>ÁMBAR COUTURE</strong>, las cuales pueden ser consultadas en sesiones anteriores, sin que procedan reclamaciones posteriores por diferencias de estilo o concepto.</li>
-            </ul>
-            <p>
-              <strong>PARÁGRAFO TERCERO – ENTREGA DE MATERIAL FOTOGRÁFICO PRE XV</strong><br />
-              En los casos en que el paquete contratado incluya sesión fotográfica PRE XV con entrega de material digital, impresiones físicas, ampliaciones o retablos, <strong>AMBAR COUTURE</strong> realizará la entrega conforme a los siguientes plazos:<br />
-              <strong>a)</strong> El material digital editado será entregado dentro de los <strong>treinta (30) días calendario</strong> siguientes a la fecha efectiva de realización de la sesión fotográfica.<br />
-              <strong>b)</strong> Las impresiones físicas, ampliaciones, retablos u otros productos físicos serán entregados dentro de los <strong>cuarenta y cinco (45) días calendario</strong> siguientes a la sesión, sujetos a los tiempos de producción de proveedores externos.<br />
-              En caso de retrasos razonables atribuibles a terceros proveedores o circunstancias logísticas ajenas a la voluntad de <strong>AMBAR COUTURE</strong>, el plazo podrá extenderse informando oportunamente al cliente.<br />
-              La entrega digital se realizará mediante enlace electrónico o medio definido por la empresa. Los productos físicos deberán ser reclamados en la sede correspondiente o enviados bajo costo asumido por <strong>EL CONTRATANTE/ARRENDATARIO</strong>.
-            </p>
+              <p>
+                <strong>PARAGRAFO SEGUNDO: CONDICIONES DE LA CITA Y SESIÓN PRE XV</strong><br />
+                Para la correcta prestación del servicio de Pre XV, <strong>EL CONTRATANTE/ARRENDATARIO</strong> y <strong>LA QUINCEAÑERA</strong> se obligan a cumplir las siguientes condiciones, las cuales hacen parte integral del presente contrato:
+              </p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li><strong>Preparación personal:</strong> <strong>LA QUINCEAÑERA</strong> deberá asistir a la cita y/o sesión con el cabello limpio y completamente seco, y con las cejas previamente depiladas, a fin de garantizar el adecuado desarrollo del servicio de maquillaje y peinado.</li>
+                <li><strong>Vestimenta:</strong> Se recomienda asistir con ropa cómoda, preferiblemente camisa de botones, con el fin de evitar daños al peinado y maquillaje una vez finalizados.</li>
+                <li><strong>Acompañantes:</strong> Se permitirá un máximo de un (1) acompañante durante la cita o sesión, salvo autorización expresa del <strong>PRESTADOR/ARRENDADOR</strong>.</li>
+                <li><strong>Puntualidad:</strong> <strong>EL CONTRATANTE/ARRENDATARIO</strong> reconoce que la puntualidad es obligatoria. Un retraso superior a quince (15) minutos podrá afectar el desarrollo de la sesión y las citas posteriores, sin que ello genere derecho a reprogramación, devolución o compensación alguna.</li>
+                <li><strong>Inasistencia o cancelación:</strong> En caso de no poder asistir a la cita o sesión programada, <strong>EL CONTRATANTE/ARRENDATARIO</strong> deberá informar con antelación suficiente. La inasistencia injustificada se considerará cita utilizada para todos los efectos contractuales.</li>
+                <li><strong>Decoración y elementos adicionales:</strong> Cualquier elemento decorativo para la sesión fotográfica, tales como <strong>tortas, globos, flores, bengalas, mascotas u otros</strong>, deberá ser definido y aportado previamente por <strong>EL CONTRATANTE/ARRENDATARIO</strong>, entendiéndose que la decoración no se encuentra incluida dentro del valor del servicio contratado.</li>
+                <li><strong>Participación de terceros en las fotos:</strong> Los padres o familiares podrán participar en la sesión fotográfica únicamente si se informa previamente al fotógrafo y se ajusta a la logística y tiempos del servicio.</li>
+                <li><strong>Estilo y locación de la sesión:</strong> <strong>EL CONTRATANTE/ARRENDATARIO</strong> declara conocer y aceptar que la sesión se realizará conforme a las locaciones, estilo y línea estética previamente trabajadas por <strong>ÁMBAR COUTURE</strong>, las cuales pueden ser consultadas en sesiones anteriores, sin que procedan reclamaciones posteriores por diferencias de estilo o concepto.</li>
+              </ul>
+              <p>
+                <strong>PARÁGRAFO TERCERO – ENTREGA DE MATERIAL FOTOGRÁFICO PRE XV</strong><br />
+                En los casos en que el paquete contratado incluya sesión fotográfica PRE XV con entrega de material digital, impresiones físicas, ampliaciones o retablos, <strong>AMBAR COUTURE</strong> realizará la entrega conforme a los siguientes plazos:<br />
+                <strong>a)</strong> El material digital editado será entregado dentro de los <strong>treinta (30) días calendario</strong> siguientes a la fecha efectiva de realización de la sesión fotográfica.<br />
+                <strong>b)</strong> Las impresiones físicas, ampliaciones, retablos u otros productos físicos serán entregados dentro de los <strong>cuarenta y cinco (45) días calendario</strong> siguientes a la sesión, sujetos a los tiempos de producción de proveedores externos.<br />
+                En caso de retrasos razonables atribuibles a terceros proveedores o circunstancias logísticas ajenas a la voluntad de <strong>AMBAR COUTURE</strong>, el plazo podrá extenderse informando oportunamente al cliente.<br />
+                La entrega digital se realizará mediante enlace electrónico o medio definido por la empresa. Los productos físicos deberán ser reclamados en la sede correspondiente o enviados bajo costo asumido por <strong>EL CONTRATANTE/ARRENDATARIO</strong>.
+              </p>
 
-            <p>
-              <strong>PARAGRAFO CUARTO - CLÁUSULA DÉCIMA – CONDICIONES ESPECIALES PARA SESIONES PRE-XV</strong><br />
-              <strong>ÁMBAR COUTURE</strong> ofrece la posibilidad de realizar sesiones fotográficas denominadas PRE-XV, las cuales podrán desarrollarse bajo las siguientes condiciones:<br />
-              <strong>1.</strong> Cliente que alquila el vestido para el evento principal:<br />
-              Cuando el vestido haya sido alquilado para el evento principal de quince años, el cliente podrá realizar una sesión PRE-XV.<br />
-              <strong>a)</strong> PRE-XV dentro de la semana del evento:<br />
-              Cuando la sesión PRE-XV se realice dentro de la misma semana programada para la entrega del vestido, el cliente podrá retirar el vestido para realizar la sesión fotográfica y posteriormente utilizarlo en el evento principal.<br />
-              En este caso:<br />
-              <strong>No se cobrará alquiler adicional del vestido.</strong><br />
-              El cliente únicamente deberá asumir los costos correspondientes a: <strong>fotografía, maquillaje, peinado, lavandería del vestido.</strong><br />
-              En estos casos el tiempo de tenencia del vestido podrá superar el límite general de <strong>cinco (5) días</strong> establecido en el contrato, sin generar cargos adicionales por alquiler, siempre que el uso se encuentre dentro de la semana del evento y haya sido previamente autorizado por <strong>ÁMBAR COUTURE</strong>.
-            </p>
+              <p>
+                <strong>PARAGRAFO CUARTO - CLÁUSULA DÉCIMA – CONDICIONES ESPECIALES PARA SESIONES PRE-XV</strong><br />
+                <strong>ÁMBAR COUTURE</strong> ofrece la posibilidad de realizar sesiones fotográficas denominadas PRE-XV, las cuales podrán desarrollarse bajo las siguientes condiciones:<br />
+                <strong>1.</strong> Cliente que alquila el vestido para el evento principal:<br />
+                Cuando el vestido haya sido alquilado para el evento principal de quince años, el cliente podrá realizar una sesión PRE-XV.<br />
+                <strong>a)</strong> PRE-XV dentro de la semana del evento:<br />
+                Cuando la sesión PRE-XV se realice dentro de la misma semana programada para la entrega del vestido, el cliente podrá retirar el vestido para realizar la sesión fotográfica y posteriormente utilizarlo en el evento principal.<br />
+                En este caso:<br />
+                <strong>No se cobrará alquiler adicional del vestido.</strong><br />
+                El cliente únicamente deberá asumir los costos correspondientes a: <strong>fotografía, maquillaje, peinado, lavandería del vestido.</strong><br />
+                En estos casos el tiempo de tenencia del vestido podrá superar el límite general de <strong>cinco (5) días</strong> establecido en el contrato, sin generar cargos adicionales por alquiler, siempre que el uso se encuentre dentro de la semana del evento y haya sido previamente autorizado por <strong>ÁMBAR COUTURE</strong>.
+              </p>
 
-            <p>
-              <strong>b) PRE-XV</strong> fuera de la semana del evento:<br />
-              Cuando el cliente desee realizar la sesión <strong>PRE-XV</strong> en una fecha diferente a la semana programada para el evento, se generará un cargo adicional equivalente al: <strong>50% del valor del alquiler del vestido</strong>.<br />
-              Además de los costos correspondientes a: <strong>fotografía, maquillaje, peinado, lavandería.</strong>
-            </p>
+              <p>
+                <strong>b) PRE-XV</strong> fuera de la semana del evento:<br />
+                Cuando el cliente desee realizar la sesión <strong>PRE-XV</strong> en una fecha diferente a la semana programada para el evento, se generará un cargo adicional equivalente al: <strong>50% del valor del alquiler del vestido</strong>.<br />
+                Además de los costos correspondientes a: <strong>fotografía, maquillaje, peinado, lavandería.</strong>
+              </p>
 
-            <p>
-              <strong>2.</strong> Cliente que solo desea realizar sesión <strong>PRE-XV</strong> con <strong>ÁMBAR COUTURE</strong>:<br />
-              Cuando el cliente no alquile el vestido para el evento principal y únicamente contrate la sesión <strong>PRE-XV</strong> con <strong>ÁMBAR COUTURE</strong>, deberá cancelar: <strong>50% del valor del alquiler del vestido, fotografía, maquillaje, peinado, lavandería.</strong>
-            </p>
+              <p>
+                <strong>2.</strong> Cliente que solo desea realizar sesión <strong>PRE-XV</strong> con <strong>ÁMBAR COUTURE</strong>:<br />
+                Cuando el cliente no alquile el vestido para el evento principal y únicamente contrate la sesión <strong>PRE-XV</strong> con <strong>ÁMBAR COUTURE</strong>, deberá cancelar: <strong>50% del valor del alquiler del vestido, fotografía, maquillaje, peinado, lavandería.</strong>
+              </p>
 
-            <p>
-              <strong>3.</strong> Cliente que alquila el vestido para el evento pero realiza el <strong>PRE-XV</strong> con otro proveedor:<br />
-              Cuando el cliente haya alquilado el vestido para el evento principal pero decida realizar la sesión <strong>PRE-XV</strong> con un proveedor diferente a <strong>ÁMBAR COUTURE</strong>, la empresa únicamente autorizará el uso del vestido.<br />
-              En este caso el cliente deberá asumir únicamente el compromiso del cuidado de la prenda. <strong>No se cobrará alquiler adicional del vestido si lo hace dentro de la semana de entrega del vestido.</strong>
-            </p>
+              <p>
+                <strong>3.</strong> Cliente que alquila el vestido para el evento pero realiza el <strong>PRE-XV</strong> con otro proveedor:<br />
+                Cuando el cliente haya alquilado el vestido para el evento principal pero decida realizar la sesión <strong>PRE-XV</strong> con un proveedor diferente a <strong>ÁMBAR COUTURE</strong>, la empresa únicamente autorizará el uso del vestido.<br />
+                En este caso el cliente deberá asumir únicamente el compromiso del cuidado de la prenda. <strong>No se cobrará alquiler adicional del vestido si lo hace dentro de la semana de entrega del vestido.</strong>
+              </p>
 
-            <p>
-              <strong>4.</strong> Cliente que alquila el vestido exclusivamente para sesión <strong>PRE-XV</strong>:<br />
-              Cuando el vestido sea solicitado únicamente para realizar la sesión <strong>PRE-XV</strong> y no para el evento principal, el cliente deberá cancelar: <strong>70% del valor del alquiler del vestido</strong>. Este servicio no incluye fotografía, maquillaje ni peinado, los cuales deberán ser contratados por el cliente por su cuenta si así lo desea.
-            </p>
+              <p>
+                <strong>4.</strong> Cliente que alquila el vestido exclusivamente para sesión <strong>PRE-XV</strong>:<br />
+                Cuando el vestido sea solicitado únicamente para realizar la sesión <strong>PRE-XV</strong> y no para el evento principal, el cliente deberá cancelar: <strong>70% del valor del alquiler del vestido</strong>. Este servicio no incluye fotografía, maquillaje ni peinado, los cuales deberán ser contratados por el cliente por su cuenta si así lo desea.
+              </p>
 
-            <p>
-              <strong>5. Disponibilidad del vestido</strong><br />
-              El uso del vestido para sesiones <strong>PRE-XV</strong> estará sujeto a la disponibilidad del inventario y programación de agenda de <strong>ÁMBAR COUTURE</strong>, quien podrá autorizar o negar el préstamo del vestido según la disponibilidad del mismo.
-            </p>
+              <p>
+                <strong>5. Disponibilidad del vestido</strong><br />
+                El uso del vestido para sesiones <strong>PRE-XV</strong> estará sujeto a la disponibilidad del inventario y programación de agenda de <strong>ÁMBAR COUTURE</strong>, quien podrá autorizar o negar el préstamo del vestido según la disponibilidad del mismo.
+              </p>
 
-            <p>
-              <strong>6. Condiciones de cuidado del vestido durante el PRE-XV</strong><br />
-              Durante la sesión <strong>PRE-XV</strong> el cliente deberá garantizar el cuidado adecuado del vestido, respondiendo por cualquier daño, deterioro o pérdida del mismo conforme a las condiciones establecidas en el presente contrato.
-            </p>
-          </div>
+              <p>
+                <strong>6. Condiciones de cuidado del vestido durante el PRE-XV</strong><br />
+                Durante la sesión <strong>PRE-XV</strong> el cliente deberá garantizar el cuidado adecuado del vestido, respondiendo por cualquier daño, deterioro o pérdida del mismo conforme a las condiciones establecidas en el presente contrato.
+              </p>
+            </div>
+          )}
           <p>
             <strong>DÉCIMA PRIMERA. Pérdida de la Funda del Vestido:</strong>
             La pérdida de la funda del vestido tendrá un costo de <strong>$30.000</strong> para el tamaño pequeño y <strong>$50.000</strong> para el tamaño grande.
           </p>
 
-          <div className="space-y-4 text-justify">
-            <p><strong>DÉCIMA SEGUNDA. SERVICIOS PRE XV CON TERCEROS – ACTIVIDAD CON EQUINOS</strong></p>
-            <p>
-              Cuando dentro del servicio <strong>PRE XV</strong> contratado se incluya sesión fotográfica o actividad con equinos (caballos o ponys), <strong>EL CONTRATANTE/ARRENDATARIO</strong> declara conocer y aceptar lo siguiente:
-            </p>
-            <ol className="list-decimal pl-6 space-y-2">
-              <li><strong>1.</strong> Que la actividad con equinos es prestada por un tercero independiente, quien actúa con autonomía técnica y administrativa, sin que exista relación laboral, societaria o de subordinación con <strong>AMBAR COUTURE</strong>.</li>
-              <li><strong>2.</strong> Que la interacción con equinos constituye una actividad que puede implicar riesgo inherente, por tratarse de animales vivos con comportamiento instintivo e imprevisible.</li>
-              <li><strong>3.</strong> Que <strong>AMBAR COUTURE</strong> actúa exclusivamente como coordinador logístico y comercial del servicio dentro del paquete <strong>PRE XV</strong>, sin intervenir en la ejecución, manejo, control o supervisión directa de los animales.</li>
-            </ol>
-            <p><strong>En consecuencia:</strong></p>
-            <p><strong>AMBAR COUTURE no será responsable por accidentes, lesiones, daños o perjuicios derivados de la reacción natural, instintiva o imprevisible del equino, siempre que dichos hechos no sean atribuibles a culpa directa de AMBAR COUTURE.</strong></p>
-            <p>
-              La responsabilidad por el manejo, control, custodia y supervisión del equino recaerá exclusivamente en el prestador del servicio ecuestre, quien deberá contar con sus propios protocolos de seguridad y consentimiento informado firmado por el cliente.
-            </p>
-            <p>
-              <strong>EL CONTRATANTE/ARRENDATARIO</strong> declara conocer que la actividad puede implicar riesgo natural y acepta participar bajo su propia responsabilidad dentro de los límites permitidos por la ley.
-            </p>
+           {(data.tipo_evento === 'PreXV' || data.tipo_evento === 'Ambos') && (
+            <div className="space-y-4 text-justify">
+              <p><strong>DÉCIMA SEGUNDA. SERVICIOS PRE XV CON TERCEROS – ACTIVIDAD CON EQUINOS</strong></p>
+              <p>
+                Cuando dentro del servicio <strong>PRE XV</strong> contratado se incluya sesión fotográfica o actividad con equinos (caballos o ponys), <strong>EL CONTRATANTE/ARRENDATARIO</strong> declara conocer y aceptar lo siguiente:
+              </p>
+              <ol className="list-decimal pl-6 space-y-2">
+                <li><strong>1.</strong> Que la actividad con equinos es prestada por un tercero independiente, quien actúa con autonomía técnica y administrativa, sin que exista relación laboral, societaria o de subordinación con <strong>AMBAR COUTURE</strong>.</li>
+                <li><strong>2.</strong> Que la interacción con equinos constituye una actividad que puede implicar riesgo inherente, por tratarse de animales vivos con comportamiento instintivo e imprevisible.</li>
+                <li><strong>3.</strong> Que <strong>AMBAR COUTURE</strong> actúa exclusivamente como coordinador logístico y comercial del servicio dentro del paquete <strong>PRE XV</strong>, sin intervenir en la ejecución, manejo, control o supervisión directa de los animales.</li>
+              </ol>
+              <p><strong>En consecuencia:</strong></p>
+              <p><strong>AMBAR COUTURE no será responsable por accidentes, lesiones, daños o perjuicios derivados de la reacción natural, instintiva o imprevisible del equino, siempre que dichos hechos no sean atribuibles a culpa directa de AMBAR COUTURE.</strong></p>
+              <p>
+                La responsabilidad por el manejo, control, custodia y supervisión del equino recaerá exclusivamente en el prestador del servicio ecuestre, quien deberá contar con sus propios protocolos de seguridad y consentimiento informado firmado por el cliente.
+              </p>
+              <p>
+                <strong>EL CONTRATANTE/ARRENDATARIO</strong> declara conocer que la actividad puede implicar riesgo natural y acepta participar bajo su propia responsabilidad dentro de los límites permitidos por la ley.
+              </p>
 
-            <p>
-              <strong>PARÁGRAFO PRIMERO.</strong> En caso de desistimiento del servicio con equinos, aplicarán las condiciones de cancelación y penalidad establecidas para dicho servicio, conforme al contrato suscrito con el prestador especializado.
-            </p>
+              <p>
+                <strong>PARÁGRAFO PRIMERO.</strong> En caso de desistimiento del servicio con equinos, aplicarán las condiciones de cancelación y penalidad establecidas para dicho servicio, conforme al contrato suscrito con el prestador especializado.
+              </p>
 
-            <p>
-              <strong>PARÁGRAFO SEGUNDO.</strong> En ningún caso <strong>AMBAR COUTURE</strong> responderá por hechos constitutivos de fuerza mayor o caso fortuito derivados del comportamiento natural del animal.
-            </p>
+              <p>
+                <strong>PARÁGRAFO SEGUNDO.</strong> En ningún caso <strong>AMBAR COUTURE</strong> responderá por hechos constitutivos de fuerza mayor o caso fortuito derivados del comportamiento natural del animal.
+              </p>
 
-            <p>
-              <strong>PARÁGRAFO TERCERO. REPROGRAMACIÓN DE SESIÓN PRE XV POR CONDICIONES CLIMÁTICAS.</strong> En caso de que la sesión fotográfica <strong>PRE XV</strong> no pueda realizarse en la fecha programada debido a condiciones climáticas adversas tales como <strong>lluvias intensas, tormentas eléctricas, alertas meteorológicas, riesgos de seguridad</strong>, o cualquier circunstancia que comprometa la integridad física de la quinceañera, su familia, el equipo técnico o terceros vinculados (fotógrafo, maquillador, prestador de equinos u otros), las partes acuerdan lo siguiente:
-            </p>
-            <ul className="list-disc pl-6 space-y-1">
-              <li><strong>1.</strong> La sesión será reprogramada en una nueva fecha, sujeta estrictamente a la disponibilidad de agenda de <strong>AMBAR COUTURE</strong> y de los terceros involucrados.</li>
-              <li><strong>2.</strong> La reprogramación no generará devolución de dinero ni penalidad para ninguna de las partes.</li>
-              <li><strong>3.</strong> En caso de que la nueva fecha implique costos adicionales derivados de proveedores externos, logística adicional o ajustes operativos, dichos costos deberán ser asumidos por <strong>EL CONTRATANTE/ARRENDATARIO</strong>.</li>
-              <li><strong>4.</strong> La decisión final sobre la viabilidad técnica de realizar la sesión ante condiciones climáticas adversas será adoptada por <strong>AMBAR COUTURE</strong> y su equipo profesional, atendiendo criterios objetivos de seguridad y operatividad.</li>
-            </ul>
+              <p>
+                <strong>PARÁGRAFO TERCERO. REPROGRAMACIÓN DE SESIÓN PRE XV POR CONDICIONES CLIMÁTICAS.</strong> En caso de que la sesión fotográfica <strong>PRE XV</strong> no pueda realizarse en la fecha programada debido a condiciones climáticas adversas tales como <strong>lluvias intensas, tormentas eléctricas, alertas meteorológicas, riesgos de seguridad</strong>, o cualquier circunstancia que comprometa la integridad física de la quinceañera, su familia, el equipo técnico o terceros vinculados (fotógrafo, maquillador, prestador de equinos u otros), las partes acuerdan lo siguiente:
+              </p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li><strong>1.</strong> La sesión será reprogramada en una nueva fecha, sujeta estrictamente a la disponibilidad de agenda de <strong>AMBAR COUTURE</strong> y de los terceros involucrados.</li>
+                <li><strong>2.</strong> La reprogramación no generará devolución de dinero ni penalidad para ninguna de las partes.</li>
+                <li><strong>3.</strong> En caso de que la nueva fecha implique costos adicionales derivados de proveedores externos, logística adicional o ajustes operativos, dichos costos deberán ser asumidos por <strong>EL CONTRATANTE/ARRENDATARIO</strong>.</li>
+                <li><strong>4.</strong> La decisión final sobre la viabilidad técnica de realizar la sesión ante condiciones climáticas adversas será adoptada por <strong>AMBAR COUTURE</strong> y su equipo profesional, atendiendo criterios objetivos de seguridad y operatividad.</li>
+              </ul>
 
-            <p>
-              <strong>PARÁGRAFO CUARTO – SERVICIOS EFECTIVAMENTE EJECUTADOS</strong><br />
-              Si al momento de suspender la sesión ya se hubiere ejecutado el servicio de <strong>maquillaje y/o peinado</strong>, dichos servicios se entenderán como efectivamente prestados, consumidos y <strong>no reembolsables</strong>.<br />
-              En caso de reprogramación, si <strong>EL CONTRATANTE/ARRENDATARIO</strong> decide contratar nuevamente <strong>maquillaje y/o peinado</strong> para la nueva fecha, deberá asumir el pago correspondiente como un nuevo servicio independiente.<br />
-              Lo anterior no constituye penalidad ni sanción, sino el reconocimiento de un servicio personal ya ejecutado y no reutilizable.
-            </p>
-          </div>
+              <p>
+                <strong>PARÁGRAFO CUARTO – SERVICIOS EFECTIVAMENTE EJECUTADOS</strong><br />
+                Si al momento de suspender la sesión ya se hubiere ejecutado el servicio de <strong>maquillaje y/o peinado</strong>, dichos servicios se entenderán como efectivamente prestados, consumidos y <strong>no reembolsables</strong>.<br />
+                En caso de reprogramación, si <strong>EL CONTRATANTE/ARRENDATARIO</strong> decide contratar nuevamente <strong>maquillaje y/o peinado</strong> para la nueva fecha, deberá asumir el pago correspondiente como un nuevo servicio independiente.<br />
+                Lo anterior no constituye penalidad ni sanción, sino el reconocimiento de un servicio personal ya ejecutado y no reutilizable.
+              </p>
+            </div>
+          )}
 
           <p>
             <strong>DÉCIMA TERCERA. Riesgo Compartido:</strong>
@@ -572,6 +578,11 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
           </p>
           <p>
             <strong>DÉCIMO SÉPTIMA. Autorización para el uso de imagen y datos personales:</strong>
+            <span className="ml-2 font-bold text-gray-900 border-b-2 border-gray-900 px-1">
+              ( {data.autoriza_uso_imagen ? 'X' : ' '} ) Acepta
+              <span className="ml-4">( {!data.autoriza_uso_imagen ? 'X' : ' '} ) No Acepta</span>
+            </span>
+            <br />
             <strong>EL CONTRATANTE/ARRENDATARIO</strong>, y <strong>LA QUINCEAÑERA</strong>, autorizan el uso de su imagen y datos personales en cualquier material publicitario, promocional y de marketing que se utilice, inclusive, pero sin limitarse a, en los siguientes medios: <strong>Redes Sociales (Facebook, Instagram, TikTok, entre otras)</strong>. <strong>Medios impresos (Volantes, folletos, posters, entre otros)</strong>. <strong>Medios audiovisuales (Videos, comerciales, entre otros)</strong>. Esta autorización es válida por un período de <strong>diez (10) años</strong>, contados a partir de la firma del presente contrato, y sin limitación geográfica. <strong>EL CONTRATANTE/ARRENDATARIO</strong>, y <strong>LA QUINCEAÑERA</strong>, renuncian a cualquier compensación, indemnización o regalía por el uso de su imagen y datos personales en el marco de esta autorización.
           </p>
           <p>

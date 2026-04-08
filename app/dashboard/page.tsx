@@ -214,7 +214,8 @@ export default function DashboardPage() {
       titular_cuenta_deposito: contrato.titular_cuenta_deposito,
       asesora: contrato.asesora,
       vestidos: contrato.items || contrato.vestidos || [], // Los vestidos en la tabla contratos suelen estar NULL si es ERP, usamos el join 'items'
-      quinceanera_name: contrato.quinceanera_name
+      quinceanera_name: contrato.quinceanera_name,
+      autoriza_uso_imagen: contrato.autoriza_uso_imagen
     };
     setContractForPdf(mappedData);
     toast.info('Preparando el PDF, por favor espera un momento...');
@@ -792,6 +793,7 @@ export default function DashboardPage() {
         anticipo: editForm.anticipo,
         total_arreglos: editForm.total_arreglos,
         numero_factura: editForm.numero_factura,
+        autoriza_uso_imagen: editForm.autoriza_uso_imagen,
       };
 
       const { error } = await supabase
@@ -1452,7 +1454,7 @@ export default function DashboardPage() {
   };
 
   const handleRemoveDress = async () => {
-    // Validaciones preventivas
+    // Validaciones preventivas básicas
     if (!selectedContract || !removingItem || !removeReason || removeReason.length < 5) {
       toast.error('Debes proporcionar un motivo válido (mín. 5 caracteres).');
       return;
@@ -1463,22 +1465,27 @@ export default function DashboardPage() {
 
     setModalLoading(true);
     try {
-      // 1. REGISTRO DE AUDITORÍA (Campo: 'detalle')
-      // Solo procedemos si esto se guarda
+      // 1. REGISTRO DE AUDITORÍA SIMPLIFICADO
+      // Omitimos lectura/escritura en 'profiles' para evitar el 403 de esa tabla.
+      // Usamos directamente el email o ID de la sesión activa.
       const { error: errLog } = await supabase.from('bitacora_eliminaciones_contrato').insert({
         contrato_id: selectedContract.id,
         vestido_id: vestidoId,
         codigo_vestido_eliminado: dressCodigo,
-        detalle: removeReason, // Campo 'detalle' como solicitaste
+        detalle: removeReason,
         usuario_id: user?.id,
-        motivo: 'Eliminación Profesional'
+        motivo: 'Eliminación Directa (Permisos Depurados)'
       });
 
+      // Si la bitácora falla por permisos (403), lo atrapamos de inmediato
       if (errLog) {
-        throw new Error(`Error de Auditoría: ${errLog.message}`);
+        if ((errLog as any).status === 403 || errLog.code === '42501') {
+          throw new Error('Error de permisos en la base de datos');
+        }
+        throw new Error(`Fallo de Auditoría: ${errLog.message}`);
       }
 
-      // 2. BORRADO REAL EN BASE DE DATOS (Usando .match)
+      // 2. BORRADO FÍSICO REAL
       const { error: deleteError } = await supabase
         .from('contrato_items_vestidos')
         .delete()
@@ -1487,9 +1494,12 @@ export default function DashboardPage() {
           vestido_id: vestidoId 
         });
 
-      // VERIFICACIÓN CRÍTICA
+      // Verificación de permisos en el borrado
       if (deleteError) {
-        throw new Error(`Error de Borrado DB: ${deleteError.message}`);
+        if ((deleteError as any).status === 403 || deleteError.code === '42501') {
+          throw new Error('Error de permisos en la base de datos');
+        }
+        throw new Error(`Error de Borrado: ${deleteError.message}`);
       }
 
       // 3. LIBERACIÓN DE INVENTARIO
@@ -1502,8 +1512,7 @@ export default function DashboardPage() {
         throw new Error(`Error de Inventario: ${inventoryError.message}`);
       }
 
-      // 4. ACTUALIZACIÓN DE ESTADO Y REFRESCO DE VERDAD
-      // Eliminamos del estado local para feedback visual instantáneo
+      // 4. ACTUALIZACIÓN DE ESTADO LOCAL (Solo si llegamos aquí no hubo error)
       setSelectedContract((prev: any) => {
         if (!prev) return prev;
         return {
@@ -1512,21 +1521,22 @@ export default function DashboardPage() {
         };
       });
 
-      // Cerramos modal y limpiamos
       setShowRemoveModal(false);
       setRemovingItem(null);
       setRemoveReason('');
 
-      // RECARGA COMPLETA DESDE EL SERVIDOR
+      // Sincronización final con el servidor
       await fetchContratos(); 
       router.refresh();
 
-      toast.success(`Vestido ${dressCodigo} eliminado físicamente y liberado.`);
+      toast.success(`La prenda ${dressCodigo} ha sido físicamente eliminada.`);
 
     } catch (err: any) {
-      console.error('FALLO CRÍTICO EN ELIMINACIÓN:', err);
-      // Solo aquí mostramos error, NUNCA éxito si algo falló arriba
-      toast.error(err.message || 'Error desconocido en la base de datos');
+      console.error('--- FALLO CRÍTICO DETECTADO ---', err);
+      // Aquí está el manejo estricto: SI HAY ERROR, NO HAY ÉXITO.
+      const msg = err.message || 'Error desconocido en la base de datos';
+      toast.error(msg === 'Error de permisos en la base de datos' ? msg : `Error: ${msg}`);
+      
     } finally {
       setModalLoading(false);
     }
@@ -1545,7 +1555,9 @@ export default function DashboardPage() {
         .eq('contrato_id', contractId)
         .order('created_at', { ascending: false });
       
-      if (!error && data) setSubstitutionHistory(data);
+      if (!error && data) {
+        // setSubstitutionHistory(data); // State removed in previous turn
+      }
     } catch (err) {
       console.error('Error fetching history:', err);
     }
@@ -1561,12 +1573,16 @@ export default function DashboardPage() {
     console.log('--- DEBUG: Buscador Inicia ---');
     console.log('ID de Sede enviado (selectedContract.sede_id):', selectedContract.sede_id);
 
-    // Buscamos solo vestidos DISPONIBLES de la sede
+    // Buscamos vestidos de TODAS las sedes (Disponible, Alquilado o Reservado)
     const { data, error } = await supabase
       .from('vestidos')
-      .select('id, codigo, talla, color, estado, sede_actual_id')
-      .eq('sede_actual_id', selectedContract.sede_id)
-      .eq('estado', 'Disponible')
+      .select(`
+        id, codigo, talla, color, estado, sede_actual_id,
+        contrato_items_vestidos(
+          contratos(numero_contrato, estado)
+        )
+      `)
+      .in('estado', ['Disponible', 'Alquilado', 'Reservado'])
       .order('codigo');
     
     console.log('Vestidos disponibles encontrados:', data);
@@ -1581,8 +1597,8 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    if (drawerOpen) fetchAllVestidos();
-  }, [drawerOpen]);
+    if (drawerOpen || showAssignForm) fetchAllVestidos();
+  }, [drawerOpen, showAssignForm]);
 
   // Modales Delivery
   const openDeliveryModal = (contrato: any) => {
@@ -3022,9 +3038,19 @@ export default function DashboardPage() {
                                onChange={(e) => setSelectedDressToAssign(e.target.value)}
                              >
                                <option value="">Buscar Vestido...</option>
-                               {allVestidos.map(v => (
-                                 <option key={v.id} value={v.id}>{v.codigo} - {v.color} ({v.talla})</option>
-                               ))}
+                                {allVestidos.map(v => {
+                                  const rels = v.contrato_items_vestidos || [];
+                                  const lastNum = rels[0]?.contratos?.numero_contrato;
+                                  const isOccupied = v.estado === "Alquilado" || v.estado === "Reservado" || v.estado === "Traslado";
+                                  const label = (isOccupied && lastNum)
+                                    ? `${v.codigo} - [NO DISPONIBLE: CTR #${lastNum}]`
+                                    : `${v.codigo} - ${v.color} (${v.talla})`;
+                                  return (
+                                    <option key={v.id} value={v.id} disabled={isOccupied} className={isOccupied ? "text-gray-400 italic" : "text-gray-900 font-bold"}>
+                                      {label}
+                                    </option>
+                                  );
+                                })}
                              </select>
                              <button 
                                onClick={() => assignDress(selectedContract.id, selectedDressToAssign)}
@@ -3490,6 +3516,33 @@ export default function DashboardPage() {
                           onChange={(e) => handleEditChange('numero_factura', e.target.value)}
                           className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-amber-500 transition-all font-bold text-gray-900"
                         />
+                      </section>
+
+                      {/* CLÁUSULA DÉCIMO SÉPTIMA: USO DE IMAGEN */}
+                      <section className="space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-rose-100 rounded-lg text-rose-600"><Camera className="w-5 h-5"/></div>
+                          <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Autorización de Uso de Imagen</h3>
+                        </div>
+                        <div className="p-4 bg-white border-2 border-rose-100 rounded-2xl space-y-3">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                              Estado de Autorización
+                            </span>
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input 
+                                type="checkbox" 
+                                className="sr-only peer"
+                                checked={editForm.autoriza_uso_imagen || false}
+                                onChange={(e) => handleEditChange('autoriza_uso_imagen', e.target.checked)}
+                              />
+                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-500 shadow-inner"></div>
+                            </label>
+                          </div>
+                          <p className="text-[9px] text-gray-500 leading-relaxed font-bold italic">
+                            EL CONTRATANTE autoriza el uso de imagen y datos personales (Redes Sociales, Medios impresos, etc.) por un periodo de 10 años.
+                          </p>
+                        </div>
                       </section>
 
                       <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-[10px] font-bold text-gray-400 uppercase leading-relaxed">

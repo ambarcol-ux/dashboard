@@ -4,7 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   Search, Package, MapPin, ArrowLeftRight, Loader2, 
-  Trash2, Plus, Filter, LayoutGrid, List as ListIcon, CheckCircle2, ChevronLeft, ShieldAlert, ChevronDown
+  Trash2, Plus, Filter, LayoutGrid, List as ListIcon, CheckCircle2, ChevronLeft, ShieldAlert, ChevronDown,
+  X, FileText, TrendingUp, Clock, DollarSign, List
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import Link from 'next/link';
@@ -30,6 +31,15 @@ export default function InventoryPage() {
   const [user, setUser] = useState<any>(null);
   const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal
   const [editState, setEditState] = useState<Record<number, any>>({}); // Estado local de edición por vestidoid
+
+  // -- Expediente de Prenda Dossier (New) --
+  const [dossierOpen, setDossierOpen] = useState(false);
+  const [selectedDressDossier, setSelectedDressDossier] = useState<any>(null);
+  const [activeDossierTab, setActiveDossierTab] = useState<'alquileres' | 'mantenimiento' | 'estadisticas'>('alquileres');
+  const [dossierRentals, setDossierRentals] = useState<any[]>([]);
+  const [dossierMaintenance, setDossierMaintenance] = useState<any[]>([]);
+  const [dossierStats, setDossierStats] = useState<any>(null);
+  const [dossierLoading, setDossierLoading] = useState(false);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -277,6 +287,54 @@ export default function InventoryPage() {
     }
   };
 
+  // -- EXPEDIENTE DE PRENDA: LOGIC --
+  const openDossier = async (dress: any) => {
+    setSelectedDressDossier(dress);
+    setDossierOpen(true);
+    setDossierLoading(true);
+    setActiveDossierTab('alquileres');
+
+    try {
+      // Parallel Fetching for Dossier Tabs
+      const [rentalsRes, maintenanceRes, statsRes] = await Promise.all([
+        // 1. Alquileres (History of Contracts)
+        supabase
+          .from('contrato_items_vestidos')
+          .select('contrato_id, contratos(numero_contrato, cliente_nombre, fecha_evento, fecha_entrega_envio, estado)')
+          .eq('vestido_id', dress.id)
+          .order('created_at', { ascending: false }),
+
+        // 2. Mantenimiento (History of repairs)
+        supabase
+          .from('mantenimiento_bitacora')
+          .select('*')
+          .eq('vestido_id', dress.id)
+          .order('created_at', { ascending: false }),
+
+        // 3. Estadísticas (Performance)
+        supabase
+          .from('kpi_vestidos_populares')
+          .select('*')
+          .eq('codigo', dress.codigo)
+          .maybeSingle()
+      ]);
+
+      if (rentalsRes.error) console.error('Error rentals:', rentalsRes.error);
+      if (maintenanceRes.error) console.error('Error maintenance:', maintenanceRes.error);
+      if (statsRes.error) console.error('Error stats:', statsRes.error);
+
+      setDossierRentals(rentalsRes.data || []);
+      setDossierMaintenance(maintenanceRes.data || []);
+      setDossierStats(statsRes.data || null);
+
+    } catch (err) {
+      console.error('Error fetching dossier:', err);
+      toast.error('No se pudo cargar la hoja de vida completa.');
+    } finally {
+      setDossierLoading(false);
+    }
+  };
+
   const filtered = vestidos.filter(v => {
     const searchMatch = 
       (v.codigo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -496,7 +554,11 @@ export default function InventoryPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filtered.map((v) => (
-                    <tr key={v.id} className="hover:bg-rose-50/30 transition-colors group">
+                    <tr 
+                      key={v.id} 
+                      className="hover:bg-rose-50/30 transition-colors group cursor-pointer"
+                      onClick={() => openDossier(v)}
+                    >
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-4">
                           <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black shadow-sm shrink-0 ${
@@ -511,6 +573,7 @@ export default function InventoryPage() {
                             <input 
                               type="text"
                               value={editState[v.id]?.nombre !== undefined ? editState[v.id].nombre : (v.nombre || '')}
+                              onClick={(e) => e.stopPropagation()} // Prevent dossier opening when editing
                               onChange={(e) => handleEditChange(v.id, 'nombre', e.target.value)}
                               className="text-[10px] text-gray-700 bg-gray-50 border border-transparent hover:border-gray-200 focus:bg-white focus:border-rose-300 w-full rounded-md px-1 py-0.5 font-bold uppercase tracking-widest transition-all outline-none"
                               placeholder="Sin nombre"
@@ -538,6 +601,7 @@ export default function InventoryPage() {
                             type="number"
                             className="bg-transparent w-full py-2 text-gray-700 font-bold text-center outline-none"
                             value={editState[v.id]?.precio_sugerido !== undefined ? editState[v.id].precio_sugerido : (v.precio_sugerido || 0)}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => handleEditChange(v.id, 'precio_sugerido', e.target.value)}
                             placeholder="0"
                           />
@@ -550,6 +614,7 @@ export default function InventoryPage() {
                               min="0"
                               className="w-full bg-white border border-gray-200 rounded-lg px-2 py-2 text-center text-sm font-black text-gray-700 outline-none focus:ring-2 focus:ring-rose-200"
                               value={editState[v.id]?.stock_total !== undefined ? editState[v.id].stock_total : (v.stock_total || 0)}
+                              onClick={(e) => e.stopPropagation()}
                               onChange={(e) => handleEditChange(v.id, 'stock_total', e.target.value)}
                             />
                          </div>
@@ -568,6 +633,7 @@ export default function InventoryPage() {
                                   handleTransfer(v, e.target.value);
                                 }
                               }}
+                              onClick={(e) => e.stopPropagation()}
                             >
                                {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                             </select>
@@ -589,7 +655,10 @@ export default function InventoryPage() {
                       <td className="px-6 py-6">
                         <div className="flex items-center justify-center gap-2">
                           <button 
-                            onClick={() => handleSaveVestido(v.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSaveVestido(v.id);
+                            }}
                             disabled={!editState[v.id] || updatingId === v.id}
                             className="p-3 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 text-white rounded-xl shadow-lg shadow-blue-100 transition-all active:scale-95 group"
                             title="Guardar Cambios"
@@ -597,7 +666,10 @@ export default function InventoryPage() {
                             {updatingId === v.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
                           </button>
                           <button 
-                            onClick={() => handleDeleteVestido(v.id, v.codigo)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteVestido(v.id, v.codigo);
+                            }}
                             disabled={updatingId === v.id}
                             className="p-3 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl transition-all active:scale-95 group"
                             title="Eliminar del Sistema"
@@ -606,7 +678,10 @@ export default function InventoryPage() {
                           </button>
                           {user?.role === 'admin' && (
                             <button 
-                              onClick={() => handleDeBajaVestido(v.id, v.codigo)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeBajaVestido(v.id, v.codigo);
+                              }}
                               disabled={updatingId === v.id || v.estado === 'Vendido' || v.estado === 'Dañado/Baja'}
                               className="p-3 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all active:scale-95 group"
                               title="Dar de Baja (Venta/Daño)"
@@ -633,9 +708,16 @@ export default function InventoryPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filtered.map((v) => (
-              <div key={v.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-xl hover:scale-[1.02] transition-all group">
+              <div 
+                key={v.id} 
+                className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-xl hover:scale-[1.02] transition-all group cursor-pointer"
+                onClick={() => openDossier(v)}
+              >
                 <div className="flex justify-between items-start mb-4">
-                  <div className="w-14 h-14 bg-rose-100 text-rose-500 rounded-3xl flex items-center justify-center text-xl font-black shadow-inner rotate-3 group-hover:rotate-0 transition-transform">
+                  <div 
+                    className="w-14 h-14 bg-rose-100 text-rose-500 rounded-3xl flex items-center justify-center text-xl font-black shadow-inner rotate-3 group-hover:rotate-0 transition-transform"
+                    onClick={() => openDossier(v)}
+                  >
                     {v.codigo?.substring(0, 2) || '??'}
                   </div>
                   <span className="text-[10px] font-black tracking-widest text-gray-300 uppercase">STOCK</span>
@@ -695,7 +777,10 @@ export default function InventoryPage() {
 
                   <div className="flex items-center justify-between gap-3 pt-6">
                     <button 
-                      onClick={() => handleSaveVestido(v.id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSaveVestido(v.id);
+                      }}
                       disabled={!editState[v.id] || updatingId === v.id}
                       className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2"
                     >
@@ -703,7 +788,10 @@ export default function InventoryPage() {
                       GUARDAR
                     </button>
                     <button 
-                      onClick={() => handleDeleteVestido(v.id, v.codigo)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteVestido(v.id, v.codigo);
+                      }}
                       disabled={updatingId === v.id}
                       className="p-3 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl transition-all"
                     >
@@ -711,7 +799,10 @@ export default function InventoryPage() {
                     </button>
                     {user?.role === 'admin' && (
                       <button 
-                        onClick={() => handleDeBajaVestido(v.id, v.codigo)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeBajaVestido(v.id, v.codigo);
+                        }}
                         disabled={updatingId === v.id || v.estado === 'Vendido' || v.estado === 'Dañado/Baja'}
                         className="p-3 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all"
                         title="Dar de Baja"
@@ -728,6 +819,197 @@ export default function InventoryPage() {
 
         </div>
       </main>
+
+      {/* -- EXPEDIENTE DE PRENDA (DOSSIER DRAWER) -- */}
+      {dossierOpen && selectedDressDossier && (
+        <div className="fixed inset-0 z-[200] overflow-hidden">
+           <div className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" onClick={() => setDossierOpen(false)} />
+           
+           <div className="absolute inset-y-0 right-0 max-w-full flex">
+              <div className="w-screen max-w-xl bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-500">
+                 {/* Header Dossier */}
+                 <div className="relative h-48 bg-rose-500 overflow-hidden shrink-0">
+                    <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
+                    <div className="absolute bottom-0 left-0 right-0 p-8 text-white z-10">
+                       <p className="text-[10px] font-black uppercase tracking-[0.3em] text-rose-100 mb-2">Expediente Oficial de Prenda</p>
+                       <h2 className="text-4xl font-black tracking-tighter leading-none mb-1">{selectedDressDossier.codigo}</h2>
+                       <p className="text-rose-50 font-bold opacity-90 uppercase tracking-widest text-xs">{selectedDressDossier.nombre || 'VESTIDO SIN NOMBRE'}</p>
+                    </div>
+                    <button 
+                      onClick={() => setDossierOpen(false)}
+                      className="absolute top-6 right-6 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all z-20"
+                    >
+                      <X size={20} />
+                    </button>
+                    {/* Badge Estado */}
+                    <div className="absolute top-6 left-8 px-4 py-1.5 bg-white rounded-full shadow-lg">
+                       <span className={`text-[10px] font-black uppercase tracking-widest ${
+                         ['De Baja', 'Dañado/Baja'].includes(selectedDressDossier.estado) ? 'text-rose-600' : 'text-emerald-600'
+                       }`}>
+                         ● {selectedDressDossier.estado || 'DISPONIBLE'}
+                       </span>
+                    </div>
+                 </div>
+
+                 {/* Content Area */}
+                 <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#f8fafc]">
+                    
+                    {/* Atributos Quick View */}
+                    <div className="grid grid-cols-4 gap-3 mb-8">
+                       {[
+                         { label: 'Talla', val: selectedDressDossier.talla || 'N/A', icon: LayoutGrid, color: 'indigo' },
+                         { label: 'Color', val: selectedDressDossier.color || 'N/A', icon: Filter, color: 'rose' },
+                         { label: 'Sede', val: selectedDressDossier.sede?.nombre || 'N/A', icon: MapPin, color: 'amber' },
+                         { label: 'Garantía', val: '$0', icon: ShieldAlert, color: 'gray' }
+                       ].map((atr, i) => (
+                         <div key={i} className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm text-center shadow-indigo-100/10 hover:shadow-md transition-shadow">
+                            <div className={`p-1.5 bg-${atr.color}-50 text-${atr.color}-500 rounded-lg w-fit mx-auto mb-2`}>
+                               <atr.icon size={14} />
+                            </div>
+                            <p className="text-[8px] font-black text-gray-400 uppercase tracking-tighter mb-0.5">{atr.label}</p>
+                            <p className="text-[11px] font-black text-gray-900 truncate">{atr.val}</p>
+                         </div>
+                       ))}
+                    </div>
+
+                    {/* Tabs Navigation */}
+                    <div className="flex items-center gap-1 bg-gray-200/50 p-1 rounded-2xl mb-6 shadow-inner border border-gray-100 font-black text-[10px] uppercase tracking-tighter">
+                       {[
+                         { id: 'alquileres', label: 'Alquileres', icon: ListIcon },
+                         { id: 'mantenimiento', label: 'Mantenimiento', icon: Package },
+                         { id: 'estadisticas', label: 'Estadísticas', icon: TrendingUp }
+                       ].map(t => (
+                         <button 
+                           key={t.id}
+                           onClick={() => setActiveDossierTab(t.id as any)}
+                           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl transition-all ${
+                             activeDossierTab === t.id ? 'bg-white text-rose-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'
+                           }`}
+                         >
+                           <t.icon size={14} /> {t.label}
+                         </button>
+                       ))}
+                    </div>
+
+                    {/* Tab Content */}
+                    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                       {dossierLoading ? (
+                         <div className="py-20 flex flex-col items-center gap-4 text-gray-400">
+                            <Loader2 className="w-10 h-10 animate-spin text-rose-500" />
+                            <p className="font-black text-[10px] uppercase tracking-[0.3em]">Sincronizando Hoja de Vida...</p>
+                         </div>
+                       ) : (
+                         <>
+                           {activeDossierTab === 'alquileres' && (
+                             <div className="space-y-4">
+                                {dossierRentals.length === 0 ? (
+                                   <div className="py-12 text-center bg-white rounded-3xl border border-dashed border-gray-200">
+                                      <p className="text-gray-400 font-bold text-xs">Aún no tiene historial de alquileres registrados.</p>
+                                   </div>
+                                ) : (
+                                  dossierRentals.map((r, i) => {
+                                    const c = r.contratos;
+                                    return (
+                                      <div key={i} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-start gap-4 group hover:border-rose-100 transition-colors">
+                                         <div className="p-3 bg-rose-50 text-rose-500 rounded-2xl group-hover:scale-110 transition-transform">
+                                            <FileText size={18} />
+                                         </div>
+                                         <div className="flex-1">
+                                            <div className="flex justify-between items-start mb-1">
+                                               <h4 className="font-black text-gray-900 text-sm tracking-tight">{c?.numero_contrato || 'CTR-N/A'}</h4>
+                                               <span className="text-[10px] font-black text-rose-500 bg-rose-50 px-2 py-0.5 rounded uppercase tracking-widest">{c?.estado || 'S/E'}</span>
+                                            </div>
+                                            <p className="text-[11px] font-bold text-gray-600 mb-2">{c?.cliente_nombre || 'Cliente Final'}</p>
+                                            <div className="flex items-center gap-3 text-[9px] font-black text-gray-400 uppercase tracking-widest">
+                                               <span className="flex items-center gap-1"><MapPin size={10} /> {c?.fecha_evento ? new Date(c.fecha_evento).toLocaleDateString() : 'N/A'}</span>
+                                               <span className="flex items-center gap-1"><ArrowLeftRight size={10} /> Salida: {c?.fecha_entrega_envio ? new Date(c.fecha_entrega_envio).toLocaleDateString() : 'N/A'}</span>
+                                            </div>
+                                         </div>
+                                      </div>
+                                    );
+                                  })
+                                )}
+                             </div>
+                           )}
+
+                           {activeDossierTab === 'mantenimiento' && (
+                             <div className="space-y-4">
+                                {dossierMaintenance.length === 0 ? (
+                                   <div className="py-12 text-center bg-white rounded-3xl border border-dashed border-gray-200">
+                                      <p className="text-gray-400 font-bold text-xs">Sin registros de intervenciones técnicas.</p>
+                                   </div>
+                                ) : (
+                                  dossierMaintenance.map((m, i) => (
+                                    <div key={i} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-start gap-4">
+                                       <div className={`p-3 rounded-2xl ${m.tipo === 'LAVANDERÍA' ? 'bg-blue-50 text-blue-500' : 'bg-amber-50 text-amber-500'}`}>
+                                          <Package size={18} />
+                                       </div>
+                                       <div className="flex-1 text-sm">
+                                          <div className="flex justify-between mb-1">
+                                             <span className="font-black text-gray-900 uppercase tracking-tighter">{m.tipo}</span>
+                                             <span className="text-[9px] text-gray-400 font-bold">{new Date(m.created_at).toLocaleDateString()}</span>
+                                          </div>
+                                          <p className="text-[11px] text-gray-500 font-bold opacity-80 uppercase tracking-widest mb-2 leading-tight">Estado: {m.estado}</p>
+                                          <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 italic text-[10px] text-gray-600">
+                                             "{m.detalle || 'Mantenimiento preventivo estándar sin anotaciones adicionales.'}"
+                                          </div>
+                                       </div>
+                                    </div>
+                                  ))
+                                )}
+                             </div>
+                           )}
+
+                           {activeDossierTab === 'estadisticas' && (
+                             <div className="grid grid-cols-1 gap-4">
+                                <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-emerald-100 relative overflow-hidden group">
+                                   <div className="absolute top-0 right-0 opacity-10 -translate-y-4 translate-x-4"><TrendingUp size={120} /></div>
+                                   <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-80 mb-4">Total Alquileres Confirmados</p>
+                                   <h3 className="text-6xl font-black tracking-tighter mb-2">{dossierStats?.total_alquileres || 0}</h3>
+                                   <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest bg-white/20 w-fit px-4 py-1 rounded-full">
+                                      <TrendingUp size={12} /> Alta Rotación Comercial
+                                   </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                   <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm text-center">
+                                      <div className="p-3 bg-rose-50 text-rose-500 rounded-2xl w-fit mx-auto mb-4">
+                                         <TrendingUp size={20} />
+                                      </div>
+                                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">ROI Estidmado</p>
+                                      <h4 className="text-2xl font-black text-gray-900 leading-none">HIGH</h4>
+                                      <p className="text-[8px] text-emerald-500 font-black mt-2 tracking-widest uppercase">Activo Rentable</p>
+                                   </div>
+                                   <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm text-center">
+                                      <div className="p-3 bg-amber-50 text-amber-500 rounded-2xl w-fit mx-auto mb-4">
+                                         <ArrowLeftRight size={20} />
+                                      </div>
+                                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Días en Taller</p>
+                                      <h4 className="text-2xl font-black text-gray-900 leading-none">{dossierMaintenance.length * 3}d</h4>
+                                      <p className="text-[8px] text-gray-400 font-bold mt-2 tracking-widest uppercase">Acumulado Anual</p>
+                                   </div>
+                                </div>
+                             </div>
+                           )}
+                         </>
+                       )}
+                    </div>
+                 </div>
+
+                 {/* Footer Action */}
+                 <div className="p-8 border-t border-gray-100 bg-white">
+                    <button 
+                      onClick={() => setDossierOpen(false)}
+                      className="w-full py-5 bg-gray-900 text-white rounded-2xl font-black text-sm uppercase tracking-[0.3em] shadow-xl hover:bg-black transition-all active:scale-95"
+                    >
+                      Cerrar Expediente
+                    </button>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
+
     </div>
   );
 }
