@@ -1970,17 +1970,11 @@ export default function DashboardPage() {
     let result = contratos;
 
     // 1. Prioridad: Búsqueda Global (Si hay término, ignora la pestaña activa y busca en todo)
+    // El backend (Supabase) ya hizo el filtro exhaustivo (por texto y por IDs vinculados).
+    // Devolvemos el resultado tal cual para asegurar que lo que trajo la BD se muestre siempre.
     if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      const globalResult = result.filter(c => 
-        c.cliente_nombre?.toLowerCase().includes(term) || 
-        c.cliente_documento?.toLowerCase().includes(term) || 
-        c.numero_contrato?.toLowerCase().includes(term) ||
-        (c.prendas && c.prendas.some((v: any) => v.vestido?.codigo?.toLowerCase().includes(term)))
-      );
-      
-      console.log('🔍 [Buscador Global] Contratos Encontrados para el término "'+searchTerm+'":', globalResult.map(r => r.id));
-      return globalResult;
+      console.log('🔍 [Buscador Global] Contratos Encontrados por BD:', result.map(r => r.id));
+      return result;
     }
 
     // 2. Filtrado por Pestaña Logística
