@@ -2406,7 +2406,7 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <span className="text-xs font-bold text-gray-500 line-clamp-1 max-w-[100px]" title="Vestidos Atados">
-                          Vestidos: {loading ? '(Cargando...)' : (c.vestidos?.length || 0)}
+                          Vestidos: {loading ? '(Cargando...)' : (c.vestidos_count || c.prendas?.length || 0)}
                         </span>
                         {activeTabLogistica === 'lavanderia' && (
                           <button 
@@ -2486,7 +2486,7 @@ export default function DashboardPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-700">
-                        {c.vestidos?.length || 0}
+                        {c.vestidos_count || c.prendas?.length || 0}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{c.sede}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -3728,7 +3728,7 @@ export default function DashboardPage() {
                           </div>
                           <div className="text-right">
                              <span className="block text-[10px] font-black uppercase text-gray-400 mb-1 tracking-widest">Vestidos</span>
-                             <span className="text-xs font-bold text-rose-600">{triageContract.vestidos?.length || 1} vinculados</span>
+                             <span className="text-xs font-bold text-rose-600">{triageContract.vestidos_count || triageContract.prendas?.length || 1} vinculados</span>
                           </div>
                        </div>
 
