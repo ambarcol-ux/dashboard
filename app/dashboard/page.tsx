@@ -377,8 +377,25 @@ export default function DashboardPage() {
 
       // -- NEW: State Filtering & Global Search (Dashboard 4 Tabs Requeriment) --
       if (searchTerm) {
-        // Búsqueda Global: Ignora filtros de vista si hay un término
-        query = query.or(`cliente_nombre.ilike.%${searchTerm}%,cliente_documento.ilike.%${searchTerm}%,numero_contrato.ilike.%${searchTerm}%`);
+        // 1. Check if the search term matches any dress code in the database
+        const { data: matchedItems } = await supabase
+          .from('contrato_items_vestidos')
+          .select('contrato_id, vestidos!inner(codigo)')
+          .ilike('vestidos.codigo', `%${searchTerm}%`);
+        
+        let relatedIds: string[] = [];
+        if (matchedItems && matchedItems.length > 0) {
+          relatedIds = Array.from(new Set(matchedItems.map(m => m.contrato_id)));
+        }
+
+        // Búsqueda Global: Construimos el operador .or dinámicamente
+        let orQuery = `cliente_nombre.ilike.%${searchTerm}%,cliente_documento.ilike.%${searchTerm}%,numero_contrato.ilike.%${searchTerm}%`;
+        
+        if (relatedIds.length > 0) {
+           orQuery += `,id.in.(${relatedIds.join(',')})`;
+        }
+
+        query = query.or(orQuery);
       } else {
         // En el nuevo dashboard de 4 pestañas, fetchContratos trae todo "lo relevante".
         // Eliminamos filtros restrictivos para que la pestaña de HISTORIAL se llene correctamente.
