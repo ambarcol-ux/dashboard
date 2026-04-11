@@ -1972,12 +1972,15 @@ export default function DashboardPage() {
     // 1. Prioridad: Búsqueda Global (Si hay término, ignora la pestaña activa y busca en todo)
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      return result.filter(c => 
+      const globalResult = result.filter(c => 
         c.cliente_nombre?.toLowerCase().includes(term) || 
         c.cliente_documento?.toLowerCase().includes(term) || 
         c.numero_contrato?.toLowerCase().includes(term) ||
-        (c.vestidos && c.vestidos.some((v: any) => v.vestido?.codigo?.toLowerCase().includes(term)))
+        (c.prendas && c.prendas.some((v: any) => v.vestido?.codigo?.toLowerCase().includes(term)))
       );
+      
+      console.log('🔍 [Buscador Global] Contratos Encontrados para el término "'+searchTerm+'":', globalResult.map(r => r.id));
+      return globalResult;
     }
 
     // 2. Filtrado por Pestaña Logística
