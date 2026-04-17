@@ -456,6 +456,27 @@ export default function NuevoContratoPage() {
         if (existing.estado === 'De Baja') {
           throw new Error(`❌ El vestido ${codigoUpper} no está disponible (Estado: De Baja)`);
         }
+
+        // TRASLADO DE INVENTARIO: Actualizar sede si es diferente
+        if (existing.sede_actual_id !== formData.sede_id) {
+          const { error: updateError } = await supabase
+            .from('vestidos')
+            .update({ sede_actual_id: formData.sede_id })
+            .eq('id', existing.id);
+
+          if (updateError) {
+             throw new Error(`Error al trasladar el vestido ${codigoUpper}: ${updateError.message}`);
+          }
+
+          // Registrar en traslados_bitacora 
+          await supabase.from('traslados_bitacora').insert([{
+            vestido_id: existing.id,
+            origen_sede_id: existing.sede_actual_id,
+            destino_sede_id: formData.sede_id,
+            motivo: `Traslado automático por asignación al contrato ${formData.cliente_nombre}`
+          }]);
+        }
+
         resolved.push({
           idx: i,
           id: existing.id,
@@ -463,29 +484,11 @@ export default function NuevoContratoPage() {
           tipo: v.tipo,
           observaciones: v.observaciones,
           stock_total: existing.stock_total || 1,
-          sede_actual_id: existing.sede_actual_id,
-          sede_nombre: (Array.isArray(existing.sedes) ? (existing.sedes[0] as any)?.nombre : (existing.sedes as any)?.nombre) || 'Otra Sede'
+          sede_actual_id: formData.sede_id, 
+          sede_nombre: formData.sede 
         });
       } else {
-        // Si no existe, lo creamos asignándolo a la sede del contrato
-        const { data: newV, error: errCreate } = await supabase.from('vestidos').insert([{
-          codigo: codigoUpper,
-          estado: 'Disponible',
-          sede_actual_id: formData.sede_id,
-          sede_principal_id: formData.sede_id
-        }]).select('id').single();
-
-        if (errCreate) throw new Error(`No se pudo crear el vestido ${codigoUpper} para la sede seleccionada: ${errCreate.message}`);
-        resolved.push({
-          idx: i,
-          id: newV.id,
-          referencia: codigoUpper,
-          tipo: v.tipo,
-          observaciones: v.observaciones,
-          stock_total: 1,
-          sede_actual_id: formData.sede_id,
-          sede_nombre: formData.sede
-        });
+        throw new Error(`❌ El vestido ${codigoUpper} no existe en el inventario. No se puede crear un vestido físico automáticamente desde un contrato.`);
       }
     }
     return resolved;
