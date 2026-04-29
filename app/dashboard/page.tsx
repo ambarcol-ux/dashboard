@@ -936,7 +936,19 @@ export default function DashboardPage() {
       const fechaFin = new Date();
       fechaFin.setDate(fechaFin.getDate() + Number(triageForm.dias_estimados));
 
-      const dresses = triageContract.vestidos || [];
+      // 0. Fetch the actual dresses from the database using the UUID
+      const { data: dbDresses, error: fetchErr } = await supabase
+        .from('contrato_items_vestidos')
+        .select('vestido_id')
+        .eq('contrato_id', triageContract.id);
+        
+      if (fetchErr) {
+        toast.error('Error de base de datos al obtener vestidos vinculados.');
+        setModalLoading(false);
+        return;
+      }
+
+      const dresses = dbDresses || [];
       if (dresses.length === 0) {
         toast.error('No hay vestidos vinculados a este contrato para recibir.');
         setModalLoading(false);
