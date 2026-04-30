@@ -31,7 +31,7 @@ export default function InventoryPage() {
   const [user, setUser] = useState<any>(null);
   const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal
   const [editState, setEditState] = useState<Record<number, any>>({}); // Estado local de edición por vestidoid
-  const [asesorasList, setAsesorasList] = useState<any[]>([]);
+  const [profilesList, setProfilesList] = useState<any[]>([]);
 
   // -- Expediente de Prenda Dossier (New) --
   const [dossierOpen, setDossierOpen] = useState(false);
@@ -188,12 +188,12 @@ export default function InventoryPage() {
       console.error('Crash Vestidos:', JSON.stringify(err, null, 2));
     }
 
-    // 2.5 FETCH ASESORAS / PROFILES FOR TRANSFERS
+    // 2.5 FETCH PROFILES FOR TRANSFERS
     try {
-      const { data: catAsesoras } = await supabase.from('asesoras').select('id, nombre_completo').eq('activo', true).order('nombre_completo');
-      if (catAsesoras) setAsesorasList(catAsesoras);
+      const { data: profilesData } = await supabase.from('profiles').select('id, nombre, rol, email').order('nombre');
+      if (profilesData) setProfilesList(profilesData);
     } catch (err) {
-      console.error('Error cargando asesoras:', err);
+      console.error('Error cargando perfiles:', err);
     }
 
     // 3. MAPPING & STATE
@@ -896,7 +896,7 @@ export default function InventoryPage() {
                       className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-amber-500 text-xs font-bold text-gray-800"
                     >
                       <option value="">Seleccionar...</option>
-                      {asesorasList.map(a => <option key={a.id} value={a.nombre_completo}>{a.nombre_completo}</option>)}
+                      {profilesList.map(p => <option key={p.id} value={p.id}>{p.nombre || p.email} ({p.rol || 'Usuario'})</option>)}
                     </select>
                  </div>
                  <div>
@@ -907,7 +907,9 @@ export default function InventoryPage() {
                       className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-amber-500 text-xs font-bold text-gray-800"
                     >
                       <option value="">Seleccionar...</option>
-                      {asesorasList.map(a => <option key={a.id} value={a.nombre_completo}>{a.nombre_completo}</option>)}
+                      {profilesList
+                        .filter(p => ['administrativo', 'director', 'gerente', 'administrador', 'admin'].includes((p.rol || '').toLowerCase()))
+                        .map(p => <option key={p.id} value={p.id}>{p.nombre || p.email} ({p.rol || 'Admin'})</option>)}
                     </select>
                  </div>
                </div>
@@ -1099,7 +1101,7 @@ export default function InventoryPage() {
                                                <span className="text-[9px] text-gray-400 font-bold">{new Date(t.created_at).toLocaleDateString()}</span>
                                             </div>
                                             <p className="text-[11px] text-gray-500 font-bold opacity-80 uppercase tracking-widest mb-1 leading-tight">
-                                               Realizado por: <span className="text-gray-800">{t.realizado_por}</span> | Aut: <span className="text-gray-800">{t.autorizado_por}</span>
+                                               Realizado por: <span className="text-gray-800">{profilesList.find(p => p.id === t.realizado_por)?.nombre || t.realizado_por}</span> | Aut: <span className="text-gray-800">{profilesList.find(p => p.id === t.autorizado_por)?.nombre || t.autorizado_por}</span>
                                             </p>
                                             <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 italic text-[10px] text-gray-600">
                                                "{t.motivo}"
