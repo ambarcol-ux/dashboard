@@ -939,7 +939,7 @@ export default function DashboardPage() {
       // 0. Fetch the actual dresses from the database using the UUID
       const { data: dbDresses, error: fetchErr } = await supabase
         .from('contrato_items_vestidos')
-        .select('vestido_id')
+        .select('*, vestidos(*)')
         .eq('contrato_id', triageContract.id);
         
       if (fetchErr) {
