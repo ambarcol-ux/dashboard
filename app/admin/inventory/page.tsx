@@ -363,19 +363,19 @@ export default function InventoryPage() {
           .order('created_at', { ascending: false })
       ]);
 
-      if (rentalsRes.error) console.error('Error rentals:', rentalsRes.error);
-      if (maintenanceRes.error) console.error('Error maintenance:', maintenanceRes.error);
-      if (statsRes.error) console.error('Error stats:', statsRes.error);
-      if (trasladosRes.error) console.error('Error traslados:', trasladosRes.error);
+      if (rentalsRes.error) throw new Error(`Alquileres: ${rentalsRes.error.message}`);
+      if (maintenanceRes.error) throw new Error(`Mantenimiento: ${maintenanceRes.error.message}`);
+      if (statsRes.error && statsRes.error.code !== 'PGRST116') throw new Error(`Estadísticas: ${statsRes.error.message}`);
+      if (trasladosRes.error) throw new Error(`Traslados: ${trasladosRes.error.message}`);
 
       setDossierRentals(rentalsRes.data || []);
       setDossierMaintenance(maintenanceRes.data || []);
       setDossierStats(statsRes.data || null);
       setDossierTransfers(trasladosRes.data || []);
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching dossier:', err);
-      toast.error('No se pudo cargar la hoja de vida completa.');
+      toast.error('No se pudo cargar la hoja de vida completa. Detalles: ' + (err.message || 'Error desconocido'));
     } finally {
       setDossierLoading(false);
     }
