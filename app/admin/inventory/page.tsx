@@ -270,8 +270,8 @@ export default function InventoryPage() {
         .from('traslados_bitacora')
         .insert({
           vestido_id: transferVestido.id,
-          sede_origen: transferVestido.sede_actual_id,
-          sede_destino: transferTargetSede,
+          sede_origen_id: transferVestido.sede_actual_id,
+          sede_destino_id: transferTargetSede,
           motivo: transferForm.motivo,
           realizado_por: transferForm.realizado_por,
           autorizado_por: transferForm.autorizado_por
@@ -1086,8 +1086,8 @@ export default function InventoryPage() {
                                    </div>
                                 ) : (
                                   dossierTransfers.map((t, i) => {
-                                    const origen = sedes.find(s => s.id === t.sede_origen)?.nombre || 'Desconocido';
-                                    const destino = sedes.find(s => s.id === t.sede_destino)?.nombre || 'Desconocido';
+                                    const origen = sedes.find(s => s.id === t.sede_origen_id)?.nombre || 'Desconocido';
+                                    const destino = sedes.find(s => s.id === t.sede_destino_id)?.nombre || 'Desconocido';
                                     return (
                                       <div key={i} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-start gap-4">
                                          <div className="p-3 bg-amber-50 text-amber-500 rounded-2xl">

@@ -471,8 +471,8 @@ export default function NuevoContratoPage() {
           // Registrar en traslados_bitacora 
           await supabase.from('traslados_bitacora').insert([{
             vestido_id: existing.id,
-            sede_origen: existing.sede_actual_id,
-            sede_destino: formData.sede_id,
+            sede_origen_id: existing.sede_actual_id,
+            sede_destino_id: formData.sede_id,
             motivo: `Traslado automático por asignación al contrato ${formData.cliente_nombre}`,
             realizado_por: 'Sistema Automático',
             autorizado_por: 'Sistema Automático'
