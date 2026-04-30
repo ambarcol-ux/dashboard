@@ -31,15 +31,27 @@ export default function InventoryPage() {
   const [user, setUser] = useState<any>(null);
   const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal
   const [editState, setEditState] = useState<Record<number, any>>({}); // Estado local de edición por vestidoid
+  const [asesorasList, setAsesorasList] = useState<any[]>([]);
 
   // -- Expediente de Prenda Dossier (New) --
   const [dossierOpen, setDossierOpen] = useState(false);
   const [selectedDressDossier, setSelectedDressDossier] = useState<any>(null);
-  const [activeDossierTab, setActiveDossierTab] = useState<'alquileres' | 'mantenimiento' | 'estadisticas'>('alquileres');
+  const [activeDossierTab, setActiveDossierTab] = useState<'alquileres' | 'mantenimiento' | 'estadisticas' | 'traslados'>('alquileres');
   const [dossierRentals, setDossierRentals] = useState<any[]>([]);
   const [dossierMaintenance, setDossierMaintenance] = useState<any[]>([]);
   const [dossierStats, setDossierStats] = useState<any>(null);
+  const [dossierTransfers, setDossierTransfers] = useState<any[]>([]);
   const [dossierLoading, setDossierLoading] = useState(false);
+
+  // -- Modal de Traslado --
+  const [showTransferModal, setShowTransferModal] = useState(false);
+  const [transferVestido, setTransferVestido] = useState<any>(null);
+  const [transferTargetSede, setTransferTargetSede] = useState<string>('');
+  const [transferForm, setTransferForm] = useState({
+    motivo: '',
+    realizado_por: '',
+    autorizado_por: ''
+  });
 
   useEffect(() => {
     const checkUser = async () => {
@@ -176,6 +188,14 @@ export default function InventoryPage() {
       console.error('Crash Vestidos:', JSON.stringify(err, null, 2));
     }
 
+    // 2.5 FETCH ASESORAS / PROFILES FOR TRANSFERS
+    try {
+      const { data: catAsesoras } = await supabase.from('asesoras').select('id, nombre_completo').eq('activo', true).order('nombre_completo');
+      if (catAsesoras) setAsesorasList(catAsesoras);
+    } catch (err) {
+      console.error('Error cargando asesoras:', err);
+    }
+
     // 3. MAPPING & STATE
     const mapped = vData.map(v => ({
       ...v,
@@ -226,20 +246,35 @@ export default function InventoryPage() {
     }
   };
 
-  const handleTransfer = async (v: any, newSedeId: string) => {
+  const handleTransfer = (v: any, newSedeId: string) => {
     if (!newSedeId || newSedeId === v.sede_actual_id) return;
+    setTransferVestido(v);
+    setTransferTargetSede(newSedeId);
+    setTransferForm({ motivo: '', realizado_por: '', autorizado_por: '' });
+    setShowTransferModal(true);
+  };
+
+  const confirmTransfer = async () => {
+    if (!transferVestido || !transferTargetSede) return;
+    if (!transferForm.motivo || !transferForm.realizado_por || !transferForm.autorizado_por) {
+      toast.error('Todos los campos del traslado son obligatorios');
+      return;
+    }
     
-    setUpdatingId(v.id);
+    setUpdatingId(transferVestido.id);
+    setShowTransferModal(false);
+    
     try {
       // 1. Insertar en traslados_bitacora
       const { error: bitacoraError } = await supabase
         .from('traslados_bitacora')
         .insert({
-          vestido_id: v.id,
-          sede_origen_id: v.sede_actual_id,
-          sede_destino_id: newSedeId,
-          motivo: 'Traslado de inventario por baja rotación',
-          usuario_id: user?.id
+          vestido_id: transferVestido.id,
+          sede_origen: transferVestido.sede_actual_id,
+          sede_destino: transferTargetSede,
+          motivo: transferForm.motivo,
+          realizado_por: transferForm.realizado_por,
+          autorizado_por: transferForm.autorizado_por
         });
       
       if (bitacoraError) throw bitacoraError;
@@ -248,11 +283,11 @@ export default function InventoryPage() {
       const { error: dressError } = await supabase
         .from('vestidos')
         .update({ 
-          sede_principal_id: newSedeId,
-          sede_actual_id: newSedeId,
+          sede_principal_id: transferTargetSede,
+          sede_actual_id: transferTargetSede,
           estado: 'Disponible' // Al trasladar vuelve a estar disponible en sede
         })
-        .eq('id', v.id);
+        .eq('id', transferVestido.id);
       
       if (dressError) throw dressError;
 
@@ -263,6 +298,8 @@ export default function InventoryPage() {
       toast.error('Error al procesar traslado: ' + err.message);
     } finally {
       setUpdatingId(null);
+      setTransferVestido(null);
+      setTransferTargetSede('');
     }
   };
 
@@ -296,7 +333,7 @@ export default function InventoryPage() {
 
     try {
       // Parallel Fetching for Dossier Tabs
-      const [rentalsRes, maintenanceRes, statsRes] = await Promise.all([
+      const [rentalsRes, maintenanceRes, statsRes, trasladosRes] = await Promise.all([
         // 1. Alquileres (History of Contracts)
         supabase
           .from('contrato_items_vestidos')
@@ -316,16 +353,25 @@ export default function InventoryPage() {
           .from('kpi_vestidos_populares')
           .select('*')
           .eq('codigo', dress.codigo)
-          .maybeSingle()
+          .maybeSingle(),
+
+        // 4. Traslados (History of locations)
+        supabase
+          .from('traslados_bitacora')
+          .select('*')
+          .eq('vestido_id', dress.id)
+          .order('created_at', { ascending: false })
       ]);
 
       if (rentalsRes.error) console.error('Error rentals:', rentalsRes.error);
       if (maintenanceRes.error) console.error('Error maintenance:', maintenanceRes.error);
       if (statsRes.error) console.error('Error stats:', statsRes.error);
+      if (trasladosRes.error) console.error('Error traslados:', trasladosRes.error);
 
       setDossierRentals(rentalsRes.data || []);
       setDossierMaintenance(maintenanceRes.data || []);
       setDossierStats(statsRes.data || null);
+      setDossierTransfers(trasladosRes.data || []);
 
     } catch (err) {
       console.error('Error fetching dossier:', err);
@@ -820,6 +866,75 @@ export default function InventoryPage() {
         </div>
       </main>
 
+      {/* Modal de Traslado */}
+      {showTransferModal && transferVestido && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-amber-500 p-6 text-center">
+               <h2 className="text-xl font-black text-white uppercase tracking-tight">Confirmar Traslado Físico</h2>
+               <p className="text-amber-100 text-[10px] font-bold uppercase tracking-widest mt-1">
+                 {transferVestido.codigo} ➔ {sedes.find(s => s.id === transferTargetSede)?.nombre}
+               </p>
+            </div>
+            <div className="p-8 space-y-4">
+               <div>
+                  <label className="block text-xs font-black text-gray-700 uppercase tracking-widest mb-2 ml-1">Motivo del Traslado *</label>
+                  <textarea 
+                    value={transferForm.motivo}
+                    onChange={e => setTransferForm({...transferForm, motivo: e.target.value})}
+                    placeholder="Ej: Baja rotación en sede actual, requerido para evento urgente..."
+                    className="w-full p-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-amber-500 transition-all text-sm font-bold text-gray-800"
+                    rows={3}
+                  />
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Realizado Por *</label>
+                    <select 
+                      value={transferForm.realizado_por}
+                      onChange={e => setTransferForm({...transferForm, realizado_por: e.target.value})}
+                      className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-amber-500 text-xs font-bold text-gray-800"
+                    >
+                      <option value="">Seleccionar...</option>
+                      {asesorasList.map(a => <option key={a.id} value={a.nombre_completo}>{a.nombre_completo}</option>)}
+                    </select>
+                 </div>
+                 <div>
+                    <label className="block text-[10px] font-black text-gray-500 uppercase tracking-widest mb-2 ml-1">Autorizado Por *</label>
+                    <select 
+                      value={transferForm.autorizado_por}
+                      onChange={e => setTransferForm({...transferForm, autorizado_por: e.target.value})}
+                      className="w-full p-3 bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-amber-500 text-xs font-bold text-gray-800"
+                    >
+                      <option value="">Seleccionar...</option>
+                      {asesorasList.map(a => <option key={a.id} value={a.nombre_completo}>{a.nombre_completo}</option>)}
+                    </select>
+                 </div>
+               </div>
+               
+               <div className="flex gap-4 pt-4">
+                  <button 
+                    onClick={() => {
+                      setShowTransferModal(false);
+                      setTransferVestido(null);
+                      setTransferTargetSede('');
+                    }}
+                    className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black rounded-2xl transition-all uppercase text-xs"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={confirmTransfer}
+                    className="flex-[2] py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl shadow-lg shadow-amber-200 transition-all flex items-center justify-center gap-2 uppercase text-xs"
+                  >
+                    <ArrowLeftRight size={16} /> Procesar Traslado
+                  </button>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* -- EXPEDIENTE DE PRENDA (DOSSIER DRAWER) -- */}
       {dossierOpen && selectedDressDossier && (
         <div className="fixed inset-0 z-[200] overflow-hidden">
@@ -873,11 +988,12 @@ export default function InventoryPage() {
                     </div>
 
                     {/* Tabs Navigation */}
-                    <div className="flex items-center gap-1 bg-gray-200/50 p-1 rounded-2xl mb-6 shadow-inner border border-gray-100 font-black text-[10px] uppercase tracking-tighter">
+                    <div className="flex items-center gap-1 bg-gray-200/50 p-1 rounded-2xl mb-6 shadow-inner border border-gray-100 font-black text-[10px] uppercase tracking-tighter overflow-x-auto">
                        {[
                          { id: 'alquileres', label: 'Alquileres', icon: ListIcon },
                          { id: 'mantenimiento', label: 'Mantenimiento', icon: Package },
-                         { id: 'estadisticas', label: 'Estadísticas', icon: TrendingUp }
+                         { id: 'estadisticas', label: 'Estadísticas', icon: TrendingUp },
+                         { id: 'traslados', label: 'Traslados', icon: ArrowLeftRight }
                        ].map(t => (
                          <button 
                            key={t.id}
@@ -956,6 +1072,42 @@ export default function InventoryPage() {
                                        </div>
                                     </div>
                                   ))
+                                )}
+                             </div>
+                           )}
+
+                           {activeDossierTab === 'traslados' && (
+                             <div className="space-y-4">
+                                {dossierTransfers.length === 0 ? (
+                                   <div className="py-12 text-center bg-white rounded-3xl border border-dashed border-gray-200">
+                                      <p className="text-gray-400 font-bold text-xs">Sin registros de traslados.</p>
+                                   </div>
+                                ) : (
+                                  dossierTransfers.map((t, i) => {
+                                    const origen = sedes.find(s => s.id === t.sede_origen)?.nombre || 'Desconocido';
+                                    const destino = sedes.find(s => s.id === t.sede_destino)?.nombre || 'Desconocido';
+                                    return (
+                                      <div key={i} className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex items-start gap-4">
+                                         <div className="p-3 bg-amber-50 text-amber-500 rounded-2xl">
+                                            <ArrowLeftRight size={18} />
+                                         </div>
+                                         <div className="flex-1 text-sm">
+                                            <div className="flex justify-between mb-1">
+                                               <span className="font-black text-gray-900 uppercase tracking-tighter">
+                                                  {origen} ➔ {destino}
+                                               </span>
+                                               <span className="text-[9px] text-gray-400 font-bold">{new Date(t.created_at).toLocaleDateString()}</span>
+                                            </div>
+                                            <p className="text-[11px] text-gray-500 font-bold opacity-80 uppercase tracking-widest mb-1 leading-tight">
+                                               Realizado por: <span className="text-gray-800">{t.realizado_por}</span> | Aut: <span className="text-gray-800">{t.autorizado_por}</span>
+                                            </p>
+                                            <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 italic text-[10px] text-gray-600">
+                                               "{t.motivo}"
+                                            </div>
+                                         </div>
+                                      </div>
+                                    );
+                                  })
                                 )}
                              </div>
                            )}
