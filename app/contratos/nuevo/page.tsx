@@ -446,11 +446,23 @@ export default function NuevoContratoPage() {
       if (!v.referencia.trim()) continue;
       const codigoUpper = v.referencia.trim().toUpperCase();
 
-      const { data: existing } = await supabase
+      let query = supabase
         .from('vestidos')
-        .select('id, estado, sede_actual_id, stock_total, precio_sugerido, sedes:sede_actual_id(nombre)')
-        .eq('codigo', codigoUpper)
-        .maybeSingle();
+        .select('id, codigo, nombre, estado, sede_actual_id, stock_total, precio_sugerido, sedes:sede_actual_id(nombre)');
+
+      if (v.vestido_id) {
+        query = query.eq('id', v.vestido_id);
+      } else {
+        query = query.or(`codigo.ilike.%${codigoUpper}%,nombre.ilike.%${codigoUpper}%`);
+      }
+
+      const { data: existingList, error } = await query.limit(1);
+
+      if (error) {
+        console.error('Error Supabase Vestidos:', error);
+      }
+
+      const existing = existingList && existingList.length > 0 ? existingList[0] : null;
 
       if (existing && existing.id) {
         if (existing.estado === 'De Baja') {
@@ -459,30 +471,14 @@ export default function NuevoContratoPage() {
 
         // TRASLADO DE INVENTARIO: Actualizar sede si es diferente
         if (existing.sede_actual_id !== formData.sede_id) {
-          const { error: updateError } = await supabase
-            .from('vestidos')
-            .update({ sede_actual_id: formData.sede_id })
-            .eq('id', existing.id);
-
-          if (updateError) {
-             throw new Error(`Error al trasladar el vestido ${codigoUpper}: ${updateError.message}`);
-          }
-
-          // Registrar en traslados_bitacora 
-          await supabase.from('traslados_bitacora').insert([{
-            vestido_id: existing.id,
-            sede_origen_id: existing.sede_actual_id,
-            sede_destino_id: formData.sede_id,
-            motivo: `Traslado automático por asignación al contrato ${formData.cliente_nombre}`,
-            realizado_por: 'Sistema Automático',
-            autorizado_por: 'Sistema Automático'
-          }]);
+          const sedeActualNombre = (existing.sedes as any)?.nombre || 'otra sede';
+          throw new Error(`❌ El vestido ${existing.codigo} existe pero está ubicado en ${sedeActualNombre}. Por favor, realiza el traslado logístico físico primero o autoriza el movimiento.`);
         }
 
         resolved.push({
           idx: i,
           id: existing.id,
-          referencia: codigoUpper,
+          referencia: existing.codigo || codigoUpper,
           tipo: v.tipo,
           observaciones: v.observaciones,
           stock_total: existing.stock_total || 1,
@@ -490,7 +486,7 @@ export default function NuevoContratoPage() {
           sede_nombre: formData.sede 
         });
       } else {
-        throw new Error(`❌ El vestido ${codigoUpper} no existe en el inventario. No se puede crear un vestido físico automáticamente desde un contrato.`);
+        throw new Error(`❌ El vestido '${codigoUpper}' no se encontró en el inventario global. Verifica si el código o nombre es correcto.`);
       }
     }
     return resolved;
