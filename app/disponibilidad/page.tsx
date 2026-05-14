@@ -160,22 +160,42 @@ export default function AvailabilityPage() {
       }
 
       // 3. Procesar Periodos de Bloqueo (Calendario)
-      const calculatedPeriods: BusyPeriod[] = (contracts as any[]).map(item => {
+      const calculatedPeriods: BusyPeriod[] = (contracts as any[]).flatMap(item => {
         const c = item.contratos;
-        const baseDelivery = c.fecha_entrega_envio || c.fecha_evento;
-        const start = new Date(baseDelivery);
-        start.setDate(start.getDate() - 10);
-        const offset = getBlockingDays(c.tipo_evento, c.tipo_entrega);
-        const end = new Date(c.fecha_evento);
-        end.setDate(end.getDate() + offset);
+        const blocks: BusyPeriod[] = [];
 
-        return {
-          start, end,
-          contractNumber: c.numero_contrato,
-          clientName: c.cliente_nombre,
-          type: c.tipo_evento,
-          id: c.id
-        };
+        if (c.fecha_evento) {
+          const baseDelivery = c.fecha_entrega_envio || c.fecha_evento;
+          const start = new Date(baseDelivery);
+          start.setDate(start.getDate() - 10);
+          const offset = getBlockingDays(c.tipo_evento, c.tipo_entrega);
+          const end = new Date(c.fecha_evento);
+          end.setDate(end.getDate() + offset);
+
+          blocks.push({
+            start, end,
+            contractNumber: c.numero_contrato,
+            clientName: c.cliente_nombre,
+            type: c.tipo_evento,
+            id: `evt-${c.id}`
+          });
+        }
+
+        if (c.fecha_pre_xv) {
+          const start = new Date(c.fecha_pre_xv);
+          const end = new Date(c.fecha_pre_xv);
+          end.setDate(end.getDate() + 3);
+
+          blocks.push({
+            start, end,
+            contractNumber: c.numero_contrato,
+            clientName: c.cliente_nombre,
+            type: 'PreXV',
+            id: `pxv-${c.id}`
+          });
+        }
+
+        return blocks;
       });
       setPeriods(calculatedPeriods.sort((a, b) => a.start.getTime() - b.start.getTime()));
 
@@ -431,8 +451,10 @@ export default function AvailabilityPage() {
                               <User className="w-4 h-4" />
                               <span className="font-bold text-xs">{p.clientName}</span>
                             </div>
-                            <span className="inline-block mt-2 px-3 py-1 bg-gray-50 rounded-lg text-[9px] font-black text-gray-400 uppercase">
-                               Tipo: {p.type === 'PreXV' ? '👗 Sesión Pre-XV' : '🎂 Evento / Quinceañera'}
+                            <span className={`inline-block mt-2 px-3 py-1 rounded-lg text-[9px] font-black uppercase ${
+                               p.type === 'PreXV' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'
+                            }`}>
+                               Tipo: {p.type === 'PreXV' ? '👗 Bloqueo Post Pre-XV (3 Días)' : '🎂 Evento / Quinceañera'}
                             </span>
                           </div>
                         </div>

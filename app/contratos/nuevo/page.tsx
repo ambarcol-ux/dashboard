@@ -255,7 +255,7 @@ export default function NuevoContratoPage() {
 
         const { data, error } = await supabase
           .from('contrato_items_vestidos')
-          .select('vestido_id, vestidos!inner(stock_total), contratos!inner(id, numero_contrato, fecha_evento, fecha_pre_xv, tipo_evento, tipo_entrega, estado, fecha_entrega_envio, fecha_disponibilidad_real)')
+          .select('vestido_id, vestidos!inner(stock_total, estado), contratos!inner(id, numero_contrato, fecha_evento, fecha_pre_xv, tipo_evento, tipo_entrega, estado, fecha_entrega_envio, fecha_disponibilidad_real)')
           .not('contratos.estado', 'in', '("cancelado","rechazado","CANCELADO","RECHAZADO","borrador","BORRADOR")');
 
         if (error) {
@@ -276,16 +276,30 @@ export default function NuevoContratoPage() {
 
           const otherDates: Array<{ date: string; label: string }> = [];
           if (c.fecha_evento) otherDates.push({ date: c.fecha_evento, label: 'Evento' });
-          if (c.fecha_pre_xv) otherDates.push({ date: c.fecha_pre_xv, label: 'PreXV' });
 
           const mDays = getMaintenanceDays(c.tipo_evento);
           const deliveryTime = c.fecha_entrega_envio ? new Date(c.fecha_entrega_envio).getTime() : null;
           const returnTime = deliveryTime ? deliveryTime + (mDays * 24 * 60 * 60 * 1000) : null;
 
+          // NUEVO: Regla 3 días post Pre-XV
+          const preXvBlockStart = c.fecha_pre_xv ? parseSafeDate(c.fecha_pre_xv) : null;
+          const preXvBlockEnd = preXvBlockStart ? preXvBlockStart + (3 * 24 * 60 * 60 * 1000) : null;
+          const isDisponible = vInfo?.estado === 'Disponible';
+          const now = new Date().getTime();
+          const isPreXvLiberado = isDisponible && preXvBlockEnd && now > preXvBlockEnd;
+
           let hasLocalConflict = false;
 
           for (const myD of requestedDates) {
             const tReq = new Date(myD.date).getTime();
+
+            // BLOQUEO PRE-XV STRICTO
+            if (preXvBlockStart && preXvBlockEnd && !isPreXvLiberado) {
+              if (tReq >= preXvBlockStart && tReq < preXvBlockEnd) {
+                hasLocalConflict = true;
+                break;
+              }
+            }
 
             // BLOQUEO POR DISPONIBILIDAD REAL (Mantenimiento)
             if (c.fecha_disponibilidad_real) {
@@ -302,7 +316,7 @@ export default function NuevoContratoPage() {
               break;
             }
 
-            // CHECK 2: Standard point-to-point check
+            // CHECK 2: Standard point-to-point check (Solo para Eventos)
             for (const otherD of otherDates) {
               const tExt = new Date(otherD.date).getTime();
               const s = getZoneSeverity(tReq, tExt);
@@ -483,7 +497,8 @@ export default function NuevoContratoPage() {
           observaciones: v.observaciones,
           stock_total: existing.stock_total || 1,
           sede_actual_id: formData.sede_id, 
-          sede_nombre: formData.sede 
+          sede_nombre: formData.sede,
+          estado: existing.estado 
         });
       } else {
         throw new Error(`❌ El vestido '${codigoUpper}' no se encontró en el inventario global. Verifica si el código o nombre es correcto.`);
@@ -537,16 +552,32 @@ export default function NuevoContratoPage() {
 
             const otherMainType = oc.tipo_evento === 'PreXV' ? 'PreXV' : 'Evento';
             if (oc.fecha_evento) otherOccupiedDates.push({ date: oc.fecha_evento, type: otherMainType });
-            if (oc.fecha_pre_xv) otherOccupiedDates.push({ date: oc.fecha_pre_xv, type: 'PreXV' });
 
             const mDays = getMaintenanceDays(oc.tipo_evento);
             const deliveryTime = oc.fecha_entrega_envio ? new Date(oc.fecha_entrega_envio).getTime() : null;
             const returnTime = deliveryTime ? deliveryTime + (mDays * 24 * 60 * 60 * 1000) : null;
 
+            // NUEVO: Regla 3 días post Pre-XV
+            const preXvBlockStart = oc.fecha_pre_xv ? parseSafeDate(oc.fecha_pre_xv) : null;
+            const preXvBlockEnd = preXvBlockStart ? preXvBlockStart + (3 * 24 * 60 * 60 * 1000) : null;
+            const isDisponible = v.estado === 'Disponible';
+            const now = new Date().getTime();
+            const isPreXvLiberado = isDisponible && preXvBlockEnd && now > preXvBlockEnd;
+
             let localConflict = false;
 
+            const tReq = parseSafeDate(rd.date);
+
+            // BLOQUEO PRE-XV STRICTO
+            if (preXvBlockStart && preXvBlockEnd && !isPreXvLiberado) {
+              if (tReq >= preXvBlockStart && tReq < preXvBlockEnd) {
+                localConflict = true;
+                lastConflictRed = true;
+                lastConflictType = 'logistica';
+              }
+            }
+
             for (const od of otherOccupiedDates) {
-              const tReq = parseSafeDate(rd.date);
               const tExt = parseSafeDate(od.date);
 
               // REGLA DE ORO: Bloqueo por Mantenimiento (Maintenance Lockout)

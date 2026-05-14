@@ -667,6 +667,7 @@ export default function DashboardPage() {
       .from('contrato_items_vestidos')
       .select(`
         vestido_id,
+        vestidos!inner(estado),
         contratos!inner(
           id, 
           numero_contrato, 
@@ -699,14 +700,22 @@ export default function DashboardPage() {
 
     for (const item of (items || [])) {
       const c = item.contratos as any;
+      const vEstado = (item.vestidos as any)?.estado;
+      
       const maintenanceDays = getMaintenanceDays(c.tipo_evento);
       const deliveryTime = c.fecha_entrega_envio ? new Date(c.fecha_entrega_envio).getTime() : null;
       const returnTime = deliveryTime ? deliveryTime + (maintenanceDays * 24 * 60 * 60 * 1000) : null;
 
-      // Other critical dates of the existing contract
+      // NUEVO: Regla 3 días post Pre-XV
+      const preXvBlockStart = c.fecha_pre_xv ? new Date(c.fecha_pre_xv).getTime() : null;
+      const preXvBlockEnd = preXvBlockStart ? preXvBlockStart + (3 * 24 * 60 * 60 * 1000) : null;
+      const isDisponible = vEstado === 'Disponible';
+      const now = new Date().getTime();
+      const isPreXvLiberado = isDisponible && preXvBlockEnd && now > preXvBlockEnd;
+
+      // Other critical dates of the existing contract (Excluimos Pre-XV de la zona de choque de 5/10 días)
       const otherDates = [
         c.fecha_evento,
-        c.fecha_pre_xv,
         c.fecha_cita_medidas,
         c.fecha_prueba_final,
         c.fecha_entrega_envio
@@ -715,12 +724,22 @@ export default function DashboardPage() {
       for (const req of requestedDatesArray) {
         const reqTime = new Date(req.date).getTime();
 
+        // CHECK PRE-XV STRICT BLOCK
+        if (preXvBlockStart && preXvBlockEnd && !isPreXvLiberado) {
+          if (reqTime >= preXvBlockStart && reqTime < preXvBlockEnd) {
+            return { 
+              severity: 'red', 
+              message: `Vestido bloqueado temporalmente por sesión Pre-XV (Contrato #${c.numero_contrato}). Liberación estimada: +3 días.` 
+            };
+          }
+        }
+
         // REGLA DE ORO: Bloqueo por Mantenimiento (Maintenance Lockout)
         if (c.fecha_disponibilidad_real) {
           const tRelease = new Date(c.fecha_disponibilidad_real).getTime();
           // Si la fecha solicitada es ANTERIOR a la liberación por mantenimiento
           // Y es posterior o igual a la salida del vestido (o cercanía crítica)
-          if (reqTime < tRelease && reqTime >= (deliveryTime || (otherDates[0] - (2 * 24 * 60 * 60 * 1000)))) {
+          if (reqTime < tRelease && reqTime >= (deliveryTime || (otherDates.length > 0 ? otherDates[0] - (2 * 24 * 60 * 60 * 1000) : 0))) {
             return { 
               severity: 'red', 
               message: `Vestido en periodo de mantenimiento/retorno hasta el ${c.fecha_disponibilidad_real} (Contrato #${c.numero_contrato}).` 
