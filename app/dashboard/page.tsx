@@ -474,10 +474,19 @@ export default function DashboardPage() {
 
 
   const deleteContract = async (id: string, numero: string) => {
-    if (!confirm(`¿Estás seguro de que deseas eliminar el contrato ${numero}? Esta acción es irreversible.`)) return;
+    if (!confirm(`¿Estás seguro de que deseas eliminar PERMANENTEMENTE el contrato ${numero}? Esta acción es IRREVERSIBLE.`)) return;
+    if (!confirm(`CONFIRMACIÓN DOBLE: Al eliminar este contrato se borrarán en cascada todos los vestidos, pagos y bitácoras vinculadas. ¿Deseas proceder?`)) return;
     
     try {
       setLoading(true);
+      
+      // Cascada manual: Eliminar dependencias primero
+      await supabase.from('contrato_items_vestidos').delete().eq('contrato_id', id);
+      await supabase.from('pagos').delete().eq('contrato_id', id);
+      await supabase.from('bitacora_contratos').delete().eq('contrato_id', id);
+      await supabase.from('entregas_bitacora').delete().eq('contrato_id', id);
+      await supabase.from('arreglos').delete().eq('contrato_id', id);
+
       const { error } = await supabase
         .from('contratos')
         .delete()
@@ -485,7 +494,7 @@ export default function DashboardPage() {
       
       if (error) throw error;
       
-      toast.success(`Contrato ${numero} eliminado correctamente.`);
+      toast.success(`Contrato ${numero} eliminado permanentemente en cascada.`);
       fetchContratos();
     } catch (err: any) {
       console.error(err);
@@ -1897,14 +1906,14 @@ export default function DashboardPage() {
                   </>
                )}
 
-               {(user?.role === 'admin' || user?.email === 'dubian.h88@gmail.com') && (
+               {user?.role === 'admin' && (
                   <>
                     <div className="h-px bg-gray-100 my-1 mx-2"></div>
                     <button 
                       onClick={() => { setOpenDropdownId(null); deleteContract(c.id, c.numero_contrato); }}
-                      className="w-full text-left px-4 py-3 text-sm text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-3 font-bold transition-all"
+                      className="w-full text-left px-4 py-3 text-xs text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-3 font-bold transition-all"
                     >
-                      <Trash2 className="w-4 h-4 text-rose-500" /> Borrar Contrato
+                      <Trash2 className="w-4 h-4 text-rose-500" /> Eliminar Contrato Permanentemente
                     </button>
                   </>
                )}
