@@ -453,6 +453,7 @@ export default function NuevoContratoPage() {
       stock_total: number;
       sede_actual_id: string;
       sede_nombre: string;
+      estado: string;
     }[] = [];
 
     for (let i = 0; i < vestidosList.length; i++) {
