@@ -512,8 +512,19 @@ export default function DashboardPage() {
         .update({ estado_aprobacion: 'aprobado' })
         .eq('id', id);
       if (error) throw error;
-      toast.success('Contrato aprobado correctamente');
+
+      // Update the dress status to vinculado_confirmado
+      const { error: errItems } = await supabase
+        .from('contrato_items_vestidos')
+        .update({ estado: 'vinculado_confirmado' })
+        .eq('contrato_id', id);
+      if (errItems) console.error('Error al confirmar vestidos:', errItems);
+
+      toast.success('Excepción aprobada y contrato confirmado');
       fetchContratos();
+      if (selectedContract && selectedContract.id === id) {
+         setSelectedContract({ ...selectedContract, estado_aprobacion: 'aprobado' });
+      }
     } catch (err) {
       toast.error('Error al aprobar contrato');
     } finally {
@@ -3404,7 +3415,17 @@ export default function DashboardPage() {
                                  <Edit3 className="w-3.5 h-3.5" />}
                               </div>
                               <div>
-                                <h4 className="font-black text-gray-900 text-sm leading-tight">{h.accion}</h4>
+                                <h4 className="font-black text-gray-900 text-sm leading-tight">
+                                  {h.accion}
+                                  {h.accion === 'Solicitud de excepción por alistamiento' && isAdmin && selectedContract?.estado_aprobacion === 'pendiente_admin' && (
+                                    <button 
+                                      onClick={() => approveContract(selectedContract.id)}
+                                      className="ml-3 px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-black rounded-lg transition-all border border-rose-100 shadow-sm"
+                                    >
+                                      Aprobar Excepción
+                                    </button>
+                                  )}
+                                </h4>
                                 <p className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter">
                                   {new Date(h.created_at).toLocaleString()} • {h.usuario || 'Sistema'}
                                 </p>
