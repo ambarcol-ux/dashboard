@@ -218,7 +218,7 @@ export default function NuevoContratoPage() {
   };
 
   const getMaintenanceDays = (tipoEvento: string) => {
-    return 5;
+    return (tipoEvento === 'PreXV' || tipoEvento === 'PREXV' || tipoEvento === 'Fotografía') ? 2 : 5;
   };
 
   const calculateDisponibilidadReal = (fechaEntrega: string, tipoEvento: string) => {
@@ -592,7 +592,7 @@ export default function NuevoContratoPage() {
                   localConflict = true;
                   lastConflictRed = true;
                   lastConflictType = 'logistica';
-                  lastConflictDays = 5;
+                  lastConflictDays = mDays;
                 }
               }
 
@@ -601,7 +601,7 @@ export default function NuevoContratoPage() {
                 localConflict = true;
                 lastConflictRed = true;
                 lastConflictType = 'logistica';
-                lastConflictDays = 5;
+                lastConflictDays = mDays;
               }
 
               const s1 = getZoneSeverity(tReq, tExt, od.type);

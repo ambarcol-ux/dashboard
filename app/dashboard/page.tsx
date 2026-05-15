@@ -629,7 +629,7 @@ export default function DashboardPage() {
   };
 
   const getMaintenanceDays = (tipoEvento: string) => {
-    return 5;
+    return (tipoEvento === 'PreXV' || tipoEvento === 'PREXV' || tipoEvento === 'Fotografía') ? 2 : 5;
   };
 
   const calculateReturnDate = (deliveryDate: string, tipoEvento: string) => {
