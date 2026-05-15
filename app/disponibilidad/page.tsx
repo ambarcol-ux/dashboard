@@ -184,7 +184,7 @@ export default function AvailabilityPage() {
         if (c.fecha_pre_xv) {
           const start = new Date(c.fecha_pre_xv);
           const end = new Date(c.fecha_pre_xv);
-          end.setDate(end.getDate() + 3);
+          end.setDate(end.getDate() + 2);
 
           blocks.push({
             start, end,
@@ -454,7 +454,7 @@ export default function AvailabilityPage() {
                             <span className={`inline-block mt-2 px-3 py-1 rounded-lg text-[9px] font-black uppercase ${
                                p.type === 'PreXV' ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'
                             }`}>
-                               Tipo: {p.type === 'PreXV' ? '👗 Bloqueo Post Pre-XV (3 Días)' : '🎂 Evento / Quinceañera'}
+                               Tipo: {p.type === 'PreXV' ? '👗 Bloqueo Post Pre-XV (2 Días)' : '🎂 Evento / Quinceañera'}
                             </span>
                           </div>
                         </div>

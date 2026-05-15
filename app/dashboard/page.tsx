@@ -629,7 +629,7 @@ export default function DashboardPage() {
   };
 
   const getMaintenanceDays = (tipoEvento: string) => {
-    return tipoEvento === 'XV' || tipoEvento === 'Quinceañera' ? 8 : 5;
+    return 5;
   };
 
   const calculateReturnDate = (deliveryDate: string, tipoEvento: string) => {
@@ -706,9 +706,9 @@ export default function DashboardPage() {
       const deliveryTime = c.fecha_entrega_envio ? new Date(c.fecha_entrega_envio).getTime() : null;
       const returnTime = deliveryTime ? deliveryTime + (maintenanceDays * 24 * 60 * 60 * 1000) : null;
 
-      // NUEVO: Regla 3 días post Pre-XV
+      // NUEVO: Regla 2 días post Pre-XV
       const preXvBlockStart = c.fecha_pre_xv ? new Date(c.fecha_pre_xv).getTime() : null;
-      const preXvBlockEnd = preXvBlockStart ? preXvBlockStart + (3 * 24 * 60 * 60 * 1000) : null;
+      const preXvBlockEnd = preXvBlockStart ? preXvBlockStart + (2 * 24 * 60 * 60 * 1000) : null;
       const isDisponible = vEstado === 'Disponible';
       const now = new Date().getTime();
       const isPreXvLiberado = isDisponible && preXvBlockEnd && now > preXvBlockEnd;
@@ -729,7 +729,7 @@ export default function DashboardPage() {
           if (reqTime >= preXvBlockStart && reqTime < preXvBlockEnd) {
             return { 
               severity: 'red', 
-              message: `Vestido bloqueado temporalmente por sesión Pre-XV (Contrato #${c.numero_contrato}). Liberación estimada: +3 días.` 
+              message: `Vestido bloqueado temporalmente por sesión Pre-XV (Contrato #${c.numero_contrato}). Liberación estimada: +2 días.` 
             };
           }
         }

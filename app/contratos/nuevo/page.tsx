@@ -217,7 +217,7 @@ export default function NuevoContratoPage() {
   };
 
   const getMaintenanceDays = (tipoEvento: string) => {
-    return (tipoEvento === 'XV' || tipoEvento === 'Quinceañera') ? 8 : 5;
+    return 5;
   };
 
   const calculateDisponibilidadReal = (fechaEntrega: string, tipoEvento: string) => {
@@ -281,9 +281,9 @@ export default function NuevoContratoPage() {
           const deliveryTime = c.fecha_entrega_envio ? new Date(c.fecha_entrega_envio).getTime() : null;
           const returnTime = deliveryTime ? deliveryTime + (mDays * 24 * 60 * 60 * 1000) : null;
 
-          // NUEVO: Regla 3 días post Pre-XV
+          // NUEVO: Regla 2 días post Pre-XV
           const preXvBlockStart = c.fecha_pre_xv ? parseSafeDate(c.fecha_pre_xv) : null;
-          const preXvBlockEnd = preXvBlockStart ? preXvBlockStart + (3 * 24 * 60 * 60 * 1000) : null;
+          const preXvBlockEnd = preXvBlockStart ? preXvBlockStart + (2 * 24 * 60 * 60 * 1000) : null;
           const isDisponible = vInfo?.estado === 'Disponible';
           const now = new Date().getTime();
           const isPreXvLiberado = isDisponible && preXvBlockEnd && now > preXvBlockEnd;
@@ -558,9 +558,9 @@ export default function NuevoContratoPage() {
             const deliveryTime = oc.fecha_entrega_envio ? new Date(oc.fecha_entrega_envio).getTime() : null;
             const returnTime = deliveryTime ? deliveryTime + (mDays * 24 * 60 * 60 * 1000) : null;
 
-            // NUEVO: Regla 3 días post Pre-XV
+            // NUEVO: Regla 2 días post Pre-XV
             const preXvBlockStart = oc.fecha_pre_xv ? parseSafeDate(oc.fecha_pre_xv) : null;
-            const preXvBlockEnd = preXvBlockStart ? preXvBlockStart + (3 * 24 * 60 * 60 * 1000) : null;
+            const preXvBlockEnd = preXvBlockStart ? preXvBlockStart + (2 * 24 * 60 * 60 * 1000) : null;
             const isDisponible = v.estado === 'Disponible';
             const now = new Date().getTime();
             const isPreXvLiberado = isDisponible && preXvBlockEnd && now > preXvBlockEnd;
