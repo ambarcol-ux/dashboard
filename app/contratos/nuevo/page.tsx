@@ -228,12 +228,12 @@ export default function NuevoContratoPage() {
     return date.toISOString().split('T')[0];
   };
 
-  const getZoneSeverity = (pointTime: number, baseTime: number) => {
-    // Unificamos a la regla de los 5/10 días solicitada por el usuario
+  const getZoneSeverity = (pointTime: number, baseTime: number, tipoEvento?: string) => {
     const diffDays = Math.abs(Math.round((pointTime - baseTime) / (24 * 60 * 60 * 1000)));
+    const diasRequeridos = (tipoEvento === 'PreXV' || tipoEvento === 'Fotografía') ? 2 : 5;
 
-    if (diffDays < 5) return 'red'; // Bloqueo Total
-    if (diffDays <= 10) return 'yellow'; // Zona de Permiso
+    if (diffDays < diasRequeridos) return 'red'; // Bloqueo Total
+    if (diffDays <= (diasRequeridos === 2 ? 4 : 10)) return 'yellow'; // Zona de Permiso
 
     return null;
   };
@@ -275,8 +275,9 @@ export default function NuevoContratoPage() {
 
           if (!stockTable[vId]) stockTable[vId] = vInfo?.stock_total || 1;
 
-          const otherDates: Array<{ date: string; label: string }> = [];
-          if (c.fecha_evento) otherDates.push({ date: c.fecha_evento, label: 'Evento' });
+          const otherDates: Array<{ date: string; type: string }> = [];
+          const mainType = c.tipo_evento === 'PreXV' ? 'PreXV' : 'Evento';
+          if (c.fecha_evento) otherDates.push({ date: c.fecha_evento, type: mainType });
 
           const mDays = getMaintenanceDays(c.tipo_evento);
           const deliveryTime = c.fecha_entrega_envio ? new Date(c.fecha_entrega_envio).getTime() : null;
@@ -320,7 +321,7 @@ export default function NuevoContratoPage() {
             // CHECK 2: Standard point-to-point check (Solo para Eventos)
             for (const otherD of otherDates) {
               const tExt = new Date(otherD.date).getTime();
-              const s = getZoneSeverity(tReq, tExt);
+              const s = getZoneSeverity(tReq, tExt, otherD.type);
               if (s === 'red' || (tReq === tExt)) {
                 hasLocalConflict = true;
                 break;
@@ -603,14 +604,14 @@ export default function NuevoContratoPage() {
                 lastConflictDays = 5;
               }
 
-              const s1 = getZoneSeverity(tReq, tExt);
-              const s2 = getZoneSeverity(tExt, tReq);
+              const s1 = getZoneSeverity(tReq, tExt, od.type);
+              const s2 = getZoneSeverity(tExt, tReq, od.type);
 
               if (!localConflict && (s1 === 'red' || s2 === 'red')) {
                 localConflict = true;
                 lastConflictRed = true;
                 lastConflictType = s1 === 'red' ? 'logistica' : 'preparacion';
-                lastConflictDays = 5;
+                lastConflictDays = (od.type === 'PreXV' || od.type === 'Fotografía') ? 2 : 5;
               }
 
               if (!localConflict && (s1 === 'yellow' || s2 === 'yellow')) {
