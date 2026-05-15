@@ -20,6 +20,7 @@ export default function NuevoContratoPage() {
   // -- New States for Conflict Logic --
   const [conflictSeverity, setConflictSeverity] = useState<'red' | 'yellow' | null>(null);
   const [conflictType, setConflictType] = useState<'preparacion' | 'logistica' | null>(null);
+  const [conflictDays, setConflictDays] = useState<number>(5);
   const [conflictDressCode, setConflictDressCode] = useState('');
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [showYellowModal, setShowYellowModal] = useState(false);
@@ -545,6 +546,7 @@ export default function NuevoContratoPage() {
           let lastConflictYellow = false;
           let lastConflictRed = false;
           let lastConflictType: 'logistica' | 'preparacion' = 'logistica';
+          let lastConflictDays = 5;
           let lastAlistamiento = null;
 
           for (const rental of existingRentals) {
@@ -575,6 +577,7 @@ export default function NuevoContratoPage() {
                 localConflict = true;
                 lastConflictRed = true;
                 lastConflictType = 'logistica';
+                lastConflictDays = 2;
               }
             }
 
@@ -588,6 +591,7 @@ export default function NuevoContratoPage() {
                   localConflict = true;
                   lastConflictRed = true;
                   lastConflictType = 'logistica';
+                  lastConflictDays = 5;
                 }
               }
 
@@ -596,6 +600,7 @@ export default function NuevoContratoPage() {
                 localConflict = true;
                 lastConflictRed = true;
                 lastConflictType = 'logistica';
+                lastConflictDays = 5;
               }
 
               const s1 = getZoneSeverity(tReq, tExt);
@@ -605,6 +610,7 @@ export default function NuevoContratoPage() {
                 localConflict = true;
                 lastConflictRed = true;
                 lastConflictType = s1 === 'red' ? 'logistica' : 'preparacion';
+                lastConflictDays = 5;
               }
 
               if (!localConflict && (s1 === 'yellow' || s2 === 'yellow')) {
@@ -629,6 +635,7 @@ export default function NuevoContratoPage() {
             if (lastConflictRed) {
               setConflictDressCode(v.referencia || 'Seleccionado');
               setConflictType(lastConflictType);
+              setConflictDays(lastConflictDays);
               setShowConflictModal(true);
               return false;
             } else if (lastConflictYellow && lastAlistamiento) {
@@ -1559,10 +1566,10 @@ export default function NuevoContratoPage() {
                 <p className="text-gray-600 font-medium leading-relaxed">
                   El Vestido <span className="font-black text-gray-900 underline decoration-rose-500 decoration-2">{conflictDressCode}</span> está en un <span className="text-rose-600 font-bold uppercase">Bloqueo Total</span>.
                   <br /><br />
-                  La diferencia entre fechas es <strong>menor a 5 días</strong>, lo cual no permite tiempo suficiente para lavandería y arreglos. No es posible solicitar autorización para este periodo.
+                  La diferencia entre fechas es <strong>menor a {conflictDays} días</strong>, lo cual no permite tiempo suficiente para lavandería y arreglos. No es posible solicitar autorización para este periodo.
                 </p>
                 <p className="text-sm border-l-4 border-rose-500 bg-rose-50 p-3 italic text-gray-500 font-semibold rounded-r-xl">
-                  🚫 No Disponible (Menos de 5 días)
+                  🚫 No Disponible (Menos de {conflictDays} días)
                 </p>
                 <button
                   onClick={() => setShowConflictModal(false)}
