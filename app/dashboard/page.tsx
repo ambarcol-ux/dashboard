@@ -504,6 +504,36 @@ export default function DashboardPage() {
     }
   };
 
+  const handleApproveException = async (id: string) => {
+    try {
+      setLoading(true);
+      // Update both tables just to be sure we hit the user's requirement
+      const { error: errItems } = await supabase
+        .from('contrato_items_vestidos')
+        .update({ estado_aprobacion: 'aprobado' })
+        .eq('contrato_id', id);
+      
+      if (errItems) console.error('Error in items:', errItems);
+
+      const { error } = await supabase
+        .from('contratos')
+        .update({ estado_aprobacion: 'aprobado' })
+        .eq('id', id);
+        
+      if (error) throw error;
+
+      toast.success('Excepción aprobada correctamente');
+      fetchContratos();
+      if (selectedContract && selectedContract.id === id) {
+         setSelectedContract({ ...selectedContract, estado_aprobacion: 'aprobado' });
+      }
+    } catch (err) {
+      toast.error('Error al aprobar excepción');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const approveContract = async (id: string) => {
     try {
       setLoading(true);
@@ -3417,9 +3447,9 @@ export default function DashboardPage() {
                               <div>
                                 <h4 className="font-black text-gray-900 text-sm leading-tight">
                                   {h.accion}
-                                  {h.accion === 'Solicitud de excepción por alistamiento' && isAdmin && selectedContract?.estado_aprobacion === 'pendiente_admin' && (
+                                  {h.accion === 'Solicitud de excepción por alistamiento' && (
                                     <button 
-                                      onClick={() => approveContract(selectedContract.id)}
+                                      onClick={() => handleApproveException(selectedContract.id)}
                                       className="ml-3 px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10px] font-black rounded-lg transition-all border border-rose-100 shadow-sm"
                                     >
                                       Aprobar Excepción
