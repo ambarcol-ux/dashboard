@@ -80,7 +80,7 @@ export default function UsersManagementPage() {
       // Obtener perfiles
       const { data: profiles, error: pErr } = await supabase
         .from('profiles')
-        .select('id, email, rol, nombre, sede_id')
+        .select('id, email, rol, nombre, sede_id, activo')
         .order('nombre', { ascending: true });
       if (pErr) throw pErr;
       setUsers(profiles || []);
@@ -182,24 +182,23 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleDeleteUser = async (profileId: string) => {
-    if (!confirm('¿Estás seguro de desactivar este usuario?')) return;
+  const handleToggleActive = async (profileId: string, currentStatus: boolean) => {
+    if (!confirm(`¿Estás seguro de ${currentStatus ? 'desactivar' : 'reactivar'} este usuario?`)) return;
     try {
-      // User explicitly requested to set activo to false instead of deleting physically
       const { data, error } = await supabase
         .from('profiles')
-        .update({ activo: false })
+        .update({ activo: !currentStatus })
         .eq('id', profileId)
         .select();
         
       if (error) throw error;
-      if (!data || data.length === 0) throw new Error('No se pudo desactivar el usuario (Registro no encontrado o bloqueado)');
+      if (!data || data.length === 0) throw new Error(`No se pudo ${currentStatus ? 'desactivar' : 'reactivar'} el usuario (Registro no encontrado o bloqueado)`);
       
-      toast.success('Usuario desactivado lógicamente con éxito.');
+      toast.success(`Usuario ${currentStatus ? 'desactivado' : 'reactivado'} lógicamente con éxito.`);
       setActiveDropdown(null);
       fetchData();
     } catch (err: any) {
-      toast.error('Error al desactivar usuario: ' + err.message);
+      toast.error(`Error al ${currentStatus ? 'desactivar' : 'reactivar'} usuario: ` + err.message);
     }
   };
 
@@ -291,14 +290,21 @@ export default function UsersManagementPage() {
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {filteredUsers.length > 0 ? filteredUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-rose-50/30 transition-colors group">
+                    <tr key={user.id} className={`hover:bg-rose-50/30 transition-colors group ${user.activo === false ? 'opacity-50 grayscale-[0.2]' : ''}`}>
                       <td className="px-8 py-6">
                         <div className="flex items-center gap-4">
                           <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm ${user.rol === 'admin' ? 'bg-rose-100 text-rose-600' : 'bg-gray-100 text-gray-600'}`}>
                             {(user.nombre || 'S').charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="font-bold text-gray-800">{user.nombre || 'Sin nombre'}</p>
+                            <p className="font-bold text-gray-800 flex items-center gap-2">
+                              {user.nombre || 'Sin nombre'}
+                              <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest ${
+                                user.activo === false ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-700'
+                              }`}>
+                                {user.activo === false ? 'INACTIVO' : 'ACTIVO'}
+                              </span>
+                            </p>
                             <p className="text-xs text-gray-400 flex items-center gap-1">
                               <Mail className="w-3 h-3" /> {user.email || 'Sin correo'}
                             </p>
@@ -331,7 +337,9 @@ export default function UsersManagementPage() {
                             <button onClick={() => handleEditOpen(user)} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 rounded-xl transition-colors">Editar Perfil</button>
                             <button onClick={() => handleUpdateRole(user.id, user.rol)} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 rounded-xl transition-colors">Cambiar Rol</button>
                             <div className="h-px bg-gray-100 my-1"></div>
-                            <button onClick={() => handleDeleteUser(user.id)} className="w-full text-left px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">Desactivar Usuario</button>
+                            <button onClick={() => handleToggleActive(user.id, user.activo !== false)} className={`w-full text-left px-4 py-2 text-xs font-bold rounded-xl transition-colors ${user.activo === false ? 'text-emerald-600 hover:bg-emerald-50' : 'text-rose-600 hover:bg-rose-50'}`}>
+                              {user.activo === false ? 'Reactivar Usuario' : 'Desactivar Usuario'}
+                            </button>
                           </div>
                         )}
                       </td>
