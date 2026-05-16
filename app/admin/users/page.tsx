@@ -162,15 +162,19 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleChangeRole = async (id: string, currentRole: string) => {
+  const handleUpdateRole = async (id: string, currentRole: string) => {
     try {
       const newRole = currentRole?.toLowerCase() === 'admin' ? 'asesora' : 'admin';
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .update({ rol: newRole })
-        .eq('id', id);
+        .eq('id', id)
+        .select();
+        
       if (error) throw error;
-      toast.success(`Rol cambiado a ${newRole.toUpperCase()}`);
+      if (!data || data.length === 0) throw new Error('No se pudo actualizar el registro (Registro no encontrado o bloqueado por RLS)');
+      
+      toast.success(`Rol cambiado a ${newRole.toUpperCase()} correctamente`);
       setActiveDropdown(null);
       fetchData();
     } catch (err: any) {
@@ -178,18 +182,20 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleDeactivateUser = async (id: string) => {
-    if (!confirm('¿Estás seguro de desactivar/eliminar este usuario?')) return;
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm('¿Estás seguro de desactivar este usuario?')) return;
     try {
-      const { error } = await supabase.from('profiles').delete().eq('id', id);
-      if (error) {
-        // Fallback a desactivación lógica
-        const { error: err2 } = await supabase.from('profiles').update({ rol: 'inactivo' }).eq('id', id);
-        if (err2) throw err2;
-        toast.info('Usuario desactivado lógicamente por tener historial asociado.');
-      } else {
-        toast.success('Usuario eliminado permanentemente.');
-      }
+      // User explicitly requested to set activo to false instead of deleting physically
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ activo: false })
+        .eq('id', id)
+        .select();
+        
+      if (error) throw error;
+      if (!data || data.length === 0) throw new Error('No se pudo desactivar el usuario (Registro no encontrado o bloqueado)');
+      
+      toast.success('Usuario desactivado lógicamente con éxito.');
       setActiveDropdown(null);
       fetchData();
     } catch (err: any) {
@@ -323,9 +329,9 @@ export default function UsersManagementPage() {
                         {activeDropdown === user.id && (
                           <div className="absolute right-12 top-10 w-48 bg-white border border-gray-100 shadow-xl rounded-2xl p-2 z-50 text-left">
                             <button onClick={() => handleEditOpen(user)} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 rounded-xl transition-colors">Editar Perfil</button>
-                            <button onClick={() => handleChangeRole(user.id, user.rol)} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 rounded-xl transition-colors">Alternar Rol</button>
+                            <button onClick={() => handleUpdateRole(user.id, user.rol)} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 rounded-xl transition-colors">Cambiar Rol</button>
                             <div className="h-px bg-gray-100 my-1"></div>
-                            <button onClick={() => handleDeactivateUser(user.id)} className="w-full text-left px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">Eliminar / Desactivar</button>
+                            <button onClick={() => handleDeleteUser(user.id)} className="w-full text-left px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">Desactivar Usuario</button>
                           </div>
                         )}
                       </td>
