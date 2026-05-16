@@ -37,6 +37,12 @@ export default function UsersManagementPage() {
     password: ''
   });
   const [user, setUser] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  // Actions State
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({ id: '', nombre: '', email: '', sede_id: '' });
 
   useEffect(() => {
     const checkUser = async () => {
@@ -47,7 +53,16 @@ export default function UsersManagementPage() {
           .select('*')
           .eq('id', user.id)
           .maybeSingle();
-        setUser({ ...user, role: profile?.rol, nombre: profile?.nombre });
+          
+        let role = profile?.rol || null;
+        if (user.email === 'dubian.h88@gmail.com') {
+          role = 'admin';
+        }
+        
+        setUser({ ...user, role: role, nombre: profile?.nombre });
+        setUserRole(role);
+      } else {
+        window.location.href = '/login';
       }
     };
     checkUser();
@@ -125,12 +140,82 @@ export default function UsersManagementPage() {
 
   };
 
+  const handleEditOpen = (u: any) => {
+    setEditFormData({ id: u.id, nombre: u.nombre || '', email: u.email || '', sede_id: u.sede_id || '' });
+    setActiveDropdown(null);
+    setEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ nombre: editFormData.nombre, email: editFormData.email, sede_id: editFormData.sede_id || null })
+        .eq('id', editFormData.id);
+      if (error) throw error;
+      toast.success('Perfil actualizado correctamente');
+      setEditModalOpen(false);
+      fetchData();
+    } catch (err: any) {
+      toast.error('Error al actualizar perfil: ' + err.message);
+    }
+  };
+
+  const handleChangeRole = async (id: string, currentRole: string) => {
+    try {
+      const newRole = currentRole?.toLowerCase() === 'admin' ? 'asesora' : 'admin';
+      const { error } = await supabase
+        .from('profiles')
+        .update({ rol: newRole })
+        .eq('id', id);
+      if (error) throw error;
+      toast.success(`Rol cambiado a ${newRole.toUpperCase()}`);
+      setActiveDropdown(null);
+      fetchData();
+    } catch (err: any) {
+      toast.error('Error al cambiar rol: ' + err.message);
+    }
+  };
+
+  const handleDeactivateUser = async (id: string) => {
+    if (!confirm('¿Estás seguro de desactivar/eliminar este usuario?')) return;
+    try {
+      const { error } = await supabase.from('profiles').delete().eq('id', id);
+      if (error) {
+        // Fallback a desactivación lógica
+        const { error: err2 } = await supabase.from('profiles').update({ rol: 'inactivo' }).eq('id', id);
+        if (err2) throw err2;
+        toast.info('Usuario desactivado lógicamente por tener historial asociado.');
+      } else {
+        toast.success('Usuario eliminado permanentemente.');
+      }
+      setActiveDropdown(null);
+      fetchData();
+    } catch (err: any) {
+      toast.error('Error al desactivar usuario: ' + err.message);
+    }
+  };
+
   const filteredUsers = users.filter(u => {
     const nameStr = (u.nombre || '').toLowerCase();
     const roleStr = (u.rol || 'asesora').toLowerCase();
     const searchStr = searchTerm.toLowerCase();
     return nameStr.includes(searchStr) || roleStr.includes(searchStr);
   });
+
+  if (!loading && userRole && userRole !== 'admin') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-4">
+        <Shield className="w-16 h-16 text-rose-500 mb-4" />
+        <h1 className="text-2xl font-bold text-gray-900">Acceso Restringido</h1>
+        <p className="text-gray-500 mt-2">No tienes permisos para ver esta página.</p>
+        <Link href="/dashboard" className="mt-6 text-rose-600 font-bold hover:underline flex items-center gap-2">
+          Volver al Dashboard
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex">
@@ -222,15 +307,27 @@ export default function UsersManagementPage() {
                       </td>
                       <td className="px-8 py-6">
                         <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${
-                          user.rol === 'admin' ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-700'
+                          user.rol?.toLowerCase() === 'admin' ? 'bg-rose-100 text-rose-600' : 
+                          user.rol?.toLowerCase() === 'inactivo' ? 'bg-gray-100 text-gray-500' : 'bg-amber-100 text-amber-700'
                         }`}>
                           {user.rol || 'asesora'}
                         </span>
                       </td>
-                      <td className="px-8 py-6 text-right">
-                        <button className="p-2 text-gray-300 hover:text-gray-600 hover:bg-white rounded-lg transition-all">
+                      <td className="px-8 py-6 text-right relative">
+                        <button 
+                          onClick={() => setActiveDropdown(activeDropdown === user.id ? null : user.id)}
+                          className="p-2 text-gray-300 hover:text-gray-600 hover:bg-white rounded-lg transition-all"
+                        >
                           <MoreVertical className="w-5 h-5" />
                         </button>
+                        {activeDropdown === user.id && (
+                          <div className="absolute right-12 top-10 w-48 bg-white border border-gray-100 shadow-xl rounded-2xl p-2 z-50 text-left">
+                            <button onClick={() => handleEditOpen(user)} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 rounded-xl transition-colors">Editar Perfil</button>
+                            <button onClick={() => handleChangeRole(user.id, user.rol)} className="w-full text-left px-4 py-2 text-xs font-bold text-gray-700 hover:bg-gray-50 rounded-xl transition-colors">Alternar Rol</button>
+                            <div className="h-px bg-gray-100 my-1"></div>
+                            <button onClick={() => handleDeactivateUser(user.id)} className="w-full text-left px-4 py-2 text-xs font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors">Eliminar / Desactivar</button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )) : (
@@ -347,6 +444,42 @@ export default function UsersManagementPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Modal de Edición de Perfil */}
+      {editModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-[3rem] w-full max-w-lg p-10 shadow-2xl animate-in zoom-in duration-300 relative">
+             <button 
+               onClick={() => setEditModalOpen(false)}
+               className="absolute top-8 right-8 p-2 hover:bg-gray-100 rounded-xl text-gray-400 transition-colors"
+             >
+               <XCircle className="w-6 h-6" />
+             </button>
+             <h2 className="text-2xl font-black text-gray-900 mb-6">Editar Perfil</h2>
+             <form onSubmit={handleEditSubmit} className="space-y-4">
+               <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Nombre Completo</label>
+                  <input type="text" value={editFormData.nombre} onChange={e => setEditFormData({...editFormData, nombre: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent focus:border-rose-500 focus:bg-white rounded-2xl outline-none transition-all font-bold text-gray-800" required />
+               </div>
+               <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Correo Electrónico</label>
+                  <input type="email" value={editFormData.email} onChange={e => setEditFormData({...editFormData, email: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent focus:border-rose-500 focus:bg-white rounded-2xl outline-none transition-all font-bold text-gray-800" required />
+               </div>
+               <div>
+                  <label className="block text-xs font-black uppercase tracking-widest text-gray-400 mb-2">Sede Asignada</label>
+                  <select value={editFormData.sede_id} onChange={e => setEditFormData({...editFormData, sede_id: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent focus:border-rose-500 focus:bg-white rounded-2xl outline-none transition-all font-bold text-gray-800 appearance-none">
+                    <option value="">Global / Sin Sede</option>
+                    {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  </select>
+               </div>
+               <div className="pt-4">
+                 <button type="submit" className="w-full py-5 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-[1.5rem] shadow-xl shadow-rose-200 transition-all active:scale-95 flex items-center justify-center gap-3">
+                    GUARDAR CAMBIOS
+                 </button>
+               </div>
+             </form>
           </div>
         </div>
       )}
