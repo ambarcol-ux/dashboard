@@ -46,7 +46,7 @@ export default function MetasPage() {
           .select('*')
           .eq('id', user.id)
           .maybeSingle();
-        setUser({ ...user, role: profile?.rol, nombre: profile?.nombre });
+        setUser({ ...user, rol: profile?.rol, nombre: profile?.nombre });
       }
       setLoading(false);
     };

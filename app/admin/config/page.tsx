@@ -62,7 +62,7 @@ export default function AdminConfigPage() {
          }
       }
       
-      setUser(user ? { ...user, role: role, nombre: profile?.nombre } : null);
+      setUser(user ? { ...user, rol: role, nombre: profile?.nombre } : null);
       setUserRole(role);
       if (role === 'admin') {
         await loadData();

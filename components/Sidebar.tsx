@@ -14,7 +14,7 @@ interface SidebarProps {
 
 export default function Sidebar({ user, handleLogout, activePage }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const isAdmin = user?.role === 'admin' || user?.email === 'dubian.h88@gmail.com';
+  const isAdmin = user?.rol === 'admin' || user?.email === 'dubian.h88@gmail.com';
 
   const navItems = [
     { id: 'dashboard', label: 'DASHBOARD', icon: FileText, href: '/dashboard', color: 'rose' },

@@ -357,7 +357,7 @@ export default function DashboardPage() {
         }
       }
       
-      setUser({ ...authUser, role: profile.rol, nombre: profile.nombre });
+      setUser({ ...authUser, rol: profile.rol, nombre: profile.nombre });
 
 
       // OFICIAL QUERY: Explicit joins to avoid 400 errors and multiple roundtrips
@@ -1966,7 +1966,7 @@ export default function DashboardPage() {
                   </>
                )}
 
-               {user?.role === 'admin' && (
+               {user?.rol === 'admin' && (
                   <>
                     <div className="h-px bg-gray-100 my-1 mx-2"></div>
                     <button 
@@ -3211,7 +3211,7 @@ export default function DashboardPage() {
                                     </button>
                                   )}
 
-                                   {(user?.role === 'admin' || user?.email === 'dubian.h88@gmail.com') && (
+                                   {(user?.rol === 'admin' || user?.email === 'dubian.h88@gmail.com') && (
                                      <button 
                                        onClick={() => openRemoveModal(item)}
                                        className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-[9px] font-black rounded-lg transition-all shadow-sm border-b-2 border-rose-700 flex items-center gap-1"

@@ -62,7 +62,7 @@ export default function InventoryPage() {
           .select('*')
           .eq('id', user.id)
           .maybeSingle();
-        setUser({ ...user, role: profile?.rol, nombre: profile?.nombre });
+        setUser({ ...user, rol: profile?.rol, nombre: profile?.nombre });
       }
     };
     checkUser();
@@ -722,7 +722,7 @@ export default function InventoryPage() {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                          {user?.role === 'admin' && (
+                          {user?.rol === 'admin' && (
                             <button 
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -843,7 +843,7 @@ export default function InventoryPage() {
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-                    {user?.role === 'admin' && (
+                    {user?.rol === 'admin' && (
                       <button 
                         onClick={(e) => {
                           e.stopPropagation();

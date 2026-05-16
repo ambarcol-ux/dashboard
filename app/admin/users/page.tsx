@@ -59,7 +59,7 @@ export default function UsersManagementPage() {
           role = 'admin';
         }
         
-        setUser({ ...user, role: role, nombre: profile?.nombre });
+        setUser({ ...user, rol: role, nombre: profile?.nombre });
         setUserRole(role);
       } else {
         window.location.href = '/login';
@@ -162,13 +162,13 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleUpdateRole = async (id: string, currentRole: string) => {
+  const handleUpdateRole = async (profileId: string, currentRole: string) => {
     try {
       const newRole = currentRole?.toLowerCase() === 'admin' ? 'asesora' : 'admin';
       const { data, error } = await supabase
         .from('profiles')
         .update({ rol: newRole })
-        .eq('id', id)
+        .eq('id', profileId)
         .select();
         
       if (error) throw error;
@@ -182,14 +182,14 @@ export default function UsersManagementPage() {
     }
   };
 
-  const handleDeleteUser = async (id: string) => {
+  const handleDeleteUser = async (profileId: string) => {
     if (!confirm('¿Estás seguro de desactivar este usuario?')) return;
     try {
       // User explicitly requested to set activo to false instead of deleting physically
       const { data, error } = await supabase
         .from('profiles')
         .update({ activo: false })
-        .eq('id', id)
+        .eq('id', profileId)
         .select();
         
       if (error) throw error;
