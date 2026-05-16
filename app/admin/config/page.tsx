@@ -120,17 +120,28 @@ export default function AdminConfigPage() {
     }
     setSaving(true);
     try {
-      const { error } = await supabase.from('asesoras').insert([{ 
+      const payload = {
+        nombre: newAsesora.nombre.trim(),
         nombre_completo: newAsesora.nombre.trim(), 
         sede_id: newAsesora.sede_id,
-        profile_id: newAsesora.profile_id || null
-      }]);
-      if (error) throw error;
+        profile_id: newAsesora.profile_id ? newAsesora.profile_id : null
+      };
+      
+      console.log('Sending payload to asesoras:', payload);
+      
+      const { error, data } = await supabase.from('asesoras').insert([payload]).select();
+      
+      if (error) {
+        console.error('Supabase Insert Error:', error);
+        throw error;
+      }
+      
       toast.success('Asesora vinculada');
       setNewAsesora({ nombre: '', sede_id: '', profile_id: '' });
       loadData();
-    } catch (err) {
-      toast.error('Error al añadir asesora');
+    } catch (err: any) {
+      console.error('Error al añadir asesora:', err);
+      toast.error(`Error Supabase: ${err.message || JSON.stringify(err)}`);
     } finally {
       setSaving(false);
     }
