@@ -50,7 +50,8 @@ export default function EntregaPublicPage() {
           usuario_id, 
           fotos_uris, 
           firma_cliente, 
-          finalizado
+          finalizado,
+          tipo_entrega
         `)
         .eq('id', id)
         .single();
@@ -67,7 +68,7 @@ export default function EntregaPublicPage() {
       // Nota: La columna en 'vestidos' se renombró de codigo_referencia a codigo
       const { data: conv, error: convErr } = await supabase
         .from('contratos')
-        .select(`*, vestidos:contrato_items_vestidos(id, vestido:vestidos(codigo))`)
+        .select(`*, vestidos:contrato_items_vestidos(id, vestido_id, vestido:vestidos(id, codigo))`)
         .eq('id', bit.contrato_id)
         .single();
       
@@ -120,13 +121,38 @@ export default function EntregaPublicPage() {
       
       if (bitUpdateErr) throw bitUpdateErr;
 
-      // 2. Actualizar estado del contrato a 'entregado'
+      // 2. Actualizar estado del contrato según el tipo de entrega
+      const isPreXv = bitacora.tipo_entrega === 'PREXV' || bitacora.tipo_entrega === 'AMBOS';
+      const isEvento = bitacora.tipo_entrega === 'EVENTO' || bitacora.tipo_entrega === 'AMBOS' || !bitacora.tipo_entrega;
+      
+      const payload: any = { estado: 'entregado' };
+      if (isPreXv) {
+        payload.entregado_prexv = true;
+        payload.fecha_entrega_prexv = new Date().toISOString();
+      }
+      if (isEvento) {
+        payload.entregado_evento = true;
+        payload.fecha_entrega_evento = new Date().toISOString();
+      }
+
       const { error: contrUpdateErr } = await supabase
         .from('contratos')
-        .update({ estado: 'entregado' })
+        .update(payload)
         .eq('id', contrato.id);
       
       if (contrUpdateErr) throw contrUpdateErr;
+
+      // 3. Asegurar que el inventario sepa que el vestido está "Fuera de tienda" (Alquilado)
+      if (contrato.vestidos && contrato.vestidos.length > 0) {
+         // Some structures might return item.vestido as an object
+         const vIds = contrato.vestidos.map((item: any) => item.vestido_id || (item.vestido && item.vestido.id) || item.id).filter(Boolean);
+         if (vIds.length > 0) {
+            await supabase
+              .from('vestidos')
+              .update({ estado: 'Alquilado' })
+              .in('id', vIds);
+         }
+      }
 
       setSuccess(true);
       toast.success('¡Entrega firmada con éxito!');

@@ -97,6 +97,8 @@ export default function DashboardPage() {
   const [deliveryData, setDeliveryData] = useState<any>(null);
   const [deliveryObs, setDeliveryObs] = useState('');
   const [deliveryPhotos, setDeliveryPhotos] = useState<File[]>([]);
+  const [deliveryType, setDeliveryType] = useState<'PREXV' | 'EVENTO' | 'AMBOS'>('EVENTO');
+  const [deliveryConjunta, setDeliveryConjunta] = useState(false);
   const [asesoras, setAsesoras] = useState<any[]>([]);
   const [sedes, setSedes] = useState<any[]>([]);
   const [selectedAsesoraId, setSelectedAsesoraId] = useState<string>('');
@@ -1699,8 +1701,10 @@ export default function DashboardPage() {
   }, [drawerOpen, showAssignForm]);
 
   // Modales Delivery
-  const openDeliveryModal = (contrato: any) => {
+  const openDeliveryModal = (contrato: any, tipo: 'PREXV' | 'EVENTO' | 'AMBOS' = 'EVENTO') => {
     setDeliveryData(contrato);
+    setDeliveryType(tipo);
+    setDeliveryConjunta(tipo === 'AMBOS');
     setDeliveryObs('');
     setDeliveryPhotos([]);
     setSelectedAsesoraId(''); // Reset selector
@@ -1790,7 +1794,8 @@ export default function DashboardPage() {
       const { data: insertedBitacora, error: insertErr } = await supabase.from('entregas_bitacora').insert([{
         contrato_id: deliveryData.id,
         fotos_uris: uploadedUrls,
-        usuario_id: selectedAsesoraId
+        usuario_id: selectedAsesoraId,
+        tipo_entrega: deliveryConjunta ? 'AMBOS' : deliveryType
       }]).select('id').single();
       
       if (insertErr) {
@@ -2829,6 +2834,46 @@ export default function DashboardPage() {
               </p>
               
               <div className="space-y-4">
+                
+                <div className="bg-amber-50 p-3 rounded-xl border border-amber-100 flex items-center justify-between">
+                  <div className="flex-1">
+                    {deliveryData.fecha_pre_xv ? (
+                      <div className="flex flex-col gap-1">
+                        <label className="text-xs font-black text-amber-800 uppercase tracking-widest">Tipo de Entrega</label>
+                        <select 
+                          value={deliveryType}
+                          onChange={(e) => {
+                            setDeliveryType(e.target.value as any);
+                            setDeliveryConjunta(e.target.value === 'AMBOS');
+                          }}
+                          className="bg-white border border-amber-200 text-amber-900 rounded-lg px-2 py-1 text-xs font-bold outline-none"
+                        >
+                          {!deliveryData.entregado_prexv && <option value="PREXV">PRE-XV (Sesión)</option>}
+                          {!deliveryData.entregado_evento && <option value="EVENTO">EVENTO PRINCIPAL</option>}
+                        </select>
+                      </div>
+                    ) : (
+                      <p className="text-xs font-black text-amber-800 uppercase tracking-widest">
+                        Tipo de Entrega: EVENTO PRINCIPAL
+                      </p>
+                    )}
+                  </div>
+                  {deliveryData.fecha_pre_xv && (
+                    <label className="flex items-center gap-2 cursor-pointer ml-4">
+                      <input 
+                        type="checkbox" 
+                        checked={deliveryConjunta}
+                        onChange={(e) => {
+                          setDeliveryConjunta(e.target.checked);
+                          if (e.target.checked) setDeliveryType('AMBOS');
+                        }}
+                        className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500 cursor-pointer"
+                      />
+                      <span className="text-[10px] font-bold text-gray-700 uppercase tracking-widest mt-0.5">Conjunta</span>
+                    </label>
+                  )}
+                </div>
+
                 <div>
                    <label className="text-sm font-bold text-gray-800 block mb-1">Asesora Responsable *</label>
                    <select 
@@ -3253,6 +3298,84 @@ export default function DashboardPage() {
                           <DollarSign className="w-4 h-4" /> Registrar Pago
                         </Link>
                       </div>
+
+                      {/* NEW: GESTIÓN DE ENTREGAS FÍSICAS (DUAL) */}
+                      {selectedContract.estado !== 'borrador' && (
+                        <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150 mb-6">
+                          <div className="flex items-center gap-3 mb-4">
+                            <div className="p-2 bg-amber-100 rounded-lg text-amber-600"><Package className="w-5 h-5"/></div>
+                            <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Gestión de Entregas</h3>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* BLOQUE PRE-XV (Condicional) */}
+                            {selectedContract.fecha_pre_xv && (
+                              <div className="bg-white rounded-2xl p-5 border-2 border-amber-50 shadow-sm relative overflow-hidden">
+                                <div className="flex justify-between items-start mb-4">
+                                  <div>
+                                    <h4 className="font-black text-gray-800 text-xs uppercase tracking-widest">Logística de Sesión (Pre-XV)</h4>
+                                    <p className="text-[10px] text-gray-400 mt-1 font-bold">{new Date(selectedContract.fecha_pre_xv).toLocaleDateString()}</p>
+                                  </div>
+                                  <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${selectedContract.entregado_prexv ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                                    {selectedContract.entregado_prexv ? 'Entregado' : 'Pendiente'}
+                                  </span>
+                                </div>
+                                <div className="mt-4">
+                                  <button 
+                                    onClick={() => { 
+                                      setDrawerOpen(false); 
+                                      openDeliveryModal(selectedContract, 'PREXV'); 
+                                    }}
+                                    disabled={selectedContract.entregado_prexv || Number(selectedContract.saldo) > 0}
+                                    className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                                      selectedContract.entregado_prexv ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
+                                      Number(selectedContract.saldo) > 0 ? 'bg-rose-50 text-rose-400 cursor-not-allowed' :
+                                      'bg-amber-500 hover:bg-amber-600 text-white shadow-md active:scale-95'
+                                    }`}
+                                  >
+                                    Registrar Entrega Pre-XV
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* BLOQUE EVENTO PRINCIPAL */}
+                            <div className="bg-white rounded-2xl p-5 border-2 border-amber-50 shadow-sm relative overflow-hidden">
+                              <div className="flex justify-between items-start mb-4">
+                                <div>
+                                  <h4 className="font-black text-gray-800 text-xs uppercase tracking-widest">Logística de Evento</h4>
+                                  <p className="text-[10px] text-gray-400 mt-1 font-bold">{new Date(selectedContract.fecha_evento).toLocaleDateString()}</p>
+                                </div>
+                                <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${selectedContract.entregado_evento ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                                  {selectedContract.entregado_evento ? 'Entregado' : 'Pendiente'}
+                                </span>
+                              </div>
+                              <div className="mt-4">
+                                <button 
+                                  onClick={() => { 
+                                    setDrawerOpen(false); 
+                                    openDeliveryModal(selectedContract, 'EVENTO'); 
+                                  }}
+                                  disabled={selectedContract.entregado_evento || Number(selectedContract.saldo) > 0}
+                                  className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
+                                    selectedContract.entregado_evento ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
+                                    Number(selectedContract.saldo) > 0 ? 'bg-rose-50 text-rose-400 cursor-not-allowed' :
+                                    'bg-amber-500 hover:bg-amber-600 text-white shadow-md active:scale-95'
+                                  }`}
+                                >
+                                  Registrar Entrega Evento
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                          {Number(selectedContract.saldo) > 0 && (
+                            <div className="mt-3 text-center">
+                              <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest bg-rose-50 px-3 py-1 rounded-full">
+                                ⚠️ Entregas bloqueadas: Pendiente pago de ${Number(selectedContract.saldo).toLocaleString('es-CO')}
+                              </span>
+                            </div>
+                          )}
+                        </section>
+                      )}
 
                     {/* NEW: GESTIÓN DE RETORNO Y MANTENIMIENTO (Imagen 1 Request) */}
                     <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 delay-200">
@@ -3688,32 +3811,7 @@ export default function DashboardPage() {
                           <span className="text-xl">📥</span> Recibir Devolución (Triage)
                         </button>
                       )}
-                      
-                      {selectedContract.estado === 'firmado' && (
-                        <button 
-                          onClick={() => { 
-                            if (Number(selectedContract.saldo) <= 0) {
-                              setDrawerOpen(false); 
-                              openDeliveryModal(selectedContract); 
-                            }
-                          }}
-                          disabled={Number(selectedContract.saldo) > 0}
-                          className={`col-span-2 py-4 font-black rounded-2xl shadow-lg transition-all flex flex-col items-center justify-center gap-1 leading-tight ${
-                            Number(selectedContract.saldo) <= 0
-                            ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200 active:scale-95 shadow-xl border-b-4 border-amber-600 active:border-b-0 active:translate-y-1'
-                            : 'bg-rose-50 border-2 border-rose-200 text-rose-400 cursor-not-allowed opacity-100'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                             <Package className="w-5 h-5" /> Registrar Entrega
-                          </div>
-                          {Number(selectedContract.saldo) > 0 && (
-                            <span className="text-[11px] font-black text-rose-600 mt-1 px-4 text-center leading-tight uppercase tracking-wider">
-                              ⚠️ ACCIÓN BLOQUEADA: Pendiente pago de ${Number(selectedContract.saldo).toLocaleString('es-CO')}
-                            </span>
-                          )}
-                        </button>
-                      )}
+                      {/* Old delivery button removed as it is now in Gestión de Entregas */}
                       <Link href={`/dashboard/pago/${selectedContract.id}`} className="col-span-2 py-4 bg-emerald-500 hover:bg-emerald-600 text-white font-black rounded-2xl shadow-lg shadow-emerald-200 transition-all active:scale-95 text-center flex items-center justify-center gap-2">
                         <DollarSign className="w-5 h-5" /> Registrar Abono / Pago
                       </Link>

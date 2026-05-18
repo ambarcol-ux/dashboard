@@ -155,7 +155,14 @@ ALTER TABLE contratos
 ADD COLUMN IF NOT EXISTS numero_factura text,
 ADD COLUMN IF NOT EXISTS prexv_fotografo text,
 ADD COLUMN IF NOT EXISTS prexv_maquilladora text,
-ADD COLUMN IF NOT EXISTS prexv_locacion text;
+ADD COLUMN IF NOT EXISTS prexv_locacion text,
+ADD COLUMN IF NOT EXISTS entregado_prexv boolean DEFAULT false,
+ADD COLUMN IF NOT EXISTS fecha_entrega_prexv timestamp,
+ADD COLUMN IF NOT EXISTS entregado_evento boolean DEFAULT false,
+ADD COLUMN IF NOT EXISTS fecha_entrega_evento timestamp;
+
+ALTER TABLE entregas_bitacora
+ADD COLUMN IF NOT EXISTS tipo_entrega text DEFAULT 'EVENTO';
 
 -- ==============================================================================
 -- 9. Tabla: entregas_bitacora (Módulo de Entrega Blindada)
@@ -171,6 +178,7 @@ CREATE TABLE entregas_bitacora (
     estado_firma TEXT DEFAULT 'Pendiente', -- 'Pendiente' | 'Firmado'
     fecha_entrega TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     usuario_id UUID REFERENCES auth.users(id) ON DELETE SET NULL, -- Asesora despachadora
+    tipo_entrega TEXT DEFAULT 'EVENTO',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
