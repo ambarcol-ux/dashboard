@@ -1,0 +1,221 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model sedes {
+  id         String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre     String      @unique
+  activo     Boolean?    @default(true)
+  created_at DateTime    @default(now()) @db.Timestamptz
+  contratos  contratos[]
+  asesoras   asesoras[]
+}
+
+model profiles {
+  id         String   @id @db.Uuid
+  nombre     String
+  rol        String
+  sede       String
+  activo     Boolean? @default(true)
+  email      String?
+  sede_id    String?  @db.Uuid
+  created_at DateTime @default(now()) @db.Timestamptz
+}
+
+model asesoras {
+  id              String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre_completo String
+  sede_id         String?     @db.Uuid
+  activo          Boolean?    @default(true)
+  created_at      DateTime    @default(now()) @db.Timestamptz
+  sede            sedes?      @relation(fields: [sede_id], references: [id], onDelete: Cascade)
+  contratos       contratos[]
+}
+
+model vestidos {
+  id                      BigInt                    @id @default(autoincrement())
+  codigo                  String                    @unique
+  categoria               String?
+  descripcion             String?
+  nombre                  String?
+  talla                   String?
+  color                   String?
+  sede_principal_id       String?                   @db.Uuid
+  sede_actual_id          String?                   @db.Uuid
+  estado                  String?
+  precio_sugerido         Decimal?                  @db.Decimal
+  stock_total             Int?
+  created_at              DateTime                  @default(now()) @db.Timestamptz
+  contrato_items_vestidos contrato_items_vestidos[]
+  traslados_bitacora      traslados_bitacora[]
+  mantenimiento_bitacora  mantenimiento_bitacora[]
+}
+
+model contratos {
+  id                         String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  numero_contrato            String                    @unique
+  estado                     String                    @default("borrador")
+  sede                       String
+  cliente_nombre             String
+  cliente_documento          String
+  cliente_whatsapp           String
+  cliente_direccion          String?
+  cliente_email              String
+  
+  tipo_evento                String?                   @default("Evento")
+  tipo_entrega               String?                   @default("Local")
+  asesora                    String?
+  asesora_id                 String?                   @db.Uuid
+  sede_id                    String?                   @db.Uuid
+  
+  fecha_evento               DateTime                  @db.Date
+  fecha_pre_xv               DateTime?                 @db.Timestamp
+  fecha_cita_medidas         DateTime?                 @db.Date
+  fecha_prueba_final         DateTime?                 @db.Date
+  fecha_entrega_envio        DateTime?                 @db.Date
+  
+  valor_total                Decimal                   @db.Decimal
+  total_arreglos             Decimal?                  @default(0) @db.Decimal
+  anticipo                   Decimal?                  @default(0) @db.Decimal
+  saldo                      Decimal?                  @db.Decimal
+  valor_deposito             Decimal?                  @db.Decimal
+  
+  estado_cita_medidas        String?                   @default("Pendiente")
+  estado_prueba_final        String?                   @default("Pendiente")
+  estado_entrega_envio       String?                   @default("Pendiente")
+  
+  accesorios                 String[]
+  metodos_pago               String[]
+  
+  banco_deposito             String?
+  tipo_cuenta_deposito       String?
+  numero_cuenta_deposito     String?
+  titular_cuenta_deposito    String?
+  
+  firma_base64               String?
+  fecha_firma_cliente        DateTime?                 @db.Timestamptz
+  token_firma                String?
+  url_pdf_firmado            String?
+  created_at                 DateTime                  @default(now()) @db.Timestamptz
+  
+  numero_factura             String?
+  prexv_fotografo            String?
+  prexv_maquilladora         String?
+  prexv_locacion             String?
+  
+  // New columns added manually
+  entregado_prexv            Boolean?                  @default(false)
+  fecha_entrega_prexv        DateTime?                 @db.Timestamp
+  entregado_evento           Boolean?                  @default(false)
+  fecha_entrega_evento       DateTime?                 @db.Timestamp
+
+  asesoras                   asesoras?                 @relation(fields: [asesora_id], references: [id], onDelete: SetNull)
+  sedes                      sedes?                    @relation(fields: [sede_id], references: [id], onDelete: SetNull)
+  
+  pagos                      pagos[]
+  contrato_items_vestidos    contrato_items_vestidos[]
+  arreglos                   arreglos[]
+  bitacora_cambios           bitacora_cambios[]
+  entregas_bitacora          entregas_bitacora[]
+  mantenimiento_bitacora     mantenimiento_bitacora[]
+}
+
+model pagos {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contrato_id   String    @db.Uuid
+  fecha_pago    DateTime  @db.Date
+  medio_pago    String
+  valor_pagado  Decimal   @db.Decimal
+  observaciones String?
+  created_at    DateTime  @default(now()) @db.Timestamptz
+  contratos     contratos @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+}
+
+model contrato_items_vestidos {
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contrato_id          String    @db.Uuid
+  vestido_id           BigInt
+  tipo_uso             String    @default("XV")
+  observaciones        String?
+  created_at           DateTime  @default(now()) @db.Timestamptz
+  tipo                 String?
+  
+  // New columns added manually
+  entregado_prexv      Boolean?  @default(false)
+  fecha_entrega_prexv  DateTime? @db.Timestamp
+  entregado_evento     Boolean?  @default(false)
+  fecha_entrega_evento DateTime? @db.Timestamp
+
+  contratos            contratos @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+  vestidos             vestidos  @relation(fields: [vestido_id], references: [id], onDelete: Restrict)
+}
+
+model arreglos {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contrato_id String    @db.Uuid
+  tipo        String
+  cm          String
+  precio      Decimal?  @default(0) @db.Decimal
+  created_at  DateTime  @default(now()) @db.Timestamptz
+  contratos   contratos @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+}
+
+model bitacora_cambios {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contrato_id    String    @db.Uuid
+  tipo_evento    String
+  motivo         String
+  fecha_anterior DateTime? @db.Timestamp
+  fecha_nueva    DateTime? @db.Timestamp
+  usuario_id     String?   @db.Uuid
+  created_at     DateTime  @default(now()) @db.Timestamptz
+  contratos      contratos @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+}
+
+model entregas_bitacora {
+  id                    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contrato_id           String    @db.Uuid
+  observaciones         String
+  fotos_urls            Json?     @default("[]")
+  firma_cliente_base64  String?
+  estado_firma          String?   @default("Pendiente")
+  fecha_entrega         DateTime  @default(now()) @db.Timestamptz
+  usuario_id            String?   @db.Uuid
+  tipo_entrega          String?   @default("EVENTO")
+  created_at            DateTime  @default(now()) @db.Timestamptz
+  contratos             contratos @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+}
+
+model traslados_bitacora {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  vestido_id      BigInt
+  sede_origen_id  String?   @db.Uuid
+  sede_destino_id String?   @db.Uuid
+  fecha_envio     DateTime? @db.Timestamp
+  fecha_recepcion DateTime? @db.Timestamp
+  recibido_por    String?
+  estado          String?
+  motivo          String?
+  realizado_por   String?
+  autorizado_por  String?
+  sede_origen     String?
+  sede_destino    String?
+  created_at      DateTime  @default(now()) @db.Timestamptz
+  vestidos        vestidos  @relation(fields: [vestido_id], references: [id], onDelete: Cascade)
+}
+
+model mantenimiento_bitacora {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  contrato_id    String    @db.Uuid
+  vestido_id     BigInt
+  tipo           String
+  dias_estimados Int
+  estado         String
+  created_at     DateTime  @default(now()) @db.Timestamptz
+  contratos      contratos @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
+  vestidos       vestidos  @relation(fields: [vestido_id], references: [id], onDelete: Cascade)
+}
