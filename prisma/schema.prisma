@@ -185,7 +185,7 @@ model entregas_bitacora {
   estado_firma          String?   @default("Pendiente")
   fecha_entrega         DateTime  @default(now()) @db.Timestamptz
   usuario_id            String?   @db.Uuid
-  tipo_entrega          String?   @default("EVENTO")
+  tipo_entrega          String?   @default("evento")
   created_at            DateTime  @default(now()) @db.Timestamptz
   contratos             contratos @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
 }

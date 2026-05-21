@@ -2850,6 +2850,7 @@ export default function DashboardPage() {
                         >
                           {!deliveryData.entregado_prexv && <option value="PREXV">PRE-XV (Sesión)</option>}
                           {!deliveryData.entregado_evento && <option value="EVENTO">EVENTO PRINCIPAL</option>}
+                          {deliveryConjunta && <option value="AMBOS">CONJUNTA (PRE-XV + EVENTO)</option>}
                         </select>
                       </div>
                     ) : (
@@ -2864,8 +2865,13 @@ export default function DashboardPage() {
                         type="checkbox" 
                         checked={deliveryConjunta}
                         onChange={(e) => {
-                          setDeliveryConjunta(e.target.checked);
-                          if (e.target.checked) setDeliveryType('AMBOS');
+                          const checked = e.target.checked;
+                          setDeliveryConjunta(checked);
+                          if (checked) {
+                            setDeliveryType('AMBOS');
+                          } else {
+                            setDeliveryType(!deliveryData.entregado_prexv ? 'PREXV' : 'EVENTO');
+                          }
                         }}
                         className="w-4 h-4 text-amber-600 rounded focus:ring-amber-500 cursor-pointer"
                       />
