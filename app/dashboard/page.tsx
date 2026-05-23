@@ -111,6 +111,7 @@ export default function DashboardPage() {
   const [showHistory, setShowHistory] = useState(false);
   const [showDrafts, setShowDrafts] = useState(false);
   const [isSubmittingException, setIsSubmittingException] = useState(false);
+  const [financeStats, setFinanceStats] = useState({ facturadoTotal: 0, facturadoMes: 0, pendienteRecaudar: 0 });
 
   // -- Contract 360 View (Drawer) --
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -408,11 +409,59 @@ export default function DashboardPage() {
         query = query.eq('sede_id', profile.sede_id);
       }
 
-      const { data: finalData, error: errC } = await query;
-      if (errC) {
-        console.error("Error en consulta maestra:", errC.message);
-        throw errC;
+      // Start of current month for monthly query
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+
+      let globalQuery = supabase
+        .from('contratos')
+        .select('valor_total')
+        .neq('estado', 'cancelado');
+
+      let monthlyQuery = supabase
+        .from('contratos')
+        .select('valor_total')
+        .neq('estado', 'cancelado')
+        .gte('created_at', startOfMonth);
+
+      let pendingQuery = supabase
+        .from('contratos')
+        .select('saldo, total_multas')
+        .neq('estado', 'cancelado');
+
+      if (profile && profile.rol !== 'admin' && profile.sede_id) {
+        globalQuery = globalQuery.eq('sede_id', profile.sede_id);
+        monthlyQuery = monthlyQuery.eq('sede_id', profile.sede_id);
+        pendingQuery = pendingQuery.eq('sede_id', profile.sede_id);
       }
+
+      const [finalDataRes, globalRes, monthlyRes, pendingRes] = await Promise.all([
+        query,
+        globalQuery,
+        monthlyQuery,
+        pendingQuery
+      ]);
+
+      if (finalDataRes.error) {
+        console.error("Error en consulta maestra:", finalDataRes.error.message);
+        throw finalDataRes.error;
+      }
+      if (globalRes.error) throw globalRes.error;
+      if (monthlyRes.error) throw monthlyRes.error;
+      if (pendingRes.error) throw pendingRes.error;
+
+      const finalData = finalDataRes.data;
+
+      // Process results
+      const totalFacturadoGlobal = (globalRes.data || []).reduce((acc, c) => acc + (Number(c.valor_total) || 0), 0);
+      const totalFacturadoMes = (monthlyRes.data || []).reduce((acc, c) => acc + (Number(c.valor_total) || 0), 0);
+      const totalPendienteDb = (pendingRes.data || []).reduce((acc, c) => acc + (Number(c.saldo) || 0) + (Number(c.total_multas) || 0), 0);
+
+      setFinanceStats({
+        facturadoTotal: totalFacturadoGlobal,
+        facturadoMes: totalFacturadoMes,
+        pendienteRecaudar: totalPendienteDb
+      });
 
       // Rename 'items' to 'prendas' to match component expectations
       const mappedData = (finalData || []).map(c => ({
@@ -2259,7 +2308,7 @@ export default function DashboardPage() {
         </div>
 
         {/* SUMMARY STATS (Imagen 5 Restore) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5 group hover:border-rose-200 transition-all">
               <div className="p-4 bg-rose-50 rounded-2xl text-rose-500 group-hover:rotate-6 transition-transform">
                  <ClipboardList className="w-6 h-6" />
@@ -2279,7 +2328,33 @@ export default function DashboardPage() {
                  <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">{stats.totalEnEvento}</h3>
               </div>
            </div>
+        </div>
 
+        {/* FINANCIAL STATS GRID (3 columns) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-bottom-2 duration-700">
+           {/* Card 1: Facturado Total */}
+           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5 group hover:border-emerald-200 transition-all">
+              <div className="p-4 bg-emerald-50 rounded-2xl text-emerald-500 group-hover:scale-110 transition-transform">
+                 <DollarSign className="w-6 h-6" />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Facturado Total</p>
+                 <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">{formatCurrency(financeStats.facturadoTotal)}</h3>
+              </div>
+           </div>
+
+           {/* Card 2: Facturado del Mes */}
+           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5 group hover:border-emerald-200 transition-all">
+              <div className="p-4 bg-emerald-50 rounded-2xl text-emerald-500 group-hover:scale-110 transition-transform">
+                 <Calendar className="w-6 h-6" />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Facturado del Mes</p>
+                 <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">{formatCurrency(financeStats.facturadoMes)}</h3>
+              </div>
+           </div>
+
+           {/* Card 3: Pendiente por Recaudar */}
            <div className="bg-white p-6 rounded-3xl shadow-sm border-2 border-emerald-100 flex items-center gap-5 group hover:bg-emerald-50 transition-all bg-emerald-50/20">
               <div className="p-4 bg-emerald-500 rounded-2xl text-white shadow-lg shadow-emerald-100 group-hover:scale-110 transition-transform">
                  <DollarSign className="w-6 h-6" />
