@@ -59,8 +59,8 @@ export default function MetasPage() {
   }, [selectedMonth, selectedYear]);
 
   const fetchSupportData = async () => {
-    const { data: sedesData } = await supabase.from('sedes').select('nombre').eq('activo', true);
-    const { data: asesorasData } = await supabase.from('asesoras').select('nombre_completo').eq('activo', true);
+    const { data: sedesData } = await supabase.from('sedes').select('id, nombre, activo');
+    const { data: asesorasData } = await supabase.from('asesoras').select('id, nombre_completo, profile_id, activo');
     setSedes(sedesData || []);
     setAsesoras(asesorasData || []);
   };
@@ -68,35 +68,73 @@ export default function MetasPage() {
   const fetchMetasWithPerformance = async () => {
     setLoading(true);
     try {
-      // 1. Fetch Metas
-      const { data: metasData, error: metasError } = await supabase
-        .from('metas')
-        .select('*')
-        .eq('mes', selectedMonth)
-        .eq('anio', selectedYear);
-      
-      if (metasError) throw metasError;
+      // 1. Fetch Metas, Sedes, and Asesoras in parallel
+      const [metasRes, sedesRes, asesorasRes] = await Promise.all([
+        supabase
+          .from('metas')
+          .select('*')
+          .eq('mes', selectedMonth)
+          .eq('anio', selectedYear),
+        supabase
+          .from('sedes')
+          .select('id, nombre, activo'),
+        supabase
+          .from('asesoras')
+          .select('id, nombre_completo, profile_id, activo')
+      ]);
 
-      // 2. Fetch Payments for this period to calculate performance
-      const firstDay = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
-      const lastDay = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
+      if (metasRes.error) throw metasRes.error;
+      if (sedesRes.error) throw sedesRes.error;
+      if (asesorasRes.error) throw asesorasRes.error;
 
-      const { data: payments, error: paymentsError } = await supabase
-        .from('pagos')
-        .select('valor_pagado, fecha_pago, contratos(sede, asesora)')
-        .gte('fecha_pago', firstDay)
-        .lte('fecha_pago', lastDay);
+      const metasData = metasRes.data || [];
+      const currentSedes = sedesRes.data || [];
+      const currentAsesoras = asesorasRes.data || [];
 
-      if (paymentsError) throw paymentsError;
+      // Update state for sedes and asesoras to ensure consistency
+      setSedes(currentSedes);
+      setAsesoras(currentAsesoras);
+
+      // 2. Fetch Contracts for this period to calculate performance
+      const firstDay = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01T00:00:00.000Z`;
+      const lastDay = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0] + 'T23:59:59.999Z';
+
+      const { data: contracts, error: contractsError } = await supabase
+        .from('contratos')
+        .select('id, valor_total, sede_id, asesora_id, estado, created_at, sede, asesora')
+        .not('estado', 'in', '("cancelado","borrador","anulado","Borrador","Anulado","CANCELADO","BORRADOR","ANULADO")')
+        .gte('created_at', firstDay)
+        .lte('created_at', lastDay);
+
+      if (contractsError) throw contractsError;
 
       // 3. Process achievement
       const processedMetas = (metasData || []).map(meta => {
-        const achieved = (payments || []).reduce((acc, p: any) => {
-          const match = meta.tipo === 'sede' 
-            ? p.contratos?.sede === meta.nombre_objetivo
-            : p.contratos?.asesora === meta.nombre_objetivo;
-          
-          return match ? acc + Number(p.valor_pagado) : acc;
+        const achieved = (contracts || []).reduce((acc, contrato: any) => {
+          let match = false;
+          if (meta.tipo?.toLowerCase() === 'sede') {
+            const matchedSede = currentSedes.find(s => s.nombre?.toLowerCase() === meta.nombre_objetivo?.toLowerCase());
+            if (matchedSede) {
+              match = contrato.sede_id === matchedSede.id;
+            } else {
+              match = contrato.sede?.toLowerCase() === meta.nombre_objetivo?.toLowerCase();
+            }
+          } else {
+            const matchedAsesora = currentAsesoras.find(a => a.nombre_completo?.toLowerCase() === meta.nombre_objetivo?.toLowerCase());
+            if (matchedAsesora) {
+              if (matchedAsesora.profile_id) {
+                const matchingAsesoraIds = currentAsesoras
+                  .filter(a => a.profile_id === matchedAsesora.profile_id)
+                  .map(a => a.id);
+                match = matchingAsesoraIds.includes(contrato.asesora_id);
+              } else {
+                match = contrato.asesora_id === matchedAsesora.id || contrato.asesora?.toLowerCase() === meta.nombre_objetivo?.toLowerCase();
+              }
+            } else {
+              match = contrato.asesora?.toLowerCase() === meta.nombre_objetivo?.toLowerCase();
+            }
+          }
+          return match ? acc + Number(contrato.valor_total || 0) : acc;
         }, 0);
 
         const progress = Math.min(Math.round((achieved / (meta.monto_meta || 1)) * 100), 200); // UI limit at 200%
@@ -368,9 +406,9 @@ export default function MetasPage() {
                        >
                          <option value="">Selecciona una opción...</option>
                          {newMeta.tipo === 'Sede' ? (
-                           sedes.map(s => <option key={s.nombre} value={s.nombre}>{s.nombre}</option>)
+                           sedes.filter(s => s.activo !== false).map(s => <option key={s.nombre} value={s.nombre}>{s.nombre}</option>)
                          ) : (
-                           asesoras.map(a => <option key={a.nombre_completo} value={a.nombre_completo}>{a.nombre_completo}</option>)
+                           asesoras.filter(a => a.activo !== false).map(a => <option key={a.nombre_completo} value={a.nombre_completo}>{a.nombre_completo}</option>)
                          )}
                        </select>
                     </div>
