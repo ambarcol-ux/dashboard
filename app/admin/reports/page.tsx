@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Toaster, toast } from 'sonner';
-import { TrendingUp, RefreshCw, Loader2 } from 'lucide-react';
+import { TrendingUp, RefreshCw, Loader2, DollarSign, Calendar } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 
 export default function ReportsPage() {
@@ -13,6 +13,7 @@ export default function ReportsPage() {
   const [sedes, setSedes] = useState<any[]>([]);
   const [selectedSede, setSelectedSede] = useState<string>('global');
   const [fetchingKPIs, setFetchingKPIs] = useState(false);
+  const [financeStats, setFinanceStats] = useState({ facturadoTotal: 0, facturadoMes: 0, pendienteRecaudar: 0 });
 
   const formatSedeName = (name: string) => {
     if (!name) return '';
@@ -58,7 +59,8 @@ export default function ReportsPage() {
   const fetchKPIs = async (sedeId: string = 'global') => {
     setFetchingKPIs(true);
     try {
-      let query = supabase
+      // 1. Ranking Query
+      let rankingQuery = supabase
         .from('contrato_items_vestidos')
         .select(`
           vestido_id,
@@ -72,15 +74,52 @@ export default function ReportsPage() {
         `);
 
       if (sedeId !== 'global') {
-        query = query.eq('contratos.sede_id', sedeId);
+        rankingQuery = rankingQuery.eq('contratos.sede_id', sedeId);
       }
 
-      const { data, error } = await query;
-      if (error) throw error;
+      // 2. Financial Queries
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
+      let globalFinanceQuery = supabase
+        .from('contratos')
+        .select('valor_total')
+        .neq('estado', 'cancelado');
+
+      let monthlyFinanceQuery = supabase
+        .from('contratos')
+        .select('valor_total')
+        .neq('estado', 'cancelado')
+        .gte('created_at', startOfMonth);
+
+      let pendingFinanceQuery = supabase
+        .from('contratos')
+        .select('saldo, total_multas')
+        .neq('estado', 'cancelado');
+
+      if (sedeId !== 'global') {
+        globalFinanceQuery = globalFinanceQuery.eq('sede_id', sedeId);
+        monthlyFinanceQuery = monthlyFinanceQuery.eq('sede_id', sedeId);
+        pendingFinanceQuery = pendingFinanceQuery.eq('sede_id', sedeId);
+      }
+
+      // Load all in parallel
+      const [rankingRes, globalRes, monthlyRes, pendingRes] = await Promise.all([
+        rankingQuery,
+        globalFinanceQuery,
+        monthlyFinanceQuery,
+        pendingFinanceQuery
+      ]);
+
+      if (rankingRes.error) throw rankingRes.error;
+      if (globalRes.error) throw globalRes.error;
+      if (monthlyRes.error) throw monthlyRes.error;
+      if (pendingRes.error) throw pendingRes.error;
+
+      // Process Ranking
       const counts: Record<string, { codigo: string; nombre: string; total_alquileres: number; sede_nombre: string }> = {};
 
-      (data || []).forEach((item: any) => {
+      (rankingRes.data || []).forEach((item: any) => {
         const v = item.vestidos;
         if (!v) return;
         
@@ -103,6 +142,18 @@ export default function ReportsPage() {
         .slice(0, 10);
 
       setPopularDresses(sorted);
+
+      // Process Finance
+      const totalFacturadoGlobal = (globalRes.data || []).reduce((acc, c) => acc + (Number(c.valor_total) || 0), 0);
+      const totalFacturadoMes = (monthlyRes.data || []).reduce((acc, c) => acc + (Number(c.valor_total) || 0), 0);
+      const totalPendienteDb = (pendingRes.data || []).reduce((acc, c) => acc + (Number(c.saldo) || 0) + (Number(c.total_multas) || 0), 0);
+
+      setFinanceStats({
+        facturadoTotal: totalFacturadoGlobal,
+        facturadoMes: totalFacturadoMes,
+        pendienteRecaudar: totalPendienteDb
+      });
+
     } catch (err) {
       console.error('Error fetching KPIs:', err);
       toast.error('Error al cargar estadísticas.');
@@ -133,36 +184,15 @@ export default function ReportsPage() {
       <main className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
           
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 bg-white p-6 rounded-2xl shadow-sm border border-rose-50">
             <div>
               <h1 className="text-3xl font-black text-gray-900 tracking-tight">Reportes y Estadísticas</h1>
               <p className="text-rose-500 font-bold uppercase tracking-widest text-[10px] mt-1">Inteligencia de Negocio · Ambar Couture</p>
             </div>
-            <button 
-              onClick={() => fetchKPIs(selectedSede)} 
-              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-xl text-gray-600 font-bold hover:bg-gray-50 transition-all shadow-sm"
-            >
-              {fetchingKPIs ? <Loader2 className="w-4 h-4 animate-spin text-rose-500" /> : <RefreshCw className="w-4 h-4" />} REFRESCAR DATOS
-            </button>
-          </div>
-
-          {/* KPI VESTIDOS POPULARES */}
-          <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-rose-100/20 border border-rose-50">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 mb-10">
-              <div className="flex items-center gap-4">
-                <div className="p-4 bg-rose-500 rounded-2xl text-white shadow-xl shadow-rose-200">
-                  <TrendingUp className="w-8 h-8" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-black text-gray-900 tracking-tight">Top 10 Vestidos más Rentados</h2>
-                  <p className="text-gray-400 text-xs font-bold uppercase tracking-[0.2em] mt-1 font-sans">
-                    Ranking {selectedSede === 'global' ? 'Total Histórico' : `Sede ${formatSedeName(sedes.find(s => s.id === selectedSede)?.nombre)}`} de Alquileres
-                  </p>
-                </div>
-              </div>
-
+            
+            <div className="flex items-center gap-4 w-full sm:w-auto">
               {/* Selector de Sede */}
-              <div className="relative w-full sm:w-64">
+              <div className="relative w-full sm:w-60">
                 <select
                   value={selectedSede}
                   onChange={(e) => {
@@ -178,6 +208,70 @@ export default function ReportsPage() {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <button 
+                onClick={() => fetchKPIs(selectedSede)} 
+                className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-600 font-bold hover:bg-gray-50 transition-all shadow-sm shrink-0"
+              >
+                {fetchingKPIs ? <Loader2 className="w-4 h-4 animate-spin text-rose-500" /> : <RefreshCw className="w-4 h-4" />} REFRESCAR
+              </button>
+            </div>
+          </div>
+
+          {/* FINANCIAL STATS GRID (3 columns) */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+             {/* Card 1: Facturado Total */}
+             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex items-center gap-5 group hover:border-rose-200 transition-all">
+                <div className="p-4 bg-emerald-50 text-emerald-500 rounded-2xl group-hover:scale-110 transition-transform">
+                   <DollarSign className="w-6 h-6" />
+                </div>
+                <div>
+                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Facturado Total</p>
+                   <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">
+                     {fetchingKPIs ? '...' : `$${financeStats.facturadoTotal.toLocaleString('es-CO')}`}
+                   </h3>
+                </div>
+             </div>
+
+             {/* Card 2: Facturado del Mes */}
+             <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100 flex items-center gap-5 group hover:border-rose-200 transition-all">
+                <div className="p-4 bg-emerald-50 text-emerald-500 rounded-2xl group-hover:scale-110 transition-transform">
+                   <Calendar className="w-6 h-6" />
+                </div>
+                <div>
+                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Facturado del Mes</p>
+                   <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">
+                     {fetchingKPIs ? '...' : `$${financeStats.facturadoMes.toLocaleString('es-CO')}`}
+                   </h3>
+                </div>
+             </div>
+
+             {/* Card 3: Pendiente por Recaudar */}
+             <div className="bg-white p-6 rounded-[2rem] shadow-sm border-2 border-emerald-100 flex items-center gap-5 group hover:bg-emerald-50 transition-all bg-emerald-50/20">
+                <div className="p-4 bg-emerald-500 rounded-2xl text-white shadow-lg shadow-emerald-100 group-hover:scale-110 transition-transform">
+                   <DollarSign className="w-6 h-6" />
+                </div>
+                <div>
+                   <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-1">Pendiente por Recaudar</p>
+                   <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">
+                     {fetchingKPIs ? '...' : `$${financeStats.pendienteRecaudar.toLocaleString('es-CO')}`}
+                   </h3>
+                </div>
+             </div>
+          </div>
+
+          {/* KPI VESTIDOS POPULARES */}
+          <div className="bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-rose-100/20 border border-rose-50">
+            <div className="flex items-center gap-4 mb-10">
+              <div className="p-4 bg-rose-500 rounded-2xl text-white shadow-xl shadow-rose-200">
+                <TrendingUp className="w-8 h-8" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black text-gray-900 tracking-tight">Top 10 Vestidos más Rentados</h2>
+                <p className="text-gray-400 text-xs font-bold uppercase tracking-[0.2em] mt-1 font-sans">
+                  Ranking {selectedSede === 'global' ? 'Total Histórico' : `Sede ${formatSedeName(sedes.find(s => s.id === selectedSede)?.nombre)}`} de Alquileres
+                </p>
               </div>
             </div>
 
