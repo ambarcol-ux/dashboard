@@ -72,6 +72,7 @@ export default function DashboardPage() {
   const [filtroRango, setFiltroRango] = useState<string>('Cualquier Fecha'); // 'Hoy'|'Esta Semana'|'Este Mes'|'Personalizado'
   const [fechaDesde, setFechaDesde] = useState<string>('');
   const [fechaHasta, setFechaHasta] = useState<string>('');
+  const [filtroAlerta, setFiltroAlerta] = useState<'ninguna' | 'entregas_omitidas' | 'borradores_sin_firmar'>('ninguna');
 
   // -- Modals Quality Control --
   const [missedModalOpen, setMissedModalOpen] = useState(false);
@@ -2051,8 +2052,45 @@ export default function DashboardPage() {
     };
   }, [contratos]);
 
+  const alerts = React.useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
+    const entregasOmitidasCount = contratos.filter(c => {
+      if (!c.fecha_entrega_envio) return false;
+      return c.fecha_entrega_envio < todayStr && 
+             ['Pendiente', 'Por Entregar'].includes(c.estado_entrega_envio || 'Pendiente') && 
+             c.estado !== 'cancelado';
+    }).length;
+
+    const borradoresVencidosCount = contratos.filter(c => {
+      return c.estado === 'borrador' && new Date(c.created_at) < fortyEightHoursAgo;
+    }).length;
+
+    return {
+      entregasOmitidasCount,
+      borradoresVencidosCount
+    };
+  }, [contratos]);
+
   const contratosFiltrados = React.useMemo(() => {
-    let result = contratos;
+    let result = [...contratos];
+
+    // Apply administrative alert filter
+    if (filtroAlerta === 'entregas_omitidas') {
+      const todayStr = new Date().toISOString().split('T')[0];
+      result = result.filter(c => {
+        if (!c.fecha_entrega_envio) return false;
+        return c.fecha_entrega_envio < todayStr && 
+               ['Pendiente', 'Por Entregar'].includes(c.estado_entrega_envio || 'Pendiente') && 
+               c.estado !== 'cancelado';
+      });
+    } else if (filtroAlerta === 'borradores_sin_firmar') {
+      const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      result = result.filter(c => {
+        return c.estado === 'borrador' && new Date(c.created_at) < fortyEightHoursAgo;
+      });
+    }
 
     // 1. Prioridad: Búsqueda Global (Si hay término, ignora la pestaña activa y busca en todo)
     // El backend (Supabase) ya hizo el filtro exhaustivo (por texto y por IDs vinculados).
@@ -2145,7 +2183,7 @@ export default function DashboardPage() {
     }
 
     return result;
-  }, [contratos, activeTabLogistica, searchTerm, filtroSede, filtroHito, filtroRango, fechaDesde, fechaHasta]);
+  }, [contratos, activeTabLogistica, searchTerm, filtroSede, filtroHito, filtroRango, fechaDesde, fechaHasta, filtroAlerta]);
 
   // -- KPI STATS CALCULATION (Imagen 5 Request Restore) --
   const stats = React.useMemo(() => {
@@ -2320,6 +2358,50 @@ export default function DashboardPage() {
              </div>
            </div>
          )}
+
+        {/* ALERTAS DE CONTROL OPERATIVO */}
+        {(alerts.entregasOmitidasCount > 0 || alerts.borradoresVencidosCount > 0) && (
+          <div className="flex flex-wrap gap-4 p-4 bg-white rounded-2xl border border-rose-100 shadow-sm animate-in fade-in duration-500">
+            <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center mr-2 self-center">
+              ⚠️ Alertas de Control:
+            </span>
+            
+            {alerts.entregasOmitidasCount > 0 && (
+              <button
+                onClick={() => setFiltroAlerta(filtroAlerta === 'entregas_omitidas' ? 'ninguna' : 'entregas_omitidas')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 border uppercase tracking-tighter ${
+                  filtroAlerta === 'entregas_omitidas'
+                    ? 'bg-rose-600 border-rose-700 text-white shadow-md shadow-rose-200 animate-pulse'
+                    : 'bg-rose-50 border-rose-100 text-rose-600 hover:bg-rose-100'
+                }`}
+              >
+                ⚠️ {alerts.entregasOmitidasCount} Entregas pendientes por registrar (fechas vencidas)
+              </button>
+            )}
+
+            {alerts.borradoresVencidosCount > 0 && (
+              <button
+                onClick={() => setFiltroAlerta(filtroAlerta === 'borradores_sin_firmar' ? 'ninguna' : 'borradores_sin_firmar')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 border uppercase tracking-tighter ${
+                  filtroAlerta === 'borradores_sin_firmar'
+                    ? 'bg-amber-500 border-amber-600 text-white shadow-md shadow-amber-100 animate-pulse'
+                    : 'bg-amber-50 border-amber-100 text-amber-600 hover:bg-amber-100'
+                }`}
+              >
+                📝 {alerts.borradoresVencidosCount} Contratos en borrador pendientes por firmar
+              </button>
+            )}
+
+            {filtroAlerta !== 'ninguna' && (
+              <button
+                onClick={() => setFiltroAlerta('ninguna')}
+                className="ml-auto px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 bg-gray-50 border border-gray-200 rounded-xl transition-all"
+              >
+                Mostrar Todos
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Filtros de Calidad Logistica */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
