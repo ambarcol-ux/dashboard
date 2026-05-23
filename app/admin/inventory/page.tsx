@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   Search, Package, MapPin, ArrowLeftRight, Loader2, 
   Trash2, Plus, Filter, LayoutGrid, List as ListIcon, CheckCircle2, ChevronLeft, ShieldAlert, ChevronDown,
-  X, FileText, TrendingUp, Clock, DollarSign, List
+  X, FileText, TrendingUp, Clock, DollarSign, List, RotateCcw
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import Link from 'next/link';
@@ -52,6 +52,11 @@ export default function InventoryPage() {
     realizado_por: '',
     autorizado_por: ''
   });
+
+  // -- Reversión de Venta (Rollback) --
+  const [showRollbackModal, setShowRollbackModal] = useState(false);
+  const [rollbackDress, setRollbackDress] = useState<any>(null);
+  const [rollbackLoading, setRollbackLoading] = useState(false);
 
   useEffect(() => {
     const checkUser = async () => {
@@ -321,6 +326,29 @@ export default function InventoryPage() {
       toast.error('Error al borrar: ' + err.message);
     } finally {
       setUpdatingId(null);
+    }
+  };
+
+  const confirmRollback = async () => {
+    if (!rollbackDress) return;
+    setRollbackLoading(true);
+    try {
+      const { error } = await supabase
+        .from('vestidos')
+        .update({ estado: 'Disponible' })
+        .eq('codigo', rollbackDress.codigo);
+      
+      if (error) throw error;
+      
+      toast.success(`Venta del vestido ${rollbackDress.codigo} revertida con éxito 💎`);
+      setShowRollbackModal(false);
+      setRollbackDress(null);
+      loadData();
+    } catch (err: any) {
+      console.error('Error al revertir venta:', err);
+      toast.error('Error al revertir venta: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setRollbackLoading(false);
     }
   };
 
@@ -723,17 +751,32 @@ export default function InventoryPage() {
                             <Trash2 className="w-4 h-4" />
                           </button>
                           {user?.rol === 'admin' && (
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeBajaVestido(v.id, v.codigo);
-                              }}
-                              disabled={updatingId === v.id || v.estado === 'Vendido' || v.estado === 'Dañado/Baja'}
-                              className="p-3 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all active:scale-95 group"
-                              title="Dar de Baja (Venta/Daño)"
-                            >
-                              <ShieldAlert className="w-4 h-4" />
-                            </button>
+                            v.estado === 'Vendido' ? (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setRollbackDress(v);
+                                  setShowRollbackModal(true);
+                                }}
+                                disabled={updatingId === v.id}
+                                className="p-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all active:scale-95 group animate-pulse"
+                                title="Revertir Venta"
+                              >
+                                <RotateCcw className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeBajaVestido(v.id, v.codigo);
+                                }}
+                                disabled={updatingId === v.id || v.estado === 'Dañado/Baja'}
+                                className="p-3 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all active:scale-95 group"
+                                title="Dar de Baja (Venta/Daño)"
+                              >
+                                <ShieldAlert className="w-4 h-4" />
+                              </button>
+                            )
                           )}
                         </div>
                       </td>
@@ -844,17 +887,32 @@ export default function InventoryPage() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                     {user?.rol === 'admin' && (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeBajaVestido(v.id, v.codigo);
-                        }}
-                        disabled={updatingId === v.id || v.estado === 'Vendido' || v.estado === 'Dañado/Baja'}
-                        className="p-3 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all"
-                        title="Dar de Baja"
-                      >
-                        <ShieldAlert className="w-4 h-4" />
-                      </button>
+                      v.estado === 'Vendido' ? (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setRollbackDress(v);
+                            setShowRollbackModal(true);
+                          }}
+                          disabled={updatingId === v.id}
+                          className="p-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all active:scale-95 group animate-pulse"
+                          title="Revertir Venta"
+                        >
+                          <RotateCcw className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeBajaVestido(v.id, v.codigo);
+                          }}
+                          disabled={updatingId === v.id || v.estado === 'Dañado/Baja'}
+                          className="p-3 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all"
+                          title="Dar de Baja"
+                        >
+                          <ShieldAlert className="w-4 h-4" />
+                        </button>
+                      )
                     )}
                   </div>
                 </div>
@@ -930,6 +988,51 @@ export default function InventoryPage() {
                     className="flex-[2] py-4 bg-amber-500 hover:bg-amber-600 text-white font-black rounded-2xl shadow-lg shadow-amber-200 transition-all flex items-center justify-center gap-2 uppercase text-xs"
                   >
                     <ArrowLeftRight size={16} /> Procesar Traslado
+                  </button>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Reversión de Venta (Rollback) */}
+      {showRollbackModal && rollbackDress && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-rose-600 p-6 text-center">
+               <h2 className="text-xl font-black text-white uppercase tracking-tight">Confirmar Reversión de Venta</h2>
+               <p className="text-rose-100 text-[10px] font-bold uppercase tracking-widest mt-1">
+                 {rollbackDress.codigo} ➔ Disponible
+               </p>
+            </div>
+            <div className="p-8 space-y-6">
+               <div className="text-center">
+                 <p className="text-gray-600 text-sm font-medium">
+                   ¿Estás seguro de revertir la venta del vestido <strong>{rollbackDress.codigo}</strong>?
+                 </p>
+                 <p className="text-gray-400 text-xs mt-2">
+                   Esta acción actualizará su estado a <strong>Disponible</strong> en el inventario.
+                 </p>
+               </div>
+               
+               <div className="flex gap-4">
+                  <button 
+                    onClick={() => {
+                      setShowRollbackModal(false);
+                      setRollbackDress(null);
+                    }}
+                    disabled={rollbackLoading}
+                    className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black rounded-2xl transition-all uppercase text-xs disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={confirmRollback}
+                    disabled={rollbackLoading}
+                    className="flex-[2] py-4 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-2xl shadow-lg shadow-rose-200 transition-all flex items-center justify-center gap-2 uppercase text-xs disabled:opacity-50"
+                  >
+                    {rollbackLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw size={16} />}
+                    Revertir Venta
                   </button>
                </div>
             </div>
