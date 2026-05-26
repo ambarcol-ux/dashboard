@@ -417,6 +417,19 @@ export default function DashboardPage() {
         throw errC;
       }
 
+      console.log('CONTRATOS DESDE DB:', finalData);
+
+      // Prueba de Fuerza Bruta: Query directa sin intermediarios para verificar borradores en la DB
+      try {
+        const { data: forceDrafts } = await supabase
+          .from('contratos')
+          .select('id, numero_contrato, estado, created_at, saldo')
+          .eq('estado', 'borrador');
+        console.log('PRUEBA FUERZA BRUTA DRAFTS DESDE DB:', forceDrafts);
+      } catch (e) {
+        console.error('Error en Prueba de Fuerza Bruta:', e);
+      }
+
       const mappedData = (finalData || []).map(c => ({
         ...c,
         prendas: (c as any).items || []
