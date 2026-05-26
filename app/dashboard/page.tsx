@@ -2064,7 +2064,8 @@ export default function DashboardPage() {
     }).length;
 
     const borradoresVencidosCount = contratos.filter(c => {
-      return c.estado === 'borrador' && new Date(c.created_at) < fortyEightHoursAgo;
+      const estadoLower = c.estado?.toLowerCase();
+      return (estadoLower === 'borrador' || estadoLower === 'draft') && new Date(c.created_at) < fortyEightHoursAgo;
     }).length;
 
     return {
@@ -2082,13 +2083,14 @@ export default function DashboardPage() {
       result = result.filter(c => {
         if (!c.fecha_entrega_envio) return false;
         return c.fecha_entrega_envio < todayStr && 
-               ['Pendiente', 'Por Entregar'].includes(c.estado_entrega_envio || 'Pendiente') && 
+               ['Pending', 'Pendiente', 'Por Entregar'].includes(c.estado_entrega_envio || 'Pendiente') && 
                c.estado !== 'cancelado';
       });
     } else if (filtroAlerta === 'borradores_sin_firmar') {
       const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
       result = result.filter(c => {
-        return c.estado === 'borrador' && new Date(c.created_at) < fortyEightHoursAgo;
+        const estadoLower = c.estado?.toLowerCase();
+        return (estadoLower === 'borrador' || estadoLower === 'draft') && new Date(c.created_at) < fortyEightHoursAgo;
       });
     }
 
@@ -2101,28 +2103,30 @@ export default function DashboardPage() {
     }
 
     // 2. Filtrado por Pestaña Logística
-    result = result.filter(c => {
-      const estado = c.estado?.toLowerCase();
-      switch (activeTabLogistica) {
-        case 'por_entregar': {
-          const hasDelivery = c.entregas && c.entregas.length > 0;
-          return !['entregado', 'mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(estado) && !hasDelivery;
+    if (filtroAlerta === 'ninguna') {
+      result = result.filter(c => {
+        const estado = c.estado?.toLowerCase();
+        switch (activeTabLogistica) {
+          case 'por_entregar': {
+            const hasDelivery = c.entregas && c.entregas.length > 0;
+            return !['entregado', 'mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(estado) && !hasDelivery;
+          }
+          case 'en_evento': {
+            const hasDelivery = c.entregas && c.entregas.length > 0;
+            const isExcluded = ['mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(estado);
+            return (estado === 'entregado' || hasDelivery) && !isExcluded;
+          }
+          case 'lavanderia':
+            return estado === 'mantenimiento';
+          case 'historial': {
+            const totalPendiente = (Number(c.saldo) || 0) + (Number(c.total_multas) || 0);
+            return ['finalizado', 'cancelado', 'rechazado'].includes(estado) && totalPendiente === 0;
+          }
+          default:
+            return true;
         }
-        case 'en_evento': {
-          const hasDelivery = c.entregas && c.entregas.length > 0;
-          const isExcluded = ['mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(estado);
-          return (estado === 'entregado' || hasDelivery) && !isExcluded;
-        }
-        case 'lavanderia':
-          return estado === 'mantenimiento';
-        case 'historial': {
-          const totalPendiente = (Number(c.saldo) || 0) + (Number(c.total_multas) || 0);
-          return ['finalizado', 'cancelado', 'rechazado'].includes(estado) && totalPendiente === 0;
-        }
-        default:
-          return true;
-      }
-    });
+      });
+    }
 
     // 3. Filtros Complementarios (Sede, Hito, Fecha)
     if (filtroSede !== 'Todas') {
