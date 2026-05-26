@@ -364,6 +364,8 @@ export default function DashboardPage() {
 
 
       // OFICIAL QUERY: Explicit joins to avoid 400 errors and multiple roundtrips
+      // Note: Bypassing any backend/server-side filters or conditions like .eq('saldo', 0) or where: { saldo: 0 }.
+      // This ensures all draft contracts with all balances travel in the initial payload.
       let query = supabase
         .from('contratos')
         .select(`
