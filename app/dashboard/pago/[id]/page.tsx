@@ -11,7 +11,8 @@ import {
   CreditCard,
   CheckCircle,
   Clock,
-  FileText
+  FileText,
+  AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -71,20 +72,41 @@ export default function RegistrarPagoPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  // ── REAL-TIME VALIDATION ──────────────────────────────────────────────────
+  const saldoNumber = contrato ? Number(contrato.saldo) : 0;
+  const montoIngresado = parseFloat(formData.valor_pagado) || 0;
+  const excedeBalance = montoIngresado > saldoNumber && formData.valor_pagado !== '';
+  const montoInvalido = montoIngresado <= 0 && formData.valor_pagado !== '';
+
+  const isSubmitDisabled =
+    submitting ||
+    formData.valor_pagado === '' ||
+    montoIngresado <= 0 ||
+    excedeBalance;
+  // ─────────────────────────────────────────────────────────────────────────
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!contrato) return;
 
     const montoAbono = parseFloat(formData.valor_pagado);
+
+    // ── BACKEND SECURITY GUARD (Front-to-back double-check) ──────────────
     if (montoAbono <= 0) {
-      toast.error('El monto debe ser mayor a 0');
+      toast.error('El monto debe ser mayor a $0.');
       return;
     }
 
-    if (montoAbono > Number(contrato.saldo)) {
-      toast.error('El monto no puede ser mayor al saldo pendiente.');
-      return;
+    // Hard-stop: Operación denegada si genera saldo negativo
+    const saldoPendienteActual = Number(contrato.saldo);
+    if (montoAbono > saldoPendienteActual) {
+      toast.error(
+        `Operación denegada: El pago genera un saldo negativo. ` +
+        `Monto ingresado: ${formatCurrency(montoAbono)} — Saldo pendiente: ${formatCurrency(saldoPendienteActual)}.`
+      );
+      return; // No impacta la base de datos bajo ninguna circunstancia
     }
+    // ─────────────────────────────────────────────────────────────────────
 
     setSubmitting(true);
     try {
@@ -92,7 +114,7 @@ export default function RegistrarPagoPage() {
       const nuevoPago = {
         contrato_id: id,
         fecha_pago: new Date().toISOString().split('T')[0], // YYYY-MM-DD
-        medio_pago: formData.medio_pago, // Columna renombrada en Supabase (antes metodo_pago)
+        medio_pago: formData.medio_pago,
         valor_pagado: montoAbono,
         numero_recibo: formData.numero_recibo,
         observaciones: formData.observaciones
@@ -135,7 +157,7 @@ export default function RegistrarPagoPage() {
       
       // Limpiar y recargar
       setFormData({ valor_pagado: '', medio_pago: 'Transferencia', numero_recibo: '', observaciones: '' });
-      fetchData(); // Refrescar ambos (contrato y pagos)
+      fetchData();
       
     } catch (err: any) {
       console.error(err);
@@ -170,7 +192,6 @@ export default function RegistrarPagoPage() {
     );
   }
 
-  const saldoNumber = Number(contrato.saldo);
   const estaPagado = saldoNumber <= 0 || contrato.estado === 'Pagado Totalmente';
 
   return (
@@ -201,8 +222,8 @@ export default function RegistrarPagoPage() {
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-500 font-semibold mb-1">Saldo Actual</p>
-                <div className="text-3xl font-black text-rose-600">
+                <p className="text-sm text-gray-500 font-semibold mb-1">Saldo Pendiente</p>
+                <div className={`text-3xl font-black ${saldoNumber > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                   {formatCurrency(saldoNumber)}
                 </div>
               </div>
@@ -227,21 +248,45 @@ export default function RegistrarPagoPage() {
                   </h2>
                   <form onSubmit={handleSubmit} className="space-y-5">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+
+                      {/* ── MONTO DEL ABONO con validación en tiempo real ── */}
                       <div className="space-y-1">
-                        <label className="text-sm font-medium text-gray-700">Monto del Abono ($)</label>
+                        <label className="text-sm font-medium text-gray-700">
+                          Monto del Abono ($)
+                        </label>
                         <input
                           type="number"
                           name="valor_pagado"
                           min="1"
-                          max={saldoNumber}
                           step="0.01"
                           value={formData.valor_pagado}
                           onChange={handleChange}
-                          placeholder={`Máx: ${saldoNumber}`}
-                          className="w-full bg-gray-50 border border-gray-200 text-gray-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-200 focus:border-emerald-300 transition-all font-semibold"
+                          placeholder={`Máx: ${formatCurrency(saldoNumber)}`}
+                          className={`w-full bg-gray-50 border text-gray-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 transition-all font-semibold ${
+                            excedeBalance
+                              ? 'border-rose-400 focus:ring-rose-200 focus:border-rose-400 bg-rose-50'
+                              : 'border-gray-200 focus:ring-emerald-200 focus:border-emerald-300'
+                          }`}
                           required
                         />
+                        {/* Alerta dinámica en rojo cuando el monto supera el saldo */}
+                        {excedeBalance && (
+                          <div className="flex items-start gap-2 mt-1.5 p-2.5 bg-rose-50 border border-rose-200 rounded-lg">
+                            <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                            <p className="text-xs font-semibold text-rose-700 leading-snug">
+                              ❌ El monto del abono ({formatCurrency(montoIngresado)}) supera el saldo pendiente actual ({formatCurrency(saldoNumber)}). Por favor verifica el número.
+                            </p>
+                          </div>
+                        )}
+                        {/* Indicador helper cuando el monto es válido y mayor a 0 */}
+                        {!excedeBalance && montoIngresado > 0 && (
+                          <p className="text-xs text-emerald-600 font-medium mt-1">
+                            ✅ Saldo restante tras este abono: {formatCurrency(saldoNumber - montoIngresado)}
+                          </p>
+                        )}
                       </div>
+                      {/* ────────────────────────────────────────────────── */}
+
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-gray-700">Medio de Pago</label>
                         <select
@@ -288,20 +333,32 @@ export default function RegistrarPagoPage() {
                         />
                       </div>
                     </div>
-                    
+
+                    {/* ── BOTÓN DESHABILITADO si el monto supera el saldo ── */}
                     <button
                       type="submit"
-                      disabled={submitting}
-                      className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-lg py-4 rounded-xl shadow-md shadow-emerald-200 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-wait"
+                      disabled={isSubmitDisabled}
+                      className={`w-full font-bold text-lg py-4 rounded-xl shadow-md transition-all flex items-center justify-center gap-2 ${
+                        isSubmitDisabled
+                          ? excedeBalance
+                            ? 'bg-rose-200 text-rose-400 cursor-not-allowed shadow-none'
+                            : 'bg-emerald-300 text-white cursor-not-allowed shadow-none opacity-70'
+                          : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-200 active:scale-[0.98]'
+                      }`}
                     >
                       {submitting ? (
                         <>
                           <Loader2 className="w-5 h-5 animate-spin" /> Guardando...
                         </>
+                      ) : excedeBalance ? (
+                        <>
+                          <AlertTriangle className="w-5 h-5" /> Monto no válido
+                        </>
                       ) : (
                         'Registrar Pago'
                       )}
                     </button>
+                    {/* ──────────────────────────────────────────────────── */}
                   </form>
                 </>
               )}
