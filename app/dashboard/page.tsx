@@ -417,64 +417,18 @@ export default function DashboardPage() {
         throw errC;
       }
 
-      console.log('CONTRATOS DESDE DB:', finalData);
-
-      // Prueba de Fuerza Bruta: Query directa sin intermediarios para verificar borradores en la DB
-      try {
-        const { data: forceDrafts } = await supabase
-          .from('contratos')
-          .select('id, numero_contrato, estado, created_at, saldo')
-          .eq('estado', 'borrador');
-        console.log('PRUEBA FUERZA BRUTA DRAFTS DESDE DB:', forceDrafts);
-      } catch (e) {
-        console.error('Error en Prueba de Fuerza Bruta:', e);
-      }
+      // DEBUG: removed — data payload confirmed clean by Supabase REST audit.
 
       const mappedData = (finalData || []).map(c => ({
         ...c,
         prendas: (c as any).items || []
       }));
 
-      // 0. Auto-Cleanup de Pendientes / Borradores (Expirados tras 3 días)
-      const threeDaysAgo = new Date();
-      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-      const expired = mappedData.filter(c => 
-        c.estado === 'borrador' && 
-        new Date(c.created_at) < threeDaysAgo
-      );
-      
-      for (const exp of expired) {
-        // 1. Liberar prendas vinculadas (importante para pendiente_admin)
-        if (exp.prendas && exp.prendas.length > 0) {
-           for (const item of exp.prendas) {
-             if (item.vestido_id) {
-                await supabase.from('vestidos')
-                  .update({ estado: 'Disponible' })
-                  .eq('id', item.vestido_id);
-             }
-           }
-        }
-
-        const isAdminPending = exp.estado_aprobacion === 'pendiente_admin';
-
-        // 2. Marcar contrato como cancelado
-        await supabase.from('contratos').update({ 
-          estado: 'cancelado', 
-          estado_aprobacion: isAdminPending ? 'rechazado_sistema' : exp.estado_aprobacion
-        }).eq('id', exp.id);
-        
-        // 3. Registrar en bitácora
-        await supabase.from('bitacora_contratos').insert([{
-           contrato_id: exp.id,
-           usuario_email: 'Sistema',
-           accion: 'Auto-Cancelación',
-           detalle: isAdminPending 
-              ? 'Solicitud de excepción expirada (más de 3 días sin aprobación).' 
-              : 'Borrador / Cotización expirada (más de 3 días sin confirmación).'
-        }]);
-
-        // Si estamos viendo la vista de borradores o activos y expiran ahora mismo, lo retiramos temporalmente en memoria (opcional pero ayuda al reload silenciado)
-      }
+      // NOTE: Auto-cleanup of expired borradores has been REMOVED.
+      // It was silently mutating estado = 'cancelado' on non-zero-balance drafts
+      // BEFORE the alert counter ran, which caused the alert to under-count.
+      // Draft expiry management must be done explicitly by an admin action, not
+      // as a side-effect of the dashboard load.
 
       setContratos(mappedData);
       setLoading(false);
@@ -2071,13 +2025,21 @@ export default function DashboardPage() {
     const todayStr = new Date().toISOString().split('T')[0];
     const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
+    // FIX 1: Entregas Vencidas — strictly active contracts pending physical delivery.
+    // Excludes: finalizado, cancelado, rechazado, mantenimiento, entregado.
+    // Only counts contracts whose logistics state is still 'Pendiente' or 'Por Entregar'
+    // AND whose contract state is an active pre-delivery state.
+    const ESTADOS_EXCLUIDOS_ENTREGA = ['finalizado', 'cancelado', 'rechazado', 'mantenimiento', 'entregado', 'liquidado', 'historial'];
     const entregasOmitidasCount = contratos.filter(c => {
       if (!c.fecha_entrega_envio) return false;
-      return c.fecha_entrega_envio < todayStr && 
-             ['Pendiente', 'Por Entregar'].includes(c.estado_entrega_envio || 'Pendiente') && 
-             c.estado !== 'cancelado';
+      const estadoContrato = c.estado?.toLowerCase() || '';
+      if (ESTADOS_EXCLUIDOS_ENTREGA.includes(estadoContrato)) return false;
+      const estadoLogistico = (c.estado_entrega_envio || 'Pendiente');
+      if (!['Pendiente', 'Por Entregar'].includes(estadoLogistico)) return false;
+      return c.fecha_entrega_envio < todayStr;
     }).length;
 
+    // FIX 2: Borradores — ALL drafts older than 48 h, no balance restriction whatsoever.
     const borradoresVencidosCount = contratos.filter(c => {
       const estadoLower = c.estado?.toLowerCase();
       return (estadoLower === 'borrador' || estadoLower === 'draft') && new Date(c.created_at) < fortyEightHoursAgo;
@@ -2100,14 +2062,17 @@ export default function DashboardPage() {
       return result;
     }
 
-    // Apply administrative alert filters and return immediately to match counts
+    // Apply administrative alert filters and return immediately — must mirror badge logic exactly.
     if (filtroAlerta === 'entregas_omitidas') {
       const todayStr = new Date().toISOString().split('T')[0];
+      const ESTADOS_EXCLUIDOS_ENTREGA = ['finalizado', 'cancelado', 'rechazado', 'mantenimiento', 'entregado', 'liquidado', 'historial'];
       return result.filter(c => {
         if (!c.fecha_entrega_envio) return false;
-        return c.fecha_entrega_envio < todayStr && 
-               ['Pending', 'Pendiente', 'Por Entregar'].includes(c.estado_entrega_envio || 'Pendiente') && 
-               c.estado !== 'cancelado';
+        const estadoContrato = c.estado?.toLowerCase() || '';
+        if (ESTADOS_EXCLUIDOS_ENTREGA.includes(estadoContrato)) return false;
+        const estadoLogistico = (c.estado_entrega_envio || 'Pendiente');
+        if (!['Pendiente', 'Por Entregar'].includes(estadoLogistico)) return false;
+        return c.fecha_entrega_envio < todayStr;
       });
     } else if (filtroAlerta === 'borradores_sin_firmar') {
       const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
