@@ -2077,10 +2077,18 @@ export default function DashboardPage() {
   const contratosFiltrados = React.useMemo(() => {
     let result = [...contratos];
 
-    // Apply administrative alert filter
+    // 1. Prioridad: Búsqueda Global (Si hay término, ignora la pestaña activa y busca en todo)
+    // El backend (Supabase) ya hizo el filtro exhaustivo (por texto y por IDs vinculados).
+    // Devolvemos el resultado tal cual para asegurar que lo que trajo la BD se muestre siempre.
+    if (searchTerm) {
+      console.log('🔍 [Buscador Global] Contratos Encontrados por BD:', result.map(r => r.id));
+      return result;
+    }
+
+    // Apply administrative alert filters and return immediately to match counts
     if (filtroAlerta === 'entregas_omitidas') {
       const todayStr = new Date().toISOString().split('T')[0];
-      result = result.filter(c => {
+      return result.filter(c => {
         if (!c.fecha_entrega_envio) return false;
         return c.fecha_entrega_envio < todayStr && 
                ['Pending', 'Pendiente', 'Por Entregar'].includes(c.estado_entrega_envio || 'Pendiente') && 
@@ -2088,18 +2096,10 @@ export default function DashboardPage() {
       });
     } else if (filtroAlerta === 'borradores_sin_firmar') {
       const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
-      result = result.filter(c => {
+      return result.filter(c => {
         const estadoLower = c.estado?.toLowerCase();
         return (estadoLower === 'borrador' || estadoLower === 'draft') && new Date(c.created_at) < fortyEightHoursAgo;
       });
-    }
-
-    // 1. Prioridad: Búsqueda Global (Si hay término, ignora la pestaña activa y busca en todo)
-    // El backend (Supabase) ya hizo el filtro exhaustivo (por texto y por IDs vinculados).
-    // Devolvemos el resultado tal cual para asegurar que lo que trajo la BD se muestre siempre.
-    if (searchTerm) {
-      console.log('🔍 [Buscador Global] Contratos Encontrados por BD:', result.map(r => r.id));
-      return result;
     }
 
     // 2. Filtrado por Pestaña Logística
