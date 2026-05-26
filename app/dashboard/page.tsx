@@ -2025,17 +2025,23 @@ export default function DashboardPage() {
     const todayStr = new Date().toISOString().split('T')[0];
     const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
 
-    // FIX 1: Entregas Vencidas — strictly active contracts pending physical delivery.
-    // Excludes: finalizado, cancelado, rechazado, mantenimiento, entregado.
-    // Only counts contracts whose logistics state is still 'Pendiente' or 'Por Entregar'
-    // AND whose contract state is an active pre-delivery state.
-    const ESTADOS_EXCLUIDOS_ENTREGA = ['finalizado', 'cancelado', 'rechazado', 'mantenimiento', 'entregado', 'liquidado', 'historial'];
+    // Entregas Vencidas — STRICTLY 'Por Entregar' only.
+    // A contract in 'Evento', 'Entregado', or with any delivery record already
+    // had its dress physically dispatched — it must NOT appear as overdue.
+    const ESTADOS_EXCLUIDOS_ENTREGA = [
+      'finalizado', 'cancelado', 'rechazado',
+      'mantenimiento', 'entregado', 'evento',
+      'liquidado', 'historial'
+    ];
     const entregasOmitidasCount = contratos.filter(c => {
       if (!c.fecha_entrega_envio) return false;
       const estadoContrato = c.estado?.toLowerCase() || '';
       if (ESTADOS_EXCLUIDOS_ENTREGA.includes(estadoContrato)) return false;
-      const estadoLogistico = (c.estado_entrega_envio || 'Pendiente');
-      if (!['Pendiente', 'Por Entregar'].includes(estadoLogistico)) return false;
+      // Exclude if the dress has already been physically delivered (en evento)
+      const hasDelivery = c.entregas && c.entregas.length > 0;
+      if (hasDelivery) return false;
+      // Logistics state must be strictly 'Por Entregar' — 'Pendiente' alone is not overdue
+      if ((c.estado_entrega_envio || '') !== 'Por Entregar') return false;
       return c.fecha_entrega_envio < todayStr;
     }).length;
 
@@ -2065,13 +2071,18 @@ export default function DashboardPage() {
     // Apply administrative alert filters and return immediately — must mirror badge logic exactly.
     if (filtroAlerta === 'entregas_omitidas') {
       const todayStr = new Date().toISOString().split('T')[0];
-      const ESTADOS_EXCLUIDOS_ENTREGA = ['finalizado', 'cancelado', 'rechazado', 'mantenimiento', 'entregado', 'liquidado', 'historial'];
+      const ESTADOS_EXCLUIDOS_ENTREGA = [
+        'finalizado', 'cancelado', 'rechazado',
+        'mantenimiento', 'entregado', 'evento',
+        'liquidado', 'historial'
+      ];
       return result.filter(c => {
         if (!c.fecha_entrega_envio) return false;
         const estadoContrato = c.estado?.toLowerCase() || '';
         if (ESTADOS_EXCLUIDOS_ENTREGA.includes(estadoContrato)) return false;
-        const estadoLogistico = (c.estado_entrega_envio || 'Pendiente');
-        if (!['Pendiente', 'Por Entregar'].includes(estadoLogistico)) return false;
+        const hasDelivery = c.entregas && c.entregas.length > 0;
+        if (hasDelivery) return false;
+        if ((c.estado_entrega_envio || '') !== 'Por Entregar') return false;
         return c.fecha_entrega_envio < todayStr;
       });
     } else if (filtroAlerta === 'borradores_sin_firmar') {
