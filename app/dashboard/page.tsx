@@ -45,7 +45,8 @@ import {
   ShieldAlert,
   Calendar,
   Plus,
-  User
+  User,
+  AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
 import { jsPDF } from 'jspdf';
@@ -141,6 +142,12 @@ export default function DashboardPage() {
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [removingItem, setRemovingItem] = useState<any>(null);
   const [removeReason, setRemoveReason] = useState('');
+
+  // -- Reversion State --
+  const [isReversionModalOpen, setIsReversionModalOpen] = useState(false);
+  const [reversionReason, setReversionReason] = useState('');
+  const [revertingContractId, setRevertingContractId] = useState<string | null>(null);
+  const [isReverting, setIsReverting] = useState(false);
 
   // -- Follow-up Notes State --
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
@@ -1610,6 +1617,58 @@ export default function DashboardPage() {
       setModalLoading(false);
     }
   };
+
+  const handleRevertirAPorEntregar = async () => {
+    if (!revertingContractId || !reversionReason || reversionReason.trim().length < 10) {
+      toast.error('Debes proporcionar un motivo detallado (mín. 10 caracteres).');
+      return;
+    }
+    setIsReverting(true);
+    try {
+      // 1. Actualizar estado principal
+      const { error: updateErr } = await supabase
+        .from('contratos')
+        .update({ estado: 'Por Entregar' })
+        .eq('id', revertingContractId);
+      
+      if (updateErr) throw updateErr;
+
+      // 2. Registrar en bitacora_contratos (Auditoría General)
+      const { error: logErr1 } = await supabase.from('bitacora_contratos').insert([{
+         contrato_id: revertingContractId,
+         accion: 'REVERSIÓN',
+         detalle: `Se revirtió de Finalizado a Por Entregar. Razón: ${reversionReason}`,
+         usuario: user?.nombre || user?.email || 'Administrador'
+      }]);
+
+      if (logErr1) console.error("Error bitacora_contratos:", logErr1);
+
+      // 3. Registrar en entregas_bitacora (Auditoría Logística requerida)
+      const { error: logErr2 } = await supabase.from('entregas_bitacora').insert([{
+         contrato_id: revertingContractId,
+         observaciones: `[REVERSIÓN DE ESTADO] Razón: ${reversionReason}`,
+         estado_firma: 'Reversión (Admin)',
+         tipo_entrega: 'reversion',
+         usuario_id: user?.id
+      }]);
+
+      if (logErr2) console.error("Error entregas_bitacora:", logErr2);
+
+      toast.success('Contrato revertido exitosamente a Por Entregar.');
+      setIsReversionModalOpen(false);
+      setReversionReason('');
+      setRevertingContractId(null);
+      setDrawerOpen(false); // Cierra el modal/drawer para refrescar
+      
+      await fetchContratos();
+    } catch (error: any) {
+      console.error('Error al revertir el estado:', error);
+      toast.error('Error al revertir el estado: ' + error.message);
+    } finally {
+      setIsReverting(false);
+    }
+  };
+
 
   const fetchSubstitutionHistory = async (contractId: string) => {
     try {
@@ -3547,6 +3606,24 @@ export default function DashboardPage() {
 
                   {/* Internal Control Section */}
                   <section>
+                    {selectedContract.estado === 'finalizado' && user?.rol === 'admin' && (
+                      <div className="mb-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="p-2 bg-red-100 rounded-lg text-red-600"><AlertTriangle className="w-5 h-5"/></div>
+                          <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Acciones de Administrador</h3>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setRevertingContractId(selectedContract.id);
+                            setIsReversionModalOpen(true);
+                          }}
+                          className="w-full py-4 bg-red-50 hover:bg-red-100 text-red-600 font-black rounded-2xl border-2 border-red-100 shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2 uppercase text-xs tracking-widest"
+                        >
+                          <RefreshCw className="w-5 h-5" /> REVERTIR A "POR ENTREGAR"
+                        </button>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-3 mb-4">
                       <div className="p-2 bg-gray-100 rounded-lg text-gray-600"><Tag className="w-5 h-5"/></div>
                       <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Control Interno</h3>
@@ -4190,6 +4267,63 @@ export default function DashboardPage() {
                    {modalLoading ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : (
                      <>
                         <ShieldAlert className="w-4 h-4" /> CONFIRMAR Y QUITAR
+                     </>
+                   )}
+                 </button>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* NEW: REVERSION MODAL */}
+      {isReversionModalOpen && revertingContractId && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-red-600 p-6 text-center">
+               <h2 className="text-xl font-black text-white uppercase tracking-tight italic">Revertir Contrato</h2>
+               <p className="text-red-100 text-[10px] font-bold uppercase tracking-widest mt-1">Acción Restringida (Admin)</p>
+            </div>
+            <div className="p-8 space-y-6 text-center">
+               <div className="flex flex-col items-center gap-2">
+                 <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500 mb-2">
+                   <AlertTriangle className="w-8 h-8" />
+                 </div>
+                 <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest leading-none">Advertencia de Sistema</p>
+                 <p className="text-sm font-bold text-gray-900 tracking-tight leading-tight">Estás a punto de devolver este contrato al estado <span className="font-black text-red-600">Por Entregar</span>. Deberás justificar este movimiento operativo.</p>
+               </div>
+               <div className="space-y-2 text-left">
+                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Justificación del Cambio (Obligatorio)</label>
+                 <textarea
+                   rows={3}
+                   className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl text-xs font-bold text-gray-700 outline-none focus:border-red-500 transition-all placeholder:text-gray-300 shadow-inner"
+                   placeholder="Mínimo 10 caracteres: Ej: Contrato finalizado por error..."
+                   value={reversionReason}
+                   onChange={(e) => setReversionReason(e.target.value)}
+                 />
+                 {reversionReason.length > 0 && reversionReason.trim().length < 10 && (
+                   <p className="text-[9px] font-bold text-red-500 ml-1 italic animate-pulse tracking-tight">La justificación debe tener al menos 10 caracteres...</p>
+                 )}
+               </div>
+               <div className="flex gap-3 pt-2">
+                 <button
+                   onClick={() => {
+                     setIsReversionModalOpen(false);
+                     setReversionReason('');
+                     setRevertingContractId(null);
+                   }}
+                   className="flex-1 py-4 bg-gray-100 text-gray-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-gray-200 transition-all active:scale-95"
+                 >
+                   Cancelar
+                 </button>
+                 <button
+                   onClick={handleRevertirAPorEntregar}
+                   disabled={reversionReason.trim().length < 10 || isReverting}
+                   className="flex-[1.5] py-4 bg-red-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-100 active:scale-95 transition-all disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-2 border-b-4 border-red-800 active:border-b-0 active:translate-y-1"
+                 >
+                   {isReverting ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : (
+                     <>
+                        <RefreshCw className="w-4 h-4" /> CONFIRMAR REVERSIÓN
                      </>
                    )}
                  </button>
