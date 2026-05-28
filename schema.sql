@@ -59,7 +59,7 @@ CREATE TABLE contratos (
     valor_deposito NUMERIC,
     
     -- Calidad Logistica
-    estado_cita_medidas TEXT DEFAULT 'Pendiente',
+    estado_medidas TEXT DEFAULT 'Pendiente',
     estado_prueba_final TEXT DEFAULT 'Pendiente',
     estado_entrega_envio TEXT DEFAULT 'Pendiente',
     

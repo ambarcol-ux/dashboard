@@ -84,7 +84,7 @@ model contratos {
   saldo                      Decimal?                  @db.Decimal
   valor_deposito             Decimal?                  @db.Decimal
   
-  estado_cita_medidas        String?                   @default("Pendiente")
+  estado_medidas             String?                   @default("Pendiente")
   estado_prueba_final        String?                   @default("Pendiente")
   estado_entrega_envio       String?                   @default("Pendiente")
   

@@ -2253,7 +2253,7 @@ export default function DashboardPage() {
 
   const uniqueSedes = Array.from(new Set(contratos.map(c => c.sede)));
 
-  const renderLogisticsDate = (contrato: any, label: string, dateString: string | null, stateField: string, stateValue: string) => {
+  const renderLogisticsDate = (contrato: any, label: string, dateString: string | null, stateField: string, stateValue: string, dateField: string) => {
      if (!dateString) return null;
      const d = new Date(dateString);
      
@@ -2302,7 +2302,7 @@ export default function DashboardPage() {
            )}
          </div>
          <div className="flex gap-1 items-center">
-           {!isDelivery && (!stateValue || stateValue === 'Pendiente') && (
+           {!isDelivery && t <= startOfToday && stateValue !== 'Asistió' && (
              <>
                <button onClick={() => handleMarkAsistio(contrato.id, stateField)} className="p-1.5 bg-white hover:bg-emerald-50 text-emerald-600 rounded-md shadow-sm transition-colors border border-gray-100" title="Asistió / Realizado">
                  <CheckCircle2 className="w-4 h-4" />
@@ -2312,7 +2312,7 @@ export default function DashboardPage() {
                </button>
              </>
            )}
-           <button onClick={() => openEditModal(contrato, stateField.replace('estado_', 'fecha_'), label)} className="p-1.5 bg-white hover:bg-blue-50 text-blue-600 rounded-md shadow-sm transition-colors border border-gray-100" title="Reprogramar">
+           <button onClick={() => openEditModal(contrato, dateField, label)} className="p-1.5 bg-white hover:bg-blue-50 text-blue-600 rounded-md shadow-sm transition-colors border border-gray-100" title="Reprogramar">
              <Edit2 className="w-4 h-4" />
            </button>
          </div>
@@ -2624,9 +2624,9 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="bg-gray-50/50 rounded-xl p-3 border border-gray-100/50 space-y-1">
-                      {renderLogisticsDate(c, 'Cita Medidas', c.fecha_cita_medidas, 'estado_cita_medidas', c.estado_cita_medidas)}
-                      {renderLogisticsDate(c, 'Prueba Final', c.fecha_prueba_final, 'estado_prueba_final', c.estado_prueba_final)}
-                      {renderLogisticsDate(c, 'P. de Entrega', c.fecha_entrega_envio, 'estado_entrega_envio', c.estado_entrega_envio)}
+                      {renderLogisticsDate(c, 'Cita Medidas', c.fecha_cita_medidas, 'estado_medidas', c.estado_medidas, 'fecha_cita_medidas')}
+                      {renderLogisticsDate(c, 'Prueba Final', c.fecha_prueba_final, 'estado_prueba_final', c.estado_prueba_final, 'fecha_prueba_final')}
+                      {renderLogisticsDate(c, 'P. de Entrega', c.fecha_entrega_envio, 'estado_entrega_envio', c.estado_entrega_envio, 'fecha_entrega_envio')}
                       
                       {/* Tarjeta Pre-XV (Verde) - Solo si tiene fecha_pre_xv */}
                       {c.fecha_pre_xv && (
@@ -2720,9 +2720,9 @@ export default function DashboardPage() {
                         <div className="text-xs text-gray-500">{c.cliente_documento}</div>
                       </td>
                       <td className="px-4 py-2 min-w-[200px]">
-                        {renderLogisticsDate(c, 'Cita Medidas', c.fecha_cita_medidas, 'estado_cita_medidas', c.estado_cita_medidas)}
-                        {renderLogisticsDate(c, 'Prueba Final', c.fecha_prueba_final, 'estado_prueba_final', c.estado_prueba_final)}
-                        {renderLogisticsDate(c, 'P. de Entrega', c.fecha_entrega_envio, 'estado_entrega_envio', c.estado_entrega_envio)}
+                        {renderLogisticsDate(c, 'Cita Medidas', c.fecha_cita_medidas, 'estado_medidas', c.estado_medidas, 'fecha_cita_medidas')}
+                        {renderLogisticsDate(c, 'Prueba Final', c.fecha_prueba_final, 'estado_prueba_final', c.estado_prueba_final, 'fecha_prueba_final')}
+                        {renderLogisticsDate(c, 'P. de Entrega', c.fecha_entrega_envio, 'estado_entrega_envio', c.estado_entrega_envio, 'fecha_entrega_envio')}
                         
                         {/* Tarjeta Pre-XV (Verde) Desktop - Solo si tiene fecha_pre_xv */}
                         {c.fecha_pre_xv && (
