@@ -3606,7 +3606,7 @@ export default function DashboardPage() {
 
                   {/* Internal Control Section */}
                   <section>
-                    {selectedContract.estado === 'finalizado' && user?.rol === 'admin' && (
+                    {selectedContract.estado?.toLowerCase() === 'finalizado' && user?.rol === 'admin' && (
                       <div className="mb-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="p-2 bg-red-100 rounded-lg text-red-600"><AlertTriangle className="w-5 h-5"/></div>
