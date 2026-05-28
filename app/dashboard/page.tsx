@@ -2263,16 +2263,33 @@ export default function DashboardPage() {
      const startOfToday = new Date().setHours(0,0,0,0);
 
      let colorClass = "text-gray-500 bg-gray-100";
-     if (stateValue === 'Asistió') {
-       colorClass = "text-emerald-700 bg-emerald-100 border-emerald-200";
-     } else if (stateValue === 'No Asistió') {
-       colorClass = "text-rose-700 bg-rose-100 border-rose-200";
-     } else if (t === startOfToday) {
-       colorClass = "text-amber-800 bg-amber-100 animate-pulse border-amber-300";
-     } else if (t < startOfToday) {
-       colorClass = "text-rose-800 bg-rose-50 border-rose-300"; // Past due but pending
+     let displayState = stateValue;
+     let isDelivery = label === 'P. de Entrega';
+     let isCompletedDelivery = isDelivery && (stateValue === 'entregado' || contrato.entregado_evento === true);
+
+     if (isDelivery) {
+       if (isCompletedDelivery) {
+         colorClass = "text-emerald-700 bg-emerald-100 border-emerald-200";
+         displayState = "ENTREGADO";
+       } else if (t === startOfToday) {
+         colorClass = "text-amber-800 bg-amber-100 animate-pulse border-amber-300";
+       } else if (t < startOfToday) {
+         colorClass = "text-rose-800 bg-rose-50 border-rose-300";
+       } else {
+         colorClass = "text-indigo-700 bg-indigo-50 border-indigo-100";
+       }
      } else {
-       colorClass = "text-indigo-700 bg-indigo-50 border-indigo-100"; // Future appointments
+       if (stateValue === 'Asistió') {
+         colorClass = "text-emerald-700 bg-emerald-100 border-emerald-200";
+       } else if (stateValue === 'No Asistió') {
+         colorClass = "text-rose-700 bg-rose-100 border-rose-200";
+       } else if (t === startOfToday) {
+         colorClass = "text-amber-800 bg-amber-100 animate-pulse border-amber-300";
+       } else if (t < startOfToday) {
+         colorClass = "text-rose-800 bg-rose-50 border-rose-300"; // Past due but pending
+       } else {
+         colorClass = "text-indigo-700 bg-indigo-50 border-indigo-100"; // Future appointments
+       }
      }
 
      return (
@@ -2280,10 +2297,12 @@ export default function DashboardPage() {
          <div>
            <span className="font-bold uppercase opacity-80">{label}</span><br/>
            <span className="font-semibold text-sm -mt-0.5 block">{new Date(t).toLocaleDateString('es-CO')}</span>
-           {(stateValue === 'Asistió' || stateValue === 'No Asistió') && <span className="block text-[9px] font-black uppercase tracking-wider mt-0.5">{stateValue}</span>}
+           {(stateValue === 'Asistió' || stateValue === 'No Asistió' || isCompletedDelivery) && (
+             <span className="block text-[9px] font-black uppercase tracking-wider mt-0.5">{displayState}</span>
+           )}
          </div>
          <div className="flex flex-col gap-1 opacity-10 md:opacity-0 group-hover:opacity-100 transition-opacity">
-           {stateValue === 'Pendiente' && t <= startOfToday && (
+           {!isDelivery && stateValue === 'Pendiente' && t <= startOfToday && (
              <>
                <button onClick={() => handleMarkAsistio(contrato.id, stateField)} className="p-1.5 bg-white hover:bg-emerald-50 text-emerald-600 rounded-md shadow-sm transition-colors" title="Asistió / Realizado">
                  <CheckCircle2 className="w-4 h-4" />
