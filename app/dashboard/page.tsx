@@ -2301,18 +2301,18 @@ export default function DashboardPage() {
              <span className="block text-[9px] font-black uppercase tracking-wider mt-0.5">{displayState}</span>
            )}
          </div>
-         <div className="flex flex-col gap-1 opacity-10 md:opacity-0 group-hover:opacity-100 transition-opacity">
-           {!isDelivery && stateValue === 'Pendiente' && t <= startOfToday && (
+         <div className="flex gap-1 items-center">
+           {!isDelivery && (!stateValue || stateValue === 'Pendiente') && (
              <>
-               <button onClick={() => handleMarkAsistio(contrato.id, stateField)} className="p-1.5 bg-white hover:bg-emerald-50 text-emerald-600 rounded-md shadow-sm transition-colors" title="Asistió / Realizado">
+               <button onClick={() => handleMarkAsistio(contrato.id, stateField)} className="p-1.5 bg-white hover:bg-emerald-50 text-emerald-600 rounded-md shadow-sm transition-colors border border-gray-100" title="Asistió / Realizado">
                  <CheckCircle2 className="w-4 h-4" />
                </button>
-               <button onClick={() => openMissedModal(contrato.id, stateField, label)} className="p-1.5 bg-white hover:bg-rose-50 text-rose-600 rounded-md shadow-sm transition-colors" title="No Asistió / Faltó">
+               <button onClick={() => openMissedModal(contrato.id, stateField, label)} className="p-1.5 bg-white hover:bg-rose-50 text-rose-600 rounded-md shadow-sm transition-colors border border-gray-100" title="No Asistió / Faltó">
                  <XCircle className="w-4 h-4" />
                </button>
              </>
            )}
-           <button onClick={() => openEditModal(contrato, stateField.replace('estado_', 'fecha_'), label)} className="p-1.5 bg-white hover:bg-blue-50 text-blue-600 rounded-md shadow-sm transition-colors" title="Reprogramar">
+           <button onClick={() => openEditModal(contrato, stateField.replace('estado_', 'fecha_'), label)} className="p-1.5 bg-white hover:bg-blue-50 text-blue-600 rounded-md shadow-sm transition-colors border border-gray-100" title="Reprogramar">
              <Edit2 className="w-4 h-4" />
            </button>
          </div>
