@@ -2265,7 +2265,12 @@ export default function DashboardPage() {
      let colorClass = "text-gray-500 bg-gray-100";
      let displayState = stateValue;
      let isDelivery = label === 'P. de Entrega';
-     let isCompletedDelivery = isDelivery && (stateValue === 'entregado' || contrato.entregado_evento === true);
+     let isCompletedDelivery = isDelivery && (
+       stateValue?.toLowerCase() === 'entregado' || 
+       contrato.estado_entrega?.toLowerCase() === 'entregado' ||
+       contrato.estado?.toLowerCase() === 'entregado' ||
+       contrato.entregado_evento === true
+     );
 
      if (isDelivery) {
        if (isCompletedDelivery) {
