@@ -154,7 +154,7 @@ export default function DashboardPage() {
   const [noteForm, setNoteForm] = useState({ tipo: 'WhatsApp', contenido: '' });
   const [noteLoading, setNoteLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeTabLogistica, setActiveTabLogistica] = useState<'por_entregar' | 'en_evento' | 'lavanderia' | 'historial'>('por_entregar');
+  const [activeTabLogistica, setActiveTabLogistica] = useState<'por_entregar' | 'en_evento' | 'lavanderia' | 'historial' | 'anulados'>('por_entregar');
   const [kpiVestidos, setKpiVestidos] = useState<any[]>([]);
 
   const getPendingInvoicesCount = () => {
@@ -2172,6 +2172,8 @@ export default function DashboardPage() {
             const totalPendiente = (Number(c.saldo) || 0) + (Number(c.total_multas) || 0);
             return ['finalizado', 'cancelado', 'rechazado'].includes(estado) && totalPendiente === 0;
           }
+          case 'anulados':
+            return estado === 'anulado';
           default:
             return true;
         }
@@ -2526,6 +2528,7 @@ export default function DashboardPage() {
                   { id: 'en_evento', label: 'En Evento', icon: '👗' },
                   { id: 'lavanderia', label: 'Logística / Lavandería', icon: '🧼' },
                   { id: 'historial', label: 'Historial', icon: '📁' },
+                  { id: 'anulados', label: 'Anulados', icon: '🚫' },
                 ].map((tab) => (
                   <button
                     key={tab.id}
