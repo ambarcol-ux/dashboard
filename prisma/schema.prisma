@@ -219,3 +219,25 @@ model mantenimiento_bitacora {
   contratos      contratos @relation(fields: [contrato_id], references: [id], onDelete: Cascade)
   vestidos       vestidos  @relation(fields: [vestido_id], references: [id], onDelete: Cascade)
 }
+
+model referidores {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre     String
+  slug       String   @unique
+  created_at DateTime @default(now()) @db.Timestamptz
+
+  codigos_descuento codigos_descuento[]
+}
+
+model codigos_descuento {
+  id                 String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  codigo             String      @unique
+  referidor_id       String      @db.Uuid
+  quinceanera_nombre String
+  telefono           String
+  fecha_evento       DateTime?   @db.Date
+  usado              Boolean?    @default(false)
+  created_at         DateTime    @default(now()) @db.Timestamptz
+
+  referidor referidores @relation(fields: [referidor_id], references: [id], onDelete: Cascade)
+}

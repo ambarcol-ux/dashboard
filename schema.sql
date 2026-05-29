@@ -193,3 +193,29 @@ CREATE TABLE asesoras (
     activo BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- ==============================================================================
+-- 11. Tabla: referidores
+-- Propósito: Almacena los aliados o referidores que tendrán un link dinámico.
+-- ==============================================================================
+CREATE TABLE referidores (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    nombre TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- ==============================================================================
+-- 12. Tabla: codigos_descuento
+-- Propósito: Registra los códigos generados a los clientes desde el link de un referidor.
+-- ==============================================================================
+CREATE TABLE codigos_descuento (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    codigo TEXT NOT NULL UNIQUE,
+    referidor_id UUID NOT NULL REFERENCES referidores(id) ON DELETE CASCADE,
+    quinceanera_nombre TEXT NOT NULL,
+    telefono TEXT NOT NULL,
+    fecha_evento DATE,
+    usado BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
