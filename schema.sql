@@ -201,7 +201,7 @@ CREATE TABLE asesoras (
 CREATE TABLE referidores (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     nombre TEXT NOT NULL,
-    slug TEXT NOT NULL UNIQUE,
+    slug_unico TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

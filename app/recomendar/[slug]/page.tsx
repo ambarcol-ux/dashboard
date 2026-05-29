@@ -9,7 +9,7 @@ import { toast, Toaster } from 'sonner';
 interface Referidor {
   id: string;
   nombre: string;
-  slug: string;
+  slug_unico: string;
 }
 
 export default function RecomendarPage() {
@@ -37,12 +37,16 @@ export default function RecomendarPage() {
       try {
         const { data, error } = await supabase
           .from('referidores')
-          .select('id, nombre, slug')
-          .eq('slug', slug)
+          .select('id, nombre, slug_unico')
+          .eq('slug_unico', slug)
           .single();
 
         if (error) {
-          console.error('Error fetching referidor:', error);
+          console.error('--- ERROR DE SUPABASE EN /recomendar/[slug] ---');
+          console.error('Código de error:', error.code);
+          console.error('Mensaje exacto:', error.message);
+          console.error('Detalles adicionales:', error.details);
+          console.error('Hint:', error.hint);
           setReferidor(null);
         } else {
           setReferidor(data);

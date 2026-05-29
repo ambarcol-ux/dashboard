@@ -223,7 +223,7 @@ model mantenimiento_bitacora {
 model referidores {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   nombre     String
-  slug       String   @unique
+  slug_unico String   @unique
   created_at DateTime @default(now()) @db.Timestamptz
 
   codigos_descuento codigos_descuento[]
