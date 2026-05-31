@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { 
-  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X 
+  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote 
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -26,6 +26,9 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
     { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'rose' },
     { id: 'inventory', label: 'GESTIÓN DE INVENTARIO', icon: Package, href: '/admin/inventory', color: 'amber' },
     { id: 'config', label: 'CONFIGURACIÓN BASE', icon: Settings, href: '/admin/config', color: 'gray', opacity: 'opacity-60 hover:opacity-100' },
+    { id: 'comisiones', label: 'CONFIGURACIÓN COMISIONES', icon: Settings, href: '/dashboard/admin/escalas', color: 'gray', opacity: 'opacity-60 hover:opacity-100' },
+    { id: 'aliados_admin', label: 'GESTIÓN DE ALIADOS', icon: Handshake, href: '/dashboard/admin/aliados', color: 'gray', opacity: 'opacity-60 hover:opacity-100' },
+    { id: 'liquidaciones', label: 'CIERRE DE MES', icon: Banknote, href: '/dashboard/admin/liquidaciones', color: 'gray', opacity: 'opacity-60 hover:opacity-100' },
   ];
 
   const SidebarContent = ({ isMobile = false }) => (

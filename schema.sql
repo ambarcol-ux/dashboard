@@ -200,7 +200,7 @@ CREATE TABLE asesoras (
 -- ==============================================================================
 CREATE TABLE referidores (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    nombre TEXT NOT NULL,
+    nombre_aliado TEXT NOT NULL,
     slug_unico TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
@@ -211,10 +211,11 @@ CREATE TABLE referidores (
 -- ==============================================================================
 CREATE TABLE codigos_descuento (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    codigo TEXT NOT NULL UNIQUE,
+    codigo_seguridad TEXT NOT NULL UNIQUE,
     referidor_id UUID NOT NULL REFERENCES referidores(id) ON DELETE CASCADE,
-    quinceanera_nombre TEXT NOT NULL,
-    telefono TEXT NOT NULL,
+    nombre_quinceanera TEXT NOT NULL,
+    telefono_quinceanera TEXT NOT NULL,
+    correo_quinceanera TEXT NOT NULL,
     fecha_evento DATE,
     usado BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL

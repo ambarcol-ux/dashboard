@@ -12,7 +12,12 @@ import { useRouter } from 'next/navigation';
 
 export default function NuevoContratoPage() {
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
   const [sedesList, setSedesList] = useState<any[]>([]);
   const [alistamientoData, setAlistamientoData] = useState<any>(null);
   const [isSubmittingException, setIsSubmittingException] = useState(false);
@@ -29,6 +34,13 @@ export default function NuevoContratoPage() {
   const [userRole, setUserRole] = useState<string>('user');
   const [crossBranchWarning, setCrossBranchWarning] = useState<{ active: boolean; origin: string; codigo: string }>({ active: false, origin: '', codigo: '' });
   const [adminAuthorizedTransfer, setAdminAuthorizedTransfer] = useState(false);
+
+  // -- VIP Discount State --
+  const [vipCodeInput, setVipCodeInput] = useState('');
+  const [vipStatus, setVipStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [vipMessage, setVipMessage] = useState('');
+  const [vipDiscount, setVipDiscount] = useState(0);
+  const [vipAliado, setVipAliado] = useState('');
 
   // -- State Principal --
   const [formData, setFormData] = useState({
@@ -58,6 +70,7 @@ export default function NuevoContratoPage() {
 
     // Finanzas
     valor_total: '',
+    servicios_adicionales: '',
     anticipo: '',
 
     // Depósito
@@ -384,16 +397,63 @@ export default function NuevoContratoPage() {
 
   useEffect(() => {
     // Calculo dinámico de finanzas
-    const valorAlquiler = parseFloat(formData.valor_total) || 0;
-    const anticipo = parseFloat(formData.anticipo) || 0;
+    const valorAlquiler = parseFloat(formData.valor_total.toString().replace(/[^0-9.-]+/g, "")) || 0;
+    const anticipo = parseFloat(formData.anticipo.toString().replace(/[^0-9.-]+/g, "")) || 0;
+    const serviciosExtra = parseFloat(formData.servicios_adicionales.toString().replace(/[^0-9.-]+/g, "")) || 0;
 
-    const sumArreglos = arreglos.reduce((acc, curr) => acc + (parseFloat(curr.precio) || 0), 0);
+    const sumArreglos = arreglos.reduce((acc, curr) => acc + (parseFloat(curr.precio.toString().replace(/[^0-9.-]+/g, "")) || 0), 0);
     setTotalArreglos(sumArreglos);
 
-    const nuevoSaldo = (valorAlquiler + sumArreglos) - anticipo;
+    // Saldo Final Real = Valor Alquiler Base + Servicios Extra + Costo Arreglos - Descuento VIP - Abono Inicial
+    const nuevoSaldo = (valorAlquiler + serviciosExtra + sumArreglos) - vipDiscount - anticipo;
     setSaldoCalc(Math.max(0, nuevoSaldo));
-  }, [formData.valor_total, formData.anticipo, arreglos]);
+  }, [formData.valor_total, formData.servicios_adicionales, formData.anticipo, arreglos, vipDiscount]);
 
+
+  // -- Manejadores VIP --
+  const handleValidateVIP = async () => {
+    if (!vipCodeInput.trim()) return;
+    setVipStatus('loading');
+    setVipMessage('');
+    
+    try {
+      // Regla de Negocio: Escala Fija basada en Valor Alquiler Base
+      // Convertir a número entero limpio evadiendo formatos de texto
+      const cleanText = formData.valor_total ? String(formData.valor_total).replace(/[^0-9.-]+/g, "") : "0";
+      const currentTotal = parseInt(cleanText, 10) || 0;
+      
+      const { data, error } = await supabase.rpc('validar_y_quemar_codigo', { 
+        p_codigo: vipCodeInput.trim(), 
+        p_contrato_id: 'NUEVO-CONTRATO-EN-CREACION',
+        p_valor_alquiler_base: currentTotal
+      });
+
+      if (error) throw error;
+
+      const responseObj = Array.isArray(data) ? data[0] : data;
+
+      // Si la base de datos no retorna nada o valido es falso
+      if (!responseObj || responseObj.valido === false) {
+        setVipStatus('error');
+        setVipMessage(responseObj?.error || 'Código inválido o ya utilizado.');
+        return;
+      }
+
+      // Si es exitoso
+      setVipStatus('success');
+      setVipAliado(responseObj.nombre_aliado || 'Referidor VIP');
+      // Ahora Supabase devuelve el descuento dinámico basado en la escala
+      setVipDiscount(responseObj.descuento_cliente || 0);
+      
+      // El valor base (valor_total) NO se toca. 
+      // El descuento se restará matemáticamente en el useEffect del saldo final junto a los servicios adicionales.
+
+    } catch (err: any) {
+      console.error('Error detallado:', err?.message, err);
+      setVipStatus('error');
+      setVipMessage(err?.message || 'Error crítico al validar el código.');
+    }
+  };
 
   // -- Manejadores --
 
@@ -1016,6 +1076,8 @@ export default function NuevoContratoPage() {
     </div>
   );
 
+  if (!mounted) return null;
+
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center py-8 font-sans px-2 sm:px-4 pb-24">
       <Toaster position="top-right" richColors />
@@ -1412,12 +1474,68 @@ export default function NuevoContratoPage() {
                 <div className="grid grid-cols-2 gap-4">
                   {renderTextInput("Valor Alquiler Base", "valor_total", <DollarSign className="w-4 h-4 text-emerald-600" />, "number", true)}
                   <div className="space-y-1">
+                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+                      <DollarSign className="w-4 h-4 text-emerald-600" /> Servicios Adicionales (Maquillaje, Fotografía, Otros)
+                    </label>
+                    <input
+                      type="number"
+                      name="servicios_adicionales"
+                      value={String(formData.servicios_adicionales)}
+                      onChange={handleChange}
+                      className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-300 font-medium"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <div className="space-y-1 col-span-2">
                     <label className="text-sm font-semibold text-gray-600 flex items-center gap-2 px-1">Costo Arreglos (+)</label>
                     <div className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold text-lg opacity-80 cursor-not-allowed">
                       $ {totalArreglos.toLocaleString('es-CO')}
                     </div>
                   </div>
                 </div>
+
+                {/* VIP Code Section */}
+                <div className="p-4 bg-white border border-rose-100 rounded-xl shadow-sm">
+                  <label className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
+                    <Tag className="w-4 h-4 text-rose-500" /> Código VIP de Referido
+                  </label>
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={vipCodeInput}
+                      onChange={(e) => setVipCodeInput(e.target.value)}
+                      disabled={vipStatus === 'success' || vipStatus === 'loading'}
+                      placeholder="Ej: AMBAR-ABCD"
+                      className="flex-1 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-2.5 font-medium focus:ring-2 focus:ring-rose-300 disabled:opacity-50 outline-none"
+                    />
+                    <button 
+                      type="button"
+                      onClick={handleValidateVIP}
+                      disabled={vipStatus === 'success' || vipStatus === 'loading' || !vipCodeInput.trim()}
+                      className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-zinc-800 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                    >
+                      {vipStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Validar'}
+                    </button>
+                  </div>
+                  {vipStatus === 'error' && (
+                    <p className="text-red-500 text-xs font-semibold mt-2 flex items-center gap-1">
+                      <AlertTriangle className="w-3 h-3" /> {vipMessage}
+                    </p>
+                  )}
+                  {vipStatus === 'success' && (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-emerald-600 text-xs font-semibold flex items-center gap-1">
+                        <CheckCircle2 className="w-4 h-4" /> ✨ Descuento aplicado por invitación de {vipAliado}
+                      </p>
+                      <p className="text-rose-600 text-[11px] font-bold uppercase tracking-wider">
+                        Descuento Aliado: -${vipDiscount.toLocaleString('es-CO')}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-2 gap-4 items-end">
                   {renderTextInput("Abono Inicial", "anticipo", <DollarSign className="w-4 h-4 text-emerald-600" />, "number", true)}
                   <div className="p-3 bg-white rounded-xl shadow-inner border border-rose-200 text-center relative overflow-hidden group">

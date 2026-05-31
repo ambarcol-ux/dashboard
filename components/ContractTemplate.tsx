@@ -14,7 +14,7 @@ export interface ContractData {
   saldo: number;
   created_at: string;
   firma_base64?: string;
-  
+
   tipo_evento?: string;
   fecha_pre_xv?: string;
   fecha_cita_medidas?: string;
@@ -85,7 +85,8 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
         Tailwind 4 usa oklch() por defecto, lo cual rompe html2canvas.
         Aquí forzamos las variables críticas a HEX estándar.
       */}
-      <style dangerouslySetInnerHTML={{ __html: `
+      <style dangerouslySetInnerHTML={{
+        __html: `
         :root, #hidden-pdf-template {
           --color-gray-900: #111827 !important;
           --color-gray-800: #1f2937 !important;
@@ -112,7 +113,7 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
         }
       `}} />
       <div className="bg-white w-full max-w-4xl shadow-2xl mx-4 sm:mx-8 md:mx-auto p-12 sm:p-16 md:p-20 leading-relaxed text-justify relative">
-        
+
         {/* Encabezado Principal - Refactorizado para evitar solapamiento y mayor aire */}
         <div className="flex flex-col md:flex-row justify-between items-center sm:items-start mb-12 border-b-2 border-gray-900 pb-10 pt-4 h-auto relative">
           <div className="text-center md:text-left flex-grow pr-0 md:pr-8">
@@ -136,93 +137,93 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
 
         {/* Párrafo de Apertura */}
         <p className="mb-6 text-base md:text-lg">
-          Entre los suscritos, de una parte, <strong>AMBAR COUTURE</strong>, sociedad legalmente constituida, 
-          con domicilio en Villavicencio, Meta, Colombia, de aquí en adelante llamada <strong>EL PRESTADOR/ARRENDADOR</strong>, 
-          y de la otra, <strong>{data.cliente_nombre.toUpperCase()}</strong>, identificado(a) con cédula 
-          de ciudadanía No. <strong>{data.cliente_documento}</strong>, con domicilio en <strong>{data.cliente_direccion}</strong>, 
-          de aquí en adelante llamado(a) <strong>EL CONTRATANTE/ARRENDATARIO</strong>, hemos acordado celebrar este contrato mixto. 
-          Este se regirá por las siguientes cláusulas y, en lo que no esté aquí previsto, por lo que dice el Código Civil Colombiano sobre 
+          Entre los suscritos, de una parte, <strong>AMBAR COUTURE</strong>, sociedad legalmente constituida,
+          con domicilio en Villavicencio, Meta, Colombia, de aquí en adelante llamada <strong>EL PRESTADOR/ARRENDADOR</strong>,
+          y de la otra, <strong>{data.cliente_nombre.toUpperCase()}</strong>, identificado(a) con cédula
+          de ciudadanía No. <strong>{data.cliente_documento}</strong>, con domicilio en <strong>{data.cliente_direccion}</strong>,
+          de aquí en adelante llamado(a) <strong>EL CONTRATANTE/ARRENDATARIO</strong>, hemos acordado celebrar este contrato mixto.
+          Este se regirá por las siguientes cláusulas y, en lo que no esté aquí previsto, por lo que dice el Código Civil Colombiano sobre
           el arriendo de cosas muebles y las normas generales de los contratos:
         </p>
 
         {/* --- ERP SUMMARY BOX --- */}
         <div className="my-8 border-2 border-gray-900 p-6 rounded text-sm text-left shadow-sm bg-gray-50/30">
-            <h2 className="font-bold text-base mb-4 uppercase border-b border-gray-900 pb-1 flex justify-between">
-              <span>Anexo Técnico del Servicio</span>
-              <span className="text-gray-500 text-xs mt-1">Ref Principal: {(data.vestidos && data.vestidos.length > 0) ? (data.vestidos[0].vestido?.codigo || data.vestidos[0].vestido?.codigo_referencia || '—') : '—'}</span>
-            </h2>
-           <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-              <div className="col-span-2 sm:col-span-1 border-b sm:border-b-0 sm:border-r border-dashed border-gray-400 pb-2 sm:pb-0 sm:pr-4">
-                <strong>Tipo de Servicio:</strong> {
-                  data.tipo_evento === 'Evento' ? 'alquiler de vestido destinado exclusivamente para evento' :
+          <h2 className="font-bold text-base mb-4 uppercase border-b border-gray-900 pb-1 flex justify-between">
+            <span>Anexo Técnico del Servicio</span>
+            <span className="text-gray-500 text-xs mt-1">Ref Principal: {(data.vestidos && data.vestidos.length > 0) ? (data.vestidos[0].vestido?.codigo || data.vestidos[0].vestido?.codigo_referencia || '—') : '—'}</span>
+          </h2>
+          <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <div className="col-span-2 sm:col-span-1 border-b sm:border-b-0 sm:border-r border-dashed border-gray-400 pb-2 sm:pb-0 sm:pr-4">
+              <strong>Tipo de Servicio:</strong> {
+                data.tipo_evento === 'Evento' ? 'alquiler de vestido destinado exclusivamente para evento' :
                   data.tipo_evento === 'PreXV' ? 'alquiler de vestido destinado exclusivamente para sesión prexv' :
-                  data.tipo_evento === 'Ambos' ? 'servicio de alquiler de vestido para evento y sesión prexv' :
-                  (data.tipo_evento || '—')
-                } <br/>
-                
-                {data.tipo_evento === 'PreXV' ? (
-                  <>
-                    <strong className="text-amber-700 block mt-2">Día de Fotos / Entrega: {formatDate(data.fecha_evento)}</strong>
-                  </>
-                ) : (
-                  <>
-                    <strong>Día del Evento:</strong> {formatDate(data.fecha_evento)} <br/>
-                   {(data.tipo_evento === 'PreXV' || data.tipo_evento === 'Ambos') && (
-                      <div className="mt-1 border-t border-gray-200 pt-1">
-                      <strong>P. Fotografía:</strong> {formatDate(data.fecha_pre_xv)}<br/>
-                      </div>
-                    )}
-                  </>
+                    data.tipo_evento === 'Ambos' ? 'servicio de alquiler de vestido para evento y sesión prexv' :
+                      (data.tipo_evento || '—')
+              } <br />
+
+              {data.tipo_evento === 'PreXV' ? (
+                <>
+                  <strong className="text-amber-700 block mt-2">Día de Fotos / Entrega: {formatDate(data.fecha_evento)}</strong>
+                </>
+              ) : (
+                <>
+                  <strong>Día del Evento:</strong> {formatDate(data.fecha_evento)} <br />
+                  {(data.tipo_evento === 'PreXV' || data.tipo_evento === 'Ambos') && (
+                    <div className="mt-1 border-t border-gray-200 pt-1">
+                      <strong>P. Fotografía:</strong> {formatDate(data.fecha_pre_xv)}<br />
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div className="col-span-2 sm:col-span-1 pl-0 sm:pl-2">
+              <strong>Accesorios Inclusivos:</strong> {data.accesorios && data.accesorios.length > 0 ? data.accesorios.join(', ') : '—'}<br />
+              <strong>Asesora a Cargo:</strong> {data.asesora || '—'}<br />
+
+              <div className="mt-2 border-t border-gray-200 pt-2 text-xs">
+                <strong className="block mb-1 text-sm">Referencias Asignadas:</strong>
+                <ul className="list-disc pl-4 space-y-1 border-l-2 border-gray-300 ml-1">
+                  {(data.vestidos && data.vestidos.length > 0) ? (
+                    data.vestidos.map((v, i) => (
+                      <li key={i}>
+                        <span className="font-bold">{v.vestido?.codigo || '—'}</span> - {v.tipo_uso || '—'}
+                        {v.observaciones && v.observaciones.trim() !== '' && (
+                          <span className="block text-[10px] italic text-gray-500">Nota: {v.observaciones}</span>
+                        )}
+                      </li>
+                    ))
+                  ) : (
+                    <li className="italic text-gray-500">— No hay prendas registradas —</li>
+                  )}
+                </ul>
+              </div>
+            </div>
+            <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-gray-400 grid grid-cols-2 gap-4">
+              <div className="col-span-2 sm:col-span-1 border-b sm:border-b-0 sm:border-r border-dashed border-gray-400 pb-2 sm:pb-0 sm:pr-4">
+                <strong>Cita Medidas:</strong> {formatDate(data.fecha_cita_medidas)} <br />
+                <strong>Prueba Final:</strong> {formatDate(data.fecha_prueba_final)} <br />
+                {data.tipo_evento !== 'PreXV' && (
+                  <><strong>Entrega {data.tipo_entrega === 'Nacional' ? '(Nacional)' : '(Local)'}:</strong> {formatDate(data.fecha_entrega_envio)}</>
                 )}
-             </div>
-             <div className="col-span-2 sm:col-span-1 pl-0 sm:pl-2">
-                <strong>Accesorios Inclusivos:</strong> {data.accesorios && data.accesorios.length > 0 ? data.accesorios.join(', ') : '—'}<br/>
-                <strong>Asesora a Cargo:</strong> {data.asesora || '—'}<br/>
-                
-                <div className="mt-2 border-t border-gray-200 pt-2 text-xs">
-                  <strong className="block mb-1 text-sm">Referencias Asignadas:</strong>
-                  <ul className="list-disc pl-4 space-y-1 border-l-2 border-gray-300 ml-1">
-                    {(data.vestidos && data.vestidos.length > 0) ? (
-                      data.vestidos.map((v, i) => (
-                        <li key={i}>
-                          <span className="font-bold">{v.vestido?.codigo || '—'}</span> - {v.tipo_uso || '—'}
-                          {v.observaciones && v.observaciones.trim() !== '' && (
-                            <span className="block text-[10px] italic text-gray-500">Nota: {v.observaciones}</span>
-                          )}
-                        </li>
-                      ))
-                    ) : (
-                      <li className="italic text-gray-500">— No hay prendas registradas —</li>
-                    )}
-                  </ul>
-                </div>
-             </div>
-             <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-gray-400 grid grid-cols-2 gap-4">
-                <div className="col-span-2 sm:col-span-1 border-b sm:border-b-0 sm:border-r border-dashed border-gray-400 pb-2 sm:pb-0 sm:pr-4">
-                   <strong>Cita Medidas:</strong> {formatDate(data.fecha_cita_medidas)} <br/>
-                   <strong>Prueba Final:</strong> {formatDate(data.fecha_prueba_final)} <br/>
-                   {data.tipo_evento !== 'PreXV' && (
-                     <><strong>Entrega {data.tipo_entrega === 'Nacional' ? '(Nacional)' : '(Local)'}:</strong> {formatDate(data.fecha_entrega_envio)}</>
-                   )}
-                </div>
-                <div className="col-span-2 sm:col-span-1 pl-0 sm:pl-2">
-                  <strong>Valor Alquiler Base:</strong> {formatCurrency(data.valor_total)}<br/>
-                  <strong>Servicio Arreglos:</strong> {formatCurrency(data.total_arreglos || 0)}<br/>
-                  <strong>Abono Confirmado:</strong> {formatCurrency(data.anticipo)}<br/>
-                  <strong className="text-gray-900 border-t border-gray-300 block mt-1 pt-1 text-base">SALDO PENDIENTE: {formatCurrency(data.saldo)}</strong>
-                </div>
-             </div>
-             {data.arreglos && data.arreglos.length > 0 && (
-                <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-gray-400 text-xs text-gray-800">
-                  <strong className="text-gray-900 font-bold">Modificaciones Aprobadas:</strong> {data.arreglos.map((a: any) => `${a.tipo || '—'} (${a.cm ? a.cm+'cm' : '—'} → $${a.precio || 0})`).join(' | ')}
-                </div>
-             )}
-             {(data.banco_deposito || data.numero_cuenta_deposito) && (
-                <div className="col-span-2 mt-2 text-xs italic text-gray-600 font-medium border-t border-gray-200 pt-1">
-                  * Depósito de garantía asociado a {data.banco_deposito || '—'} {data.tipo_cuenta_deposito || '—'} {data.numero_cuenta_deposito || '—'} ({data.titular_cuenta_deposito || '—'}).
-                </div>
-             )}
-           </div>
+              </div>
+              <div className="col-span-2 sm:col-span-1 pl-0 sm:pl-2">
+                <strong>Valor Alquiler Base:</strong> {formatCurrency(data.valor_total)}<br />
+                <strong>Servicio Arreglos:</strong> {formatCurrency(data.total_arreglos || 0)}<br />
+                <strong>Abono Confirmado:</strong> {formatCurrency(data.anticipo)}<br />
+                <strong className="text-gray-900 border-t border-gray-300 block mt-1 pt-1 text-base">SALDO PENDIENTE: {formatCurrency(data.saldo)}</strong>
+              </div>
+            </div>
+            {data.arreglos && data.arreglos.length > 0 && (
+              <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-gray-400 text-xs text-gray-800">
+                <strong className="text-gray-900 font-bold">Modificaciones Aprobadas:</strong> {data.arreglos.map((a: any) => `${a.tipo || '—'} (${a.cm ? a.cm + 'cm' : '—'} → $${a.precio || 0})`).join(' | ')}
+              </div>
+            )}
+            {(data.banco_deposito || data.numero_cuenta_deposito) && (
+              <div className="col-span-2 mt-2 text-xs italic text-gray-600 font-medium border-t border-gray-200 pt-1">
+                * Depósito de garantía asociado a {data.banco_deposito || '—'} {data.tipo_cuenta_deposito || '—'} {data.numero_cuenta_deposito || '—'} ({data.titular_cuenta_deposito || '—'}).
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Sección de Información del Cliente y del Alquiler */}
@@ -265,21 +266,21 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
 
         {/* Cláusulas del Contrato */}
         <h2 className="text-xl font-bold mb-6 text-center underline tracking-wide">CLÁUSULAS</h2>
-        
+
         <div className="space-y-6 text-base md:text-lg">
           <p>
             <strong>PRIMERA. Objeto del Contrato:</strong> <strong>EL PRESTADOR/ARRENDADOR</strong> se compromete a entregar en arriendo a <strong>EL CONTRATANTE/ARRENDATARIO</strong> la prenda que se describe en la sección "Información del Cliente y del Alquiler" de este documento. Así mismo, <strong>EL PRESTADOR/ARRENDADOR</strong> se compromete a prestar los servicios asociados a este arriendo, como las <strong>citas para tomar medidas y las pruebas finales para alquiler de fiesta o evento</strong>. En el caso de <strong>Alquiler Pre XV</strong>, también coordinará las fechas y horas para las fotos y el maquillaje. La prenda se entrega en perfecto estado y limpia, a menos que se anote algo distinto en la sección de "Observaciones".
           </p>
           <p>
-            <strong>SEGUNDA. Precio y Forma de Pago:</strong> El valor total por el arriendo de la prenda y los servicios 
-            asociados es el que se indica en la sección &lsquo;Total Alquiler&rsquo; de este contrato (<strong>{formatCurrency(data.valor_total)}</strong>). 
+            <strong>SEGUNDA. Precio y Forma de Pago:</strong> El valor total por el arriendo de la prenda y los servicios
+            asociados es el que se indica en la sección &lsquo;Total Alquiler&rsquo; de este contrato (<strong>{formatCurrency(data.valor_total)}</strong>).
             EL CONTRATANTE/ARRENDATARIO se compromete a pagar ese valor según el "Método de Pago" y los "Abonos" y "Saldos" que allí se especifican.
           </p>
           <p>
-            <strong>TERCERA. Depósito en Garantía:</strong> Para asegurar que se cumplan las obligaciones de este contrato y 
-            para proteger la prenda arrendada, EL CONTRATANTE/ARRENDATARIO entrega a EL PRESTADOR/ARRENDADOR un depósito 
-            en garantía por valor de $100.000, $200.000, $300.000, $400.000 o $500.000, dependiendo del alquiler. 
-            Este depósito solo se puede hacer por transferencia. El depósito se le devolverá a EL CONTRATANTE/ARRENDATARIO 
+            <strong>TERCERA. Depósito en Garantía:</strong> Para asegurar que se cumplan las obligaciones de este contrato y
+            para proteger la prenda arrendada, EL CONTRATANTE/ARRENDATARIO entrega a EL PRESTADOR/ARRENDADOR un depósito
+            en garantía por valor de $100.000, $200.000, $300.000, $400.000 o $500.000, dependiendo del alquiler.
+            Este depósito solo se puede hacer por transferencia. El depósito se le devolverá a EL CONTRATANTE/ARRENDATARIO
             en un plazo de 72 horas una vez la prenda regrese a la tienda y se verifique que está en perfectas condiciones. Si se presenta alguna novedad o daño, el depósito se retendrá por <strong>6 días hábiles</strong> mientras se valoran los daños, y se le informarán los descuentos pertinentes, los cuales <strong>EL CONTRATANTE/ARRENDATARIO</strong> autoriza a ser descontados de dicho depósito.
           </p>
           <div>
@@ -348,7 +349,7 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
             </p>
           </div>
           <p>
-            <strong>SÉPTIMA. Arreglos:</strong> Los arreglos no están incluidos en el precio del alquiler cuando se obtiene 
+            <strong>SÉPTIMA. Arreglos:</strong> Los arreglos no están incluidos en el precio del alquiler cuando se obtiene
             un descuento o promoción.
           </p>
           <div className="space-y-4">
@@ -404,7 +405,7 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
 
             <p>
               <strong>PARAGRAFO SEGUNDO: ANTICIPO PARA PROCESO DE ADQUISICIÓN DEL VESTIDO “ESTRENO”.</strong><br />
-            Este anticipo se justifica en que el vestido será gestionado o producido específicamente para la cliente, generando compromisos económicos inmediatos con proveedores, procesos de producción, transporte y logística.
+              Este anticipo se justifica en que el vestido será gestionado o producido específicamente para la cliente, generando compromisos económicos inmediatos con proveedores, procesos de producción, transporte y logística.
             </p>
           </div>
           <div className="space-y-4 text-justify">
@@ -424,7 +425,7 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
               En caso de fractura, ruptura estructural o daño grave de la tiara entregada, <strong>EL CONTRATANTE/ARRENDATARIO</strong> autoriza expresamente a <strong>EL PRESTADOR/ARRENDADOR</strong> a cobrar un valor por concepto de reposición o reparación, el cual será del valor de venta del producto (accesorio) por parte del prestador/arrendador la cual podrá el contratante/arrendatario tener conocimiento en el instante de la entrega o en el momento de realizar el alquiler, suma que podrá ser descontada del depósito en garantía o cobrada directamente al cliente si dicho valor supera el monto del depósito.
             </p>
           </div>
-             {(data.tipo_evento === 'PreXV' || data.tipo_evento === 'Ambos') && (
+          {(data.tipo_evento === 'PreXV' || data.tipo_evento === 'Ambos') && (
             <div className="space-y-4 text-justify">
               <p><strong>DÉCIMA. Alquiler para Pre XV (Aplicable a Alquiler General):</strong></p>
               <p>
@@ -511,7 +512,7 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
             La pérdida de la funda del vestido tendrá un costo de <strong>$30.000</strong> para el tamaño pequeño y <strong>$50.000</strong> para el tamaño grande.
           </p>
 
-           {(data.tipo_evento === 'PreXV' || data.tipo_evento === 'Ambos') && (
+          {(data.tipo_evento === 'PreXV' || data.tipo_evento === 'Ambos') && (
             <div className="space-y-4 text-justify">
               <p><strong>DÉCIMA SEGUNDA. SERVICIOS PRE XV CON TERCEROS – ACTIVIDAD CON EQUINOS</strong></p>
               <p>
@@ -599,17 +600,17 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
         <div className="mt-12 pt-6 flex justify-around items-end gap-16" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <div className="text-center w-full max-w-[300px] flex flex-col items-center">
             <div className="flex justify-center items-center h-20 -mb-8 z-10 relative">
-              <img 
-                src="/assets/firma_representante.png" 
-                alt="Firma Jorge Romero" 
+              <img
+                src="/assets/firma_representante.png"
+                alt="Firma Jorge Romero"
                 className="max-h-[130%] w-auto object-contain"
               />
             </div>
             <div className="border-t-2 border-black pt-2">
-                <p className="font-extrabold text-sm uppercase">FIRMA DEL PRESTADOR/ARRENDADOR</p>
-                <p className="font-bold text-sm">AMBAR COUTURE</p>
-                <p className="text-xs">Jorge Andres Romero</p>
-                <p className="text-xs">Cédula #80.031.674</p>
+              <p className="font-extrabold text-sm uppercase">FIRMA DEL PRESTADOR/ARRENDADOR</p>
+              <p className="font-bold text-sm">AMBAR COUTURE</p>
+              <p className="text-xs">Jorge Andres Romero</p>
+              <p className="text-xs">Cédula #80.031.674</p>
             </div>
           </div>
 
@@ -623,13 +624,13 @@ export default function ContractTemplate({ data }: ContractTemplateProps) {
               )}
             </div>
             <div className="border-t-2 border-black pt-2">
-                <p className="font-extrabold text-sm uppercase leading-none mb-1">FIRMA DEL CONTRATANTE</p>
-                <p className="font-bold text-sm uppercase tracking-tight">{data.cliente_nombre}</p>
-                <p className="text-xs">C.C. {data.cliente_documento}</p>
+              <p className="font-extrabold text-sm uppercase leading-none mb-1">FIRMA DEL CONTRATANTE</p>
+              <p className="font-bold text-sm uppercase tracking-tight">{data.cliente_nombre}</p>
+              <p className="text-xs">C.C. {data.cliente_documento}</p>
             </div>
           </div>
         </div>
-        
+
         {/* Footer */}
         <div className="mt-16 text-center text-xs text-gray-500 font-sans border-t border-gray-200 pt-6">
           <p>Documento generado el {formatDate(data.created_at)}</p>

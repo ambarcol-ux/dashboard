@@ -8,7 +8,7 @@ import { toast, Toaster } from 'sonner';
 
 interface Referidor {
   id: string;
-  nombre: string;
+  nombre_aliado: string;
   slug_unico: string;
 }
 
@@ -21,6 +21,7 @@ export default function RecomendarPage() {
   
   const [nombre, setNombre] = useState('');
   const [telefono, setTelefono] = useState('');
+  const [correo, setCorreo] = useState('');
   const [fechaEvento, setFechaEvento] = useState('');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,11 +36,14 @@ export default function RecomendarPage() {
       }
       
       try {
+        console.log('-> El slug que Next.js está capturando de la URL es:', slug);
+        console.log('-> Ejecutando consulta en Supabase para el slug_unico:', slug);
+        
         const { data, error } = await supabase
           .from('referidores')
-          .select('id, nombre, slug_unico')
+          .select('id, nombre_aliado, slug_unico')
           .eq('slug_unico', slug)
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error('--- ERROR DE SUPABASE EN /recomendar/[slug] ---');
@@ -74,7 +78,7 @@ export default function RecomendarPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!referidor) return;
-    if (!nombre.trim() || !telefono.trim() || !fechaEvento) {
+    if (!nombre.trim() || !telefono.trim() || !correo.trim() || !fechaEvento) {
       toast.error('Por favor, completa todos los campos.');
       return;
     }
@@ -85,10 +89,11 @@ export default function RecomendarPage() {
       const nuevoCodigo = generarCodigoAleatorio();
       
       const { error } = await supabase.from('codigos_descuento').insert([{
-        codigo: nuevoCodigo,
+        codigo_seguridad: nuevoCodigo,
         referidor_id: referidor.id,
-        quinceanera_nombre: nombre.trim(),
-        telefono: telefono.trim(),
+        nombre_quinceanera: nombre.trim(),
+        telefono_quinceanera: telefono.trim(),
+        correo_quinceanera: correo.trim(),
         fecha_evento: fechaEvento,
         usado: false
       }]);
@@ -102,9 +107,25 @@ export default function RecomendarPage() {
         return;
       }
 
+      // Disparar el correo en segundo plano (sin await) para no bloquear la UI
+      try {
+        fetch('/api/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            emailQuinceanera: correo.trim(),
+            nombreQuinceanera: nombre.trim(),
+            codigoVip: nuevoCodigo,
+            nombreAliado: referidor.nombre_aliado
+          }),
+        }).catch(err => console.error('Fallo asíncrono en Resend:', err));
+      } catch (emailErr) {
+        console.error('Error de red al intentar enviar el correo:', emailErr);
+      }
+
       setCodigoGenerado(nuevoCodigo);
     } catch (err) {
-      console.error('Error guardando el código:', err);
+      console.error('--- DETALLE COMPLETO DEL ERROR ---', JSON.stringify(err, null, 2), err);
       toast.error('Ocurrió un error inesperado al procesar tu invitación. Intenta nuevamente.');
     } finally {
       setIsSubmitting(false);
@@ -164,7 +185,7 @@ export default function RecomendarPage() {
 
           <h1 className="text-3xl text-zinc-900 font-serif mb-2 tracking-tight mt-4">¡Felicidades!</h1>
           <p className="text-zinc-500 font-light text-sm mb-10">
-            Tu invitación VIP a través de <strong className="font-medium text-zinc-800">{referidor.nombre}</strong> ha sido activada con éxito.
+            Tu invitación VIP a través de <strong className="font-medium text-zinc-800">{referidor.nombre_aliado}</strong> ha sido activada con éxito.
           </p>
 
           <div className="bg-gradient-to-br from-zinc-900 to-zinc-800 rounded-2xl p-8 mb-8 shadow-2xl shadow-zinc-900/20 relative overflow-hidden group">
@@ -195,22 +216,38 @@ export default function RecomendarPage() {
 
   // 4. FORM STATE (Landing Inicial)
   return (
-    <div className="min-h-screen bg-[#faf8f5] flex items-center justify-center p-6 font-sans relative overflow-hidden">
-      {/* Decoraciones de Alta Costura */}
-      <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-rose-50/50 to-transparent -z-10" />
+    <div className="min-h-screen bg-[#faf8f5] font-sans relative overflow-hidden">
       <Toaster position="top-center" richColors />
       
-      <div className="max-w-md w-full bg-white p-8 sm:p-12 rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.03)] border border-zinc-100 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+      <div className="grid grid-cols-1 md:grid-cols-2 min-h-screen">
         
-        <div className="text-center mb-10">
-          <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center mx-auto mb-6 rotate-3">
-            <Gift className="w-6 h-6 text-rose-400 -rotate-3" />
-          </div>
-          <h1 className="text-3xl text-zinc-900 font-serif tracking-tight mb-3">Invitación Especial</h1>
-          <p className="text-zinc-500 font-light text-sm leading-relaxed">
-            Has sido invitada por <strong className="font-medium text-zinc-800">{referidor.nombre}</strong> para vivir la experiencia Ámbar Couture.
-          </p>
+        {/* Columna Izquierda: Imagen Editorial */}
+        <div className="hidden md:block relative w-full h-full">
+          <img 
+            src="https://ambarcouture.com/wp-content/uploads/2025/09/3.png" 
+            alt="Quinceañera Alta Costura" 
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/40 to-black/10 mix-blend-multiply" />
         </div>
+
+        {/* Columna Derecha: Formulario de Captura */}
+        <div className="flex items-center justify-center p-6 sm:p-12 relative">
+          <div className="absolute top-0 left-0 w-full h-[500px] bg-gradient-to-b from-amber-50/50 to-transparent -z-10" />
+          
+          <div className="max-w-md w-full bg-white p-8 sm:p-12 rounded-[2rem] shadow-[0_20px_60px_rgba(0,0,0,0.04)] border border-zinc-100 animate-in fade-in slide-in-from-bottom-4 duration-1000 relative z-10">
+            
+            <div className="text-center mb-10">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 font-bold text-[10px] tracking-widest uppercase rounded-full mb-6">
+                <Sparkles className="w-3.5 h-3.5" /> BENEFICIO VIP EXCLUSIVO
+              </span>
+              <h1 className="text-3xl sm:text-4xl text-zinc-900 font-serif tracking-tight mb-4 leading-tight">
+                Asegura hasta <span className="text-amber-500 font-black">$200.000</span> de regalo para tu vestido de 15 años
+              </h1>
+              <p className="text-zinc-500 font-light text-sm leading-relaxed">
+                Por ser invitada especial de <strong className="font-bold text-zinc-800">{referidor.nombre_aliado}</strong>, has recibido un pase VIP dorado para tu alquiler de Alta Costura en Ámbar Couture.
+              </p>
+            </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-1.5">
@@ -238,6 +275,18 @@ export default function RecomendarPage() {
           </div>
 
           <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider ml-1">Correo Electrónico</label>
+            <input 
+              type="email" 
+              required
+              value={correo}
+              onChange={(e) => setCorreo(e.target.value)}
+              className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3.5 text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 transition-all text-sm font-light"
+              placeholder="quinceanera@email.com"
+            />
+          </div>
+
+          <div className="space-y-1.5">
             <label className="text-[11px] font-medium text-zinc-500 uppercase tracking-wider ml-1">Fecha Estimada del Evento</label>
             <input 
               type="date" 
@@ -251,16 +300,18 @@ export default function RecomendarPage() {
           <button 
             type="submit" 
             disabled={isSubmitting}
-            className="w-full mt-4 bg-zinc-900 text-white rounded-xl py-4 font-medium tracking-wide text-sm flex items-center justify-center gap-2 hover:bg-zinc-800 focus:ring-4 focus:ring-zinc-200 transition-all disabled:opacity-70 shadow-xl shadow-zinc-900/10"
+            className="w-full mt-4 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-amber-950 rounded-xl py-4 font-black tracking-wide text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-xl shadow-amber-500/20"
           >
             {isSubmitting ? (
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
-              'REVELAR MI CÓDIGO'
+              '✨ RECLAMAR MI BONO DE REGALO'
             )}
           </button>
         </form>
 
+          </div>
+        </div>
       </div>
     </div>
   );
