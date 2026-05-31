@@ -97,8 +97,9 @@ export default function AdminAliadosPage() {
   };
 
   const copyToClipboard = (slug: string) => {
-    const url = `https://ambarcouture.com/recomendar/${slug}`;
-    navigator.clipboard.writeText(url);
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://erp.ambarcouture.com';
+    const linkCompleto = `${baseUrl}/recomendar/${slug}`;
+    navigator.clipboard.writeText(linkCompleto);
     toast.success('📋 ¡Link copiado listo para enviar por WhatsApp!');
   };
 
@@ -266,8 +267,8 @@ export default function AdminAliadosPage() {
                         <tr key={aliado.id} className="hover:bg-zinc-50/50 transition-colors">
                           <td className="py-4 px-6">
                             <p className="font-black text-zinc-900">{aliado.nombre_aliado}</p>
-                            <p className="text-xs text-zinc-500 font-medium mt-0.5">
-                              {aliado.slug_unico ? `/recomendar/${aliado.slug_unico}` : 'Sin link generado'}
+                            <p className="text-xs text-zinc-500 font-medium mt-0.5 break-all">
+                              {aliado.slug_unico ? `${typeof window !== 'undefined' ? window.location.origin : 'https://erp.ambarcouture.com'}/recomendar/${aliado.slug_unico}` : 'Sin link generado'}
                             </p>
                           </td>
                           <td className="py-4 px-6">
