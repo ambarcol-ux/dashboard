@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Sparkles, CheckCircle2, Building2, User, Phone, MapPin, Mail, ArrowRight, Instagram } from 'lucide-react';
+import { Sparkles, CheckCircle2, Building2, User, Phone, MapPin, Mail, ArrowRight, Instagram, X } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
 export default function UnetePage() {
@@ -16,6 +16,8 @@ export default function UnetePage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   // Validation logic
   const isEmailValid = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -24,7 +26,8 @@ export default function UnetePage() {
     formData.marca.trim() !== '' &&
     formData.contacto.trim() !== '' &&
     formData.telefono.trim() !== '' &&
-    isEmailValid(formData.correo);
+    isEmailValid(formData.correo) &&
+    aceptaTerminos === true;
 
   const generateSlug = (name: string) => {
     return name
@@ -68,7 +71,8 @@ export default function UnetePage() {
         porcentaje_comision: 0,
         estado: 'Activo',
         vitrina_sede: 'Ámbar Couture',
-        slug_unico: slug
+        slug_unico: slug,
+        acepto_terminos: aceptaTerminos
       };
 
       const { error } = await supabase.from('referidores').insert([payload]);
@@ -235,6 +239,26 @@ export default function UnetePage() {
               />
             </div>
 
+            <div className="flex items-start gap-3 mt-6">
+              <input
+                type="checkbox"
+                id="terminos"
+                checked={aceptaTerminos}
+                onChange={(e) => setAceptaTerminos(e.target.checked)}
+                className="mt-1 w-5 h-5 accent-amber-600 rounded border-zinc-300 focus:ring-amber-500 transition-all cursor-pointer"
+              />
+              <label htmlFor="terminos" className="text-sm text-zinc-600 leading-relaxed cursor-pointer">
+                He leído y acepto de forma integral el{' '}
+                <button 
+                  type="button" 
+                  onClick={() => setIsModalOpen(true)}
+                  className="text-amber-600 font-bold hover:text-amber-700 hover:underline transition-all"
+                >
+                  Acuerdo de Vinculación al Programa de Aliados y sus Términos y Condiciones
+                </button>.
+              </label>
+            </div>
+
             <button
               type="submit"
               disabled={!isFormValid || isSubmitting}
@@ -250,6 +274,40 @@ export default function UnetePage() {
           </form>
         </div>
       </div>
+
+      {/* Modal de Términos */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-900/40 backdrop-blur-sm">
+          <div className="bg-white w-full max-w-2xl rounded-[2rem] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-zinc-100 flex justify-between items-center bg-zinc-50/50">
+              <h3 className="font-serif text-2xl text-zinc-900">Acuerdo de Vinculación</h3>
+              <button 
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="p-2 hover:bg-zinc-200 rounded-full transition-colors text-zinc-500"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-8 overflow-y-auto text-zinc-600 space-y-4 text-sm leading-relaxed">
+              <p><strong>1. Objeto del Programa:</strong> El presente acuerdo regula la vinculación comercial entre Ámbar Couture y el Aliado, permitiéndole referir clientes (quinceañeras) y comisionar sobre los contratos liquidados.</p>
+              <p><strong>2. Límites de Incentivos:</strong> Las comisiones se liquidarán según la tabla vigente, con un tope máximo de hasta <strong>$200.000 COP</strong> por cada contrato efectivamente cerrado y abonado al 100%.</p>
+              <p><strong>3. Fechas de Corte:</strong> Los cortes comerciales se realizan mensualmente. El pago de las comisiones aprobadas se efectuará durante los <strong>primeros 10 días calendario</strong> del mes inmediatamente siguiente.</p>
+              <p><strong>4. Uso de la Marca:</strong> El Aliado se compromete a usar los links y el material gráfico respetando los manuales de marca de Alta Costura, prohibiendo el uso engañoso o fraudulento de los enlaces generados.</p>
+              <p><strong>5. Independencia:</strong> Esta vinculación no genera ningún tipo de relación laboral o de subordinación entre el Aliado y Ámbar Couture.</p>
+            </div>
+            <div className="p-6 border-t border-zinc-100 bg-zinc-50/50">
+              <button 
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="w-full bg-zinc-900 text-white font-bold py-4 rounded-xl hover:bg-zinc-800 transition-colors"
+              >
+                Entendido, volver al formulario
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

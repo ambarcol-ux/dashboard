@@ -34,7 +34,13 @@ export async function POST(request: Request) {
             </p>
           </div>
 
-          <p style="font-size: 12px; color: #a1a1aa; text-align: center; margin-top: 40px; line-height: 1.5;">
+          <div style="border-top: 1px solid #e4e4e7; margin: 40px 0 20px 0; padding-top: 20px; text-align: justify;">
+            <p style="font-size: 11px; color: #71717a; line-height: 1.6; margin: 0;">
+              <strong>Aviso Legal:</strong> Al registrarte, aceptaste formalmente nuestro Acuerdo de Vinculación, el cual establece las condiciones de validación, límites de incentivos (hasta $200.000 COP por contrato liquidado) y fechas de corte (primeros 10 días calendario del mes siguiente).
+            </p>
+          </div>
+
+          <p style="font-size: 12px; color: #a1a1aa; text-align: center; margin-top: 20px; line-height: 1.5;">
             Este correo fue generado automáticamente por Ámbar Couture ERP.
           </p>
         </div>
