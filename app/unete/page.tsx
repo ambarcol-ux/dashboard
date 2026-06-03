@@ -11,7 +11,6 @@ export default function UnetePage() {
     marca: '',
     contacto: '',
     telefono: '',
-    sede: '',
     correo: ''
   });
   
@@ -25,7 +24,6 @@ export default function UnetePage() {
     formData.marca.trim() !== '' &&
     formData.contacto.trim() !== '' &&
     formData.telefono.trim() !== '' &&
-    formData.sede.trim() !== '' &&
     isEmailValid(formData.correo);
 
   const generateSlug = (name: string) => {
@@ -69,7 +67,7 @@ export default function UnetePage() {
         correo: formData.correo,
         porcentaje_comision: 0,
         estado: 'Activo',
-        vitrina_sede: formData.sede,
+        vitrina_sede: 'Ámbar Couture',
         slug_unico: slug
       };
 
@@ -190,37 +188,18 @@ export default function UnetePage() {
               />
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
-                  <Phone className="w-3.5 h-3.5" /> Teléfono / WhatsApp *
-                </label>
-                <input
-                  type="tel"
-                  required
-                  value={formData.telefono}
-                  onChange={(e) => setFormData({...formData, telefono: e.target.value})}
-                  placeholder="300 123 4567"
-                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3.5 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all font-medium placeholder:text-zinc-400 placeholder:font-normal"
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5" /> Sede de Origen *
-                </label>
-                <select
-                  required
-                  value={formData.sede}
-                  onChange={(e) => setFormData({...formData, sede: e.target.value})}
-                  className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3.5 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all font-medium appearance-none"
-                >
-                  <option value="" disabled>Selecciona una sede</option>
-                  <option value="Barranquilla">Barranquilla</option>
-                  <option value="Bogotá">Bogotá</option>
-                  <option value="Villavicencio">Villavicencio</option>
-                </select>
-              </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-2">
+                <Phone className="w-3.5 h-3.5" /> Teléfono / WhatsApp *
+              </label>
+              <input
+                type="tel"
+                required
+                value={formData.telefono}
+                onChange={(e) => setFormData({...formData, telefono: e.target.value})}
+                placeholder="300 123 4567"
+                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3.5 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all font-medium placeholder:text-zinc-400 placeholder:font-normal"
+              />
             </div>
 
             <div className="space-y-1.5">
