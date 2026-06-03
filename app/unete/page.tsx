@@ -289,12 +289,60 @@ export default function UnetePage() {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-8 overflow-y-auto text-zinc-600 space-y-4 text-sm leading-relaxed">
-              <p><strong>1. Objeto del Programa:</strong> El presente acuerdo regula la vinculación comercial entre Ámbar Couture y el Aliado, permitiéndole referir clientes (quinceañeras) y comisionar sobre los contratos liquidados.</p>
-              <p><strong>2. Límites de Incentivos:</strong> Las comisiones se liquidarán según la tabla vigente, con un tope máximo de hasta <strong>$200.000 COP</strong> por cada contrato efectivamente cerrado y abonado al 100%.</p>
-              <p><strong>3. Fechas de Corte:</strong> Los cortes comerciales se realizan mensualmente. El pago de las comisiones aprobadas se efectuará durante los <strong>primeros 10 días calendario</strong> del mes inmediatamente siguiente.</p>
-              <p><strong>4. Uso de la Marca:</strong> El Aliado se compromete a usar los links y el material gráfico respetando los manuales de marca de Alta Costura, prohibiendo el uso engañoso o fraudulento de los enlaces generados.</p>
-              <p><strong>5. Independencia:</strong> Esta vinculación no genera ningún tipo de relación laboral o de subordinación entre el Aliado y Ámbar Couture.</p>
+            <div className="p-8 max-h-[55vh] md:max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar text-justify text-sm text-gray-700 space-y-4 leading-relaxed">
+              <h3 className="font-bold text-lg text-zinc-900 mb-4 text-center">ACUERDO DE VINCULACIÓN AL PROGRAMA DE ALIADOS ÁMBAR COUTURE - TÉRMINOS Y CONDICIONES</h3>
+              
+              <p><strong>1. Objeto del Programa:</strong> El presente acuerdo regula la vinculación comercial e independiente entre Ámbar Couture y el Aliado, cuyo objetivo principal es la referenciación activa de clientas (quinceañeras y de gala) a nuestras instalaciones físicas para el cierre de contratos de alquiler y venta de vestidos.</p>
+              
+              <p><strong>2. ¿Quién es un Aliado Ámbar?:</strong> Se define como Aliado a toda persona natural o jurídica (maquilladores, fotógrafos, organizadores de eventos, etc.) que se registre voluntariamente en nuestra plataforma y obtenga un enlace único de referenciación, actuando como embajador externo de nuestra marca.</p>
+
+              <p><strong>3. Beneficio para el Cliente Referido:</strong> Toda clienta que agende su cita y efectúe su compra utilizando el enlace o código único del Aliado recibirá beneficios especiales según la campaña vigente (como pases VIP, pruebas prioritarias o atención premium de bienvenida).</p>
+
+              <p><strong>4. Beneficio para el Aliado:</strong> El Aliado se hace acreedor a un incentivo económico (comisión) única y exclusivamente cuando la clienta referida consolide la separación formal del vestido y finalice el pago del 100% del contrato correspondiente.</p>
+
+              <p><strong>5. Valor de los Bonos e Incentivos:</strong> La comisión aplicable dependerá del valor final del contrato firmado por la clienta, estableciendo un límite máximo de compensación de <strong>DOSCIENTOS MIL PESOS ($200.000 COP)</strong> por contrato liquidado. A modo de ejemplo (sujeto a cambios según temporada):</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Contratos estándar: $50.000 COP de incentivo.</li>
+                <li>Contratos premium: $100.000 COP de incentivo.</li>
+                <li>Contratos de Alta Costura Máxima: $200.000 COP de incentivo.</li>
+              </ul>
+              <p>No existe límite en la cantidad de referidos que un Aliado puede captar mensualmente. Ámbar Couture se reserva la potestad de variar unilateralmente las categorías y montos de los incentivos, notificando previamente a la red de aliados.</p>
+
+              <p><strong>6. Condiciones para la Validación del Referido:</strong> Para que un referido genere el derecho a comisión, se deben cumplir obligatoriamente las siguientes 4 condiciones:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>La clienta debe agendar su cita inicial empleando exclusivamente el enlace personalizado (URL) asignado al Aliado.</li>
+                <li>La traza del origen debe registrarse de forma inmutable y ser autenticada en nuestra base de datos (Supabase) al momento de la creación del perfil del cliente.</li>
+                <li>La clienta no debe estar previamente registrada en nuestro CRM de ventas por ningún otro medio, asesor o aliado.</li>
+                <li>La clienta debe firmar el contrato de alquiler/venta y pagar el valor total del mismo.</li>
+              </ul>
+              <p>El uso del enlace por sí solo no constituye obligación de pago hasta que no exista una liquidación total del contrato respectivo.</p>
+
+              <p><strong>Apoyo Comercial y Canales de Comunicación:</strong> Ámbar Couture proveerá, a discreción, material publicitario digital genérico para apoyar la gestión del Aliado. Al aceptar este acuerdo, el Aliado autoriza a Ámbar Couture para vincularlo a canales oficiales de difusión (WhatsApp, correo electrónico o SMS). La modalidad del Aliado consiste en compartir el contenido con su audiencia, pero Ámbar Couture no garantiza ningún resultado comercial mínimo derivado de esta actividad.</p>
+
+              <p><strong>7. Condiciones para el Pago del Incentivo:</strong> El derecho al cobro de la comisión solo se materializa bajo 5 requisitos estrictos:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Culminación satisfactoria del evento contratado.</li>
+                <li>Retorno efectivo de la prenda a tienda física.</li>
+                <li>Inspección de calidad aprobada (sin daños severos) y paso por lavandería.</li>
+                <li>Cierre y liquidación contable total de la orden en el ERP.</li>
+                <li>La mera recomendación, agenda de cita o abono inicial no causa el derecho al cobro del incentivo.</li>
+              </ul>
+
+              <p><strong>8. Forma y Fecha de Pago:</strong> Las comisiones liquidadas durante un mes calendario serán consolidadas en el cierre mensual. El desembolso se realizará exclusivamente durante los <strong>primeros diez (10) días calendario del mes siguiente</strong> al cierre. Es responsabilidad absoluta del Aliado mantener sus datos bancarios actualizados en el panel para evitar rechazos bancarios.</p>
+
+              <p><strong>9. Restricciones:</strong> No habrá lugar a pago de incentivos bajo las siguientes exclusiones:</p>
+              <ul className="list-disc pl-6 space-y-1">
+                <li>Cancelaciones del contrato por parte del cliente antes de la ejecución del evento.</li>
+                <li>Desistimientos comerciales o incumplimiento de pagos por parte del cliente.</li>
+                <li>Comprobación de fraude, suplantación de identidad o auto-referenciación (el Aliado no puede referirse a sí mismo ni a familiares en primer grado para obtener el descuento cruzado).</li>
+                <li>Manipulación técnica del sistema de referidos o conflicto de titularidad de la fuente del cliente.</li>
+              </ul>
+
+              <p><strong>10. Verificación de Referidos:</strong> Ámbar Couture se reserva el derecho absoluto de realizar auditoría interna a las asignaciones de clientes mediante su CRM, formularios de satisfacción y soportes de control. En caso de disputa sobre el origen de un referido, los registros del ERP central tendrán carácter definitivo y vinculante.</p>
+
+              <p><strong>11. Modificaciones del Programa:</strong> Ámbar Couture podrá suspender, modificar o terminar el Programa de Aliados VIP en cualquier momento, respetando el pago de los incentivos que ya se encuentren causados y liquidados a la fecha de modificación.</p>
+
+              <p><strong>12. Aceptación de las Condiciones:</strong> Al marcar la casilla "He leído y acepto" y proceder con el registro, el Aliado declara conocer, entender y aceptar en su integridad los términos descritos, reconociendo que este acuerdo comercial no constituye vínculo laboral, societario ni de representación legal con Ámbar Couture.</p>
             </div>
             <div className="p-6 border-t border-zinc-100 bg-zinc-50/50">
               <button 
