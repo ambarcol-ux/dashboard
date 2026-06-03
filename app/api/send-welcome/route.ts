@@ -34,10 +34,21 @@ export async function POST(request: Request) {
             </p>
           </div>
 
-          <div style="border-top: 1px solid #e4e4e7; margin: 40px 0 20px 0; padding-top: 20px; text-align: justify;">
-            <p style="font-size: 11px; color: #71717a; line-height: 1.6; margin: 0;">
-              <strong>Aviso Legal:</strong> Al registrarte, aceptaste formalmente nuestro Acuerdo de Vinculación, el cual establece las condiciones de validación, límites de incentivos (hasta $200.000 COP por contrato liquidado) y fechas de corte (primeros 10 días calendario del mes siguiente).
-            </p>
+          <div style="border-top: 1px solid #e4e4e7; margin: 40px 0 20px 0; padding-top: 20px; text-align: justify; font-size: 11px; color: #71717a; line-height: 1.6;">
+            <h3 style="font-weight: bold; font-size: 13px; color: #18181b; text-align: center; margin-bottom: 15px;">ACUERDO DE VINCULACIÓN AL PROGRAMA DE ALIADOS ÁMBAR COUTURE</h3>
+            
+            <p><strong>1. Objeto del Programa:</strong> El presente acuerdo regula la vinculación comercial e independiente entre Ámbar Couture y el Aliado, cuyo objetivo principal es la referenciación activa de clientas a nuestras instalaciones para el cierre de contratos.</p>
+            <p><strong>2. ¿Quién es un Aliado Ámbar?:</strong> Se define como Aliado a toda persona natural o jurídica que se registre voluntariamente en nuestra plataforma y obtenga un enlace único de referenciación.</p>
+            <p><strong>3. Beneficio para el Cliente Referido:</strong> Toda clienta que agende su cita utilizando el enlace del Aliado recibirá beneficios especiales según la campaña vigente.</p>
+            <p><strong>4. Beneficio para el Aliado:</strong> El Aliado se hace acreedor a un incentivo económico (comisión) única y exclusivamente cuando la clienta referida consolide la separación formal del vestido y finalice el pago del 100%.</p>
+            <p><strong>5. Valor de los Bonos e Incentivos:</strong> La comisión aplicable dependerá del valor final del contrato firmado por la clienta, estableciendo un límite máximo de compensación de <strong>$200.000 COP</strong> por contrato liquidado.</p>
+            <p><strong>6. Condiciones para la Validación:</strong> La clienta debe agendar su cita inicial empleando exclusivamente el enlace personalizado (URL) asignado al Aliado y su registro debe quedar en Supabase antes del contrato. La clienta no debe estar previamente registrada.</p>
+            <p><strong>7. Condiciones para el Pago del Incentivo:</strong> Culminación satisfactoria del evento, retorno de la prenda a tienda, inspección de calidad aprobada, cierre y liquidación total. La mera recomendación o abono inicial no causa el derecho al cobro.</p>
+            <p><strong>8. Forma y Fecha de Pago:</strong> El desembolso se realizará exclusivamente durante los primeros diez (10) días calendario del mes siguiente al cierre.</p>
+            <p><strong>9. Restricciones:</strong> No habrá pago en caso de cancelaciones, desistimientos, fraudes, suplantación de identidad o auto-referenciación.</p>
+            <p><strong>10. Verificación de Referidos:</strong> Ámbar Couture se reserva el derecho de auditoría interna a través de su CRM. Los registros del ERP central tendrán carácter definitivo.</p>
+            <p><strong>11. Modificaciones:</strong> Ámbar Couture podrá suspender, modificar o terminar el Programa de Aliados VIP en cualquier momento.</p>
+            <p><strong>12. Aceptación:</strong> Al registrarte, has declarado conocer, entender y aceptar en su integridad estos términos.</p>
           </div>
 
           <p style="font-size: 12px; color: #a1a1aa; text-align: center; margin-top: 20px; line-height: 1.5;">

@@ -18,6 +18,7 @@ export default function UnetePage() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Validation logic
   const isEmailValid = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -46,8 +47,22 @@ export default function UnetePage() {
     if (!isFormValid) return;
 
     setIsSubmitting(true);
+    setErrorMessage('');
     
     try {
+      // Verificación de Correo (Anti-Duplicados)
+      const { data: existingAllied } = await supabase
+        .from('referidores')
+        .select('correo')
+        .eq('correo', formData.correo.trim().toLowerCase())
+        .maybeSingle();
+
+      if (existingAllied) {
+        setErrorMessage('Este correo electrónico ya se encuentra vinculado a una cuenta de Aliado Activa. Por favor, ingresa un correo diferente o contacta a soporte.');
+        setIsSubmitting(false);
+        return;
+      }
+
       const slug = generateSlug(formData.marca);
 
       // Verify if slug already exists
@@ -237,6 +252,9 @@ export default function UnetePage() {
                 placeholder="correo@ejemplo.com"
                 className="w-full bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3.5 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all font-medium placeholder:text-zinc-400 placeholder:font-normal"
               />
+              {errorMessage && (
+                <p className="text-sm font-bold text-red-500 mt-2">{errorMessage}</p>
+              )}
             </div>
 
             <div className="flex items-start gap-3 mt-6">
