@@ -3,7 +3,7 @@
 
 import React, { useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Sparkles, CheckCircle2, Building2, User, Phone, MapPin, Mail, ArrowRight } from 'lucide-react';
+import { Sparkles, CheckCircle2, Building2, User, Phone, MapPin, Mail, ArrowRight, Instagram } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
 export default function UnetePage() {
@@ -112,12 +112,15 @@ export default function UnetePage() {
             Tu link de comisiones de <strong>Ámbar Couture</strong> se ha activado. 
             Pronto un miembro de nuestro equipo se comunicará contigo para darte la bienvenida oficial.
           </p>
-          <button 
-            onClick={() => window.location.href = '/'}
-            className="w-full bg-zinc-900 text-white font-bold py-4 rounded-xl hover:bg-zinc-800 transition-colors"
+          <a 
+            href="https://www.instagram.com/ambarcouture"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full bg-gradient-to-r from-pink-600 via-purple-600 to-amber-500 text-white font-bold py-4 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-3 shadow-lg shadow-pink-500/20"
           >
-            Volver al inicio
-          </button>
+            <Instagram className="w-5 h-5" />
+            Ver Comunidad en Instagram
+          </a>
         </div>
       </div>
     );
