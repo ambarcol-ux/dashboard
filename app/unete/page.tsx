@@ -75,6 +75,22 @@ export default function UnetePage() {
 
       if (error) throw error;
 
+      // Failsafe Welcome Email
+      try {
+        const link = `${window.location.origin}/recomendar/${slug}`;
+        await fetch('/api/send-welcome', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            correo: formData.correo,
+            contacto: formData.contacto,
+            link: link
+          })
+        });
+      } catch (emailError) {
+        console.error('Error enviando correo de bienvenida (silenciado):', emailError);
+      }
+
       setIsSuccess(true);
     } catch (error: any) {
       console.error('Error al registrar aliado:', error);
