@@ -10,6 +10,7 @@ interface Referidor {
   id: string;
   nombre_aliado: string;
   slug_unico: string;
+  estado?: string;
 }
 
 export default function RecomendarPage() {
@@ -41,7 +42,7 @@ export default function RecomendarPage() {
         
         const { data, error } = await supabase
           .from('referidores')
-          .select('id, nombre_aliado, slug_unico')
+          .select('id, nombre_aliado, slug_unico, estado')
           .eq('slug_unico', slug)
           .maybeSingle();
 
@@ -163,6 +164,24 @@ export default function RecomendarPage() {
           <h1 className="text-2xl text-zinc-900 font-serif mb-3 tracking-tight">Invitación Inválida</h1>
           <p className="text-zinc-500 font-light leading-relaxed">
             Este enlace de invitación no es válido o ha expirado. Por favor, solicita un nuevo enlace a tu referidor.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // 2.5 SUSPENDED STATE
+  if (referidor && referidor.estado === 'Inactivo') {
+    return (
+      <div className="min-h-screen bg-[#faf8f5] flex items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full bg-white p-10 rounded-3xl shadow-[0_8px_40px_rgba(0,0,0,0.04)] border border-zinc-100 text-center relative overflow-hidden">
+          <div className="absolute top-0 left-0 w-full h-1 bg-red-500"></div>
+          <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6">
+            <AlertCircle className="w-8 h-8 text-red-500" />
+          </div>
+          <h1 className="text-2xl text-zinc-900 font-serif mb-3 tracking-tight">Enlace Pausado</h1>
+          <p className="text-zinc-500 font-light leading-relaxed">
+            Este enlace de recomendación se encuentra temporalmente inactivo. Si eres la titular, por favor comunícate con la administración para reactivarlo.
           </p>
         </div>
       </div>
