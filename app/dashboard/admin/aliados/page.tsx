@@ -46,7 +46,7 @@ export default function AdminAliadosPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from('referidores')
-        .select('id, slug_unico, slug, creado_el, nombre_aliado, contacto_nombre, telefono, correo, vitrina_sede, sede_origen, estado, saldo_comisiones, porcentaje_comision, banco_nombre, numero_cuenta, acepto_terminos, fecha_aceptacion_terminos, activo')
+        .select('id, slug_unico, slug, creado_el, nombre_aliado, contacto_nombre, telefono, correo, vitrina_sede, sede_origen, estado, saldo_comisiones, porcentaje_comision, banco_nombre, numero_cuenta, acepto_terminos, fecha_aceptacion_terminos, activo, codigos_descuento(id, usado)')
         .order('nombre_aliado', { ascending: true });
 
       if (error) throw error;
@@ -395,9 +395,9 @@ export default function AdminAliadosPage() {
                       filteredAndSortedAliados.map((aliado) => {
                         const isInactive = aliado.estado === 'Inactivo' || aliado.activo === false;
                         
-                        // Simulated metrics due to removed cross-relation fetch per user instructions
-                        const pendientes = 0; 
-                        const historico = 0;
+                        const codigos = aliado.codigos_descuento || [];
+                        const pendientes = codigos.filter((c: any) => !c.usado).length;
+                        const historico = codigos.length;
 
                         return (
                           <tr key={aliado.id} className={`hover:bg-zinc-50/50 transition-colors ${isInactive ? 'opacity-50 grayscale-[50%] bg-zinc-50/50' : ''}`}>
