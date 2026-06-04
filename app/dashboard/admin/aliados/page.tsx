@@ -438,7 +438,7 @@ export default function AdminAliadosPage() {
                             <td className="py-4 px-6 text-right relative">
                               <div className="flex items-center justify-end gap-2">
                                 <Link
-                                  href="#"
+                                  href={`/dashboard/admin/aliados/${aliado.slug_unico}`}
                                   className="p-2 hover:bg-zinc-100 text-zinc-500 rounded-xl transition-colors"
                                   title="Ver panel de control y analítica interna del aliado"
                                 >
