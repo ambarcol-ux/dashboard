@@ -46,7 +46,7 @@ export default function AdminAliadosPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from('referidores')
-        .select('id, nombre_aliado, telefono, correo, comision, sede_origen, slug_unico, acumulado, codigos_descuento(id, usado, created_at)')
+        .select('*, codigos_descuento(id, usado, created_at)')
         .order('nombre_aliado', { ascending: true });
 
       if (error) throw error;
@@ -175,9 +175,11 @@ export default function AdminAliadosPage() {
   };
 
   const toggleEstado = async (aliado: any) => {
-    const nuevoEstado = aliado.estado === 'Inactivo' ? 'Activo' : 'Inactivo';
+    const isCurrentlyInactive = aliado.estado === 'Inactivo' || aliado.activo === false;
+    const nuevoEstado = isCurrentlyInactive ? 'Activo' : 'Inactivo';
+    const nuevoActivo = isCurrentlyInactive ? true : false;
     try {
-      const { error } = await supabase.from('referidores').update({ estado: nuevoEstado }).eq('id', aliado.id);
+      const { error } = await supabase.from('referidores').update({ estado: nuevoEstado, activo: nuevoActivo }).eq('id', aliado.id);
       if (error) throw error;
       toast.success(`Aliado marcado como ${nuevoEstado}`);
       fetchAliados();
@@ -380,7 +382,8 @@ export default function AdminAliadosPage() {
                     <tr className="bg-zinc-50/50 border-b border-zinc-100 text-[11px] uppercase tracking-widest text-zinc-500 font-bold">
                       <th className="py-4 px-6">Aliado / Empresa</th>
                       <th className="py-4 px-6">Contacto</th>
-                      <th className="py-4 px-6">Métricas de Conversión</th>
+                      <th className="py-4 px-6 text-center">Pendientes</th>
+                      <th className="py-4 px-6 text-center">Total Traídos</th>
                       <th className="py-4 px-6">Financiero</th>
                       <th className="py-4 px-6 text-right">Acciones</th>
                     </tr>
@@ -397,15 +400,15 @@ export default function AdminAliadosPage() {
                     ) : (
                       filteredAndSortedAliados.map((aliado) => {
                         const { pendientes, historico } = getMetrics(aliado);
-                        const isInactive = aliado.estado === 'Inactivo';
+                        const isInactive = aliado.estado === 'Inactivo' || aliado.activo === false;
 
                         return (
-                          <tr key={aliado.id} className={`hover:bg-zinc-50/50 transition-colors ${isInactive ? 'opacity-60 grayscale-[30%] bg-red-50/20' : ''}`}>
+                          <tr key={aliado.id} className={`hover:bg-zinc-50/50 transition-colors ${isInactive ? 'opacity-50 grayscale-[50%] bg-zinc-50/50' : ''}`}>
                             <td className="py-4 px-6 relative">
-                              {isInactive && <span className="absolute left-0 top-0 bottom-0 w-1 bg-red-500 rounded-r"></span>}
+                              {isInactive && <span className="absolute left-0 top-0 bottom-0 w-1 bg-zinc-400 rounded-r"></span>}
                               <div className="flex items-center gap-2">
                                 <p className="font-black text-zinc-900">{aliado.nombre_aliado}</p>
-                                {isInactive && <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[9px] font-bold rounded uppercase tracking-wider">Pausado</span>}
+                                {isInactive && <span className="px-2 py-0.5 bg-zinc-200 text-zinc-600 text-[9px] font-bold rounded uppercase tracking-wider">Pausado</span>}
                               </div>
                               <p className="text-xs text-zinc-500 font-medium mt-1 truncate max-w-[200px]">
                                 {aliado.slug_unico ? `.../recomendar/${aliado.slug_unico}` : 'Sin link'}
@@ -415,17 +418,15 @@ export default function AdminAliadosPage() {
                               <p className="font-bold text-zinc-700">{aliado.contacto_nombre || 'N/A'}</p>
                               <p className="text-xs text-zinc-500 font-medium mt-0.5">{aliado.telefono || 'Sin teléfono'}</p>
                             </td>
-                            <td className="py-4 px-6">
-                              <div className="flex flex-col gap-1.5">
-                                <div className="flex items-center gap-2 text-xs">
-                                  <span className="w-2 h-2 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.6)]"></span>
-                                  <span className="font-medium text-zinc-600">Pendientes: <strong className="text-zinc-900 text-sm ml-1">{pendientes}</strong></span>
-                                </div>
-                                <div className="flex items-center gap-2 text-xs">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></span>
-                                  <span className="font-medium text-zinc-600">Histórico: <strong className="text-zinc-900 text-sm ml-1">{historico}</strong></span>
-                                </div>
-                              </div>
+                            <td className="py-4 px-6 text-center">
+                              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 text-amber-700 font-bold text-sm shadow-sm">
+                                {pendientes}
+                              </span>
+                            </td>
+                            <td className="py-4 px-6 text-center">
+                              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-emerald-100 text-emerald-700 font-bold text-sm shadow-sm">
+                                {historico}
+                              </span>
                             </td>
                             <td className="py-4 px-6">
                               <div className="flex flex-col gap-1.5 items-start">
