@@ -73,6 +73,9 @@ export default function AdminAliadosPage() {
     return Array.from(months).sort((a,b) => b.localeCompare(a));
   }, [aliados]);
 
+  // ------------------------------------------------------------------
+  // LÓGICA DE FILTRADO, BÚSQUEDA Y ORDENAMIENTO (Reactivo - Client Side)
+  // ------------------------------------------------------------------
   const filteredAndSortedAliados = useMemo(() => {
     let result = [...aliados];
     
