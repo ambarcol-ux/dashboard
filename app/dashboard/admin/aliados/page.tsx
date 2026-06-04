@@ -438,10 +438,9 @@ export default function AdminAliadosPage() {
                             <td className="py-4 px-6 text-right relative">
                               <div className="flex items-center justify-end gap-2">
                                 <Link
-                                  href={`/recomendar/${aliado.slug_unico}`}
-                                  target="_blank"
+                                  href={`/dashboard/admin/aliados/${aliado.id}`}
                                   className="p-2 hover:bg-zinc-100 text-zinc-500 rounded-xl transition-colors"
-                                  title="Ver Link Público"
+                                  title="Ver panel de control y analítica interna del aliado"
                                 >
                                   <ExternalLink className="w-4 h-4" />
                                 </Link>
@@ -449,7 +448,7 @@ export default function AdminAliadosPage() {
                                   onClick={(e) => { e.stopPropagation(); isInactive ? toast.error('El aliado está pausado') : copyToClipboard(aliado.slug_unico); }}
                                   disabled={isInactive}
                                   className="p-2 bg-zinc-900 hover:bg-amber-400 hover:text-amber-950 text-white rounded-xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                                  title="Copiar Link"
+                                  title="Copiar enlace de referidor al portapapeles"
                                 >
                                   <Copy className="w-4 h-4" />
                                 </button>
@@ -459,6 +458,7 @@ export default function AdminAliadosPage() {
                                   <button 
                                     onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === aliado.id ? null : aliado.id); }}
                                     className="p-2 hover:bg-zinc-200 rounded-xl transition-colors text-zinc-500"
+                                    title="Más opciones (Editar datos / Desactivar aliado)"
                                   >
                                     <MoreVertical className="w-4 h-4" />
                                   </button>
