@@ -46,7 +46,7 @@ export default function AdminAliadosPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from('referidores')
-        .select('*, codigos_descuento(id, usado, created_at)')
+        .select('id, slug_unico, slug, creado_el, nombre_aliado, contacto_nombre, telefono, correo, vitrina_sede, sede_origen, estado, saldo_comisiones, porcentaje_comision, banco_nombre, numero_cuenta, acepto_terminos, fecha_aceptacion_terminos, activo')
         .order('nombre_aliado', { ascending: true });
 
       if (error) throw error;
@@ -62,13 +62,11 @@ export default function AdminAliadosPage() {
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
     aliados.forEach(a => {
-      (a.codigos_descuento || []).forEach((c: any) => {
-        if (c.created_at) {
-          const d = new Date(c.created_at);
-          const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-          months.add(val);
-        }
-      });
+      if (a.creado_el) {
+        const d = new Date(a.creado_el);
+        const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        months.add(val);
+      }
     });
     return Array.from(months).sort((a,b) => b.localeCompare(a));
   }, [aliados]);
@@ -79,6 +77,15 @@ export default function AdminAliadosPage() {
   const filteredAndSortedAliados = useMemo(() => {
     let result = [...aliados];
     
+    if (selectedMonth !== 'todos') {
+      const [year, month] = selectedMonth.split('-');
+      result = result.filter(a => {
+        if (!a.creado_el) return false;
+        const date = new Date(a.creado_el);
+        return date.getFullYear() === parseInt(year) && (date.getMonth() + 1) === parseInt(month);
+      });
+    }
+
     if (searchTerm) {
       const lowerTerm = searchTerm.toLowerCase();
       result = result.filter(a => a.nombre_aliado?.toLowerCase().includes(lowerTerm));
@@ -91,25 +98,7 @@ export default function AdminAliadosPage() {
     });
     
     return result;
-  }, [aliados, searchTerm, sortOrder]);
-
-  const getMetrics = (aliado: any) => {
-    let codes = aliado.codigos_descuento || [];
-    
-    if (selectedMonth !== 'todos') {
-      const [year, month] = selectedMonth.split('-');
-      codes = codes.filter((c: any) => {
-        if (!c.created_at) return false;
-        const date = new Date(c.created_at);
-        return date.getFullYear() === parseInt(year) && (date.getMonth() + 1) === parseInt(month);
-      });
-    }
-    
-    const pendientes = codes.filter((c: any) => c.usado === false).length;
-    const historico = codes.length;
-    
-    return { pendientes, historico };
-  };
+  }, [aliados, searchTerm, sortOrder, selectedMonth]);
 
   const generateSlug = (name: string) => {
     return name
@@ -143,6 +132,7 @@ export default function AdminAliadosPage() {
         correo: formData.correo,
         porcentaje_comision: formData.comision || 0,
         estado: 'Activo',
+        activo: true,
         vitrina_sede: formData.sede || null,
         slug_unico: slug
       };
@@ -187,6 +177,7 @@ export default function AdminAliadosPage() {
       toast.success(`Aliado marcado como ${nuevoEstado}`);
       fetchAliados();
     } catch (e) {
+      console.error(e);
       toast.error('Error al actualizar estado');
     }
   };
@@ -350,7 +341,7 @@ export default function AdminAliadosPage() {
                     />
                   </div>
                   
-                  {/* Filtro Mes */}
+                  {/* Filtro Mes (creado_el) */}
                   <div className="relative">
                     <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
                     <select
@@ -394,16 +385,19 @@ export default function AdminAliadosPage() {
                   <tbody className="divide-y divide-zinc-100" onClick={() => { if(openDropdownId) setOpenDropdownId(null) }}>
                     {loading ? (
                       <tr>
-                        <td colSpan={5} className="py-12 text-center text-zinc-400 font-medium">Cargando base de datos...</td>
+                        <td colSpan={6} className="py-12 text-center text-zinc-400 font-medium">Cargando base de datos...</td>
                       </tr>
                     ) : filteredAndSortedAliados.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="py-12 text-center text-zinc-400 font-medium">No se encontraron aliados comerciales.</td>
+                        <td colSpan={6} className="py-12 text-center text-zinc-400 font-medium">No se encontraron aliados comerciales.</td>
                       </tr>
                     ) : (
                       filteredAndSortedAliados.map((aliado) => {
-                        const { pendientes, historico } = getMetrics(aliado);
                         const isInactive = aliado.estado === 'Inactivo' || aliado.activo === false;
+                        
+                        // Simulated metrics due to removed cross-relation fetch per user instructions
+                        const pendientes = 0; 
+                        const historico = 0;
 
                         return (
                           <tr key={aliado.id} className={`hover:bg-zinc-50/50 transition-colors ${isInactive ? 'opacity-50 grayscale-[50%] bg-zinc-50/50' : ''}`}>
@@ -433,7 +427,7 @@ export default function AdminAliadosPage() {
                             </td>
                             <td className="py-4 px-6">
                               <div className="flex flex-col gap-1.5 items-start">
-                                <span className="inline-flex items-center px-2.5 py-1 bg-zinc-100 text-zinc-700 font-bold text-[11px] rounded-lg border border-zinc-200">
+                                <span className="inline-flex items-center px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold text-[11px] rounded-lg border border-emerald-200 shadow-sm">
                                   {formatMoney(aliado.saldo_comisiones)} Acumulado
                                 </span>
                                 <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
