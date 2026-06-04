@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Users, Link as LinkIcon, Copy, Plus, ArrowLeft, CheckCircle2, ExternalLink, Search, ArrowUpDown, MoreVertical, Edit2, Ban, Play, X, Calendar } from 'lucide-react';
