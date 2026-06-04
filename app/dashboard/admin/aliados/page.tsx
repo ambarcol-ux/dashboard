@@ -46,13 +46,13 @@ export default function AdminAliadosPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from('referidores')
-        .select('*, codigos_descuento(id, usado, created_at)')
+        .select('id, nombre_aliado, telefono, correo, comision, sede_origen, slug_unico, acumulado, codigos_descuento(id, usado, created_at)')
         .order('nombre_aliado', { ascending: true });
 
       if (error) throw error;
       setAliados(data || []);
     } catch (err: any) {
-      console.error('Error detallado Aliados:', err?.message || err);
+      console.error('Error detallado de Supabase:', err);
       toast.error('Error cargando aliados');
     } finally {
       setLoading(false);
