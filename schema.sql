@@ -218,5 +218,7 @@ CREATE TABLE codigos_descuento (
     correo_quinceanera TEXT NOT NULL,
     fecha_evento DATE,
     usado BOOLEAN DEFAULT FALSE,
+    fecha_uso TIMESTAMP WITH TIME ZONE,
+    contrato_id UUID REFERENCES contratos(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );

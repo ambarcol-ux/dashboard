@@ -2,9 +2,10 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { DollarSign, Users, QrCode, ArrowUpRight, CheckCircle2, Clock, Wallet, ArrowLeft } from 'lucide-react';
+import { DollarSign, Users, QrCode, ArrowUpRight, CheckCircle2, Clock, Wallet, ArrowLeft, MoreVertical, Trash2 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import { useRouter, useParams } from 'next/navigation';
+import Link from 'next/link';
 
 export default function AliadosPortalPage() {
   const router = useRouter();
@@ -18,6 +19,19 @@ export default function AliadosPortalPage() {
     totalUsados: 0,
   });
   const [codigos, setCodigos] = useState<any[]>([]);
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+  const handleDeleteCodigo = async (id: string) => {
+    if(!window.confirm('¿Estás seguro de que deseas eliminar este código? Si ya está en uso, se perderá la trazabilidad del descuento.')) return;
+    try {
+      const { error } = await supabase.from('codigos_descuento').delete().eq('id', id);
+      if (error) throw error;
+      toast.success('Código eliminado correctamente del sistema');
+      fetchAliadoData();
+    } catch (err: any) {
+      toast.error('Error al eliminar el código: ' + err.message);
+    }
+  };
 
   useEffect(() => {
     if (params?.slug) {
@@ -255,9 +269,10 @@ export default function AliadosPortalPage() {
                   <th className="py-5 px-6">Fecha Registro</th>
                   <th className="py-5 px-6">Fecha Evento</th>
                   <th className="py-5 px-6">Estado</th>
+                  <th className="py-5 px-6 text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-zinc-100">
+              <tbody className="divide-y divide-zinc-100" onClick={() => { if(openDropdownId) setOpenDropdownId(null) }}>
                 {codigos?.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-zinc-400 font-medium">Aún no hay invitadas registradas con tu link VIP.</td>
@@ -284,14 +299,40 @@ export default function AliadosPortalPage() {
                       </td>
                       <td className="py-4 px-6">
                         {codigo.usado ? (
-                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-100 shadow-sm">
+                          <Link 
+                            href={codigo.contrato_id ? `/dashboard/admin/contratos/${codigo.contrato_id}` : '#'} 
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-100 shadow-sm hover:bg-emerald-100 transition-colors"
+                            title="Auditar Contrato Relacionado"
+                          >
                             <CheckCircle2 className="w-3.5 h-3.5" /> ¡Contrato Cerrado! 🎉
-                          </span>
+                          </Link>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 font-bold text-xs border border-amber-100">
                             <Clock className="w-3.5 h-3.5" /> Pendiente
                           </span>
                         )}
+                      </td>
+                      <td className="py-4 px-6 text-right relative">
+                        <div className="relative inline-block text-left">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); setOpenDropdownId(openDropdownId === codigo.id ? null : codigo.id); }}
+                            className="p-2 hover:bg-zinc-100 rounded-xl transition-colors text-zinc-500"
+                            title="Acciones Administrativas"
+                          >
+                            <MoreVertical className="w-4 h-4" />
+                          </button>
+                          
+                          {openDropdownId === codigo.id && (
+                            <div className="absolute right-0 top-10 w-48 bg-white border border-zinc-200 shadow-[0_10px_40px_rgba(0,0,0,0.1)] rounded-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteCodigo(codigo.id); setOpenDropdownId(null); }}
+                                className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4 text-red-500" /> Eliminar Código
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))
