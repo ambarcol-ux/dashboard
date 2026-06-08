@@ -44,16 +44,73 @@ export default function AdminAliadosPage() {
   const fetchAliados = async () => {
     try {
       setLoading(true);
+
+      // --- 1. SINCRONIZACIÓN EN TIEMPO REAL DE SALDOS ---
+      const { data: codigosActivos } = await supabase
+        .from('codigos_descuento')
+        .select('id, referidor_id, contrato_id, nombre_quinceanera')
+        .eq('usado', true);
+
+      const contratosIds = [...new Set((codigosActivos || []).map(c => c.contrato_id).filter(Boolean))];
+      const nombresLegacy = [...new Set((codigosActivos || []).filter(c => !c.contrato_id).map(c => c.nombre_quinceanera))];
+
+      let contratosAsociados: any[] = [];
+      if (contratosIds.length > 0) {
+        const { data: cById } = await supabase.from('contratos').select('id, valor_total, anticipo, pagos(valor_pagado)').in('id', contratosIds);
+        if (cById) contratosAsociados = [...contratosAsociados, ...cById];
+      }
+      if (nombresLegacy.length > 0) {
+        const { data: cByName } = await supabase.from('contratos').select('id, cliente_nombre, valor_total, anticipo, pagos(valor_pagado)').in('cliente_nombre', nombresLegacy);
+        if (cByName) contratosAsociados = [...contratosAsociados, ...cByName];
+      }
+
+      const { data: escalas } = await supabase.from('config_escalas').select('*').order('minimo', { ascending: true });
+
+      const comisionesPorAliado: Record<string, number> = {};
+
+      if (codigosActivos) {
+        for (const codigo of codigosActivos) {
+          const contrato = codigo.contrato_id 
+            ? contratosAsociados.find(c => c.id === codigo.contrato_id)
+            : contratosAsociados.find(c => c.cliente_nombre?.toLowerCase().trim() === codigo.nombre_quinceanera?.toLowerCase().trim());
+            
+          if (contrato) {
+            const pagosExtras = (contrato.pagos || []).reduce((sum: number, p: any) => sum + (Number(p.valor_pagado) || 0), 0);
+            const totalAbonado = (Number(contrato.anticipo) || 0) + pagosExtras;
+            const mitadContrato = (Number(contrato.valor_total) || 0) * 0.5;
+
+            if (totalAbonado >= mitadContrato && escalas) {
+              const escala = escalas.find(e => Number(contrato.valor_total) >= e.minimo && (e.maximo === null || Number(contrato.valor_total) <= e.maximo));
+              if (escala) {
+                comisionesPorAliado[codigo.referidor_id] = (comisionesPorAliado[codigo.referidor_id] || 0) + (Number(escala.comision_aliado) || 0);
+              }
+            }
+          }
+        }
+      }
+
+      // --- 2. TRAER ALIADOS Y EJECUTAR SINCRONIZACIÓN ---
       const { data, error } = await supabase
         .from('referidores')
         .select('id, slug_unico, slug, creado_el, nombre_aliado, contacto_nombre, telefono, correo, vitrina_sede, sede_origen, estado, saldo_comisiones, porcentaje_comision, banco_nombre, numero_cuenta, acepto_terminos, fecha_aceptacion_terminos, activo, codigos_descuento(id, usado)')
         .order('nombre_aliado', { ascending: true });
 
       if (error) throw error;
-      setAliados(data || []);
+
+      let referidoresData = data || [];
+
+      for (const aliado of referidoresData) {
+        const comisionReal = comisionesPorAliado[aliado.id] || 0;
+        if (Number(aliado.saldo_comisiones) !== comisionReal) {
+          await supabase.from('referidores').update({ saldo_comisiones: comisionReal }).eq('id', aliado.id);
+          aliado.saldo_comisiones = comisionReal; // Actualización reactiva instantánea
+        }
+      }
+
+      setAliados(referidoresData);
     } catch (err: any) {
       console.error('Error detallado de Supabase:', err);
-      toast.error('Error cargando aliados');
+      toast.error('Error cargando y sincronizando aliados');
     } finally {
       setLoading(false);
     }
