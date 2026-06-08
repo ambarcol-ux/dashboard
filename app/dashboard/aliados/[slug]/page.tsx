@@ -298,14 +298,18 @@ export default function AliadosPortalPage() {
                         {formatDate(codigo.fecha_evento)}
                       </td>
                       <td className="py-4 px-6">
-                        {codigo.usado ? (
+                        {codigo.usado && codigo.contrato_id ? (
                           <Link 
-                            href={codigo.contrato_id ? `/dashboard/admin/contratos/${codigo.contrato_id}` : '#'} 
+                            href={`/dashboard/pago/${codigo.contrato_id}`} 
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-100 shadow-sm hover:bg-emerald-100 transition-colors"
                             title="Auditar Contrato Relacionado"
                           >
                             <CheckCircle2 className="w-3.5 h-3.5" /> ¡Contrato Cerrado! 🎉
                           </Link>
+                        ) : codigo.usado && !codigo.contrato_id ? (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-50 text-emerald-700 font-bold text-xs border border-emerald-100 shadow-sm opacity-60 cursor-not-allowed" title="Contrato antiguo no trazable">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> ¡Cerrado! (Sin ID)
+                          </span>
                         ) : (
                           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 font-bold text-xs border border-amber-100">
                             <Clock className="w-3.5 h-3.5" /> Pendiente
