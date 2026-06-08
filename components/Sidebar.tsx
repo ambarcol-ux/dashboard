@@ -16,7 +16,23 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
   const [isOpen, setIsOpen] = useState(false);
   const isAdmin = user?.rol === 'admin' || user?.email === 'dubian.h88@gmail.com';
 
-  const sidebarBlocks = [
+  type SidebarItem = {
+    id: string;
+    label: string;
+    icon: any;
+    href: string;
+    color: string;
+    adminOnly?: boolean;
+    disabled?: boolean;
+  };
+
+  type SidebarBlock = {
+    title: string;
+    adminOnly: boolean;
+    items: SidebarItem[];
+  };
+
+  const sidebarBlocks: SidebarBlock[] = [
     {
       title: 'OPERACIONES',
       adminOnly: false,
@@ -87,21 +103,8 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
                 const isActive = activePage === item.id;
                 const isDisabled = item.disabled;
                 
-                const Element = isDisabled ? 'div' : Link;
-                
-                return (
-                  <Element 
-                    key={item.id}
-                    href={isDisabled ? undefined : item.href} 
-                    onClick={() => !isDisabled && isMobile && setIsOpen(false)}
-                    className={`flex items-center gap-3 px-4 py-2.5 rounded-xl font-black text-xs transition-all group border ${
-                      isActive
-                        ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-sm shadow-rose-50'
-                        : isDisabled
-                          ? 'text-gray-400 bg-gray-50/50 border-transparent opacity-60 cursor-not-allowed grayscale'
-                          : 'text-gray-500 hover:bg-rose-50 hover:text-rose-500 border-transparent'
-                    }`}
-                  >
+                const content = (
+                  <>
                     <div className={`p-1.5 rounded-lg transition-colors shadow-sm ${
                       isActive 
                         ? 'bg-white text-rose-500' 
@@ -117,7 +120,34 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
                         Próximamente
                       </span>
                     )}
-                  </Element>
+                  </>
+                );
+
+                const className = `flex items-center gap-3 px-4 py-2.5 rounded-xl font-black text-xs transition-all group border ${
+                  isActive
+                    ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-sm shadow-rose-50'
+                    : isDisabled
+                      ? 'text-gray-400 bg-gray-50/50 border-transparent opacity-60 cursor-not-allowed grayscale'
+                      : 'text-gray-500 hover:bg-rose-50 hover:text-rose-500 border-transparent'
+                }`;
+
+                if (isDisabled) {
+                  return (
+                    <div key={item.id} className={className}>
+                      {content}
+                    </div>
+                  );
+                }
+                
+                return (
+                  <Link 
+                    key={item.id}
+                    href={item.href} 
+                    onClick={() => isMobile && setIsOpen(false)}
+                    className={className}
+                  >
+                    {content}
+                  </Link>
                 );
               })}
             </div>
