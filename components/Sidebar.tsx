@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { 
-  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote 
+  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, MessageSquare 
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -16,19 +16,42 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
   const [isOpen, setIsOpen] = useState(false);
   const isAdmin = user?.rol === 'admin' || user?.email === 'dubian.h88@gmail.com';
 
-  const navItems = [
-    { id: 'dashboard', label: 'DASHBOARD', icon: FileText, href: '/dashboard', color: 'rose' },
-    { id: 'reports', label: 'REPORTES Y ESTADÍSTICAS', icon: TrendingUp, href: '/admin/reports', color: 'rose', adminOnly: true },
-  ];
-
-  const adminNavItems = [
-    { id: 'users', label: 'GESTIÓN DE EQUIPO', icon: Users, href: '/admin/users', color: 'rose' },
-    { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'rose' },
-    { id: 'inventory', label: 'GESTIÓN DE INVENTARIO', icon: Package, href: '/admin/inventory', color: 'amber' },
-    { id: 'config', label: 'CONFIGURACIÓN BASE', icon: Settings, href: '/admin/config', color: 'gray', opacity: 'opacity-60 hover:opacity-100' },
-    { id: 'comisiones', label: 'CONFIGURACIÓN COMISIONES', icon: Settings, href: '/dashboard/admin/escalas', color: 'gray', opacity: 'opacity-60 hover:opacity-100' },
-    { id: 'aliados_admin', label: 'GESTIÓN DE ALIADOS', icon: Handshake, href: '/dashboard/admin/aliados', color: 'gray', opacity: 'opacity-60 hover:opacity-100' },
-    { id: 'liquidaciones', label: 'CIERRE DE MES', icon: Banknote, href: '/dashboard/admin/liquidaciones', color: 'gray', opacity: 'opacity-60 hover:opacity-100' },
+  const sidebarBlocks = [
+    {
+      title: 'OPERACIONES',
+      adminOnly: false,
+      items: [
+        { id: 'dashboard', label: 'DASHBOARD', icon: FileText, href: '/dashboard', color: 'rose' },
+        { id: 'inventory', label: 'GESTIÓN DE INVENTARIO', icon: Package, href: '/admin/inventory', color: 'amber', adminOnly: true },
+        { id: 'reports', label: 'REPORTES Y ESTADÍSTICAS', icon: TrendingUp, href: '/admin/reports', color: 'rose', adminOnly: true },
+      ]
+    },
+    {
+      title: 'VENTAS & CRM',
+      adminOnly: true,
+      items: [
+        { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'emerald' },
+        { id: 'crm_ia', label: 'CRM CLIENTES (IA)', icon: MessageSquare, href: '#', color: 'gray', disabled: true },
+        { id: 'agendamiento', label: 'CALENDARIO CITAS', icon: Calendar, href: '#', color: 'gray', disabled: true },
+      ]
+    },
+    {
+      title: 'RED DE ALIADOS',
+      adminOnly: true,
+      items: [
+        { id: 'aliados_admin', label: 'GESTIÓN DE ALIADOS', icon: Handshake, href: '/dashboard/admin/aliados', color: 'amber' },
+        { id: 'comisiones', label: 'CONFIG. COMISIONES', icon: Settings, href: '/dashboard/admin/escalas', color: 'gray' },
+        { id: 'liquidaciones', label: 'CIERRE DE MES', icon: Banknote, href: '/dashboard/admin/liquidaciones', color: 'emerald' },
+      ]
+    },
+    {
+      title: 'ADMINISTRACIÓN',
+      adminOnly: true,
+      items: [
+        { id: 'users', label: 'GESTIÓN DE EQUIPO', icon: Users, href: '/admin/users', color: 'indigo' },
+        { id: 'config', label: 'CONFIGURACIÓN BASE', icon: Settings, href: '/admin/config', color: 'gray' },
+      ]
+    }
   ];
 
   const SidebarContent = ({ isMobile = false }) => (
@@ -50,57 +73,56 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
         )}
       </div>
 
-      <nav className="flex-1 p-4 space-y-4 overflow-y-auto">
-        {navItems.map((item) => {
-          if (item.adminOnly && !isAdmin) return null;
-          const Icon = item.icon;
-          const isActive = activePage === item.id;
-          
+      <nav className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar pb-10">
+        {sidebarBlocks.map((block, blockIndex) => {
+          if (block.adminOnly && !isAdmin) return null;
+
           return (
-            <Link 
-              key={item.id} 
-              href={item.href} 
-              onClick={() => isMobile && setIsOpen(false)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl font-black text-sm transition-all border ${
-                isActive 
-                  ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-sm shadow-rose-50' 
-                  : 'text-gray-500 hover:bg-rose-50 hover:text-rose-500 border-transparent'
-              }`}
-            >
-              <Icon className="w-5 h-5" /> {item.label}
-            </Link>
+            <div key={blockIndex} className="space-y-1">
+              <p className="px-4 py-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">{block.title}</p>
+              
+              {block.items.map((item) => {
+                if (item.adminOnly && !isAdmin) return null;
+                const Icon = item.icon;
+                const isActive = activePage === item.id;
+                const isDisabled = item.disabled;
+                
+                const Element = isDisabled ? 'div' : Link;
+                
+                return (
+                  <Element 
+                    key={item.id}
+                    href={isDisabled ? undefined : item.href} 
+                    onClick={() => !isDisabled && isMobile && setIsOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-2.5 rounded-xl font-black text-xs transition-all group border ${
+                      isActive
+                        ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-sm shadow-rose-50'
+                        : isDisabled
+                          ? 'text-gray-400 bg-gray-50/50 border-transparent opacity-60 cursor-not-allowed grayscale'
+                          : 'text-gray-500 hover:bg-rose-50 hover:text-rose-500 border-transparent'
+                    }`}
+                  >
+                    <div className={`p-1.5 rounded-lg transition-colors shadow-sm ${
+                      isActive 
+                        ? 'bg-white text-rose-500' 
+                        : isDisabled
+                          ? 'bg-gray-100 text-gray-400'
+                          : `bg-gray-50 group-hover:bg-white text-${item.color}-500`
+                    }`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    {item.label}
+                    {isDisabled && (
+                      <span className="ml-auto text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">
+                        Próximamente
+                      </span>
+                    )}
+                  </Element>
+                );
+              })}
+            </div>
           );
         })}
-        
-        {isAdmin && (
-          <div className="space-y-1">
-            <p className="px-4 py-2 text-[9px] font-black text-gray-400 uppercase tracking-widest">Administración</p>
-            {adminNavItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = activePage === item.id;
-              
-              return (
-                <Link 
-                  key={item.id}
-                  href={item.href} 
-                  onClick={() => isMobile && setIsOpen(false)}
-                  className={`flex items-center gap-3 px-4 py-3 rounded-xl font-black text-sm transition-all group border ${
-                    isActive
-                      ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-sm shadow-rose-50'
-                      : `text-gray-500 hover:bg-rose-50 hover:text-rose-500 border-transparent ${item.opacity || ''}`
-                  }`}
-                >
-                  <div className={`p-1.5 rounded-lg transition-colors shadow-sm ${
-                    isActive ? 'bg-white text-rose-500' : `bg-gray-50 group-hover:bg-white text-${item.color}-500`
-                  }`}>
-                    <Icon className="w-5 h-5" />
-                  </div>
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        )}
       </nav>
 
       <div className="p-4 border-t border-gray-50 flex flex-col gap-2">
