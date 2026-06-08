@@ -417,36 +417,55 @@ export default function NuevoContratoPage() {
     setVipMessage('');
     
     try {
-      // Regla de Negocio: Escala Fija basada en Valor Alquiler Base
-      // Convertir a número entero limpio evadiendo formatos de texto
       const cleanText = formData.valor_total ? String(formData.valor_total).replace(/[^0-9.-]+/g, "") : "0";
       const currentTotal = parseInt(cleanText, 10) || 0;
-      
-      const { data, error } = await supabase.rpc('validar_y_quemar_codigo', { 
-        p_codigo: vipCodeInput.trim(), 
-        p_contrato_id: 'NUEVO-CONTRATO-EN-CREACION',
-        p_valor_alquiler_base: currentTotal
-      });
 
-      if (error) throw error;
+      // 1. Validar código en Supabase (Solo Lectura)
+      const { data: codeData, error: codeErr } = await supabase
+        .from('codigos_descuento')
+        .select('id, usado, referidor_id')
+        .eq('codigo_seguridad', vipCodeInput.trim())
+        .single();
 
-      const responseObj = Array.isArray(data) ? data[0] : data;
-
-      // Si la base de datos no retorna nada o valido es falso
-      if (!responseObj || responseObj.valido === false) {
-        setVipStatus('error');
-        setVipMessage(responseObj?.error || 'Código inválido o ya utilizado.');
-        return;
+      if (codeErr || !codeData) {
+        throw new Error('Código no existe en el sistema.');
       }
 
-      // Si es exitoso
+      if (codeData.usado) {
+        throw new Error('El código ya fue utilizado en otro contrato.');
+      }
+
+      // 2. Traer aliado asociado
+      const { data: refData } = await supabase
+        .from('referidores')
+        .select('nombre_aliado, estado, activo')
+        .eq('id', codeData.referidor_id)
+        .single();
+
+      if (!refData || refData.estado === 'Inactivo' || refData.activo === false) {
+        throw new Error('El aliado asociado a este código se encuentra inactivo.');
+      }
+
+      // 3. Calcular descuento
+      const { data: escalas } = await supabase
+        .from('config_escalas')
+        .select('descuento_cliente, minimo, maximo')
+        .order('minimo', { ascending: true });
+
+      let calculatedDiscount = 0;
+      if (escalas) {
+        const applicableScale = escalas.find((e: any) => 
+          currentTotal >= e.minimo && (e.maximo === null || currentTotal <= e.maximo)
+        );
+        if (applicableScale) {
+          calculatedDiscount = applicableScale.descuento_cliente || 0;
+        }
+      }
+
+      // Aplicar descuento solo en el Frontend (Reversible)
       setVipStatus('success');
-      setVipAliado(responseObj.nombre_aliado || 'Referidor VIP');
-      // Ahora Supabase devuelve el descuento dinámico basado en la escala
-      setVipDiscount(responseObj.descuento_cliente || 0);
-      
-      // El valor base (valor_total) NO se toca. 
-      // El descuento se restará matemáticamente en el useEffect del saldo final junto a los servicios adicionales.
+      setVipAliado(refData.nombre_aliado || 'Referidor VIP');
+      setVipDiscount(calculatedDiscount);
 
     } catch (err: any) {
       console.error('Error detallado:', err?.message, err);
@@ -1049,6 +1068,18 @@ export default function NuevoContratoPage() {
         toast.success(`✅ Contrato ${numero_contrato} registrado exitosamente ERP`);
       }
 
+      // 9. QUEMADO DEFINITIVO DEL CÓDIGO VIP
+      if (vipStatus === 'success' && vipCodeInput.trim()) {
+        await supabase
+          .from('codigos_descuento')
+          .update({ 
+            usado: true,
+            fecha_uso: new Date().toISOString(),
+            contrato_id: insertedContract.id
+          })
+          .eq('codigo_seguridad', vipCodeInput.trim());
+      }
+
       router.push('/dashboard');
 
     } catch (error: any) {
@@ -1510,14 +1541,30 @@ export default function NuevoContratoPage() {
                       placeholder="Ej: AMBAR-ABCD"
                       className="flex-1 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-2.5 font-medium focus:ring-2 focus:ring-rose-300 disabled:opacity-50 outline-none"
                     />
-                    <button 
-                      type="button"
-                      onClick={handleValidateVIP}
-                      disabled={vipStatus === 'success' || vipStatus === 'loading' || !vipCodeInput.trim()}
-                      className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-zinc-800 disabled:opacity-50 flex items-center gap-2 transition-colors"
-                    >
-                      {vipStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Validar'}
-                    </button>
+                    {vipStatus === 'success' ? (
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          setVipStatus('idle');
+                          setVipCodeInput('');
+                          setVipDiscount(0);
+                          setVipMessage('');
+                        }}
+                        className="bg-red-50 text-red-600 border border-red-200 px-5 py-2.5 rounded-xl font-medium hover:bg-red-100 flex items-center gap-2 transition-colors"
+                        title="Remover código y restaurar precio"
+                      >
+                        <Trash2 className="w-4 h-4" /> Remover
+                      </button>
+                    ) : (
+                      <button 
+                        type="button"
+                        onClick={handleValidateVIP}
+                        disabled={vipStatus === 'loading' || !vipCodeInput.trim()}
+                        className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-zinc-800 disabled:opacity-50 flex items-center gap-2 transition-colors"
+                      >
+                        {vipStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Validar'}
+                      </button>
+                    )}
                   </div>
                   {vipStatus === 'error' && (
                     <p className="text-red-500 text-xs font-semibold mt-2 flex items-center gap-1">
