@@ -159,11 +159,15 @@ export default function NuevoContratoPage() {
           }
         }
 
-        const { data: catAsesoras } = await supabase.from('asesoras').select('*').eq('activo', true).order('nombre_completo');
-        if (catAsesoras) setAsesorasList(catAsesoras);
+        const { data: catAsesoras, error: aError } = await supabase.from('asesoras').select('*, sedes(nombre)').eq('activo', true).order('nombre_completo');
+        if (aError) {
+          console.error('[DATABASE ERROR] Asesoras:', aError.message, aError.details);
+        } else if (catAsesoras) {
+          setAsesorasList(catAsesoras);
+        }
 
-      } catch (err) {
-        console.error('Error cargando catálogos:', err);
+      } catch (err: any) {
+        console.error('Error cargando catálogos:', err?.message || err);
       }
     };
     fetchSedesYAsesoras();
@@ -186,18 +190,18 @@ export default function NuevoContratoPage() {
         // Solo mostramos vestidos DISPONIBLES para nuevos contratos
         const { data, error } = await supabase
           .from('vestidos')
-          .select('*, sedes:sede_actual_id(nombre), stock_total, precio_sugerido')
+          .select('*, sedes(nombre), stock_total, precio_sugerido')
           .eq('estado', 'Disponible');
 
         if (error) {
-          console.error('[DATABASE ERROR] Vestidos:', error);
+          console.error('[DATABASE ERROR] Vestidos:', error.message, error.details);
           throw error;
         }
 
         console.log('Vestidos encontrados para esta sede:', data?.length || 0);
         setVestidosMaestro(data || []);
-      } catch (err) {
-        console.error('[CRASH] fetchVestidosSede:', err);
+      } catch (err: any) {
+        console.error('[CRASH] fetchVestidosSede:', err?.message || err);
         setVestidosMaestro([]);
       } finally {
         console.log('[DEBUG] Finalizando carga de vestidos');
@@ -211,6 +215,7 @@ export default function NuevoContratoPage() {
   // -- Cascading Filter for Asesoras --
   useEffect(() => {
     if (formData.sede_id) {
+      console.log("[DEBUG CONTRATO] Sede Seleccionada ID:", formData.sede_id, "Primer asesora sede_id:", asesorasList[0]?.sede_id);
       const filtered = asesorasList.filter(a => a.sede_id === formData.sede_id);
       setAsesorasFiltradas(filtered);
       // Reset asesora if not in filtered list anymore
@@ -544,7 +549,7 @@ export default function NuevoContratoPage() {
 
       let query = supabase
         .from('vestidos')
-        .select('id, codigo, nombre, estado, sede_actual_id, stock_total, precio_sugerido, sedes:sede_actual_id(nombre)');
+        .select('id, codigo, nombre, estado, sede_actual_id, stock_total, precio_sugerido, sedes(nombre)');
 
       if (v.vestido_id) {
         query = query.eq('id', v.vestido_id);

@@ -84,7 +84,7 @@ export default function AvailabilityPage() {
         // Cargar uno específico si ya fue seleccionado de la lista
         const { data: d, error: de } = await supabase
           .from('vestidos')
-          .select('id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sedes:sede_actual_id(nombre)')
+          .select('id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sedes(nombre)')
           .eq('id', manualDressId)
           .single();
         if (de) throw de;
@@ -94,7 +94,7 @@ export default function AvailabilityPage() {
       } else {
         const { data: results, error: dressError } = await supabase
           .from('vestidos')
-          .select('id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sedes:sede_actual_id(nombre)')
+          .select('id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sedes(nombre)')
           .or(`codigo.ilike.%${searchQuery.trim()}%,nombre.ilike.%${searchQuery.trim()}%,categoria.ilike.%${searchQuery.trim()}%`);
 
         if (dressError) throw dressError;

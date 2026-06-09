@@ -81,7 +81,8 @@ export default function AdminConfigPage() {
 
   const loadData = async () => {
     const { data: sData } = await supabase.from('sedes').select('*').order('nombre');
-    const { data: aData } = await supabase.from('asesoras').select('*, sede:sedes(nombre)').order('nombre_completo');
+    const { data: aData, error: aError } = await supabase.from('asesoras').select('*, sedes(nombre)').order('nombre_completo');
+    if (aError) console.error('[DATABASE ERROR] asesoras:', aError.message, aError.details);
     const { data: pData } = await supabase.from('profiles').select('*').order('nombre');
     setSedes(sData || []);
     setAsesoras(aData || []);
@@ -331,7 +332,7 @@ export default function AdminConfigPage() {
                          <div>
                             <h4 className="font-black text-gray-900 text-sm uppercase">{a.nombre_completo}</h4>
                             <span className="text-[8px] bg-rose-50 text-rose-500 font-black px-1.5 py-0.5 rounded tracking-widest uppercase">
-                              {a.sede?.nombre || 'SIN SEDE'}
+                              {a.sedes?.nombre || 'SIN SEDE'}
                             </span>
                             <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ml-2 ${a.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                               {a.activo ? 'ACTIVO' : 'INACTIVO'}

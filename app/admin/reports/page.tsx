@@ -67,8 +67,7 @@ export default function ReportsPage() {
           vestidos!inner(
             codigo,
             nombre,
-            sede_actual_id,
-            sedes:sede_actual_id(nombre)
+            sede_actual_id
           ),
           contratos!inner(id, sede_id)
         `);
@@ -104,27 +103,30 @@ export default function ReportsPage() {
       }
 
       // Load all in parallel
-      const [rankingRes, globalRes, monthlyRes, pendingRes] = await Promise.all([
+      const [rankingRes, globalRes, monthlyRes, pendingRes, sedesRes] = await Promise.all([
         rankingQuery,
         globalFinanceQuery,
         monthlyFinanceQuery,
-        pendingFinanceQuery
+        pendingFinanceQuery,
+        supabase.from('sedes').select('id, nombre')
       ]);
 
       if (rankingRes.error) throw rankingRes.error;
       if (globalRes.error) throw globalRes.error;
       if (monthlyRes.error) throw monthlyRes.error;
       if (pendingRes.error) throw pendingRes.error;
+      if (sedesRes.error) throw sedesRes.error;
 
       // Process Ranking
       const counts: Record<string, { codigo: string; nombre: string; total_alquileres: number; sede_nombre: string }> = {};
+      const sedesMap = new Map((sedesRes.data || []).map((s: any) => [s.id, s.nombre]));
 
       (rankingRes.data || []).forEach((item: any) => {
         const v = item.vestidos;
         if (!v) return;
         
         const codigo = v.codigo;
-        const sede_nombre = v.sedes?.nombre || '';
+        const sede_nombre = sedesMap.get(v.sede_actual_id) || '';
 
         if (!counts[codigo]) {
           counts[codigo] = {
@@ -154,8 +156,8 @@ export default function ReportsPage() {
         pendienteRecaudar: totalPendienteDb
       });
 
-    } catch (err) {
-      console.error('Error fetching KPIs:', err);
+    } catch (err: any) {
+      console.error('Error fetching KPIs:', err?.message || JSON.stringify(err) || err);
       toast.error('Error al cargar estadísticas.');
     } finally {
       setFetchingKPIs(false);

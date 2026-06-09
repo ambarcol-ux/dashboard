@@ -47,8 +47,8 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       adminOnly: true,
       items: [
         { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'emerald' },
-        { id: 'crm_ia', label: 'CRM CLIENTES (IA)', icon: MessageSquare, href: '#', color: 'gray', disabled: true },
-        { id: 'agendamiento', label: 'CALENDARIO CITAS', icon: Calendar, href: '#', color: 'gray', disabled: true },
+        { id: 'crm_ia', label: 'CRM CLIENTES (IA)', icon: MessageSquare, href: '/dashboard/admin/crm-clientes', color: 'rose' },
+        { id: 'agendamiento', label: 'CALENDARIO CITAS', icon: Calendar, href: '/dashboard/admin/citas-calendario', color: 'amber' },
       ]
     },
     {

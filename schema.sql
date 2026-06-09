@@ -222,3 +222,29 @@ CREATE TABLE codigos_descuento (
     contrato_id UUID REFERENCES contratos(id) ON DELETE SET NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- ==============================================================================
+-- 13. Políticas de Seguridad (RLS) para Citas
+-- ==============================================================================
+-- 1. Volver a encender el candado de seguridad estricto en la tabla de citas
+ALTER TABLE citas ENABLE ROW LEVEL SECURITY;
+
+-- 2. Crear una política que permite a CUALQUIERA (incluyendo Voiceflow y tu App) AGENDAR citas (INSERT)
+CREATE POLICY "Permitir inserción pública de citas" 
+ON citas 
+FOR INSERT 
+WITH CHECK (true);
+
+-- 3. Crear una política que permite LEER (SELECT) citas únicamente si el usuario está autenticado en el ERP
+CREATE POLICY "Permitir lectura solo a usuarios autenticados del ERP" 
+ON citas 
+FOR SELECT 
+TO authenticated 
+USING (true);
+
+-- 4. Crear una política que permite MODIFICAR (UPDATE) citas solo al personal del ERP logueado
+CREATE POLICY "Permitir actualización solo a usuarios autenticados del ERP" 
+ON citas 
+FOR UPDATE 
+TO authenticated 
+USING (true);
