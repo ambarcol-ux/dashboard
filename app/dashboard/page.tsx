@@ -2416,7 +2416,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between mb-6">
             <div>
               <h2 className="text-lg font-black text-slate-900 tracking-tight">Rendimiento Comercial (Mes Actual)</h2>
-              <p className="text-xs text-gray-500 font-medium">Métricas en tiempo real desde el CRM de Supabase</p>
+              <p className="text-xs text-gray-500 font-medium">Métricas en tiempo real · Ámbar Couture</p>
             </div>
             {citasLoading && <Loader2 className="w-5 h-5 text-rose-500 animate-spin" />}
           </div>
