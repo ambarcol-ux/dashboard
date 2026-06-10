@@ -159,7 +159,7 @@ export default function CrmClientes() {
         .from('bitacora_citas')
         .insert([{
           cita_id: citaSeleccionada.id,
-          nota: newNota.trim()
+          observacion: newNota.trim()
         }]);
       
       if (error) throw error;
@@ -683,7 +683,7 @@ export default function CrmClientes() {
                     {(bitacoraNotas || []).map((nota: any) => (
                       <div key={nota.id} className="relative pl-6 border-l-2 border-slate-200 last:border-transparent pb-4 last:pb-0">
                         <div className="absolute w-3 h-3 bg-white border-2 border-slate-400 rounded-full -left-[7px] top-1"></div>
-                        <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">{nota.nota}</p>
+                        <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">{nota.observacion}</p>
                         <p className="text-xs font-medium text-gray-400 mt-1 flex items-center gap-1">
                           <CalendarIcon className="w-3 h-3" />
                           {new Date(nota.created_at).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}
