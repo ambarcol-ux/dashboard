@@ -1221,13 +1221,16 @@ export default function DashboardPage() {
 
   const fetchAsesoras = async () => {
     try {
-      const { data, error } = await supabase
+      const { data: catAsesoras, error } = await supabase
         .from('asesoras')
-        .select('id, nombre_completo, activo, sede_id')
+        .select('*, sedes(nombre)')
         .eq('activo', true)
         .order('nombre_completo');
-      if (error) throw error;
-      setAsesoras(data || []);
+      if (error) {
+        console.error('[DATABASE ERROR] Asesoras Entrega:', error);
+        throw error;
+      }
+      setAsesoras(catAsesoras || []);
     } catch (err: any) {
       console.log('Error detallado (fetchAsesoras):', err);
       toast.error('Error al cargar la lista de asesoras oficial.');
@@ -3201,11 +3204,7 @@ export default function DashboardPage() {
                    >
                       <option value="">Selecciona una asesora...</option>
                       {asesoras
-                        .filter(a => {
-                          const contractSede = deliveryData?.sede;
-                          const targetSedeId = sedes.find(s => s.nombre === contractSede)?.id;
-                          return a.sede_id === targetSedeId;
-                        })
+                        .filter(a => a.sede_id === deliveryData?.sede_id)
                         .map(a => (
                           <option key={a.id} value={a.id}>{a.nombre_completo}</option>
                         ))
