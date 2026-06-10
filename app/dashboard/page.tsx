@@ -3204,8 +3204,12 @@ export default function DashboardPage() {
                    >
                       <option value="">Selecciona una asesora...</option>
                       {asesoras
-                        .filter(a => a.sede_id === deliveryData?.sede_id)
-                        .map(a => (
+                        .filter((a: any) => {
+                          console.log("[DEBUG ENTREGAS] ID de sede del contrato:", deliveryData?.sede_id);
+                          if (!deliveryData?.sede_id) return true;
+                          return a.sede_id === deliveryData.sede_id;
+                        })
+                        .map((a: any) => (
                           <option key={a.id} value={a.id}>{a.nombre_completo}</option>
                         ))
                       }
