@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
-import { MapPin, User, Plus, Phone, Calendar as CalendarIcon, Clock, MessageSquare, ChevronDown, X, ArrowLeft } from 'lucide-react';
+import { MapPin, User, Plus, Phone, Calendar as CalendarIcon, Clock, MessageSquare, ChevronDown, X, ArrowLeft, FileText, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
@@ -30,6 +30,11 @@ export default function CrmClientes() {
 
   // Estado del Modal Ultra Premium
   const [citaSeleccionada, setCitaSeleccionada] = useState<any | null>(null);
+  
+  // Estado para la Bitácora
+  const [bitacoraNotas, setBitacoraNotas] = useState<any[]>([]);
+  const [newNota, setNewNota] = useState('');
+  const [savingNota, setSavingNota] = useState(false);
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -107,14 +112,56 @@ export default function CrmClientes() {
     if (error) {
       console.error("❌ MENSAJE CRÍTICO DE SUPABASE:", error.message);
       console.error("❌ DETALLES:", error.details);
-      console.error("❌ PISTA (HINT):", error.hint);
-      console.error("❌ CÓDIGO DE ERROR:", error.code);
+    } else {
+      setCitas(data || []);
     }
-    
-    const citasLimpias = data || [];
-    setCitas(citasLimpias);
-    
     setLoading(false);
+  };
+
+  const fetchBitacora = async (citaId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('bitacora_citas')
+        .select('*')
+        .eq('cita_id', citaId)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      setBitacoraNotas(data || []);
+    } catch (err) {
+      console.error('Error cargando bitácora:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (citaSeleccionada) {
+      fetchBitacora(citaSeleccionada.id);
+    } else {
+      setBitacoraNotas([]);
+      setNewNota('');
+    }
+  }, [citaSeleccionada]);
+
+  const handleAddNota = async () => {
+    if (!newNota.trim() || !citaSeleccionada) return;
+    setSavingNota(true);
+    try {
+      const { error } = await supabase
+        .from('bitacora_citas')
+        .insert([{
+          cita_id: citaSeleccionada.id,
+          nota: newNota.trim()
+        }]);
+      
+      if (error) throw error;
+      
+      setNewNota('');
+      fetchBitacora(citaSeleccionada.id);
+    } catch (err) {
+      console.error('Error guardando nota:', err);
+    } finally {
+      setSavingNota(false);
+    }
   };
 
   const handleChangeEstado = async (citaId: string, nuevoEstado: string) => {
@@ -534,9 +581,9 @@ export default function CrmClientes() {
 
               {/* Timeline (Historial Atención) */}
               {citaSeleccionada.historial_atencion && Array.isArray(citaSeleccionada.historial_atencion) && citaSeleccionada.historial_atencion.length > 0 && (
-                <div>
+                <div className="mb-6">
                   <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-gray-400" /> Historial de Atención
+                    <Clock className="w-4 h-4 text-gray-400" /> Historial de Atención Automático
                   </h3>
                   <div className="space-y-4 pl-2">
                     {citaSeleccionada.historial_atencion.map((evento: any, i: number) => (
@@ -551,6 +598,49 @@ export default function CrmClientes() {
                   </div>
                 </div>
               )}
+
+              {/* Bitácora / Notas Manuales */}
+              <div className="mt-8 border-t border-gray-100 pt-6">
+                <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-gray-400" /> Bitácora de Observaciones
+                </h3>
+                
+                {/* Input de nueva nota */}
+                <div className="mb-6 flex flex-col gap-2">
+                  <textarea
+                    value={newNota}
+                    onChange={(e) => setNewNota(e.target.value)}
+                    placeholder="Escribe una nueva nota u observación..."
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-slate-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-300 resize-none h-24 transition-all"
+                  />
+                  <button
+                    onClick={handleAddNota}
+                    disabled={!newNota.trim() || savingNota}
+                    className="self-end px-5 py-2 bg-slate-900 hover:bg-rose-500 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {savingNota ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                    Agregar Nota
+                  </button>
+                </div>
+
+                {/* Feed de la Bitácora */}
+                {bitacoraNotas.length > 0 ? (
+                  <div className="space-y-4 pl-2">
+                    {bitacoraNotas.map((nota: any) => (
+                      <div key={nota.id} className="relative pl-6 border-l-2 border-slate-200 last:border-transparent pb-4 last:pb-0">
+                        <div className="absolute w-3 h-3 bg-white border-2 border-slate-400 rounded-full -left-[7px] top-1"></div>
+                        <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">{nota.nota}</p>
+                        <p className="text-xs font-medium text-gray-400 mt-1 flex items-center gap-1">
+                          <CalendarIcon className="w-3 h-3" />
+                          {new Date(nota.created_at).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 italic text-center py-4">No hay observaciones registradas en la bitácora.</p>
+                )}
+              </div>
 
             </div>
           </div>
