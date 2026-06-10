@@ -22,7 +22,7 @@ const ESTADOS_CRM = [
 export default function CrmClientes() {
   const [sedes, setSedes] = useState<any[]>([]);
   const [asesoras, setAsesoras] = useState<any[]>([]);
-  const [selectedSede, setSelectedSede] = useState<string>('');
+  const [selectedSede, setSelectedSede] = useState<string>('all');
   const [citas, setCitas] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -68,7 +68,6 @@ export default function CrmClientes() {
       }
       if (data && data.length > 0) {
         setSedes(data);
-        setSelectedSede(data[0].id);
         setFormData(prev => ({ ...prev, sede_destino_id: data[0].id }));
       }
     } catch (err) {
