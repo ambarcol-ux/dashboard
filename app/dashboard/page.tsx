@@ -3203,16 +3203,16 @@ export default function DashboardPage() {
                       className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-400 outline-none font-bold"
                    >
                       <option value="">Selecciona una asesora...</option>
-                      {asesoras
-                        .filter((a: any) => {
-                          console.log("[DEBUG ENTREGAS] ID de sede del contrato:", deliveryData?.sede_id);
+                      {(() => {
+                        const filtradas = asesoras.filter((a: any) => {
                           if (!deliveryData?.sede_id) return true;
                           return a.sede_id === deliveryData.sede_id;
-                        })
-                        .map((a: any) => (
+                        });
+                        const listaFinal = filtradas.length > 0 ? filtradas : asesoras;
+                        return listaFinal.map((a: any) => (
                           <option key={a.id} value={a.id}>{a.nombre_completo}</option>
-                        ))
-                      }
+                        ));
+                      })()}
                    </select>
                 </div>
 
