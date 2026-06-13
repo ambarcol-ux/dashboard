@@ -187,11 +187,10 @@ export default function NuevoContratoPage() {
         const selectedSedeId = formData.sede_id;
         console.log('Filtrando vestidos activos globally para Typeahead de Sede:', selectedSedeId);
 
-        // Solo mostramos vestidos DISPONIBLES para nuevos contratos
+        // Buscador global de emergencia para contratos
         const { data, error } = await supabase
           .from('vestidos')
           .select('*, sedes(nombre), stock_total, precio_sugerido')
-          .eq('sede_actual_id', selectedSedeId)
           .in('estado', ['Disponible', 'Mantenimiento', 'disponible', 'mantenimiento']);
 
         if (error) {

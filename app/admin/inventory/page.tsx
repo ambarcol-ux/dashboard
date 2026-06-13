@@ -709,6 +709,7 @@ export default function InventoryPage() {
                               }}
                               onClick={(e) => e.stopPropagation()}
                             >
+                               <option value="">Sin Asignar</option>
                                {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                             </select>
                             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-hover/select:text-rose-500 transition-colors pointer-events-none" />
@@ -858,6 +859,7 @@ export default function InventoryPage() {
                             }
                           }}
                         >
+                           <option value="">Sin Asignar</option>
                            {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                         </select>
                         <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-hover/select:text-rose-500 transition-colors pointer-events-none" />
