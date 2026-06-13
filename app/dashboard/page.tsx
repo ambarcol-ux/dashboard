@@ -167,12 +167,47 @@ export default function DashboardPage() {
 
   const fetchKPIs = async () => {
     try {
-      const { data, error } = await supabase
-        .from('kpi_vestidos_populares')
-        .select('*')
-        .limit(5);
-      if (error) throw error;
-      setKpiVestidos(data || []);
+      // 1. Ranking Query para Vestidos por su sede_actual_id
+      const { data: rankingData, error: rankingErr } = await supabase
+        .from('contrato_items_vestidos')
+        .select(`
+          vestido_id,
+          vestidos!inner(
+            codigo,
+            nombre,
+            sede_actual_id
+          )
+        `);
+      if (rankingErr) throw rankingErr;
+
+      // 2. Fetch Sedes
+      const { data: sedesData, error: sedesErr } = await supabase.from('sedes').select('id, nombre');
+      if (sedesErr) throw sedesErr;
+
+      const sedesMap = new Map((sedesData || []).map((s: any) => [s.id, s.nombre]));
+
+      // 3. Agrupamiento manual seguro por UUID
+      const counts: Record<string, any> = {};
+      (rankingData || []).forEach((item: any) => {
+        const v = item.vestidos as any;
+        if (!v) return;
+        const codigo = v.codigo;
+        if (!counts[codigo]) {
+          counts[codigo] = {
+            codigo,
+            nombre: v.nombre,
+            sede_nombre: sedesMap.get(v.sede_actual_id) || 'Sin Sede',
+            total_alquileres: 0
+          };
+        }
+        counts[codigo].total_alquileres += 1;
+      });
+
+      const sorted = Object.values(counts)
+        .sort((a: any, b: any) => b.total_alquileres - a.total_alquileres)
+        .slice(0, 5);
+
+      setKpiVestidos(sorted);
     } catch (err) {
       console.error('Error fetching KPIs:', err);
     }
@@ -2281,16 +2316,18 @@ export default function DashboardPage() {
   }, [contratos, activeTabLogistica, searchTerm, filtroSede, filtroHito, filtroRango, fechaDesde, fechaHasta, filtroAlerta]);
 
   // -- KPI STATS CALCULATION (Imagen 5 Request Restore) --
+  const activeBranchName = filtroSede === 'Todas' ? 'Todas' : (sedes.find(s => s.id === filtroSede)?.nombre || 'Todas');
+
   const stats = React.useMemo(() => {
     return {
       totalPendiente: contratosFiltrados.reduce((acc, c) => acc + (Number(c.saldo) || 0) + (Number(c.total_multas) || 0), 0),
       totalContratos: contratosFiltrados.length,
       totalEnEvento: tabCounts.en_evento,
-      activeBranch: filtroSede
+      activeBranch: activeBranchName
     };
-  }, [contratosFiltrados, tabCounts, filtroSede]);
+  }, [contratosFiltrados, tabCounts, activeBranchName]);
 
-  const uniqueSedes = Array.from(new Set(contratos.map(c => c.sede)));
+  const uniqueSedes = Array.from(new Set(contratos.map(c => c.sede_id).filter(Boolean)));
 
   const renderLogisticsDate = (contrato: any, label: string, dateString: string | null, stateField: string, stateValue: string, dateField: string) => {
      if (!dateString) return null;
@@ -2578,6 +2615,12 @@ export default function DashboardPage() {
                           <span className="text-[10px] font-black text-gray-900 truncate pr-2">{v.codigo}</span>
                           <span className="text-[10px] bg-white px-2 py-0.5 rounded-lg border border-gray-100 text-gray-500 font-bold">#{i+1}</span>
                        </div>
+                       
+                       {/* Official Name from sede_actual_id */}
+                       <span className="mb-2 px-2 py-0.5 bg-gray-200 text-gray-600 rounded-lg text-[8px] font-black uppercase tracking-tight inline-block">
+                          📍 {v.sede_nombre}
+                       </span>
+
                        <p className="text-[9px] text-gray-400 font-bold truncate mb-2">{v.nombre || 'Vestido'}</p>
                        <div className="flex items-center gap-1">
                           <div className="h-1.5 flex-1 bg-gray-200 rounded-full overflow-hidden">
@@ -2664,7 +2707,7 @@ export default function DashboardPage() {
                   className="bg-gray-50 border border-gray-200 text-gray-800 rounded-xl px-4 py-2 font-bold focus:ring-2 focus:ring-rose-300 outline-none"
                 >
                   <option value="Todas">Todas las Sedes</option>
-                  {uniqueSedes.map(s => <option key={s} value={s}>{s}</option>)}
+                  {sedes.filter((s: any) => uniqueSedes.includes(s.id)).map((s: any) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                 </select>
               </div>
             </div>

@@ -191,7 +191,8 @@ export default function NuevoContratoPage() {
         const { data, error } = await supabase
           .from('vestidos')
           .select('*, sedes(nombre), stock_total, precio_sugerido')
-          .eq('estado', 'Disponible');
+          .eq('sede_actual_id', selectedSedeId)
+          .in('estado', ['Disponible', 'Mantenimiento', 'disponible', 'mantenimiento']);
 
         if (error) {
           console.error('[DATABASE ERROR] Vestidos:', error.message, error.details);
