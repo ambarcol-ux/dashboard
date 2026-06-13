@@ -1775,16 +1775,11 @@ export default function DashboardPage() {
     console.log('--- DEBUG: Buscador Inicia ---');
     console.log('ID de Sede enviado (selectedContract.sede_id):', selectedContract.sede_id);
 
-    // Buscamos vestidos de TODAS las sedes (Disponible, Alquilado o Reservado)
+    // Buscamos vestidos de forma DIRECTA y limpia la tabla 'vestidos', sin condicionar ni cruzar con contratos.
     const { data, error } = await supabase
       .from('vestidos')
-      .select(`
-        id, codigo, talla, color, estado, sede_actual_id,
-        contrato_items_vestidos(
-          contratos(numero_contrato, estado)
-        )
-      `)
-      .in('estado', ['Disponible', 'Alquilado', 'Reservado'])
+      .select('*')
+      .eq('sede_actual_id', selectedContract.sede_id)
       .order('codigo');
     
     console.log('Vestidos disponibles encontrados:', data);
@@ -2707,7 +2702,7 @@ export default function DashboardPage() {
                   className="bg-gray-50 border border-gray-200 text-gray-800 rounded-xl px-4 py-2 font-bold focus:ring-2 focus:ring-rose-300 outline-none"
                 >
                   <option value="Todas">Todas las Sedes</option>
-                  {sedes.filter((s: any) => uniqueSedes.includes(s.id)).map((s: any) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  {sedes.map((s: any) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                 </select>
               </div>
             </div>

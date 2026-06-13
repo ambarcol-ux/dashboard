@@ -415,7 +415,7 @@ export default function InventoryPage() {
       (v.categoria && v.categoria.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (v.nombre && v.nombre.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    const sedeMatch = sedeFilter === '' || v.sede_principal_id === sedeFilter;
+    const sedeMatch = sedeFilter === '' || v.sede_actual_id === sedeFilter;
     
     return searchMatch && sedeMatch;
   });
