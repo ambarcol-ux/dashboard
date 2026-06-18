@@ -157,9 +157,7 @@ export default function DashboardPage() {
   const [activeTabLogistica, setActiveTabLogistica] = useState<'por_entregar' | 'en_evento' | 'lavanderia' | 'historial' | 'anulados'>('por_entregar');
   const [kpiVestidos, setKpiVestidos] = useState<any[]>([]);
 
-  // -- Citas Analytics State --
-  const [citasMetrics, setCitasMetrics] = useState<any[]>([]);
-  const [citasLoading, setCitasLoading] = useState(false);
+
 
   const getPendingInvoicesCount = () => {
     return contratos.filter(c => !c.numero_factura && isOverdue(c.created_at)).length;
@@ -213,37 +211,7 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchCitasMetrics = async () => {
-    try {
-      setCitasLoading(true);
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      
-      const endOfMonth = new Date();
-      endOfMonth.setMonth(endOfMonth.getMonth() + 1);
-      endOfMonth.setDate(0);
-      
-      const startStr = startOfMonth.toISOString().split('T')[0];
-      const endStr = endOfMonth.toISOString().split('T')[0];
 
-      const { data, error } = await supabase
-        .from('citas')
-        .select('*, sedes!citas_sede_id_fkey(nombre), asesoras(nombre_completo)')
-        .gte('fecha', startStr)
-        .lte('fecha', endStr);
-
-      if (error) throw error;
-      setCitasMetrics(data || []);
-    } catch (err) {
-      console.error('Error fetching citas metrics:', err);
-    } finally {
-      setCitasLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchCitasMetrics();
-  }, []);
 
   const getMaintenanceDaysInfo = (fechaSalida: string) => {
     const diff = new Date(fechaSalida).getTime() - new Date().getTime();
@@ -2447,118 +2415,7 @@ export default function DashboardPage() {
         </div>
 
         {/* --- CITAS ANALYTICS DASHBOARD --- */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-lg font-black text-slate-900 tracking-tight">Rendimiento Comercial (Mes Actual)</h2>
-              <p className="text-xs text-gray-500 font-medium">Métricas en tiempo real · Ámbar Couture</p>
-            </div>
-            {citasLoading && <Loader2 className="w-5 h-5 text-rose-500 animate-spin" />}
-          </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
-            {/* CARD 1: Citas Ganadas */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col justify-between group hover:border-emerald-200 transition-all relative overflow-hidden">
-              <div className="absolute -right-6 -top-6 w-24 h-24 bg-emerald-50 rounded-full blur-2xl group-hover:bg-emerald-100 transition-colors"></div>
-              <div className="flex items-center gap-4 mb-4 relative z-10">
-                <div className="p-4 bg-emerald-100 rounded-2xl text-emerald-600 group-hover:scale-110 transition-transform">
-                  <CheckCircle2 className="w-6 h-6" />
-                </div>
-                <div>
-                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Citas Ganadas</p>
-                  <h3 className="text-4xl font-black text-gray-900 leading-none tracking-tighter">
-                    {citasMetrics.filter(c => c.estado === 'cerrado_ganado').length}
-                  </h3>
-                </div>
-              </div>
-              <div className="relative z-10 w-full bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between">
-                <span className="text-[10px] font-bold text-gray-500 uppercase">Total Mes</span>
-                <span className="text-xs font-black text-emerald-600">{citasMetrics.length} Citas</span>
-              </div>
-            </div>
-
-            {/* CARD 2: Facturación por Sedes (Barras) */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col group hover:border-rose-200 transition-all">
-              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <Building2 className="w-4 h-4 text-rose-500" /> Cierres por Sede
-              </h3>
-              <div className="space-y-4 flex-1 flex flex-col justify-center">
-                {(() => {
-                  const sedesGrouping = citasMetrics.filter(c => c.estado === 'cerrado_ganado').reduce((acc, cita) => {
-                    const s = cita.sedes?.nombre || 'Sin Sede';
-                    acc[s] = (acc[s] || 0) + 1;
-                    return acc;
-                  }, {} as Record<string, number>);
-                  const maxVal = Math.max(...(Object.values(sedesGrouping) as number[]), 1);
-                  const sortedSedes = (Object.entries(sedesGrouping) as [string, number][]).sort((a, b) => b[1] - a[1]);
-
-                  if (sortedSedes.length === 0) return <p className="text-xs text-gray-400 font-bold text-center">Sin cierres aún</p>;
-
-                  return sortedSedes.map(([sede, count]) => (
-                    <div key={sede}>
-                      <div className="flex justify-between text-[10px] font-bold mb-1.5">
-                        <span className="text-gray-700 truncate pr-2">{sede}</span>
-                        <span className="text-rose-600">{count} cierres</span>
-                      </div>
-                      <div className="h-2 w-full bg-gray-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-rose-500 rounded-full transition-all duration-1000 ease-out"
-                          style={{ width: `${(count / maxVal) * 100}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-            </div>
-
-            {/* CARD 3: Tasa de Cierre Asesoras */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col group hover:border-indigo-200 transition-all">
-              <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <Users className="w-4 h-4 text-indigo-500" /> Tasa de Conversión
-              </h3>
-              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                <div className="space-y-3">
-                  {(() => {
-                    const asesorasGrouping = citasMetrics.reduce((acc, cita) => {
-                      const a = cita.asesoras?.nombre_completo || 'Sin Asignar';
-                      if (!acc[a]) acc[a] = { total: 0, ganadas: 0 };
-                      acc[a].total += 1;
-                      if (cita.estado === 'cerrado_ganado') acc[a].ganadas += 1;
-                      return acc;
-                    }, {} as Record<string, { total: number, ganadas: number }>);
-
-                    const ranking = (Object.entries(asesorasGrouping) as [string, { total: number, ganadas: number }][])
-                      .map(([nombre, data]) => ({
-                        nombre,
-                        total: data.total,
-                        ganadas: data.ganadas,
-                        tasa: data.total > 0 ? Math.round((data.ganadas / data.total) * 100) : 0
-                      }))
-                      .sort((a, b) => b.tasa - a.tasa);
-
-                    if (ranking.length === 0) return <p className="text-xs text-gray-400 font-bold text-center">Sin asignaciones</p>;
-
-                    return ranking.map((asesora, idx) => (
-                      <div key={asesora.nombre} className="flex items-center justify-between p-2 rounded-xl bg-gray-50 border border-gray-100">
-                        <div className="flex items-center gap-2 overflow-hidden pr-2">
-                          <span className={`w-5 h-5 flex items-center justify-center rounded-md text-[9px] font-black ${idx === 0 ? 'bg-amber-100 text-amber-600' : 'bg-gray-200 text-gray-500'}`}>
-                            #{idx + 1}
-                          </span>
-                          <span className="text-[10px] font-bold text-gray-800 truncate">{asesora.nombre}</span>
-                        </div>
-                        <div className="flex flex-col items-end flex-shrink-0">
-                          <span className="text-[11px] font-black text-indigo-600">{asesora.tasa}%</span>
-                          <span className="text-[8px] font-bold text-gray-400">{asesora.ganadas}/{asesora.total} ganadas</span>
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
         {/* SUMMARY STATS (Imagen 5 Restore) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
