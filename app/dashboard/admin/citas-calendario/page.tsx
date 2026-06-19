@@ -34,9 +34,21 @@ export default function CitasCalendario() {
           El módulo de calendario local ha sido revertido exitosamente para garantizar la estabilidad comercial. 
           Este contenedor está listo para embeber el <strong className="text-gray-700">Widget Oficial de GoHighLevel</strong> en el próximo despliegue.
         </p>
-        <div className="flex items-center gap-2 text-xs font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 border border-emerald-100 px-4 py-2 rounded-xl">
-          <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-          Plataforma Lista para Conexión GHL
+        
+        <div className="w-full max-w-4xl mx-auto border-2 border-dashed border-gray-200 rounded-2xl p-4 bg-white relative h-[400px] flex items-center justify-center mb-6">
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="flex items-center gap-2 text-xs font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 border border-emerald-100 px-4 py-2 rounded-xl">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+              Plataforma Lista para Conexión GHL
+            </div>
+          </div>
+          {/* Iframe Placeholder - Ready for GHL src */}
+          <iframe 
+            src="about:blank" 
+            className="w-full h-full opacity-50" 
+            title="GoHighLevel Calendar Integration"
+            style={{ display: 'block', border: 'none' }}
+          />
         </div>
       </div>
     </div>

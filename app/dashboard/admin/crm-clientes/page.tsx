@@ -31,15 +31,7 @@ export default function CrmClientes() {
   // Estado del Modal Ultra Premium
   const [citaSeleccionada, setCitaSeleccionada] = useState<any | null>(null);
   
-  // Estado para la Bitácora
-  const [bitacoraNotas, setBitacoraNotas] = useState<any[]>([]);
-  const [newNota, setNewNota] = useState('');
-  const [savingNota, setSavingNota] = useState(false);
-  
-  // Estado para Reprogramación
-  const [editFecha, setEditFecha] = useState('');
-  const [editHora, setEditHora] = useState('');
-  const [savingReprogramacion, setSavingReprogramacion] = useState(false);
+
 
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
@@ -123,77 +115,6 @@ export default function CrmClientes() {
     setLoading(false);
   };
 
-  const fetchBitacora = async (citaId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('bitacora_citas')
-        .select('*')
-        .eq('cita_id', citaId)
-        .order('created_at', { ascending: false });
-      
-      if (error) throw error;
-      setBitacoraNotas(data || []);
-    } catch (err) {
-      console.error('Error cargando bitácora:', err);
-    }
-  };
-
-  useEffect(() => {
-    if (citaSeleccionada) {
-      setEditFecha(citaSeleccionada.fecha || '');
-      setEditHora(citaSeleccionada.hora ? citaSeleccionada.hora.substring(0, 5) : '');
-      fetchBitacora(citaSeleccionada.id);
-    } else {
-      setBitacoraNotas([]);
-      setNewNota('');
-      setEditFecha('');
-      setEditHora('');
-    }
-  }, [citaSeleccionada]);
-
-  const handleAddNota = async () => {
-    if (!newNota.trim() || !citaSeleccionada) return;
-    setSavingNota(true);
-    try {
-      const { error } = await supabase
-        .from('bitacora_citas')
-        .insert([{
-          cita_id: citaSeleccionada.id,
-          observacion: newNota.trim()
-        }]);
-      
-      if (error) throw error;
-      
-      setNewNota('');
-      fetchBitacora(citaSeleccionada.id);
-    } catch (err) {
-      console.error('Error guardando nota:', err);
-    } finally {
-      setSavingNota(false);
-    }
-  };
-
-  const handleReprogramar = async () => {
-    if (!citaSeleccionada || !editFecha || !editHora) return;
-    setSavingReprogramacion(true);
-    try {
-      const { error } = await supabase
-        .from('citas')
-        .update({ fecha: editFecha, hora: editHora })
-        .eq('id', citaSeleccionada.id);
-      
-      if (error) throw error;
-      
-      toast.success('Cita reprogramada con éxito');
-      fetchCitas();
-      setCitaSeleccionada((prev: any) => ({...prev, fecha: editFecha, hora: editHora}));
-    } catch (err) {
-      console.error('Error reprogramando:', err);
-      toast.error('Error al reprogramar la cita');
-    } finally {
-      setSavingReprogramacion(false);
-    }
-  };
 
   const handleChangeEstado = async (citaId: string, nuevoEstado: string) => {
     setActiveDropdown(null);
@@ -578,35 +499,7 @@ export default function CrmClientes() {
                   <p className="text-xs font-semibold text-gray-500 mb-1">📱 Teléfono</p>
                   <p className="text-sm font-black text-slate-800">{citaSeleccionada.cliente_telefono || 'No registrado'}</p>
                 </div>
-                <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 col-span-2 sm:col-span-1">
-                  <p className="text-xs font-semibold text-gray-500 mb-2">⏰ Reprogramar Fecha/Hora</p>
-                  <div className="flex flex-col gap-2">
-                    <div className="flex gap-2">
-                      <input 
-                        type="date" 
-                        value={editFecha}
-                        onChange={(e) => setEditFecha(e.target.value)}
-                        className="w-full px-2 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-rose-500/20 focus:border-rose-300 outline-none"
-                      />
-                      <input 
-                        type="time" 
-                        value={editHora}
-                        onChange={(e) => setEditHora(e.target.value)}
-                        className="w-full px-2 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold focus:ring-2 focus:ring-rose-500/20 focus:border-rose-300 outline-none"
-                      />
-                    </div>
-                    {(editFecha !== citaSeleccionada.fecha || editHora !== (citaSeleccionada.hora ? citaSeleccionada.hora.substring(0, 5) : '')) && (
-                      <button
-                        onClick={handleReprogramar}
-                        disabled={savingReprogramacion || !editFecha || !editHora}
-                        className="w-full mt-1 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
-                      >
-                        {savingReprogramacion ? <Loader2 className="w-3 h-3 animate-spin" /> : <Clock className="w-3 h-3" />}
-                        Guardar Reprogramación
-                      </button>
-                    )}
-                  </div>
-                </div>
+
                 <div className="bg-gray-50 p-3 rounded-xl border border-gray-100">
                   <p className="text-xs font-semibold text-gray-500 mb-1">📍 Sede Asignada</p>
                   <p className="text-sm font-black text-slate-800">
@@ -653,48 +546,7 @@ export default function CrmClientes() {
                 </div>
               )}
 
-              {/* Bitácora / Notas Manuales */}
-              <div className="mt-8 border-t border-gray-100 pt-6">
-                <h3 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-gray-400" /> Bitácora de Observaciones
-                </h3>
-                
-                {/* Input de nueva nota */}
-                <div className="mb-6 flex flex-col gap-2">
-                  <textarea
-                    value={newNota}
-                    onChange={(e) => setNewNota(e.target.value)}
-                    placeholder="Escribe una nueva nota u observación..."
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm text-slate-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-300 resize-none h-24 transition-all"
-                  />
-                  <button
-                    onClick={handleAddNota}
-                    disabled={!newNota.trim() || savingNota}
-                    className="self-end px-5 py-2 bg-slate-900 hover:bg-rose-500 text-white text-xs font-bold rounded-lg transition-colors disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {savingNota ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                    Agregar Nota
-                  </button>
-                </div>
 
-                {/* Feed de la Bitácora */}
-                {bitacoraNotas && bitacoraNotas.length > 0 ? (
-                  <div className="space-y-4 pl-2">
-                    {(bitacoraNotas || []).map((nota: any) => (
-                      <div key={nota.id} className="relative pl-6 border-l-2 border-slate-200 last:border-transparent pb-4 last:pb-0">
-                        <div className="absolute w-3 h-3 bg-white border-2 border-slate-400 rounded-full -left-[7px] top-1"></div>
-                        <p className="text-sm font-medium text-slate-700 whitespace-pre-wrap">{nota.observacion}</p>
-                        <p className="text-xs font-medium text-gray-400 mt-1 flex items-center gap-1">
-                          <CalendarIcon className="w-3 h-3" />
-                          {new Date(nota.created_at).toLocaleString('es-ES', { dateStyle: 'medium', timeStyle: 'short' })}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-gray-400 italic text-center py-4">No hay observaciones registradas en la bitácora.</p>
-                )}
-              </div>
 
             </div>
           </div>

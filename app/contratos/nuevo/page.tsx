@@ -778,6 +778,16 @@ export default function NuevoContratoPage() {
 
       const validArreglos = arreglos.filter(a => a.tipo.trim() !== '');
 
+      // ----------------------------------------------------
+      // RECALCULO ESTRICTO DE FINANZAS
+      // ----------------------------------------------------
+      const valorAlquilerBase = parseFloat(String(formData.valor_total).replace(/[^0-9.-]+/g, "")) || 0;
+      const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
+      const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
+      
+      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount);
+      const verdaderoValorTotal = valorAlquilerConDescuento + serviciosAdicionales;
+
       const payload = {
         numero_contrato,
         estado: 'borrador',
@@ -805,11 +815,11 @@ export default function NuevoContratoPage() {
         fecha_prueba_final: formData.prueba_final || null,
         fecha_entrega_envio: formData.fecha_entrega || null,
 
-        // Finanzas
-        valor_total: parseFloat(formData.valor_total) || 0,
-        anticipo: parseFloat(formData.anticipo) || 0,
+        // Finanzas Recalculadas
+        valor_total: verdaderoValorTotal,
+        anticipo: abonoInicial,
         total_arreglos: totalArreglos,
-        valor_deposito: parseFloat(formData.valor_deposito) || null,
+        valor_deposito: parseFloat(String(formData.valor_deposito).replace(/[^0-9.-]+/g, "")) || null,
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
@@ -859,6 +869,16 @@ export default function NuevoContratoPage() {
         if (arreglosError) {
           console.error("Error al insertar los arreglos en la solicitud de excepción", arreglosError);
         }
+      }
+
+      // Bitácora para servicios adicionales
+      if (serviciosAdicionales > 0 && newDoc) {
+        await supabase.from('bitacora_contratos').insert([{
+          contrato_id: newDoc.id,
+          usuario_email: 'Sistema',
+          accion: 'Registro de Servicios Adicionales',
+          detalle: `Se agregaron servicios adicionales por un valor de $${serviciosAdicionales}`
+        }]);
       }
 
       // 5. Registrar en Bitácora
@@ -959,6 +979,16 @@ export default function NuevoContratoPage() {
 
       const validArreglos = arreglos.filter(a => a.tipo.trim() !== '');
 
+      // ----------------------------------------------------
+      // RECALCULO ESTRICTO DE FINANZAS
+      // ----------------------------------------------------
+      const valorAlquilerBase = parseFloat(String(formData.valor_total).replace(/[^0-9.-]+/g, "")) || 0;
+      const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
+      const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
+      
+      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount);
+      const verdaderoValorTotal = valorAlquilerConDescuento + serviciosAdicionales;
+
       // 5. Inserción ERP: Mapeo Estricto de Columnas
       const payload = {
         numero_contrato,
@@ -987,11 +1017,11 @@ export default function NuevoContratoPage() {
         fecha_prueba_final: formData.prueba_final || null,
         fecha_entrega_envio: formData.fecha_entrega || null,
 
-        // Finanzas
-        valor_total: parseFloat(formData.valor_total) || 0,
-        anticipo: parseFloat(formData.anticipo) || 0,
+        // Finanzas Recalculadas
+        valor_total: verdaderoValorTotal,
+        anticipo: abonoInicial,
         total_arreglos: totalArreglos,
-        valor_deposito: parseFloat(formData.valor_deposito) || null,
+        valor_deposito: parseFloat(String(formData.valor_deposito).replace(/[^0-9.-]+/g, "")) || null,
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
@@ -1041,6 +1071,16 @@ export default function NuevoContratoPage() {
         if (arreglosError) {
           console.error("Error al insertar los arreglos", arreglosError);
         }
+      }
+
+      // Bitácora para servicios adicionales
+      if (serviciosAdicionales > 0 && insertedContract) {
+        await supabase.from('bitacora_contratos').insert([{
+          contrato_id: insertedContract.id,
+          usuario_email: 'Sistema',
+          accion: 'Registro de Servicios Adicionales',
+          detalle: `Se agregaron servicios adicionales por un valor de $${serviciosAdicionales}`
+        }]);
       }
 
       // 8. Registro de Excepción en Bitácora (NUEVA TABLA: bitacora_contratos) - Solo para casos legacy si llegaran aquí

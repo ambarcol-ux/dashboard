@@ -2219,7 +2219,7 @@ export default function DashboardPage() {
 
     // 3. Filtros Complementarios (Sede, Hito, Fecha)
     if (filtroSede !== 'Todas') {
-      result = result.filter(c => c.sede === filtroSede);
+      result = result.filter(c => c.sede_id === filtroSede);
     }
 
     const startOfToday = new Date().setHours(0,0,0,0);
