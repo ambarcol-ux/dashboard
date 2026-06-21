@@ -2219,7 +2219,11 @@ export default function DashboardPage() {
 
     // 3. Filtros Complementarios (Sede, Hito, Fecha)
     if (filtroSede !== 'Todas') {
-      result = result.filter(c => c.sede_id === filtroSede);
+      if (filtroSede === 'unassigned') {
+        result = result.filter(c => !c.sede_id || !sedes.some(s => s.id === c.sede_id));
+      } else {
+        result = result.filter(c => c.sede_id === filtroSede);
+      }
     }
 
     const startOfToday = new Date().setHours(0,0,0,0);
@@ -2279,7 +2283,7 @@ export default function DashboardPage() {
   }, [contratos, activeTabLogistica, searchTerm, filtroSede, filtroHito, filtroRango, fechaDesde, fechaHasta, filtroAlerta]);
 
   // -- KPI STATS CALCULATION (Imagen 5 Request Restore) --
-  const activeBranchName = filtroSede === 'Todas' ? 'Todas' : (sedes.find(s => s.id === filtroSede)?.nombre || 'Todas');
+  const activeBranchName = filtroSede === 'Todas' ? 'Todas' : (filtroSede === 'unassigned' ? 'Pereira' : (sedes.find(s => s.id === filtroSede)?.nombre || 'Todas'));
 
   const stats = React.useMemo(() => {
     return {
@@ -2291,29 +2295,53 @@ export default function DashboardPage() {
   }, [contratosFiltrados, tabCounts, activeBranchName]);
 
   const salesStats = React.useMemo(() => {
-    const now = new Date();
-    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    try {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
 
-    const monthContracts = contratos.filter(c => {
-       const createdDate = new Date(c.created_at);
-       if (createdDate < firstDay) return false;
-       
-       if (filtroSede !== 'Todas' && c.sede_id !== filtroSede) return false;
+      if (!Array.isArray(contratos)) return { recaudado: 0, count: 0, goal: 120000000 };
 
-       const est = (c.estado || '').toLowerCase();
-       if (est === 'cancelado' || est === 'rechazado' || est === 'borrador') return false;
+      const monthContracts = contratos.filter(c => {
+         if (!c) return false;
+         
+         if (c.created_at) {
+           const createdDate = new Date(c.created_at);
+           if (isNaN(createdDate.getTime())) return false;
+           
+           if (createdDate.getMonth() !== currentMonth || createdDate.getFullYear() !== currentYear) {
+             return false;
+           }
+         } else {
+           return false; // Skip if no creation date
+         }
 
-       return true;
-    });
+         if (filtroSede && filtroSede !== 'Todas') {
+           if (filtroSede === 'unassigned') {
+             if (c.sede_id && sedes.some(s => s.id === c.sede_id)) return false;
+           } else {
+             if (String(c.sede_id) !== String(filtroSede)) return false;
+           }
+         }
 
-    const recaudado = monthContracts.reduce((acc, c) => acc + (Number(c.anticipo) || 0), 0);
-    const count = monthContracts.length;
-    
-    return {
-       recaudado,
-       count,
-       goal: 120000000
-    };
+         // ELIMINADO EL FILTRO RESTRICTIVO DE ESTADOS (Cuenta todos tal como el backend SQL)
+         return true;
+      });
+
+      const recaudado = monthContracts.reduce((acc, c) => acc + (Number(c.anticipo) || 0), 0);
+      const count = monthContracts.length;
+      
+      console.log(`[VERIFICACIÓN] Sede Filtro: ${filtroSede} | Contratos: ${count} | Recaudo: ${recaudado}`);
+
+      return {
+         recaudado,
+         count,
+         goal: 120000000
+      };
+    } catch (err) {
+      console.error("Error in salesStats useMemo:", err);
+      return { recaudado: 0, count: 0, goal: 120000000 };
+    }
   }, [contratos, filtroSede]);
 
   const uniqueSedes = Array.from(new Set(contratos.map(c => c.sede_id).filter(Boolean)));
@@ -2639,6 +2667,9 @@ export default function DashboardPage() {
                 >
                   <option value="Todas">Todas las Sedes</option>
                   {sedes.map((s: any) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  {contratos.some(c => !c.sede_id || !sedes.some(s => s.id === c.sede_id)) && (
+                    <option value="unassigned">Pereira</option>
+                  )}
                 </select>
               </div>
             </div>
