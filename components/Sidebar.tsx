@@ -73,8 +73,12 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
     <>
       <div className="p-6 border-b border-gray-50 flex items-center justify-between lg:justify-start gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-rose-500 rounded-xl flex items-center justify-center text-white shadow-lg shadow-rose-200">
-            <ShieldCheck className="w-6 h-6" />
+          <div className="w-10 h-10 flex items-center justify-center">
+            <img 
+              src="https://ambarcouture.com/wp-content/uploads/2026/06/logo-ambar-transparente.png" 
+              alt="Ambar Couture Logo" 
+              className="w-10 h-10 object-contain"
+            />
           </div>
           <div>
             <h2 className="font-black text-gray-900 tracking-tight leading-none">AMBAR</h2>

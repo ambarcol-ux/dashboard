@@ -2290,6 +2290,32 @@ export default function DashboardPage() {
     };
   }, [contratosFiltrados, tabCounts, activeBranchName]);
 
+  const salesStats = React.useMemo(() => {
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const monthContracts = contratos.filter(c => {
+       const createdDate = new Date(c.created_at);
+       if (createdDate < firstDay) return false;
+       
+       if (filtroSede !== 'Todas' && c.sede_id !== filtroSede) return false;
+
+       const est = (c.estado || '').toLowerCase();
+       if (est === 'cancelado' || est === 'rechazado' || est === 'borrador') return false;
+
+       return true;
+    });
+
+    const recaudado = monthContracts.reduce((acc, c) => acc + (Number(c.anticipo) || 0), 0);
+    const count = monthContracts.length;
+    
+    return {
+       recaudado,
+       count,
+       goal: 120000000
+    };
+  }, [contratos, filtroSede]);
+
   const uniqueSedes = Array.from(new Set(contratos.map(c => c.sede_id).filter(Boolean)));
 
   const renderLogisticsDate = (contrato: any, label: string, dateString: string | null, stateField: string, stateValue: string, dateField: string) => {
@@ -2486,6 +2512,59 @@ export default function DashboardPage() {
              </div>
            </div>
          )}
+
+        {/* NEW: SALES THERMOMETER (Dashboard Recaudo) */}
+        <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-6 animate-in slide-in-from-top-4 duration-500 mt-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+             <div>
+               <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                 <DollarSign className="w-4 h-4 text-rose-500" /> Rendimiento Comercial (Mes Actual)
+               </h3>
+               <p className="text-[10px] text-gray-500 font-bold mt-1">Contratos Creados este Mes: <span className="text-rose-500 font-black text-xs ml-1">{salesStats.count}</span></p>
+             </div>
+             
+             <div className="text-right">
+               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">
+                 Recaudo Real {filtroSede === 'Todas' ? '(Global)' : `(${activeBranchName})`}
+               </p>
+               <h3 className="text-3xl font-black text-gray-900 leading-none tracking-tighter">
+                 {formatCurrency(salesStats.recaudado)}
+               </h3>
+               {filtroSede === 'Todas' && (
+                 <p className="text-xs text-gray-400 font-bold mt-1">
+                   Meta: {formatCurrency(salesStats.goal)}
+                 </p>
+               )}
+             </div>
+          </div>
+
+          {/* Barra de Progreso Dinámica (Solo Global) */}
+          {filtroSede === 'Todas' && (
+            <div className="mt-4">
+               {(() => {
+                 const pct = Math.min(100, Math.round((salesStats.recaudado / salesStats.goal) * 100));
+                 let colorClass = "bg-red-500";
+                 if (pct > 50 && pct <= 99) colorClass = "bg-yellow-500";
+                 if (pct >= 100) colorClass = "bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)]";
+
+                 return (
+                   <div className="relative">
+                     <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1">
+                       <span>Progreso de Meta</span>
+                       <span className={pct >= 100 ? 'text-green-500 font-black' : ''}>{pct}%</span>
+                     </div>
+                     <div className="h-4 bg-gray-100 rounded-full overflow-hidden relative">
+                       <div 
+                         className={`h-full rounded-full transition-all duration-1000 ${colorClass}`}
+                         style={{ width: `${pct}%` }}
+                       />
+                     </div>
+                   </div>
+                 );
+               })()}
+            </div>
+          )}
+        </div>
 
         {/* ALERTAS DE CONTROL OPERATIVO */}
         {(alerts.entregasOmitidasCount > 0 || alerts.borradoresVencidosCount > 0) && (
