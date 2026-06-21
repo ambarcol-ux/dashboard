@@ -846,6 +846,22 @@ export default function NuevoContratoPage() {
 
       if (errC) throw errC;
 
+      // Quema del código VIP (si fue usado)
+      if (vipCodeInput.trim() && newDoc && vipDiscount > 0) {
+        const { error: errorCupon } = await supabase
+          .from('codigos_descuento')
+          .update({ 
+            usado: true, 
+            fecha_uso: new Date().toISOString(),
+            contrato_id: newDoc.id 
+          })
+          .eq('codigo_seguridad', vipCodeInput.trim());
+          
+        if (errorCupon) {
+          console.error("Error al quemar el cupón VIP:", errorCupon);
+        }
+      }
+
       // 3. Vincular vestidos
       const itemPayload = resolved.map(rv => ({
         contrato_id: newDoc.id,
@@ -1044,6 +1060,22 @@ export default function NuevoContratoPage() {
       const { data: insertedContract, error: insertError } = await supabase.from('contratos').insert([payload]).select('id').single();
 
       if (insertError) throw insertError;
+
+      // Quema del código VIP (si fue usado)
+      if (vipCodeInput.trim() && insertedContract && vipDiscount > 0) {
+        const { error: errorCupon } = await supabase
+          .from('codigos_descuento')
+          .update({ 
+            usado: true, 
+            fecha_uso: new Date().toISOString(),
+            contrato_id: insertedContract.id 
+          })
+          .eq('codigo_seguridad', vipCodeInput.trim());
+          
+        if (errorCupon) {
+          console.error("Error al quemar el cupón VIP:", errorCupon);
+        }
+      }
 
       // 6. Inserción del Array Múltiple de Vestidos (usando vestido_id numérico)
       if (resolvedVestidos.length > 0 && insertedContract) {
