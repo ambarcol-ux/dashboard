@@ -104,29 +104,27 @@ export default function HorariosPage() {
   const fetchDatos = async () => {
     setLoading(true);
     try {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const limitDateStr = thirtyDaysAgo.toISOString();
+      // 1. Fetch asesoras activas desde la tabla maestra
+      const { data: dataAsesoras, error: errAsesoras } = await supabase
+        .from('asesoras')
+        .select(`
+          id, 
+          nombre_completo, 
+          sede_id, 
+          sedes(nombre)
+        `)
+        .eq('activo', true);
 
-      // 1. Fetch asesoras únicas desde contratos (sólo contratos de los últimos 30 días para personal activo)
-      const { data: contratos, error: errContratos } = await supabase
-        .from('contratos')
-        .select('asesora_id, asesora, sede_id, sede')
-        .not('asesora_id', 'is', null)
-        .gte('created_at', limitDateStr);
-
-      if (errContratos) throw errContratos;
+      if (errAsesoras) throw errAsesoras;
 
       const mapaAsesoras = new Map<string, Asesora>();
-      contratos?.forEach(c => {
-        if (!mapaAsesoras.has(c.asesora_id)) {
-          mapaAsesoras.set(c.asesora_id, {
-            asesora_id: c.asesora_id,
-            nombre: c.asesora || 'Sin Nombre',
-            sede_id: c.sede_id,
-            sede_nombre: c.sede || 'Global'
-          });
-        }
+      dataAsesoras?.forEach((a: any) => {
+        mapaAsesoras.set(a.id, {
+          asesora_id: a.id,
+          nombre: a.nombre_completo || 'Sin Nombre',
+          sede_id: a.sede_id,
+          sede_nombre: a.sedes?.nombre || 'Global'
+        });
       });
       const listaAsesoras = Array.from(mapaAsesoras.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
       setAsesoras(listaAsesoras);
