@@ -248,3 +248,19 @@ ON citas
 FOR UPDATE 
 TO authenticated 
 USING (true);
+
+-- 12. Tabla: control_horarios (Control Semanal de Asistencia)
+CREATE TABLE control_horarios (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    asesora_id UUID REFERENCES asesoras(id) ON DELETE SET NULL,
+    sede_id UUID REFERENCES sedes(id) ON DELETE SET NULL,
+    fecha DATE NOT NULL,
+    hora_entrada_asignada TIME,
+    hora_salida_asignada TIME,
+    hora_entrada_real TIME,
+    hora_salida_real TIME,
+    con_almuerzo BOOLEAN DEFAULT true,
+    minutos_trabajados INTEGER DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+    UNIQUE(asesora_id, fecha)
+);
