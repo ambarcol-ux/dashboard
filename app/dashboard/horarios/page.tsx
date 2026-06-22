@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { Clock, Save, User, CalendarDays, AlertTriangle } from 'lucide-react';
+import { Clock, Save, User, CalendarDays, AlertTriangle, ArrowLeft, BarChart3, Building2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 type Asesora = {
@@ -23,6 +24,24 @@ type HorarioDia = {
 
 type AsesoraHorario = Record<string, HorarioDia>;
 type EstadoSemanas = Record<string, AsesoraHorario>;
+
+type ReporteAsesora = {
+  asesora_id: string;
+  nombre: string;
+  sede_nombre: string;
+  minutos_totales: number;
+};
+
+type ReporteSede = {
+  sede_id: string;
+  sede_nombre: string;
+  minutos_totales: number;
+};
+
+type ReporteMensual = {
+  porAsesora: ReporteAsesora[];
+  porSede: ReporteSede[];
+};
 
 function getStartOfWeek(d: Date) {
   const date = new Date(d);
@@ -70,6 +89,8 @@ export default function HorariosPage() {
   const [horarios, setHorarios] = useState<EstadoSemanas>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reporteMensual, setReporteMensual] = useState<ReporteMensual>({ porAsesora: [], porSede: [] });
+  const [showReporte, setShowReporte] = useState(false);
 
   // Determinar la semana actual (Lunes a Domingo)
   const today = new Date();
@@ -148,6 +169,62 @@ export default function HorariosPage() {
       });
 
       setHorarios(estadoInicial);
+
+      // 3. Fetch data para reporte mensual
+      const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      
+      const { data: regMensuales, error: errMensuales } = await supabase
+        .from('control_horarios')
+        .select('asesora_id, sede_id, minutos_trabajados')
+        .gte('fecha', formatDateISO(startOfMonth))
+        .lte('fecha', formatDateISO(endOfMonth));
+
+      if (errMensuales) throw errMensuales;
+
+      const minsAsesora = new Map<string, number>();
+      const minsSede = new Map<string, number>();
+
+      regMensuales?.forEach(r => {
+        if (!r.minutos_trabajados) return;
+        minsAsesora.set(r.asesora_id, (minsAsesora.get(r.asesora_id) || 0) + r.minutos_trabajados);
+        if (r.sede_id) {
+          minsSede.set(r.sede_id, (minsSede.get(r.sede_id) || 0) + r.minutos_trabajados);
+        }
+      });
+
+      const porAsesora: ReporteAsesora[] = [];
+      minsAsesora.forEach((mins, aId) => {
+        const asesora = mapaAsesoras.get(aId);
+        if (asesora) {
+          porAsesora.push({
+            asesora_id: aId,
+            nombre: asesora.nombre,
+            sede_nombre: asesora.sede_nombre || 'Global',
+            minutos_totales: mins
+          });
+        }
+      });
+
+      const porSede: ReporteSede[] = [];
+      const mapaSedes = new Map<string, string>();
+      mapaAsesoras.forEach(a => {
+        if (a.sede_id && a.sede_nombre) {
+          mapaSedes.set(a.sede_id, a.sede_nombre);
+        }
+      });
+      minsSede.forEach((mins, sId) => {
+        porSede.push({
+          sede_id: sId,
+          sede_nombre: mapaSedes.get(sId) || 'Desconocida',
+          minutos_totales: mins
+        });
+      });
+
+      setReporteMensual({
+        porAsesora: porAsesora.sort((a, b) => b.minutos_totales - a.minutos_totales),
+        porSede: porSede.sort((a, b) => b.minutos_totales - a.minutos_totales)
+      });
     } catch (err: any) {
       console.error(err);
       toast.error('Error cargando datos: ' + err.message);
@@ -252,6 +329,10 @@ export default function HorariosPage() {
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-[1600px] mx-auto pb-24">
       {/* Header */}
+      <Link href="/dashboard" className="text-slate-600 hover:text-slate-900 flex items-center gap-2 text-sm font-medium mb-4 transition-colors w-fit">
+        <ArrowLeft className="w-4 h-4" />
+        Volver al Dashboard
+      </Link>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
         <div>
           <h1 className="text-2xl font-black text-gray-900 flex items-center gap-3">
@@ -412,6 +493,84 @@ export default function HorariosPage() {
             <User className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-gray-500 font-bold text-lg">No hay personal activo en el registro</h3>
             <p className="text-gray-400 text-sm mt-1">Asegúrate de que haya contratos firmados para extraer el listado de asesoras.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Reporte Consolidado */}
+      <div className="mt-12 bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-gray-100">
+        <div className="flex justify-between items-center mb-6 cursor-pointer" onClick={() => setShowReporte(!showReporte)}>
+          <h2 className="text-xl font-black text-gray-900 flex items-center gap-3">
+            <BarChart3 className="w-6 h-6 text-indigo-500" />
+            📊 Reporte Consolidado de Horas (Mes Actual)
+          </h2>
+          <button className="text-gray-400 hover:text-gray-600 transition-colors font-bold text-sm">
+            {showReporte ? 'Ocultar Reporte' : 'Ver Reporte'}
+          </button>
+        </div>
+
+        {showReporte && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in slide-in-from-top-4 fade-in duration-300">
+            {/* Por Asesora */}
+            <div>
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <User className="w-4 h-4" />
+                Vista por Asesora
+              </h3>
+              <div className="bg-gray-50 rounded-xl border border-gray-100 overflow-hidden">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-gray-100/50 text-gray-500 font-bold uppercase text-[10px] tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3">Asesora</th>
+                      <th className="px-4 py-3">Sede</th>
+                      <th className="px-4 py-3 text-right">Total Mes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {reporteMensual.porAsesora.map(a => (
+                      <tr key={a.asesora_id} className="bg-white hover:bg-gray-50/50 transition-colors">
+                        <td className="px-4 py-3 font-bold text-gray-900">{a.nombre}</td>
+                        <td className="px-4 py-3 text-gray-500">{a.sede_nombre}</td>
+                        <td className="px-4 py-3 font-black text-emerald-600 text-right">{formatHours(a.minutos_totales)}</td>
+                      </tr>
+                    ))}
+                    {reporteMensual.porAsesora.length === 0 && (
+                      <tr>
+                        <td colSpan={3} className="px-4 py-6 text-center text-gray-400 font-medium">No hay registros este mes</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Por Sede */}
+            <div>
+              <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                Vista por Sede
+              </h3>
+              <div className="space-y-4">
+                {reporteMensual.porSede.map(s => {
+                  const maxMins = Math.max(...reporteMensual.porSede.map(x => x.minutos_totales), 1);
+                  const width = `${(s.minutos_totales / maxMins) * 100}%`;
+                  return (
+                    <div key={s.sede_id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 left-0 h-full bg-indigo-50/50 -z-10 transition-all duration-1000" style={{ width }} />
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-gray-900">{s.sede_nombre}</span>
+                        <span className="font-black text-indigo-600">{formatHours(s.minutos_totales)}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {reporteMensual.porSede.length === 0 && (
+                  <div className="bg-gray-50 border border-gray-100 rounded-xl p-6 text-center text-gray-400 font-medium">
+                    No hay registros este mes
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </div>
