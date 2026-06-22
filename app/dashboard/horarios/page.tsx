@@ -221,6 +221,11 @@ export default function HorariosPage() {
         });
       });
 
+      console.log('Reporte Mensual Agrupado:', { 
+        porAsesora: porAsesora.sort((a, b) => b.minutos_totales - a.minutos_totales), 
+        porSede: porSede.sort((a, b) => b.minutos_totales - a.minutos_totales) 
+      });
+
       setReporteMensual({
         porAsesora: porAsesora.sort((a, b) => b.minutos_totales - a.minutos_totales),
         porSede: porSede.sort((a, b) => b.minutos_totales - a.minutos_totales)

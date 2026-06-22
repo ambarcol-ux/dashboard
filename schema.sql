@@ -261,6 +261,7 @@ CREATE TABLE control_horarios (
     hora_salida_real TIME,
     con_almuerzo BOOLEAN DEFAULT true,
     minutos_trabajados INTEGER DEFAULT 0,
+    estado_asistencia TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
     UNIQUE(asesora_id, fecha)
 );
