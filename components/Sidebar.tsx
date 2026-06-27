@@ -24,6 +24,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
     color: string;
     adminOnly?: boolean;
     disabled?: boolean;
+    external?: boolean;
   };
 
   type SidebarBlock = {
@@ -47,7 +48,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       adminOnly: true,
       items: [
         { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'emerald' },
-        { id: 'agendamiento', label: 'CALENDARIO CITAS', icon: Calendar, href: '/dashboard/admin/citas-calendario', color: 'amber' },
+        { id: 'agendamiento', label: 'CALENDARIO CITAS', icon: Calendar, href: 'https://app.gohighlevel.com/v2/location/mDlRNcVMlZ2nGyRLJf3w/dashboard', color: 'amber', external: true },
       ]
     },
     {
@@ -147,8 +148,9 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
                   <Link 
                     key={item.id}
                     href={item.href} 
-                    onClick={() => isMobile && setIsOpen(false)}
+                    onClick={() => isMobile && !item.external && setIsOpen(false)}
                     className={className}
+                    {...(item.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
                   >
                     {content}
                   </Link>

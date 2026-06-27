@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Calendar } from 'lucide-react';
+import { ArrowLeft, Calendar, ExternalLink, MessageCircle, Filter } from 'lucide-react';
 
 export default function CitasCalendario() {
   return (
@@ -19,36 +19,55 @@ export default function CitasCalendario() {
             Módulo de Agenda Ámbar Couture
           </h1>
           <p className="text-sm text-gray-500 font-medium mt-1">
-            (Powered by GoHighLevel)
+            (Centro de Control Operativo de Citas)
           </p>
         </div>
       </div>
 
-      {/* GOHIGHLEVEL IFRAME PLACEHOLDER */}
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm shadow-gray-50 overflow-hidden flex flex-col items-center justify-center min-h-[600px] bg-gray-50/50 p-6 text-center">
-        <div className="w-20 h-20 bg-rose-50 border border-rose-100 text-rose-500 rounded-full flex items-center justify-center mb-6 shadow-sm">
-          <Calendar className="w-10 h-10" />
-        </div>
-        <h2 className="text-2xl font-black text-gray-800 mb-3 tracking-tight">Integración en Progreso</h2>
-        <p className="text-gray-500 font-medium max-w-lg mb-8 leading-relaxed">
-          El módulo de calendario local ha sido revertido exitosamente para garantizar la estabilidad comercial. 
-          Este contenedor está listo para embeber el <strong className="text-gray-700">Widget Oficial de GoHighLevel</strong> en el próximo despliegue.
+      {/* CALL TO ACTION */}
+      <div className="bg-white shadow-xl rounded-2xl p-8 max-w-2xl mx-auto text-center border border-slate-100 mt-12">
+        <h2 className="text-2xl font-black text-gray-800 mb-6">💬 Centro de Conversaciones y Pipeline CRM</h2>
+        <p className="text-gray-500 font-medium mb-8">
+          Accede de forma directa y segura a la consola maestra para gestionar todas las reservas, auditar el bot de WhatsApp y mover las oportunidades del embudo comercial.
         </p>
-        
-        <div className="w-full max-w-4xl mx-auto border-2 border-dashed border-gray-200 rounded-2xl p-4 bg-white relative h-[400px] flex items-center justify-center mb-6">
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="flex items-center gap-2 text-xs font-black text-emerald-600 uppercase tracking-widest bg-emerald-50 border border-emerald-100 px-4 py-2 rounded-xl">
-              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
-              Plataforma Lista para Conexión GHL
+        <a 
+          href="https://app.gohighlevel.com/v2/location/mDlRNcVMlZ2nGyRLJf3w/conversations/conversations/vNbFhgOwmNX4ysNBOTO4?category=team-inbox&tab=unread" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-2 bg-rose-500 text-white px-8 py-4 rounded-xl font-black text-lg hover:bg-rose-600 transition-colors shadow-lg shadow-rose-200 w-full sm:w-auto"
+        >
+          <ExternalLink className="w-5 h-5" />
+          Abrir GoHighLevel en Vivo
+        </a>
+      </div>
+
+      {/* GUIA OPERATIVA */}
+      <div className="max-w-4xl mx-auto mt-12">
+        <h3 className="text-lg font-black text-gray-700 mb-4 px-2 uppercase tracking-wide">Guía Operativa del Flujo IA</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+          {/* Tarjeta 1 */}
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+            <div className="w-12 h-12 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mb-4">
+              <MessageCircle className="w-6 h-6" />
             </div>
+            <h4 className="text-lg font-black text-gray-900 mb-2">1. IA de WhatsApp (Conversaciones)</h4>
+            <p className="text-sm text-gray-500 leading-relaxed font-medium">
+              Nuestra inteligencia artificial califica a las clientas que llegan desde los catálogos en WordPress automáticamente. 
+              Como asesora, tu deber es monitorear la pestaña <strong className="text-gray-700">Conversaciones</strong> en GHL para auditar las respuestas de la IA e intervenir únicamente en escenarios críticos o cuando el bot asigne a un humano.
+            </p>
           </div>
-          {/* Iframe Placeholder - Ready for GHL src */}
-          <iframe 
-            src="about:blank" 
-            className="w-full h-full opacity-50" 
-            title="GoHighLevel Calendar Integration"
-            style={{ display: 'block', border: 'none' }}
-          />
+
+          {/* Tarjeta 2 */}
+          <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+            <div className="w-12 h-12 bg-emerald-50 text-emerald-500 rounded-full flex items-center justify-center mb-4">
+              <Filter className="w-6 h-6" />
+            </div>
+            <h4 className="text-lg font-black text-gray-900 mb-2">2. Embudo y Pipeline Comercial</h4>
+            <p className="text-sm text-gray-500 leading-relaxed font-medium">
+              Cada cita agendada de forma exitosa por el bot genera automáticamente una tarjeta de oportunidad en el <strong className="text-gray-700">Pipeline</strong>. 
+              Es tu responsabilidad arrastrar y soltar los tratos (ej. "Asistió a Prueba", "Canceló", "Vestido Separado") según el flujo real que suceda dentro de tu sede.
+            </p>
+          </div>
         </div>
       </div>
     </div>
