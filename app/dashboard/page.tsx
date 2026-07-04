@@ -66,6 +66,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [pdfGeneratingId, setPdfGeneratingId] = useState<string | null>(null);
   const [contractForPdf, setContractForPdf] = useState<ContractData | null>(null);
+  const [plantillas, setPlantillas] = useState<any[]>([]);
 
   // -- Quality Control Filters --
   const [filtroSede, setFiltroSede] = useState<string>('Todas');
@@ -381,6 +382,13 @@ export default function DashboardPage() {
 
   const fetchContratos = async () => {
     setLoading(true);
+
+    const { data: plantillasData } = await supabase
+      .from('plantillas_contratos')
+      .select('*')
+      .order('numero_orden', { ascending: true });
+    if (plantillasData) setPlantillas(plantillasData);
+    
     let allData: any[] = [];
     try {
       const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser();
@@ -2941,7 +2949,7 @@ export default function DashboardPage() {
       {contractForPdf && (
         <div style={{ position: 'absolute', top: '-10000px', left: '-10000px', opacity: 0, pointerEvents: 'none' }}>
           <div id="hidden-pdf-template" style={{ width: '800px', backgroundColor: 'white' }}>
-            <ContractTemplate data={contractForPdf} />
+            <ContractTemplate data={contractForPdf} plantillas={plantillas} />
           </div>
         </div>
       )}
