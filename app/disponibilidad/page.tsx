@@ -473,6 +473,14 @@ export default function AvailabilityPage() {
                           <p className="text-sm font-bold">Desde: {format(selectedBlock.start, "d MMM yyyy", { locale: es })}</p>
                           <p className="text-sm font-bold">Hasta: {format(selectedBlock.end, "d MMM yyyy", { locale: es })}</p>
                         </div>
+                        
+                        <Link 
+                          href={`/dashboard?contratoId=${selectedBlock.id.replace('evt-', '').replace('pxv-', '')}`}
+                          className="w-full bg-gray-900 hover:bg-black text-white py-3 rounded-xl flex items-center justify-center gap-2 transition-all font-black uppercase tracking-widest text-xs shadow-md mt-4 active:scale-95 group"
+                        >
+                          <FileText className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                          Ir al Contrato Completo
+                        </Link>
                       </div>
                     </div>
                   ) : (
