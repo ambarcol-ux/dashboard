@@ -228,6 +228,21 @@ export default function DashboardPage() {
     }
   }, [editForm.sede_id, asesoras]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined' && contratos.length > 0 && !drawerOpen) {
+      const urlParams = new URLSearchParams(window.location.search);
+      const contratoId = urlParams.get('contratoId');
+      if (contratoId) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+        const found = contratos.find(c => c.id === contratoId || c.numero_contrato === contratoId);
+        if (found) {
+          setSelectedContract(found);
+          setDrawerOpen(true);
+        }
+      }
+    }
+  }, [contratos, drawerOpen]);
+
   const generatePDF = async (contrato: any) => {
     setPdfGeneratingId(contrato.id);
     const mappedData: ContractData = {
