@@ -28,6 +28,7 @@ import {
   Download,
   CheckCircle2,
   XCircle,
+  MoreVertical,
   X,
   Edit2, 
   Edit3,
@@ -158,7 +159,12 @@ export default function DashboardPage() {
   const [activeTabLogistica, setActiveTabLogistica] = useState<'por_entregar' | 'en_evento' | 'lavanderia' | 'historial' | 'anulados'>('por_entregar');
   const [kpiVestidos, setKpiVestidos] = useState<any[]>([]);
 
-
+  // -- Global Meta State --
+  const [globalMetaId, setGlobalMetaId] = useState<string | null>(null);
+  const [globalMetaVal, setGlobalMetaVal] = useState<number>(120000000);
+  const [isEditGlobalMetaOpen, setIsEditGlobalMetaOpen] = useState(false);
+  const [editGlobalMetaInput, setEditGlobalMetaInput] = useState('');
+  const [pagosMesActual, setPagosMesActual] = useState<any[]>([]);
 
   const getPendingInvoicesCount = () => {
     return contratos.filter(c => !c.numero_factura && isOverdue(c.created_at)).length;
@@ -2077,13 +2083,88 @@ export default function DashboardPage() {
     );
   };
 
+  const fetchDashboardMetas = async () => {
+    try {
+      // Fetch Global Meta
+      const { data: metaData } = await supabase
+        .from('metas')
+        .select('*')
+        .eq('tipo', 'global')
+        .maybeSingle();
+      
+      if (metaData) {
+        setGlobalMetaId(metaData.id);
+        setGlobalMetaVal(Number(metaData.monto_meta) || 120000000);
+      } else {
+        const now = new Date();
+        const { data: newMeta } = await supabase
+          .from('metas')
+          .insert({
+            tipo: 'global',
+            nombre_objetivo: 'Meta Global',
+            monto_meta: 120000000,
+            mes: now.getMonth() + 1,
+            anio: now.getFullYear()
+          })
+          .select()
+          .single();
+        if (newMeta) {
+          setGlobalMetaId(newMeta.id);
+          setGlobalMetaVal(120000000);
+        }
+      }
+
+      // Fetch Pagos for Recaudo Real
+      const now = new Date();
+      const firstDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+      const { data: pagos } = await supabase
+        .from('pagos')
+        .select('valor_pagado, fecha_pago, contratos!inner(sede_id, estado)')
+        .gte('fecha_pago', firstDay)
+        .lte('fecha_pago', lastDay);
+      
+      const validPagos = (pagos || []).filter(p => {
+        const est = p.contratos?.estado?.toLowerCase() || '';
+        return !['cancelado', 'borrador', 'anulado'].includes(est);
+      });
+      setPagosMesActual(validPagos);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
     setIsMounted(true);
     fetchContratos();
     fetchAsesoras();
     fetchSedes();
     fetchKPIs();
+    fetchDashboardMetas();
   }, []);
+
+  const handleUpdateGlobalMeta = async () => {
+    if (!globalMetaId) return;
+    try {
+      const newVal = Number(editGlobalMetaInput);
+      if (isNaN(newVal) || newVal <= 0) {
+        toast.error('Monto inválido');
+        return;
+      }
+      const { error } = await supabase
+        .from('metas')
+        .update({ monto_meta: newVal })
+        .eq('id', globalMetaId);
+      
+      if (error) throw error;
+      setGlobalMetaVal(newVal);
+      setIsEditGlobalMetaOpen(false);
+      toast.success('Meta global actualizada');
+    } catch (err: any) {
+      toast.error('Error al actualizar meta: ' + err.message);
+    }
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-CO', {
@@ -2347,25 +2428,37 @@ export default function DashboardPage() {
            }
          }
 
-         // ELIMINADO EL FILTRO RESTRICTIVO DE ESTADOS (Cuenta todos tal como el backend SQL)
          return true;
       });
 
-      const recaudado = monthContracts.reduce((acc, c) => acc + (Number(c.anticipo) || 0), 0);
       const count = monthContracts.length;
       
+      // Calcular recaudo real mensual basado en pagos filtrados por sede
+      const pagosFiltrados = pagosMesActual.filter(p => {
+        if (filtroSede && filtroSede !== 'Todas') {
+           if (filtroSede === 'unassigned') {
+             if (p.contratos?.sede_id && sedes.some(s => s.id === p.contratos?.sede_id)) return false;
+           } else {
+             if (String(p.contratos?.sede_id) !== String(filtroSede)) return false;
+           }
+        }
+        return true;
+      });
+
+      const recaudado = pagosFiltrados.reduce((acc, p) => acc + (Number(p.valor_pagado) || 0), 0);
+
       console.log(`[VERIFICACIÓN] Sede Filtro: ${filtroSede} | Contratos: ${count} | Recaudo: ${recaudado}`);
 
       return {
          recaudado,
          count,
-         goal: 120000000
+         goal: globalMetaVal
       };
     } catch (err) {
       console.error("Error in salesStats useMemo:", err);
-      return { recaudado: 0, count: 0, goal: 120000000 };
+      return { recaudado: 0, count: 0, goal: globalMetaVal };
     }
-  }, [contratos, filtroSede]);
+  }, [contratos, filtroSede, globalMetaVal, pagosMesActual]);
 
   const uniqueSedes = Array.from(new Set(contratos.map(c => c.sede_id).filter(Boolean)));
 
@@ -2445,7 +2538,52 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex">
-      <Toaster position="top-right" richColors />
+      {/* MODAL DE EDICIÓN DE META GLOBAL */}
+      {isEditGlobalMetaOpen && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 border border-white/20">
+            <h3 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
+              <TrendingUp className="w-6 h-6 text-indigo-500" /> Editar Meta Global
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Meta (COP)</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <span className="text-gray-400 font-bold">$</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={editGlobalMetaInput}
+                    onChange={(e) => setEditGlobalMetaInput(e.target.value)}
+                    className="w-full pl-8 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-gray-900 font-bold focus:ring-4 focus:ring-indigo-50 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <button
+                  type="button"
+                  onClick={() => setIsEditGlobalMetaOpen(false)}
+                  className="flex-1 py-3 text-sm font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-2xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUpdateGlobalMeta}
+                  className="flex-1 py-3 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-2xl shadow-[0_0_20px_rgba(79,70,229,0.3)] transition-all"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Toaster position="top-center" richColors />
 
       <Sidebar user={user} handleLogout={handleLogout} activePage="dashboard" />
 
@@ -2565,7 +2703,23 @@ export default function DashboardPage() {
          )}
 
         {/* NEW: SALES THERMOMETER (Dashboard Recaudo) */}
-        <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-6 animate-in slide-in-from-top-4 duration-500 mt-6">
+        <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-6 animate-in slide-in-from-top-4 duration-500 mt-6 relative">
+          
+          {filtroSede === 'Todas' && isAdmin && (
+            <div className="absolute top-6 right-6 z-10">
+              <button 
+                onClick={() => {
+                  setEditGlobalMetaInput(globalMetaVal.toString());
+                  setIsEditGlobalMetaOpen(true);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                title="Editar Meta Global"
+              >
+                <MoreVertical className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+          )}
+
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
              <div>
                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
@@ -2574,7 +2728,7 @@ export default function DashboardPage() {
                <p className="text-[10px] text-gray-500 font-bold mt-1">Contratos Creados este Mes: <span className="text-rose-500 font-black text-xs ml-1">{salesStats.count}</span></p>
              </div>
              
-             <div className="text-right">
+             <div className="text-right pr-10">
                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">
                  Recaudo Real {filtroSede === 'Todas' ? '(Global)' : `(${activeBranchName})`}
                </p>
