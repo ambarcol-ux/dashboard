@@ -6,7 +6,7 @@ import { Toaster, toast } from 'sonner';
 import { 
   Target, TrendingUp, Calendar, Plus, X, Loader2, 
   Store, User as UserIcon, Award, Star, TrendingDown,
-  ChevronLeft, ChevronRight
+  ChevronLeft, ChevronRight, MoreVertical, AlertTriangle
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 
@@ -31,6 +31,13 @@ export default function MetasPage() {
     mes: new Date().getMonth() + 1,
     anio: new Date().getFullYear()
   });
+
+  // Edit & Delete State
+  const [editingMeta, setEditingMeta] = useState<any>(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [deletingMetaId, setDeletingMetaId] = useState<string | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   const months = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -185,6 +192,54 @@ export default function MetasPage() {
     }
   };
 
+  const handleEditMeta = async () => {
+    if (!editingMeta || !editingMeta.monto_meta) {
+      toast.error('El monto es requerido');
+      return;
+    }
+    setModalLoading(true);
+    try {
+      const { error } = await supabase
+        .from('metas')
+        .update({
+          monto_meta: Number(editingMeta.monto_meta),
+          nombre_objetivo: editingMeta.nombre_objetivo
+        })
+        .eq('id', editingMeta.id);
+
+      if (error) throw error;
+      toast.success('Meta actualizada correctamente');
+      setIsEditModalOpen(false);
+      setEditingMeta(null);
+      fetchMetasWithPerformance();
+    } catch (err: any) {
+      toast.error('Error al editar: ' + err.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
+  const handleDeleteMeta = async () => {
+    if (!deletingMetaId) return;
+    setModalLoading(true);
+    try {
+      const { error } = await supabase
+        .from('metas')
+        .delete()
+        .eq('id', deletingMetaId);
+
+      if (error) throw error;
+      toast.success('Meta eliminada correctamente');
+      setIsDeleteModalOpen(false);
+      setDeletingMetaId(null);
+      fetchMetasWithPerformance();
+    } catch (err: any) {
+      toast.error('Error al eliminar: ' + err.message);
+    } finally {
+      setModalLoading(false);
+    }
+  };
+
   const getProgressColor = (progress: number) => {
     if (progress <= 40) return 'bg-rose-500';
     if (progress <= 80) return 'bg-amber-400';
@@ -293,11 +348,47 @@ export default function MetasPage() {
                       <div className="p-3 bg-gray-50 rounded-2xl border border-gray-100 group-hover:bg-rose-50 group-hover:border-rose-100 transition-colors">
                         {meta.tipo === 'Sede' ? <Store className="w-6 h-6 text-rose-500" /> : <UserIcon className="w-6 h-6 text-rose-500" />}
                       </div>
-                      {meta.progress > 100 && (
-                        <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase border border-amber-200 animate-bounce">
-                           <Award className="w-3 h-3" /> Superada
+                      
+                      <div className="flex flex-col items-end gap-2 relative">
+                        {meta.progress > 100 && (
+                          <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black uppercase border border-amber-200 animate-bounce">
+                             <Award className="w-3 h-3" /> Superada
+                          </div>
+                        )}
+                        <div className="relative">
+                          <button 
+                            onClick={() => setActiveMenuId(activeMenuId === meta.id ? null : meta.id)}
+                            className="p-1 hover:bg-gray-100 rounded-lg transition-colors text-gray-400"
+                          >
+                            <MoreVertical className="w-5 h-5" />
+                          </button>
+                          
+                          {activeMenuId === meta.id && (
+                            <div className="absolute right-0 top-full mt-1 w-36 bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in duration-200">
+                              <button 
+                                onClick={() => {
+                                  setEditingMeta(meta);
+                                  setIsEditModalOpen(true);
+                                  setActiveMenuId(null);
+                                }}
+                                className="w-full text-left px-4 py-3 text-xs font-bold text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-50 flex items-center gap-2"
+                              >
+                                <span>✏️</span> Editar
+                              </button>
+                              <button 
+                                onClick={() => {
+                                  setDeletingMetaId(meta.id);
+                                  setIsDeleteModalOpen(true);
+                                  setActiveMenuId(null);
+                                }}
+                                className="w-full text-left px-4 py-3 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors flex items-center gap-2"
+                              >
+                                <span>🗑️</span> Eliminar
+                              </button>
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
                    </div>
 
                    <h3 className="text-xl font-black text-gray-900 tracking-tight mb-1">{meta.nombre_objetivo}</h3>
@@ -462,6 +553,99 @@ export default function MetasPage() {
                          {modalLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Establecer Objetivo'}
                        </button>
                     </div>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL: Editar Meta */}
+      {isEditModalOpen && editingMeta && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-in fade-in duration-300">
+           <div className="bg-white rounded-[2.5rem] w-full max-w-md overflow-hidden shadow-2xl border border-rose-100 animate-in zoom-in-95 duration-300">
+              <div className="p-8">
+                 <div className="flex justify-between items-center mb-6">
+                    <div>
+                       <h2 className="text-2xl font-black text-gray-900 tracking-tight flex items-center gap-3">
+                         <span className="p-2 bg-rose-100 rounded-xl">✏️</span> Editar Meta
+                       </h2>
+                       <p className="text-rose-500 text-xs font-bold uppercase tracking-widest mt-2 ml-1">Modificar Objetivo</p>
+                    </div>
+                    <button onClick={() => setIsEditModalOpen(false)} className="p-2 hover:bg-rose-50 rounded-full transition-colors">
+                       <X className="w-6 h-6 text-gray-400" />
+                    </button>
+                 </div>
+
+                 <div className="space-y-6">
+                    <div>
+                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
+                         Objetivo de la meta
+                       </label>
+                       <input 
+                         type="text"
+                         value={editingMeta.nombre_objetivo}
+                         onChange={(e) => setEditingMeta({...editingMeta, nombre_objetivo: e.target.value})}
+                         className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-rose-500 focus:ring-4 focus:ring-rose-50 transition-all font-bold text-gray-900"
+                       />
+                    </div>
+
+                    <div>
+                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
+                         Monto Objetivo (COP)
+                       </label>
+                       <input 
+                         type="number"
+                         value={editingMeta.monto_meta}
+                         onChange={(e) => setEditingMeta({...editingMeta, monto_meta: e.target.value})}
+                         className="w-full px-4 py-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-rose-500 focus:ring-4 focus:ring-rose-50 transition-all font-bold text-gray-900"
+                       />
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                       <button 
+                         onClick={() => setIsEditModalOpen(false)}
+                         disabled={modalLoading}
+                         className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black rounded-2xl transition-all active:scale-95 disabled:opacity-50 text-[10px] uppercase"
+                       >Cancelar</button>
+                       <button 
+                         onClick={handleEditMeta}
+                         disabled={modalLoading}
+                         className="flex-[1.5] py-4 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-2xl shadow-lg shadow-rose-200 transition-all active:scale-95 flex items-center justify-center gap-2 border-b-4 border-rose-700 active:border-b-0 active:translate-y-1 disabled:opacity-50 text-[10px] uppercase"
+                       >
+                         {modalLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Guardar Cambios'}
+                       </button>
+                    </div>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* MODAL: Confirmar Eliminación */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-in fade-in duration-300">
+           <div className="bg-white rounded-[2.5rem] w-full max-w-sm overflow-hidden shadow-2xl border border-rose-100 animate-in zoom-in-95 duration-300">
+              <div className="p-8 text-center space-y-4">
+                 <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertTriangle className="w-8 h-8 text-rose-500" />
+                 </div>
+                 <h3 className="text-xl font-black text-gray-900 tracking-tight">¿Eliminar Meta?</h3>
+                 <p className="text-sm font-medium text-gray-500 leading-relaxed">
+                   ¿Estás seguro de que deseas eliminar esta meta? Esta acción no se puede deshacer y los datos históricos de progreso para este objetivo se perderán.
+                 </p>
+                 <div className="flex gap-3 pt-4">
+                    <button 
+                      onClick={() => setIsDeleteModalOpen(false)}
+                      disabled={modalLoading}
+                      className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black rounded-2xl transition-all active:scale-95 disabled:opacity-50 text-[10px] uppercase"
+                    >Cancelar</button>
+                    <button 
+                      onClick={handleDeleteMeta}
+                      disabled={modalLoading}
+                      className="flex-1 py-3 bg-rose-600 hover:bg-rose-700 text-white font-black rounded-2xl shadow-lg shadow-rose-200 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 text-[10px] uppercase"
+                    >
+                      {modalLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Sí, Eliminar'}
+                    </button>
                  </div>
               </div>
            </div>
