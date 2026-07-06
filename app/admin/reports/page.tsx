@@ -11,7 +11,12 @@ export default function ReportsPage() {
   const [popularDresses, setPopularDresses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sedes, setSedes] = useState<any[]>([]);
-  const [selectedSede, setSelectedSede] = useState<string>('global');
+  const [filters, setFilters] = useState({
+    sede: 'global',
+    dateRange: 'this_month',
+    customStart: '',
+    customEnd: ''
+  });
   const [fetchingKPIs, setFetchingKPIs] = useState(false);
   const [financeStats, setFinanceStats] = useState({ facturadoTotal: 0, facturadoMes: 0, pendienteRecaudar: 0 });
 
@@ -39,8 +44,11 @@ export default function ReportsPage() {
     };
     checkUser();
     fetchSedes();
-    fetchKPIs('global');
   }, []);
+
+  useEffect(() => {
+    fetchKPIs(filters);
+  }, [filters.sede, filters.dateRange, filters.customStart, filters.customEnd]);
 
   const fetchSedes = async () => {
     try {
@@ -56,9 +64,47 @@ export default function ReportsPage() {
     }
   };
 
-  const fetchKPIs = async (sedeId: string = 'global') => {
+  const getStartEndDates = (range: string, customStart: string, customEnd: string) => {
+    const now = new Date();
+    let start: Date;
+    let end: Date = new Date();
+  
+    switch (range) {
+      case 'this_month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'last_month':
+        start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+        break;
+      case 'last_3_months':
+        start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+        break;
+      case 'this_year':
+        start = new Date(now.getFullYear(), 0, 1);
+        break;
+      case 'custom':
+        start = customStart ? new Date(customStart) : new Date(now.getFullYear(), 0, 1);
+        end = customEnd ? new Date(customEnd) : new Date();
+        if (customEnd) {
+          end.setHours(23, 59, 59);
+        }
+        break;
+      default:
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+    return { startDate: start.toISOString(), endDate: end.toISOString() };
+  };
+
+  const fetchKPIs = async (currentFilters: typeof filters) => {
     setFetchingKPIs(true);
     try {
+      const { startDate, endDate } = getStartEndDates(
+        currentFilters.dateRange, 
+        currentFilters.customStart, 
+        currentFilters.customEnd
+      );
+
       // 1. Ranking Query
       let rankingQuery = supabase
         .from('contrato_items_vestidos')
@@ -69,37 +115,41 @@ export default function ReportsPage() {
             nombre,
             sede_actual_id
           ),
-          contratos!inner(id, sede_id)
-        `);
+          contratos!inner(id, sede_id, created_at)
+        `)
+        .gte('contratos.created_at', startDate)
+        .lte('contratos.created_at', endDate);
 
-      if (sedeId !== 'global') {
-        rankingQuery = rankingQuery.eq('contratos.sede_id', sedeId);
+      if (currentFilters.sede !== 'global') {
+        rankingQuery = rankingQuery.eq('contratos.sede_id', currentFilters.sede);
       }
 
       // 2. Financial Queries
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-
       let globalFinanceQuery = supabase
         .from('contratos')
         .select('valor_total')
-        .neq('estado', 'cancelado');
+        .neq('estado', 'cancelado')
+        .gte('created_at', startDate)
+        .lte('created_at', endDate);
 
       let monthlyFinanceQuery = supabase
         .from('contratos')
         .select('valor_total')
         .neq('estado', 'cancelado')
-        .gte('created_at', startOfMonth);
+        .gte('created_at', startDate)
+        .lte('created_at', endDate);
 
       let pendingFinanceQuery = supabase
         .from('contratos')
         .select('saldo, total_multas')
-        .neq('estado', 'cancelado');
+        .neq('estado', 'cancelado')
+        .gte('created_at', startDate)
+        .lte('created_at', endDate);
 
-      if (sedeId !== 'global') {
-        globalFinanceQuery = globalFinanceQuery.eq('sede_id', sedeId);
-        monthlyFinanceQuery = monthlyFinanceQuery.eq('sede_id', sedeId);
-        pendingFinanceQuery = pendingFinanceQuery.eq('sede_id', sedeId);
+      if (currentFilters.sede !== 'global') {
+        globalFinanceQuery = globalFinanceQuery.eq('sede_id', currentFilters.sede);
+        monthlyFinanceQuery = monthlyFinanceQuery.eq('sede_id', currentFilters.sede);
+        pendingFinanceQuery = pendingFinanceQuery.eq('sede_id', currentFilters.sede);
       }
 
       // Load all in parallel
@@ -192,18 +242,15 @@ export default function ReportsPage() {
               <p className="text-rose-500 font-bold uppercase tracking-widest text-[10px] mt-1">Inteligencia de Negocio · Ambar Couture</p>
             </div>
             
-            <div className="flex items-center gap-4 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
               {/* Selector de Sede */}
-              <div className="relative w-full sm:w-60">
+              <div className="relative w-full sm:w-48">
                 <select
-                  value={selectedSede}
-                  onChange={(e) => {
-                    setSelectedSede(e.target.value);
-                    fetchKPIs(e.target.value);
-                  }}
+                  value={filters.sede}
+                  onChange={(e) => setFilters({ ...filters, sede: e.target.value })}
                   className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all cursor-pointer shadow-sm hover:bg-gray-100/50"
                 >
-                  <option value="global">🌍 Global</option>
+                  <option value="global">🌍 Sede Global</option>
                   {sedes.map(s => (
                     <option key={s.id} value={s.id}>
                       📍 {formatSedeName(s.nombre)}
@@ -212,8 +259,42 @@ export default function ReportsPage() {
                 </select>
               </div>
 
+              {/* Selector de Periodo */}
+              <div className="relative w-full sm:w-48">
+                <select
+                  value={filters.dateRange}
+                  onChange={(e) => setFilters({ ...filters, dateRange: e.target.value })}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all cursor-pointer shadow-sm hover:bg-gray-100/50"
+                >
+                  <option value="this_month">📅 Mes Actual</option>
+                  <option value="last_month">📅 Mes Anterior</option>
+                  <option value="last_3_months">📅 Últimos 3 Meses</option>
+                  <option value="this_year">📅 Año Actual</option>
+                  <option value="custom">⚙️ Rango Personalizado</option>
+                </select>
+              </div>
+
+              {/* Rango Personalizado */}
+              {filters.dateRange === 'custom' && (
+                <div className="flex items-center gap-2 w-full sm:w-auto animate-in fade-in slide-in-from-right-4 duration-300">
+                  <input
+                    type="date"
+                    value={filters.customStart}
+                    onChange={(e) => setFilters({ ...filters, customStart: e.target.value })}
+                    className="px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-600 outline-none shadow-sm"
+                  />
+                  <span className="text-gray-400 font-bold">-</span>
+                  <input
+                    type="date"
+                    value={filters.customEnd}
+                    onChange={(e) => setFilters({ ...filters, customEnd: e.target.value })}
+                    className="px-4 py-3 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-600 outline-none shadow-sm"
+                  />
+                </div>
+              )}
+
               <button 
-                onClick={() => fetchKPIs(selectedSede)} 
+                onClick={() => fetchKPIs(filters)} 
                 className="flex items-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-600 font-bold hover:bg-gray-50 transition-all shadow-sm shrink-0"
               >
                 {fetchingKPIs ? <Loader2 className="w-4 h-4 animate-spin text-rose-500" /> : <RefreshCw className="w-4 h-4" />} REFRESCAR
@@ -272,7 +353,7 @@ export default function ReportsPage() {
               <div>
                 <h2 className="text-2xl font-black text-gray-900 tracking-tight">Top 10 Vestidos más Rentados</h2>
                 <p className="text-gray-400 text-xs font-bold uppercase tracking-[0.2em] mt-1 font-sans">
-                  Ranking {selectedSede === 'global' ? 'Total Histórico' : `Sede ${formatSedeName(sedes.find(s => s.id === selectedSede)?.nombre)}`} de Alquileres
+                  Ranking {filters.sede === 'global' ? 'Total' : `Sede ${formatSedeName(sedes.find(s => s.id === filters.sede)?.nombre)}`} ({filters.dateRange === 'custom' ? 'Personalizado' : 'Filtrado'})
                 </p>
               </div>
             </div>
