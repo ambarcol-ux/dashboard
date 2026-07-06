@@ -102,22 +102,31 @@ export default function MetasPage() {
       setSedes(currentSedes);
       setAsesoras(currentAsesoras);
 
-      // 2. Fetch Contracts for this period to calculate performance
-      const firstDay = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01T00:00:00.000Z`;
-      const lastDay = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0] + 'T23:59:59.999Z';
+      // 2. Fetch Payments (Recaudo Real) for this period to calculate performance
+      // For pagos, fecha_pago is usually YYYY-MM-DD
+      const firstDay = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-01`;
+      const lastDay = new Date(selectedYear, selectedMonth, 0).toISOString().split('T')[0];
 
-      const { data: contracts, error: contractsError } = await supabase
-        .from('contratos')
-        .select('id, valor_total, sede_id, asesora_id, estado, created_at, sede, asesora')
-        .not('estado', 'in', '("cancelado","borrador","anulado","Borrador","Anulado","CANCELADO","BORRADOR","ANULADO")')
-        .gte('created_at', firstDay)
-        .lte('created_at', lastDay);
+      const { data: pagos, error: pagosError } = await supabase
+        .from('pagos')
+        .select('valor_pagado, fecha_pago, contratos!inner(sede_id, asesora_id, estado, sede, asesora)')
+        .gte('fecha_pago', firstDay)
+        .lte('fecha_pago', lastDay);
 
-      if (contractsError) throw contractsError;
+      if (pagosError) throw pagosError;
 
-      // 3. Process achievement
+      // Filter out payments belonging to cancelled/voided contracts just in case
+      const validPagos = (pagos || []).filter(p => {
+        const estado = p.contratos?.estado?.toLowerCase() || '';
+        return !['cancelado', 'borrador', 'anulado'].includes(estado);
+      });
+
+      // 3. Process achievement based on real collected payments
       const processedMetas = (metasData || []).map(meta => {
-        const achieved = (contracts || []).reduce((acc, contrato: any) => {
+        const achieved = validPagos.reduce((acc, pago: any) => {
+          const contrato = pago.contratos;
+          if (!contrato) return acc;
+          
           let match = false;
           if (meta.tipo?.toLowerCase() === 'sede') {
             const matchedSede = currentSedes.find(s => s.nombre?.toLowerCase() === meta.nombre_objetivo?.toLowerCase());
@@ -141,7 +150,7 @@ export default function MetasPage() {
               match = contrato.asesora?.toLowerCase() === meta.nombre_objetivo?.toLowerCase();
             }
           }
-          return match ? acc + Number(contrato.valor_total || 0) : acc;
+          return match ? acc + Number(pago.valor_pagado || 0) : acc;
         }, 0);
 
         const progress = Math.min(Math.round((achieved / (meta.monto_meta || 1)) * 100), 200); // UI limit at 200%
