@@ -1061,6 +1061,25 @@ export default function NuevoContratoPage() {
 
       if (insertError) throw insertError;
 
+      // REGISTRO DE RECAUDO REAL: Si hay abono inicial, insertarlo inmediatamente en la tabla 'pagos'
+      if (abonoInicial > 0 && insertedContract) {
+        const metodosString = metodosPago && metodosPago.length > 0 
+            ? metodosPago.map((m: any) => m.metodo).join(', ') 
+            : 'Múltiple/Otro';
+            
+        const { error: pagoError } = await supabase.from('pagos').insert([{
+          contrato_id: insertedContract.id,
+          valor_pagado: abonoInicial,
+          fecha_pago: new Date().toISOString().split('T')[0],
+          medio_pago: metodosString,
+          numero_recibo: '', // Opcional al crear
+          observaciones: 'Abono inicial automático al firmar contrato'
+        }]);
+        if (pagoError) {
+          console.error("Error al registrar el anticipo en pagos:", pagoError);
+        }
+      }
+
       // Quema del código VIP (si fue usado)
       if (vipCodeInput.trim() && insertedContract && vipDiscount > 0) {
         const { error: errorCupon } = await supabase
