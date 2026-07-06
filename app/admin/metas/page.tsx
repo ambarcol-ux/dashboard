@@ -116,7 +116,7 @@ export default function MetasPage() {
       if (pagosError) throw pagosError;
 
       // Filter out payments belonging to cancelled/voided contracts just in case
-      const validPagos = (pagos || []).filter(p => {
+      const validPagos = (pagos || []).filter((p: any) => {
         const estado = p.contratos?.estado?.toLowerCase() || '';
         return !['cancelado', 'borrador', 'anulado'].includes(estado);
       });

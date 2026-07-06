@@ -2123,8 +2123,7 @@ export default function DashboardPage() {
         .select('valor_pagado, fecha_pago, contratos!inner(sede_id, estado)')
         .gte('fecha_pago', firstDay)
         .lte('fecha_pago', lastDay);
-      
-      const validPagos = (pagos || []).filter(p => {
+      const validPagos = (pagos || []).filter((p: any) => {
         const est = p.contratos?.estado?.toLowerCase() || '';
         return !['cancelado', 'borrador', 'anulado'].includes(est);
       });
