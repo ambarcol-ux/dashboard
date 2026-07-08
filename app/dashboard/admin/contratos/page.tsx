@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { FileText, Save, Loader2, Edit3, CheckCircle, XCircle } from 'lucide-react';
 
@@ -12,6 +13,7 @@ interface PlantillaContrato {
 }
 
 export default function ContratosAdminPage() {
+  const router = useRouter();
   const [plantillas, setPlantillas] = useState<PlantillaContrato[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
@@ -42,11 +44,15 @@ export default function ContratosAdminPage() {
   };
 
   const handleUpdate = async (id: string, nuevoContenido: string) => {
+    console.log("Intentando guardar id:", id, "Contenido:", nuevoContenido);
     setSaving(id);
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('plantillas_contratos')
       .update({ contenido: nuevoContenido })
-      .eq('id', id);
+      .eq('id', id)
+      .select();
+
+    console.log("Resultado:", data, "Error:", error);
 
     if (error) {
       showToast('Error al guardar', 'error');
@@ -54,6 +60,7 @@ export default function ContratosAdminPage() {
       showToast('Guardado exitosamente', 'success');
       // Update local state
       setPlantillas(plantillas.map(p => p.id === id ? { ...p, contenido: nuevoContenido } : p));
+      router.refresh();
     }
     setSaving(null);
   };

@@ -65,6 +65,12 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
   const parseContenido = (html: string) => {
     let parsed = html;
     parsed = parsed.replace(/\{\{VALOR_TOTAL\}\}/g, formatCurrency(data.valor_total));
+    parsed = parsed.replace(/\{\{ANTICIPO\}\}/g, formatCurrency(data.anticipo));
+    parsed = parsed.replace(/\{\{SALDO\}\}/g, formatCurrency(data.saldo));
+    parsed = parsed.replace(/\{\{CLIENTE_NOMBRE\}\}/g, data.cliente_nombre ? data.cliente_nombre.toUpperCase() : '');
+    parsed = parsed.replace(/\{\{CLIENTE_DOCUMENTO\}\}/g, data.cliente_documento || '');
+    parsed = parsed.replace(/\{\{CLIENTE_DIRECCION\}\}/g, data.cliente_direccion || '');
+    parsed = parsed.replace(/\{\{FECHA_EVENTO\}\}/g, formatDate(data.fecha_evento));
     parsed = parsed.replace(/\{\{AUTORIZA_IMAGEN_SI\}\}/g, data.autoriza_uso_imagen ? 'X' : ' ');
     parsed = parsed.replace(/\{\{AUTORIZA_IMAGEN_NO\}\}/g, !data.autoriza_uso_imagen ? 'X' : ' ');
     return parsed;
