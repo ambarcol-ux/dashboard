@@ -399,7 +399,35 @@ export default function ManualesPage() {
               </p>
               <ul className="list-disc pl-5 space-y-3 text-gray-600">
                 <li><strong>Sedes:</strong> Crea nuevas tiendas si se expande la franquicia. El software se dividirá automáticamente en cajas para cada sede.</li>
-                <li><strong>Plantillas PDF:</strong> Aquí está guardado el texto legal ("Las cláusulas") que aparece en los contratos. Puedes editar el texto estático si un abogado recomienda un cambio de políticas de arrendamiento.</li>
+                <li>
+                  <strong>Plantillas PDF:</strong> Aquí está guardado el texto legal ("Las cláusulas") que aparece en los contratos. Puedes editar el texto estático si un abogado recomienda un cambio de políticas de arrendamiento.
+                  
+                  <div className="bg-amber-50 p-5 rounded-2xl border border-amber-200 mt-4 flex gap-4 items-start shadow-sm">
+                    <Info className="w-6 h-6 text-amber-500 flex-shrink-0 mt-1" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-bold text-amber-900">
+                        ¡Atención al modificar las cláusulas de los contratos!
+                      </p>
+                      <p className="text-sm text-amber-800 leading-relaxed">
+                        El texto utiliza etiquetas de formato (código HTML) para mantener el diseño visual del contrato impreso. Al hacer cambios en la redacción, <strong>no debes borrar ni alterar</strong> las etiquetas que están entre signos menor y mayor que (<code>&lt; &gt;</code>).
+                      </p>
+                      <ul className="text-sm text-amber-800 list-disc pl-4 space-y-1">
+                        <li><code>&lt;strong&gt;</code> y <code>&lt;/strong&gt;</code> envuelven el texto que se verá en <strong>negrita</strong>.</li>
+                        <li><code>&lt;p&gt;</code> y <code>&lt;/p&gt;</code> envuelven cada párrafo.</li>
+                        <li><code>&lt;br /&gt;</code> crea un salto de línea.</li>
+                      </ul>
+                      <div className="bg-white/60 p-3 rounded-lg border border-amber-100 mt-2">
+                        <p className="text-xs text-amber-900/70 mb-1 font-bold">Ejemplo de modificación correcta:</p>
+                        <code className="text-xs text-amber-900 block bg-white p-2 rounded">
+                          &lt;p&gt;La arrendataria &lt;strong&gt;se compromete&lt;/strong&gt; a devolver el vestido el lunes.&lt;/p&gt;
+                        </code>
+                        <p className="text-xs text-amber-800 mt-2">
+                          Solo cambia las palabras (ej. "lunes" por "martes"), pero deja intactas las etiquetas.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </li>
               </ul>
             </div>
           </div>
