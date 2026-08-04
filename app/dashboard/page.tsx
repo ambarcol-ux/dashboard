@@ -75,6 +75,8 @@ export default function DashboardPage() {
   const [fechaDesde, setFechaDesde] = useState<string>('');
   const [fechaHasta, setFechaHasta] = useState<string>('');
   const [filtroAlerta, setFiltroAlerta] = useState<'ninguna' | 'entregas_omitidas' | 'borradores_sin_firmar'>('ninguna');
+  // -- PREXV Filter (15 Años) --
+  const [filtroTipoEvento, setFiltroTipoEvento] = useState<'Todos' | 'PREXV'>('Todos');
 
   // -- Modals Quality Control --
   const [missedModalOpen, setMissedModalOpen] = useState(false);
@@ -1027,7 +1029,42 @@ export default function DashboardPage() {
     }
   };
 
+  // ─── GUARDRAIL: Validate contract data before allowing laundry transition ───
+  const validateContractForLaundry = (contrato: any): string[] => {
+    const missing: string[] = [];
+
+    // 1. Basic client data
+    if (!contrato.cliente_nombre?.trim()) missing.push('Nombre del cliente');
+    if (!contrato.cliente_documento?.trim()) missing.push('Documento del cliente');
+    if (!contrato.cliente_whatsapp?.trim()) missing.push('WhatsApp del cliente');
+    if (!contrato.cliente_email?.trim()) missing.push('Correo electrónico del cliente');
+
+    // 2. Key logistics
+    if (!contrato.fecha_evento) missing.push('Fecha del evento');
+    if (!contrato.valor_total || Number(contrato.valor_total) <= 0) missing.push('Valor total del contrato');
+
+    // 3. PREXV-specific: if photo session is scheduled, team data must be complete
+    const isPreXV = contrato.tipo_evento === 'PreXV' || contrato.tipo_evento === 'PREXV' || contrato.tipo_evento === 'Ambos';
+    if (isPreXV && contrato.fecha_pre_xv) {
+      if (!contrato.prexv_fotografo?.trim()) missing.push('Fotógrafo de la sesión Pre-XV');
+      if (!contrato.prexv_maquilladora?.trim()) missing.push('Maquilladora de la sesión Pre-XV');
+      if (!contrato.prexv_locacion?.trim()) missing.push('Locación de la sesión Pre-XV');
+    }
+
+    return missing;
+  };
+
   const openTriage = (contrato: any) => {
+    // GUARDRAIL: block if required fields are missing
+    const missingFields = validateContractForLaundry(contrato);
+    if (missingFields.length > 0) {
+      toast.error(
+        `No se puede enviar a lavandería: el contrato tiene información pendiente por diligenciar. Campos faltantes: ${missingFields.join(', ')}.`,
+        { duration: 6000 }
+      );
+      return;
+    }
+
     setTriageContract(contrato);
     setTriageForm({
       tipo: 'Lavandería',
@@ -1039,6 +1076,17 @@ export default function DashboardPage() {
 
   const submitTriage = async () => {
     if (!triageContract) return;
+
+    // SECOND-LAYER GUARDRAIL: re-validate before persisting (defense in depth)
+    const missingFields = validateContractForLaundry(triageContract);
+    if (missingFields.length > 0) {
+      toast.error(
+        `No se puede enviar a lavandería: el contrato tiene información pendiente por diligenciar. Campos faltantes: ${missingFields.join(', ')}.`,
+        { duration: 6000 }
+      );
+      return;
+    }
+
     if (triageForm.tipo === 'Sastrería' && !triageForm.detalles_danos) {
       toast.error('Por favor detalla los daños para sastrería');
       return;
@@ -2266,6 +2314,11 @@ export default function DashboardPage() {
       return result;
     }
 
+    // 0. PREXV Filter: Only show 15-year (PreXV) contracts if toggled
+    if (filtroTipoEvento === 'PREXV') {
+      result = result.filter(c => c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos');
+    }
+
     // Apply administrative alert filters and return immediately — must mirror badge logic exactly.
     if (filtroAlerta === 'entregas_omitidas') {
       const todayStr = new Date().toISOString().split('T')[0];
@@ -2381,8 +2434,13 @@ export default function DashboardPage() {
        );
     }
 
+    // 4. PREXV tipo evento filter after complementary filters
+    if (filtroTipoEvento === 'PREXV') {
+      result = result.filter(c => c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos');
+    }
+
     return result;
-  }, [contratos, activeTabLogistica, searchTerm, filtroSede, filtroHito, filtroRango, fechaDesde, fechaHasta, filtroAlerta]);
+  }, [contratos, activeTabLogistica, searchTerm, filtroSede, filtroHito, filtroRango, fechaDesde, fechaHasta, filtroAlerta, filtroTipoEvento]);
 
   // -- KPI STATS CALCULATION (Imagen 5 Request Restore) --
   const activeBranchName = filtroSede === 'Todas' ? 'Todas' : (filtroSede === 'unassigned' ? 'Pereira' : (sedes.find(s => s.id === filtroSede)?.nombre || 'Todas'));
@@ -2833,19 +2891,57 @@ export default function DashboardPage() {
                 ))}
               </div>
               
-              <div className="flex items-center gap-3">
-                <span className="text-gray-500 font-bold text-sm">Sede:</span>
-                <select 
-                  value={filtroSede} 
-                  onChange={(e) => setFiltroSede(e.target.value)}
-                  className="bg-gray-50 border border-gray-200 text-gray-800 rounded-xl px-4 py-2 font-bold focus:ring-2 focus:ring-rose-300 outline-none"
-                >
-                  <option value="Todas">Todas las Sedes</option>
-                  {sedes.map((s: any) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                  {contratos.some(c => !c.sede_id || !sedes.some(s => s.id === c.sede_id)) && (
-                    <option value="unassigned">Pereira</option>
-                  )}
-                </select>
+              <div className="flex flex-wrap items-center gap-3">
+                {/* PREXV Toggle Filter */}
+                {(() => {
+                  const prexvCount = contratos.filter(c => c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos').length;
+                  const prexvIncompletos = contratos.filter(c => {
+                    const isPreXV = c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos';
+                    if (!isPreXV || !c.fecha_pre_xv) return false;
+                    const excluido = ['cancelado', 'rechazado', 'finalizado'].includes(c.estado?.toLowerCase());
+                    if (excluido) return false;
+                    return !c.prexv_fotografo?.trim() || !c.prexv_maquilladora?.trim() || !c.prexv_locacion?.trim();
+                  }).length;
+                  return (
+                    <button
+                      onClick={() => setFiltroTipoEvento(filtroTipoEvento === 'PREXV' ? 'Todos' : 'PREXV')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-all border-2 ${
+                        filtroTipoEvento === 'PREXV'
+                          ? 'bg-violet-600 border-violet-700 text-white shadow-md shadow-violet-200'
+                          : 'bg-white border-gray-200 text-gray-500 hover:border-violet-300 hover:text-violet-600'
+                      }`}
+                    >
+                      <Camera className="w-4 h-4" />
+                      Solo PREXV / 15 Años
+                      <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                        filtroTipoEvento === 'PREXV' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {prexvCount}
+                      </span>
+                      {prexvIncompletos > 0 && (
+                        <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-400 text-white rounded-full text-[10px] font-black">
+                          <AlertTriangle className="w-2.5 h-2.5" />
+                          {prexvIncompletos} incompletos
+                        </span>
+                      )}
+                    </button>
+                  );
+                })()}
+
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 font-bold text-sm">Sede:</span>
+                  <select 
+                    value={filtroSede} 
+                    onChange={(e) => setFiltroSede(e.target.value)}
+                    className="bg-gray-50 border border-gray-200 text-gray-800 rounded-xl px-4 py-2 font-bold focus:ring-2 focus:ring-rose-300 outline-none"
+                  >
+                    <option value="Todas">Todas las Sedes</option>
+                    {sedes.map((s: any) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                    {contratos.some(c => !c.sede_id || !sedes.some(s => s.id === c.sede_id)) && (
+                      <option value="unassigned">Pereira</option>
+                    )}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -2916,9 +3012,18 @@ export default function DashboardPage() {
                  <div className="col-span-1 md:col-span-2 text-center text-gray-500 py-12 bg-gray-50 rounded-2xl border border-gray-100">
                    No hay contratos que coincidan con los filtros actuales.
                  </div>
-              ) : contratosFiltrados.map((c) => (
+              ) : contratosFiltrados.map((c) => {
+                  const isPreXVIncompleto = (() => {
+                    const isPreXV = c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos';
+                    if (!isPreXV || !c.fecha_pre_xv) return false;
+                    const excluido = ['cancelado', 'rechazado', 'finalizado'].includes(c.estado?.toLowerCase());
+                    if (excluido) return false;
+                    return !c.prexv_fotografo?.trim() || !c.prexv_maquilladora?.trim() || !c.prexv_locacion?.trim();
+                  })();
+                  return (
                  <div key={c.id} className={`bg-white rounded-2xl shadow-sm border p-5 flex flex-col gap-4 relative hover:shadow-md transition-shadow ${
-                    calculateLateDays(c) > 0 && activeTabLogistica === 'en_evento' ? 'border-rose-500 border-2 animate-pulse-slow shadow-rose-100 ring-4 ring-rose-50/50' : 'border-gray-200'
+                    calculateLateDays(c) > 0 && activeTabLogistica === 'en_evento' ? 'border-rose-500 border-2 animate-pulse-slow shadow-rose-100 ring-4 ring-rose-50/50' : 
+                    isPreXVIncompleto ? 'border-amber-300 border-2 bg-amber-50/30' : 'border-gray-200'
                   }`}>
                     <div className="absolute top-4 right-4 z-10"><ActionMenu c={c} /></div>
                     
@@ -2956,9 +3061,6 @@ export default function DashboardPage() {
                            c.estado.toUpperCase()}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {/* Status badges already here */}
-                      </div>
                     </div>
 
                     <div className="bg-gray-50/50 rounded-xl p-3 border border-gray-100/50 space-y-1">
@@ -2966,26 +3068,22 @@ export default function DashboardPage() {
                       {renderLogisticsDate(c, 'Prueba Final', c.fecha_prueba_final, 'estado_prueba_final', c.estado_prueba_final, 'fecha_prueba_final')}
                       {renderLogisticsDate(c, 'P. de Entrega', c.fecha_entrega_envio, 'estado_entrega_envio', c.estado_entrega_envio, 'fecha_entrega_envio')}
                       
-                      {/* Tarjeta Pre-XV (Verde) - Solo si tiene fecha_pre_xv */}
                       {c.fecha_pre_xv && (
                         <div 
                           onClick={() => openPreXvModal(c)}
-                          className="flex items-center justify-between p-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 rounded-lg cursor-pointer transition-all animate-in fade-in slide-in-from-right-2 duration-300 group/prexv"
+                          className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-all group/prexv ${isPreXVIncompleto ? 'bg-amber-100 hover:bg-amber-200 border border-amber-200' : 'bg-emerald-50 hover:bg-emerald-100 border border-emerald-100'}`}
                         >
                           <div className="flex items-center gap-2">
-                            <div className="p-1.5 bg-white text-emerald-600 rounded-md shadow-sm group-hover/prexv:scale-110 transition-transform">
+                            <div className={`p-1.5 rounded-md shadow-sm ${isPreXVIncompleto ? 'bg-amber-200 text-amber-700' : 'bg-white text-emerald-600'}`}>
                               <Camera className="w-3.5 h-3.5" />
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 leading-none mb-0.5">Sesión Pre-XV</span>
-                              <span className="text-xs font-bold text-emerald-600 leading-tight">
+                              <span className={`text-[10px] font-black uppercase tracking-widest leading-none mb-0.5 ${isPreXVIncompleto ? 'text-amber-800' : 'text-emerald-700'}`}>Sesión Pre-XV</span>
+                              <span className={`text-xs font-bold leading-tight ${isPreXVIncompleto ? 'text-amber-900' : 'text-emerald-600'}`}>
                                 {c.prexv_fotografo ? c.prexv_fotografo : 'Asignar Proveedores'}
                               </span>
                             </div>
                           </div>
-                          {c.prexv_fotografo && (
-                            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                          )}
                         </div>
                       )}
                     </div>
@@ -3017,7 +3115,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
                  </div>
-              ))}
+              ); })}
             </div>
 
             {/* VISTA DESKTOP (Table) */}
@@ -3050,8 +3148,16 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                 ) : (
-                  contratosFiltrados.map((c) => (
-                    <tr key={c.id} className="hover:bg-rose-50/40 transition-colors group border-b border-gray-100">
+                  contratosFiltrados.map((c) => {
+                    const isPreXVIncompleto = (() => {
+                      const isPreXV = c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos';
+                      if (!isPreXV || !c.fecha_pre_xv) return false;
+                      const excluido = ['cancelado', 'rechazado', 'finalizado'].includes(c.estado?.toLowerCase());
+                      if (excluido) return false;
+                      return !c.prexv_fotografo?.trim() || !c.prexv_maquilladora?.trim() || !c.prexv_locacion?.trim();
+                    })();
+                    return (
+                    <tr key={c.id} className={`transition-colors group border-b border-gray-100 ${isPreXVIncompleto ? 'bg-amber-50/60 hover:bg-amber-100/60' : 'hover:bg-rose-50/40'}`}>
                       <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-800">{c.numero_contrato}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-medium text-gray-900">{c.cliente_nombre}</div>
@@ -3062,21 +3168,21 @@ export default function DashboardPage() {
                         {renderLogisticsDate(c, 'Prueba Final', c.fecha_prueba_final, 'estado_prueba_final', c.estado_prueba_final, 'fecha_prueba_final')}
                         {renderLogisticsDate(c, 'P. de Entrega', c.fecha_entrega_envio, 'estado_entrega_envio', c.estado_entrega_envio, 'fecha_entrega_envio')}
                         
-                        {/* Tarjeta Pre-XV (Verde) Desktop - Solo si tiene fecha_pre_xv */}
                         {c.fecha_pre_xv && (
                           <div 
                             onClick={() => openPreXvModal(c)}
-                            className="mt-1 flex items-center justify-between p-2 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 rounded-lg cursor-pointer transition-all group/prexv"
+                            className={`mt-1 flex items-center justify-between p-2 border rounded-lg cursor-pointer transition-all ${isPreXVIncompleto ? 'bg-amber-100 border-amber-200' : 'bg-emerald-50 border-emerald-100'}`}
                           >
                             <div className="flex items-center gap-2">
-                              <Camera className="w-3.5 h-3.5 text-emerald-600" />
+                              <Camera className={`w-3.5 h-3.5 ${isPreXVIncompleto ? 'text-amber-700' : 'text-emerald-600'}`} />
                               <div className="flex flex-col">
-                                <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 leading-none">Sesión Pre-XV</span>
-                                <span className="text-[11px] font-bold text-emerald-600 leading-tight">
+                                <span className={`text-[9px] font-black uppercase tracking-widest ${isPreXVIncompleto ? 'text-amber-800' : 'text-emerald-700'} leading-none`}>Sesión Pre-XV</span>
+                                <span className={`text-[11px] font-bold ${isPreXVIncompleto ? 'text-amber-900' : 'text-emerald-600'} leading-tight`}>
                                   {c.prexv_fotografo ? c.prexv_fotografo : 'Asignar sesión'}
                                 </span>
                               </div>
                             </div>
+                            {isPreXVIncompleto && <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />}
                           </div>
                         )}
                       </td>
@@ -3099,11 +3205,13 @@ export default function DashboardPage() {
                       <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-700">
                         {formatCurrency(Number(c.saldo))}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-black flex items-center justify-end gap-2 sticky right-0 bg-white/95 z-10 shadow-l-md">
-                        <ActionMenu c={c} />
-                      </td>
+                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-black flex items-center justify-end gap-2 sticky right-0 z-10 shadow-l-md"
+                         style={{ backgroundColor: isPreXVIncompleto ? 'rgb(255 251 235 / 0.95)' : 'rgb(255 255 255 / 0.95)' }}
+                       >
+                         <ActionMenu c={c} />
+                       </td>
                     </tr>
-                  ))
+                  ); })
                 )}
               </tbody>
               </table>

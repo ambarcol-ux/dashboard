@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { 
-  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, MessageSquare, Clock, CalendarDays, BookOpen 
+  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, MessageSquare, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins 
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -40,6 +40,8 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       items: [
         { id: 'dashboard', label: 'DASHBOARD', icon: FileText, href: '/dashboard', color: 'rose' },
         { id: 'disponibilidad', label: 'AGENDA DE VESTIDOS', icon: CalendarDays, href: '/disponibilidad', color: 'emerald' },
+        { id: 'pedidos_estrene', label: 'PEDIDOS ESTRENE', icon: ShoppingBag, href: '/dashboard/pedidos-estrene', color: 'violet' },
+        { id: 'devoluciones', label: 'DEVOLUCIÓN DEPÓSITOS', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
         { id: 'inventory', label: 'GESTIÓN DE INVENTARIO', icon: Package, href: '/admin/inventory', color: 'amber', adminOnly: true },
         { id: 'reports', label: 'REPORTES Y ESTADÍSTICAS', icon: TrendingUp, href: '/admin/reports', color: 'rose', adminOnly: true },
       ]
@@ -49,7 +51,6 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       adminOnly: true,
       items: [
         { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'emerald' },
-        { id: 'agendamiento', label: 'CALENDARIO CITAS', icon: Calendar, href: 'https://app.gohighlevel.com/v2/location/mDlRNcVMlZ2nGyRLJf3w/dashboard', color: 'amber', external: true },
       ]
     },
     {
