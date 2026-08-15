@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
 import SignatureCanvas from 'react-signature-canvas';
 import { Toaster, toast } from 'sonner';
@@ -26,36 +25,11 @@ export default function FirmaPage() {
 
   const fetchContract = async () => {
     try {
-      console.log('--- DEBUG FIRMA PAGE ---');
-      console.log('ID buscado (URL params):', id);
-      
-      const { data, error } = await supabase
-        .from('contratos')
-        .select(`
-          *,
-          quinceanera_name,
-          arreglos(*),
-          vestidos:contrato_items_vestidos(
-            *,
-            vestido:vestidos(*)
-          )
-        `)
-        .eq('id', id)
-        .single();
-      
-      console.log('Resultado DB (data):', data);
-      
-      if (error) {
-        console.error('Error DB (Status 400?):', error.message);
-        console.error('Error Hint:', error.hint);
-        console.error('Error Details:', error.details);
-        throw error;
-      }
-
-      if (data) {
-        setContract(data);
-        setIsSigned(data.estado === 'firmado');
-      }
+      const response = await fetch(`/api/firma/${id}`, { cache: 'no-store' });
+      if (!response.ok) throw new Error('Contrato no encontrado');
+      const data = await response.json();
+      setContract(data);
+      setIsSigned(data.estado === 'firmado');
     } catch (err) {
       console.error('Excepción al cargar contrato:', err);
       toast.error('No se pudo encontrar el contrato o el enlace es inválido.');
@@ -108,36 +82,20 @@ export default function FirmaPage() {
       toast.error('Por favor dibuja tu firma en el recuadro antes de aceptar.');
       return;
     }
-    
+
     setSubmitting(true);
     try {
-      // Obtener la firma en base64
       const firmaBase64 = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
-      
-      const { error } = await supabase
-        .from('contratos')
-        .update({
-          estado: 'firmado',
-          firma_base64: firmaBase64,
-          fecha_firma_cliente: new Date().toISOString()
-        })
-        .eq('id', contract.id);
-
-      if (error) throw error;
-
-      // 2. Registrar en Bitácora Automática (Módulo de Retorno y Mantenimiento)
-      await supabase.from('bitacora_contratos').insert([{
-        contrato_id: contract.id,
-        accion: 'Bloqueo de Inventario',
-        detalle: `Bloqueo de inventario programado hasta el ${contract.fecha_disponibilidad_real || 'N/A'} por mantenimiento (Post-Firma).`
-      }]);
+      const response = await fetch(`/api/firma/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firmaBase64 })
+      });
+      if (!response.ok) throw new Error('No se pudo guardar la firma');
 
       toast.success('¡Contrato firmado exitosamente!');
       setIsSigned(true);
-      
-      // Actualizar el estado local para mostrar la firma en el mensaje de agradecimiento
-      setContract({ ...contract, firma_base64: firmaBase64 });
-      
+      setContract({ ...contract, estado: 'firmado', firma_base64: firmaBase64 });
     } catch (err) {
       console.error('Error al guardar la firma:', err);
       toast.error('Hubo un error al guardar tu firma. Por favor, intenta nuevamente.');
