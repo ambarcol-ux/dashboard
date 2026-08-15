@@ -157,6 +157,25 @@ export default function AdminAliadosPage() {
     return result;
   }, [aliados, searchTerm, sortOrder, selectedMonth]);
 
+
+  const metricasAliados = useMemo(() => {
+    const totalAliados = aliados.length;
+    const aliadosConReferidos = aliados.filter(
+      (aliado) => (aliado.codigos_descuento || []).length > 0
+    ).length;
+    const personasRegistradas = aliados.reduce(
+      (total, aliado) => total + (aliado.codigos_descuento || []).length,
+      0
+    );
+    const contratosConvertidos = aliados.reduce(
+      (total, aliado) =>
+        total + (aliado.codigos_descuento || []).filter((codigo: any) => codigo.usado === true).length,
+      0
+    );
+
+    return { totalAliados, aliadosConReferidos, personasRegistradas, contratosConvertidos };
+  }, [aliados]);
+
   const generateSlug = (name: string) => {
     return name
       .toLowerCase()
@@ -376,13 +395,27 @@ export default function AdminAliadosPage() {
           <div className="xl:col-span-3">
             <div className="bg-white rounded-3xl shadow-sm border border-zinc-100 overflow-hidden">
               <div className="p-6 border-b border-zinc-100 bg-zinc-50/50">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-5">
                   <h3 className="text-lg font-bold text-zinc-900 flex items-center gap-2">
                     <CheckCircle2 className="w-5 h-5 text-emerald-500" /> Analítica de Referidos
                   </h3>
                   <span className="text-xs font-bold text-zinc-500 bg-white px-3 py-1 rounded-full border border-zinc-200 shadow-sm">
-                    {filteredAndSortedAliados.length} Aliados Encontrados
+                    {filteredAndSortedAliados.length} aliados en la vista
                   </span>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
+                  {[
+                    { label: 'Aliados totales', value: metricasAliados.totalAliados },
+                    { label: 'Con referidos', value: metricasAliados.aliadosConReferidos },
+                    { label: 'Personas registradas', value: metricasAliados.personasRegistradas },
+                    { label: 'Contratos convertidos', value: metricasAliados.contratosConvertidos }
+                  ].map((metrica) => (
+                    <div key={metrica.label} className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+                      <p className="text-2xl font-black text-zinc-900">{metrica.value}</p>
+                      <p className="mt-1 text-[11px] font-bold uppercase tracking-wide text-zinc-500">{metrica.label}</p>
+                    </div>
+                  ))}
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -433,8 +466,8 @@ export default function AdminAliadosPage() {
                     <tr className="bg-zinc-50/50 border-b border-zinc-100 text-[11px] uppercase tracking-widest text-zinc-500 font-bold">
                       <th className="py-4 px-6">Aliado / Empresa</th>
                       <th className="py-4 px-6">Contacto</th>
-                      <th className="py-4 px-6 text-center">Pendientes</th>
-                      <th className="py-4 px-6 text-center">Total Traídos</th>
+                      <th className="py-4 px-6 text-center">Registros pendientes</th>
+                      <th className="py-4 px-6 text-center">Total registrados</th>
                       <th className="py-4 px-6">Financiero</th>
                       <th className="py-4 px-6 text-right">Acciones</th>
                     </tr>
