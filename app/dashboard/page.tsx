@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { canEditSavedRecords, additionalContractFields, toEditingValue, getAdditionalContractUpdates } from '@/lib/saved-record-editing';
 import { Toaster, toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { 
@@ -873,12 +874,16 @@ export default function DashboardPage() {
       fecha_cita_medidas: 'Cita de Medidas',
       fecha_prueba_final: 'Prueba Final',
       fecha_entrega_envio: 'Fecha de Entrega/Envío',
-      fecha_evento: 'Fecha del Evento'
+      fecha_evento: 'Fecha del Evento',
+      fecha_pre_xv: 'Fecha de Pre XV',
+      fecha_retorno_prevista: 'Fecha de Retorno',
+      fecha_fotografia: 'Fotografía',
+      fecha_maquillaje: 'Maquillaje'
     };
 
     Object.keys(dateLabelMap).forEach(key => {
-      const oldVal = (selectedContract[key] || '').split('T')[0]; // Normalize
-      const newVal = (editForm[key] || '').split('T')[0];
+      const oldVal = selectedContract[key] || '';
+      const newVal = editForm[key] || '';
       
       if (oldVal !== newVal) {
         detectedLogs.push(`Se cambió la fecha de ${dateLabelMap[key]} de ${oldVal || 'N/A'} a ${newVal || 'N/A'}`);
@@ -904,7 +909,17 @@ export default function DashboardPage() {
     setModalLoading(true);
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
-      
+      if (!authUser) throw new Error('Debes iniciar sesión nuevamente.');
+      const additionalUpdates = getAdditionalContractUpdates(editForm, selectedContract);
+      if (Object.keys(additionalUpdates).length && !canEditSavedRecords(authUser)) {
+        throw new Error('No tienes permiso para modificar los campos adicionales del contrato.');
+      }
+      for (const key of ['valor_total', 'anticipo', 'total_arreglos']) {
+        if (!Number.isFinite(Number(editForm[key] || 0)) || Number(editForm[key] || 0) < 0) {
+          throw new Error('Los valores del contrato deben ser números mayores o iguales a cero.');
+        }
+      }
+
       const payload = {
         cliente_nombre: editForm.cliente_nombre,
         cliente_documento: editForm.cliente_documento,
@@ -915,26 +930,41 @@ export default function DashboardPage() {
         asesora_id: editForm.asesora_id,
         asesora: asesoras.find(a => a.id === editForm.asesora_id)?.nombre_completo || editForm.asesora,
         sede: sedes.find(s => s.id === editForm.sede_id)?.nombre || editForm.sede,
-        fecha_evento: editForm.fecha_evento,
-        fecha_pre_xv: editForm.fecha_pre_xv,
-        fecha_cita_medidas: editForm.fecha_cita_medidas,
-        fecha_prueba_final: editForm.fecha_prueba_final,
-        fecha_entrega_envio: editForm.fecha_entrega_envio,
-        fecha_disponibilidad_real: calculateReturnDate(editForm.fecha_entrega_envio || editForm.fecha_evento, editForm.tipo_evento),
+        fecha_evento: editForm.fecha_evento || null,
+        fecha_pre_xv: editForm.fecha_pre_xv || null,
+        fecha_cita_medidas: editForm.fecha_cita_medidas || null,
+        fecha_prueba_final: editForm.fecha_prueba_final || null,
+        fecha_entrega_envio: editForm.fecha_entrega_envio || null,
+        fecha_disponibilidad_real: (editForm.fecha_entrega_envio || editForm.fecha_evento) ? calculateReturnDate(editForm.fecha_entrega_envio || editForm.fecha_evento, editForm.tipo_evento) : null,
         tipo_evento: editForm.tipo_evento,
-        valor_total: editForm.valor_total,
-        anticipo: editForm.anticipo,
-        total_arreglos: editForm.total_arreglos,
+        valor_total: Number(editForm.valor_total || 0),
+        anticipo: Number(editForm.anticipo || 0),
+        total_arreglos: Number(editForm.total_arreglos || 0),
         numero_factura: editForm.numero_factura,
         autoriza_uso_imagen: editForm.autoriza_uso_imagen,
+        ...additionalUpdates,
       };
 
-      const { error } = await supabase
+      const { data: savedContract, error } = await supabase
         .from('contratos')
         .update(payload)
-        .eq('id', selectedContract.id);
+        .eq('id', selectedContract.id)
+        .select('*')
+        .single();
 
       if (error) throw error;
+      if (!savedContract) throw new Error('No se pudo confirmar el guardado del contrato.');
+
+      const changedFields = Object.keys(payload).filter(key =>
+        String(selectedContract[key] ?? '') !== String(payload[key as keyof typeof payload] ?? '')
+      );
+      const { error: auditError } = await supabase.from('bitacora_contratos').insert({
+        contrato_id: selectedContract.id,
+        accion: 'Edición de contrato guardado',
+        detalle: changedFields.map(key => `${key}: ${selectedContract[key] ?? 'N/A'} → ${payload[key as keyof typeof payload] ?? 'N/A'}`).join('; ') || 'Sin cambios de valores.',
+        usuario: (user as any)?.nombre || authUser.email || authUser.id,
+      });
+      if (auditError) toast.warning('Cambios guardados, pero no se pudo registrar el detalle en la bitácora.');
 
       // 2. Log detected date changes individualy or in a single consolidated entry
       if (detectedLogs.length > 0) {
@@ -961,8 +991,8 @@ export default function DashboardPage() {
       // Refresh local data optimistically
       const updatedContract = { 
         ...selectedContract, 
-        ...payload,
-        saldo: Number(payload.valor_total || 0) + Number(payload.total_arreglos || 0) - Number(payload.anticipo || 0),
+        ...savedContract,
+        saldo: Number(savedContract.saldo || 0) + Number(savedContract.total_arreglos || 0),
         updated_at: new Date().toISOString()
       };
       
@@ -975,7 +1005,7 @@ export default function DashboardPage() {
       setIsEditingDrawer(false);
     } catch (err: any) {
       console.error(err);
-      toast.error('Error al guardar los cambios');
+      toast.error(err.message || 'Error al guardar los cambios');
     } finally {
       setModalLoading(false);
     }
@@ -1577,9 +1607,9 @@ export default function DashboardPage() {
 
     // 0. Seguridad: Verificar si el contrato está firmado y si el usuario es Admin
     const targetContract = contratos.find(c => c.id === contractId);
-    const isAdmin = user?.email === 'dubian.h88@gmail.com';
+    const isAdmin = canEditSavedRecords(user);
 
-    if (targetContract?.estado === 'firmado' && !isAdmin) {
+    if (targetContract?.estado?.toLowerCase() === 'firmado' && !isAdmin) {
       toast.error("Este contrato ya está firmado y no puede ser modificado.");
       return;
     }
@@ -4235,6 +4265,26 @@ export default function DashboardPage() {
                   ) : (
                     <div className="p-8 space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                       {/* Formulario de Edición */}
+                      {canEditSavedRecords(user) && (
+                        <section className="space-y-4">
+                          <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Datos adicionales del contrato</h3>
+                          <div className="grid grid-cols-2 gap-3">
+                            {additionalContractFields.map(field => (
+                              <label key={field.key} className="block text-xs font-bold text-gray-600">
+                                {field.label}
+                                <input
+                                  type={field.type}
+                                  value={toEditingValue(editForm[field.key], field.type)}
+                                  onChange={event => handleEditChange(field.key, event.target.value)}
+                                  min={field.type === 'number' ? 0 : undefined}
+                                  step={field.type === 'number' ? '0.01' : undefined}
+                                  className="mt-1 w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-amber-500 font-bold text-gray-900"
+                                />
+                              </label>
+                            ))}
+                          </div>
+                        </section>
+                      )}
                       
                       <section className="space-y-4">
                         <div className="flex items-center gap-3">
