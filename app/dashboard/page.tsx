@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { requireInvoice, getInvoiceUpdate, INVOICE_REQUIRED_MESSAGE } from '@/lib/invoice-validation';
 import { canEditSavedRecords, additionalContractFields, toEditingValue, getAdditionalContractUpdates } from '@/lib/saved-record-editing';
 import { Toaster, toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -868,6 +869,14 @@ export default function DashboardPage() {
   const saveContractEdit = async () => {
     if (!selectedContract) return;
     
+    let invoiceUpdate: { numero_factura?: string };
+    try {
+      invoiceUpdate = getInvoiceUpdate(editForm.numero_factura, selectedContract.numero_factura);
+    } catch {
+      toast.error(INVOICE_REQUIRED_MESSAGE);
+      return;
+    }
+
     // 1. Detect Granular Date Changes
     const detectedLogs: string[] = [];
     const dateLabelMap: Record<string, string> = {
@@ -940,7 +949,7 @@ export default function DashboardPage() {
         valor_total: Number(editForm.valor_total || 0),
         anticipo: Number(editForm.anticipo || 0),
         total_arreglos: Number(editForm.total_arreglos || 0),
-        numero_factura: editForm.numero_factura,
+        ...invoiceUpdate,
         autoriza_uso_imagen: editForm.autoriza_uso_imagen,
         ...additionalUpdates,
       };
@@ -1348,11 +1357,18 @@ export default function DashboardPage() {
 
   const submitInvoiceUpdate = async () => {
     if (!invoiceContract) return;
+    let invoice: string;
+    try {
+      invoice = requireInvoice(invoiceNumber);
+    } catch {
+      toast.error(INVOICE_REQUIRED_MESSAGE);
+      return;
+    }
     setModalLoading(true);
     try {
       const { error } = await supabase
         .from('contratos')
-        .update({ numero_factura: invoiceNumber.trim() || null })
+        .update({ numero_factura: invoice })
         .eq('id', invoiceContract.id);
 
       if (error) throw error;
@@ -1361,7 +1377,7 @@ export default function DashboardPage() {
       fetchContratos();
     } catch (err: any) {
       console.error(err);
-      toast.error('Error al actualizar factura');
+      toast.error(err?.message === INVOICE_REQUIRED_MESSAGE ? INVOICE_REQUIRED_MESSAGE : 'Error al actualizar factura');
     } finally {
       setModalLoading(false);
     }
@@ -1568,8 +1584,15 @@ export default function DashboardPage() {
   };
 
   const handleSaveFactura = async (id: string) => {
+    let invoice: string;
     try {
-      const { error } = await supabase.from('contratos').update({ numero_factura: facturaValue }).eq('id', id);
+      invoice = requireInvoice(facturaValue);
+    } catch {
+      toast.error(INVOICE_REQUIRED_MESSAGE);
+      return;
+    }
+    try {
+      const { error } = await supabase.from('contratos').update({ numero_factura: invoice }).eq('id', id);
       if (error) throw error;
       toast.success('Factura vinculada.');
       setEditingFacturaId(null);
@@ -4416,11 +4439,14 @@ export default function DashboardPage() {
                         </div>
                         <input 
                           type="text" 
-                          placeholder="Número de Factura"
+                          aria-label="Número de Factura"
+                          aria-describedby="edit-invoice-help"
+                          placeholder="Número de Factura (obligatorio al registrar)"
                           value={editForm.numero_factura || ''}
                           onChange={(e) => handleEditChange('numero_factura', e.target.value)}
                           className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-amber-500 transition-all font-bold text-gray-900"
                         />
+                        <p id="edit-invoice-help" className="text-xs text-gray-500">Al registrar o cambiar la factura, el número es obligatorio. Los contratos pendientes conservan su estado si editas otros datos.</p>
                       </section>
 
                       {/* CLÁUSULA DÉCIMO SÉPTIMA: USO DE IMAGEN */}
@@ -4544,11 +4570,14 @@ export default function DashboardPage() {
                     </div>
 
                     <div>
-                       <label className="block text-sm font-black text-gray-700 uppercase tracking-wider mb-2 ml-1">Número de Factura</label>
+                       <label htmlFor="invoice-number" className="block text-sm font-black text-gray-700 uppercase tracking-wider mb-2 ml-1">Número de Factura *</label>
                        <div className="relative">
                           <Tag className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-rose-400" />
                           <input 
                             type="text" 
+                            id="invoice-number"
+                            required
+                            aria-describedby="invoice-required-help"
                             placeholder="Ej: FAC-12345"
                             value={invoiceNumber}
                             onChange={(e) => setInvoiceNumber(e.target.value)}
@@ -4556,6 +4585,7 @@ export default function DashboardPage() {
                             autoFocus
                           />
                        </div>
+                       <p id="invoice-required-help" className="text-xs text-gray-600 mt-3">{INVOICE_REQUIRED_MESSAGE}</p>
                        <p className="text-[10px] text-gray-400 mt-3 font-medium leading-relaxed px-1">
                           Este número es solo para rastreo interno y no aparecerá en el PDF del contrato de la cliente.
                        </p>
