@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { requireInvoice, INVOICE_REQUIRED_MESSAGE } from '@/lib/invoice-validation';
 import { Toaster, toast } from 'sonner';
 import {
   Save, User, Calendar, DollarSign, MapPin, Phone, Mail,
@@ -45,6 +46,7 @@ export default function NuevoContratoPage() {
   // -- State Principal --
   const [formData, setFormData] = useState({
     // Básicos
+    numero_factura: '',
     sede: '',
     sede_id: '',
     asesora: '',
@@ -110,6 +112,7 @@ export default function NuevoContratoPage() {
   // -- Helper de UX: Confirmación al Salir --
   const isFormDirty = () => {
     return !!(
+      formData.numero_factura ||
       formData.cliente_nombre ||
       formData.cliente_documento ||
       formData.whatsapp ||
@@ -741,6 +744,14 @@ export default function NuevoContratoPage() {
   };
 
   const handleSolicitarAutorizacion = async () => {
+    let numeroFactura: string;
+    try {
+      numeroFactura = requireInvoice(formData.numero_factura);
+    } catch {
+      toast.error(INVOICE_REQUIRED_MESSAGE);
+      document.getElementById('numero_factura')?.focus();
+      return;
+    }
     setIsSubmittingException(true);
     try {
       // 1. Resolver IDs de vestidos primero
@@ -790,6 +801,7 @@ export default function NuevoContratoPage() {
 
       const payload = {
         numero_contrato,
+        numero_factura: numeroFactura,
         estado: 'borrador',
 
         // Cliente
@@ -925,6 +937,15 @@ export default function NuevoContratoPage() {
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
 
+    let numeroFactura: string;
+    try {
+      numeroFactura = requireInvoice(formData.numero_factura);
+    } catch {
+      toast.error(INVOICE_REQUIRED_MESSAGE);
+      document.getElementById('numero_factura')?.focus();
+      return;
+    }
+
     // 0. Validación de Vestido Obligatorio
     const hasValidDress = vestidos.some(v => v.vestido_id || v.referencia.trim().length > 0);
     if (!hasValidDress) {
@@ -1008,6 +1029,7 @@ export default function NuevoContratoPage() {
       // 5. Inserción ERP: Mapeo Estricto de Columnas
       const payload = {
         numero_contrato,
+        numero_factura: numeroFactura,
         estado: 'borrador',
 
         // Cliente
@@ -1180,7 +1202,7 @@ export default function NuevoContratoPage() {
 
     } catch (error: any) {
       console.error('Error al guardar contrato ERP:', error);
-      toast.error('Ocurrió un error al procesar la inserción en el sistema.');
+      toast.error(error?.message || 'Ocurrió un error al procesar la inserción en el sistema.');
     } finally {
       setLoading(false);
     }
@@ -1233,6 +1255,19 @@ export default function NuevoContratoPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 sm:p-10 space-y-10">
+          <section className="space-y-3">
+            <label htmlFor="numero_factura" className="text-sm font-semibold text-gray-700">
+              Factura <span className="text-rose-500">*</span>
+            </label>
+            <input id="numero_factura" name="numero_factura" type="text" required
+              aria-required="true" aria-describedby="invoice-help"
+              value={formData.numero_factura}
+              onChange={(e) => setFormData(prev => ({ ...prev, numero_factura: e.target.value }))}
+              placeholder="Número de factura"
+              className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300" />
+            <p id="invoice-help" className="text-xs text-gray-500">El número de factura es obligatorio para guardar y generar el contrato.</p>
+          </section>
+
 
           {/* SECCIÓN 1: DATOS BÁSICOS */}
           <section className="space-y-6">

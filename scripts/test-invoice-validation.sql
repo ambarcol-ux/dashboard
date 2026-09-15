@@ -13,7 +13,7 @@ BEGIN
         UPDATE invoice_validation_test SET numero_factura = v WHERE id = i;
         RAISE EXCEPTION 'Empty invoice accepted';
       EXCEPTION WHEN check_violation THEN
-        IF SQLERRM <> 'El campo Factura es obligatorio. Ingresa el número de factura para guardar.' THEN RAISE; END IF;
+        IF SQLERRM <> 'El número de factura es obligatorio' THEN RAISE; END IF;
         failures := failures + 1;
       END;
     END LOOP;

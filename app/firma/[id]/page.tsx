@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { requireInvoice, INVOICE_REQUIRED_MESSAGE } from '@/lib/invoice-validation';
 import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
 import SignatureCanvas from 'react-signature-canvas';
 import { Toaster, toast } from 'sonner';
@@ -67,6 +68,7 @@ export default function FirmaPage() {
   const mapToContractData = (dbData: any): ContractData => {
     return {
       numero_contrato: dbData.numero_contrato,
+      numero_factura: dbData.numero_factura,
       sede: dbData.sede,
       cliente_nombre: dbData.cliente_nombre,
       cliente_documento: dbData.cliente_documento,
@@ -104,6 +106,10 @@ export default function FirmaPage() {
   };
 
   const handleSign = async () => {
+    try { requireInvoice(contract?.numero_factura); } catch {
+      toast.error(INVOICE_REQUIRED_MESSAGE);
+      return;
+    }
     if (sigCanvas.current?.isEmpty()) {
       toast.error('Por favor dibuja tu firma en el recuadro antes de aceptar.');
       return;
@@ -138,9 +144,9 @@ export default function FirmaPage() {
       // Actualizar el estado local para mostrar la firma en el mensaje de agradecimiento
       setContract({ ...contract, firma_base64: firmaBase64 });
       
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error al guardar la firma:', err);
-      toast.error('Hubo un error al guardar tu firma. Por favor, intenta nuevamente.');
+      toast.error(err?.message || 'Hubo un error al guardar tu firma. Por favor, intenta nuevamente.');
     } finally {
       setSubmitting(false);
     }

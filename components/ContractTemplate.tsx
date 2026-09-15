@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 
 export interface ContractData {
   numero_contrato: string;
+  numero_factura?: string | null;
   sede: string;
   cliente_nombre: string;
   cliente_documento: string;
@@ -163,6 +164,7 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
                 {data.numero_contrato}
               </span>
             </div>
+            {data.numero_factura && <p className="text-sm font-semibold text-gray-900 mt-2 break-all">Factura: {data.numero_factura}</p>}
             <span className="text-[10px] text-gray-400 mt-2 italic font-medium">Validación Original Auténtica</span>
           </div>
         </div>

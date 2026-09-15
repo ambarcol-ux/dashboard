@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { requireInvoice, getInvoiceUpdate, INVOICE_REQUIRED_MESSAGE } from '@/lib/invoice-validation';
+import { requireInvoice, INVOICE_REQUIRED_MESSAGE } from '@/lib/invoice-validation';
 import { canEditSavedRecords, additionalContractFields, toEditingValue, getAdditionalContractUpdates } from '@/lib/saved-record-editing';
 import { Toaster, toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -252,10 +252,24 @@ export default function DashboardPage() {
     }
   }, [contratos, drawerOpen]);
 
+  const validateStoredInvoice = async (id: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase.rpc('contract_invoice_for_issue', { contract_id: id });
+      if (error) throw error;
+      return requireInvoice(data);
+    } catch (error: any) {
+      toast.error(error?.message || INVOICE_REQUIRED_MESSAGE);
+      return null;
+    }
+  };
+
   const generatePDF = async (contrato: any) => {
+    const numeroFactura = await validateStoredInvoice(contrato.id);
+    if (!numeroFactura) return;
     setPdfGeneratingId(contrato.id);
     const mappedData: ContractData = {
       numero_contrato: contrato.numero_contrato,
+      numero_factura: numeroFactura,
       sede: contrato.sede,
       cliente_nombre: contrato.cliente_nombre,
       cliente_documento: contrato.cliente_documento,
@@ -554,6 +568,7 @@ export default function DashboardPage() {
   };
 
   const handleApproveException = async (id: string) => {
+    if (!await validateStoredInvoice(id)) return;
     try {
       setLoading(true);
       // Update both tables just to be sure we hit the user's requirement
@@ -584,6 +599,7 @@ export default function DashboardPage() {
   };
 
   const approveContract = async (id: string) => {
+    if (!await validateStoredInvoice(id)) return;
     try {
       setLoading(true);
       const { error } = await supabase
@@ -871,7 +887,7 @@ export default function DashboardPage() {
     
     let invoiceUpdate: { numero_factura?: string };
     try {
-      invoiceUpdate = getInvoiceUpdate(editForm.numero_factura, selectedContract.numero_factura);
+      invoiceUpdate = { numero_factura: requireInvoice(editForm.numero_factura) };
     } catch {
       toast.error(INVOICE_REQUIRED_MESSAGE);
       return;
@@ -1222,6 +1238,7 @@ export default function DashboardPage() {
   };
 
   const handleManualRelease = async (contrato: any) => {
+    if (!await validateStoredInvoice(contrato.id)) return;
     const pass = window.confirm(`⚠️ ADVERTENCIA ADMINISTRATIVA: ¿Confirmas la liberación MANUAL y ANTICIPADA del contrato #${contrato.numero_contrato}? Esto pondrá los vestidos como DISPONIBLES de inmediato e ignorará los días de lavandería restantes.`);
     if (!pass) return;
 
@@ -2273,7 +2290,8 @@ export default function DashboardPage() {
     }).format(amount);
   };
 
-  const copyToClipboard = (id: string, numero: string) => {
+  const copyToClipboard = async (id: string, numero: string) => {
+    if (!await validateStoredInvoice(id)) return;
     const url = `${window.location.origin}/firma/${id}`;
     navigator.clipboard.writeText(url);
     toast.success(`Enlace del contrato ${numero} copiado al portapapeles.`);
@@ -4441,12 +4459,14 @@ export default function DashboardPage() {
                           type="text" 
                           aria-label="Número de Factura"
                           aria-describedby="edit-invoice-help"
-                          placeholder="Número de Factura (obligatorio al registrar)"
+                          required
+                          aria-required="true"
+                          placeholder="Número de Factura (obligatorio)"
                           value={editForm.numero_factura || ''}
                           onChange={(e) => handleEditChange('numero_factura', e.target.value)}
                           className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-amber-500 transition-all font-bold text-gray-900"
                         />
-                        <p id="edit-invoice-help" className="text-xs text-gray-500">Al registrar o cambiar la factura, el número es obligatorio. Los contratos pendientes conservan su estado si editas otros datos.</p>
+                        <p id="edit-invoice-help" className="text-xs text-gray-500">El número de factura es obligatorio para guardar los cambios del contrato.</p>
                       </section>
 
                       {/* CLÁUSULA DÉCIMO SÉPTIMA: USO DE IMAGEN */}

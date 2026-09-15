@@ -1,4 +1,4 @@
-export const INVOICE_REQUIRED_MESSAGE = 'El campo Factura es obligatorio. Ingresa el número de factura para guardar.';
+export const INVOICE_REQUIRED_MESSAGE = 'El número de factura es obligatorio';
 
 export function requireInvoice(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) {
