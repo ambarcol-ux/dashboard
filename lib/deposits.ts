@@ -13,3 +13,9 @@ export function movementHistory(contract:DepositContract,returns:DepositReturn[]
  return [...own.map(m=>({id:m.id,type:m.tipo==='ingreso'?'Ingreso':'Devolución',date:m.fecha,amount:m.monto,deduction:m.descuento,method:m.metodo,note:[m.motivo,m.observaciones].filter(Boolean).join(' · '),path:m.comprobante_path,url:null as string|null})),...returns.filter(r=>r.contrato_id===contract.id&&!linked.has(r.id)).map(r=>({id:r.id,type:`Devolución · ${r.estado||'completado'}`,date:r.fecha_devolucion,amount:r.monto_devuelto,deduction:r.monto_descuento||0,method:'Registro anterior',note:[r.motivo_descuento,r.observaciones].filter(Boolean).join(' · '),path:r.comprobante_path,url:r.comprobante_url}))].sort((a,b)=>b.date.localeCompare(a.date));
 }
 
+
+export function needsDepositReceipt(contract:DepositContract,movements:DepositMovement[],supports:{contrato_id:string}[]){
+ if(supports.some(s=>s.contrato_id===contract.id))return false;
+ const documented=movements.filter(m=>m.contrato_id===contract.id&&m.tipo==='ingreso'&&m.comprobante_path).reduce((n,m)=>n+cents(m.monto),0);
+ return cents(contract.valor_deposito)>documented;
+}

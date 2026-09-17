@@ -4,3 +4,11 @@ assert.equal(depositSummary({...c,valor_deposito:0},[]).status,'Sin depósito');
 const m={id:'m1',contrato_id:'c1',tipo:'devolucion',monto:100000,descuento:10000,fecha:'2026-09-13',metodo:'Transferencia',devolucion_id:'r1'};assert.equal(movementHistory(c,[r],[m]).length,1);assert.equal(movementHistory(c,[r],[]).length,1);
 console.log('PASS: zero-deposit contracts, partial/refunded balance, deductions, cancelled and unrelated returns, cents, legacy history deduplication.');
 
+const {needsDepositReceipt}=mod.exports;
+assert.equal(needsDepositReceipt(c,[],[]),true);
+assert.equal(needsDepositReceipt({...c,valor_deposito:0},[],[]),false);
+assert.equal(needsDepositReceipt(c,[{...m,tipo:'ingreso',monto:100000,comprobante_path:'receipt'}],[]),true);
+assert.equal(needsDepositReceipt(c,[{...m,tipo:'ingreso',monto:300000,comprobante_path:'receipt'}],[]),false);
+assert.equal(needsDepositReceipt(c,[],[{contrato_id:c.id}]),false);
+assert.equal(needsDepositReceipt(c,[],[{contrato_id:'other'}]),true);
+console.log('PASS: existing unreceipted deposit opens receipt-only flow; zero, documented and mixed deposits classified correctly.');
