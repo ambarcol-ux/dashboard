@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 
 // Inicializar el cliente de Resend con la variable de entorno
-const resend = new Resend(process.env.RESEND_API_KEY);
+
 
 export async function POST(request: Request) {
   try {
+    if (!process.env.RESEND_API_KEY) return NextResponse.json({error:'El servicio de correo no está configurado.'},{status:503});
+    const resend = new Resend(process.env.RESEND_API_KEY);
     const { correo, nombre_quinceanera, codigo_seguridad } = await request.json();
 
     if (!correo || !nombre_quinceanera || !codigo_seguridad) {

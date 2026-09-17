@@ -1,7 +1,8 @@
+import { includedPrexv, type PrexvData } from '@/lib/prexv';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
-export interface ContractData {
+export interface ContractData extends PrexvData {
   numero_contrato: string;
   numero_factura?: string | null;
   sede: string;
@@ -210,6 +211,10 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
                 </>
               )}
             </div>
+            {data.prexv_componentes && data.prexv_componentes.length > 0 && <div className="col-span-2 border-t pt-2">
+              <strong>Servicios PRE-XV contratados · {formatDate(data.fecha_pre_xv || '')}</strong>
+              {includedPrexv(data).map(service => <div key={service.id}>{service.label}: {data[service.name] || 'Por asignar'}</div>)}
+            </div>}
             <div className="col-span-2 sm:col-span-1 pl-0 sm:pl-2">
               <strong>Accesorios Inclusivos:</strong> {data.accesorios && data.accesorios.length > 0 ? data.accesorios.join(', ') : '—'}<br />
               <strong>Asesora a Cargo:</strong> {data.asesora || '—'}<br />

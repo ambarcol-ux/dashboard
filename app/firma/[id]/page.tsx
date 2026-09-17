@@ -83,6 +83,11 @@ export default function FirmaPage() {
       firma_base64: dbData.firma_base64,
       tipo_evento: dbData.tipo_evento,
       fecha_pre_xv: dbData.fecha_pre_xv,
+      prexv_componentes: dbData.prexv_componentes,
+      prexv_fotografo: dbData.prexv_fotografo,
+      prexv_maquilladora: dbData.prexv_maquilladora,
+      prexv_locacion: dbData.prexv_locacion,
+
       fecha_cita_medidas: dbData.fecha_cita_medidas,
       fecha_prueba_final: dbData.fecha_prueba_final,
       fecha_entrega_envio: dbData.fecha_entrega_envio,

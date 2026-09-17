@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 
 // Centralización del cliente Admin para evitar problemas de contexto en Vercel
 function getAdminClient() {
@@ -36,6 +37,16 @@ interface CreateUserParams {
 }
 
 export async function createUserAction(params: CreateUserParams) {
+  const token = (await cookies()).get('sb-access-token')?.value;
+  if (!token) return { success: false, message: 'Inicia sesión como administrador.' };
+  const caller = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: { user }, error: authError } = await caller.auth.getUser(token);
+  if (authError || !user) return { success: false, message: 'Sesión inválida.' };
+  const { data: profile } = await caller.from('profiles').select('rol,activo').eq('id', user.id).single();
+  if (profile?.rol?.toLowerCase() !== 'admin' || profile.activo === false) return { success: false, message: 'Solo el administrador puede crear usuarios.' };
+  if (!['admin', 'asesora', 'contabilidad'].includes(params.rol)) return { success: false, message: 'Rol no válido.' };
   const supabaseAdmin = getAdminClient();
   
   if (!supabaseAdmin) {
@@ -48,7 +59,7 @@ export async function createUserAction(params: CreateUserParams) {
   }
 
   // Normalización de Roles para integridad de datos
-  const finalRol = params.rol === 'admin' ? 'ADMIN' : params.rol;
+  const finalRol = params.rol;
 
   console.log('🚀 [ADMIN_CREATE] Iniciando flujo para:', params.email);
 
@@ -117,5 +128,3 @@ export async function createUserAction(params: CreateUserParams) {
     };
   }
 }
-
-

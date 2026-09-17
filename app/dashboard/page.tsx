@@ -1,4 +1,9 @@
 'use client';
+import PreXvFields from '@/components/PreXvFields';
+import { saveCalendarContract } from '@/lib/save-calendar-contract';
+import { hasPrexv, includedPrexv, prexvPending, prexvSummary, prexvFields, type PrexvData } from '@/lib/prexv';
+import { dateInput } from '@/lib/calendar-edit';
+import DepositAlert from '@/components/DepositAlert';
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -94,7 +99,8 @@ export default function DashboardPage() {
   // -- Modals Post-Firma QC --
   const [preXvModalOpen, setPreXvModalOpen] = useState(false);
   const [preXvData, setPreXvData] = useState<any>(null);
-  const [preXvForm, setPreXvForm] = useState({ fotografo: '', maquilladora: '', locacion: '' });
+  const [preXvError, setPreXvError] = useState('');
+  const [preXvForm, setPreXvForm] = useState<PrexvData>({ prexv_componentes: [] });
   
   const [editingFacturaId, setEditingFacturaId] = useState<string | null>(null);
   const [facturaValue, setFacturaValue] = useState('');
@@ -288,6 +294,11 @@ export default function DashboardPage() {
       firma_base64: contrato.firma_base64,
       tipo_evento: contrato.tipo_evento,
       fecha_pre_xv: contrato.fecha_pre_xv,
+      prexv_componentes: contrato.prexv_componentes,
+      prexv_fotografo: contrato.prexv_fotografo,
+      prexv_maquilladora: contrato.prexv_maquilladora,
+      prexv_locacion: contrato.prexv_locacion,
+
       fecha_cita_medidas: contrato.fecha_cita_medidas,
       fecha_prueba_final: contrato.fecha_prueba_final,
       fecha_entrega_envio: contrato.fecha_entrega_envio,
@@ -1098,12 +1109,9 @@ export default function DashboardPage() {
     if (!contrato.fecha_evento) missing.push('Fecha del evento');
     if (!contrato.valor_total || Number(contrato.valor_total) <= 0) missing.push('Valor total del contrato');
 
-    // 3. PREXV-specific: if photo session is scheduled, team data must be complete
-    const isPreXV = contrato.tipo_evento === 'PreXV' || contrato.tipo_evento === 'PREXV' || contrato.tipo_evento === 'Ambos';
-    if (isPreXV && contrato.fecha_pre_xv) {
-      if (!contrato.prexv_fotografo?.trim()) missing.push('Fotógrafo de la sesión Pre-XV');
-      if (!contrato.prexv_maquilladora?.trim()) missing.push('Maquilladora de la sesión Pre-XV');
-      if (!contrato.prexv_locacion?.trim()) missing.push('Locación de la sesión Pre-XV');
+    // Provider requirements apply only to explicitly contracted services.
+    for (const service of includedPrexv(contrato)) {
+      if (!contrato[service.name]?.trim()) missing.push(service.person);
     }
 
     return missing;
@@ -1572,29 +1580,33 @@ export default function DashboardPage() {
   };
 
   const openPreXvModal = (contrato: any) => {
+    setPreXvError('');
     setPreXvData(contrato);
-    setPreXvForm({
-      fotografo: contrato.prexv_fotografo || '',
-      maquilladora: contrato.prexv_maquilladora || '',
-      locacion: contrato.prexv_locacion || ''
-    });
+    setPreXvForm({ ...contrato });
     setPreXvModalOpen(true);
   };
 
   const submitPreXvModal = async () => {
+    setPreXvError('');
     setModalLoading(true);
     try {
-      const { error } = await supabase.from('contratos').update({
-        prexv_fotografo: preXvForm.fotografo,
-        prexv_maquilladora: preXvForm.maquilladora,
-        prexv_locacion: preXvForm.locacion
-      }).eq('id', preXvData.id);
-      if (error) throw error;
-      toast.success('Datos logísticos Pre-XV actualizados.');
+      const keys = [...prexvFields, 'fecha_pre_xv', 'fecha_fotografia', 'fecha_maquillaje'] as const;
+      const changes = Object.fromEntries(keys.filter(k => JSON.stringify(preXvForm[k] ?? null) !== JSON.stringify(preXvData[k] ?? null)).map(k => [k, ['fecha_fotografia','fecha_maquillaje'].includes(k) ? dateInput(preXvForm[k] as string) : preXvForm[k]]));
+      if (!Object.keys(changes).length) { setPreXvModalOpen(false); return; }
+      const original = Object.fromEntries(keys.map(k => [k, preXvData[k] ?? null]));
+      const result = await saveCalendarContract({ id: preXvData.id, changes, original });
+      setPreXvData((prev: any) => ({ ...prev, ...result.contract }));
+      setPreXvForm(result.contract);
+      setContratos((prev: any[]) => prev.map(c => c.id === result.contract.id ? { ...c, ...result.contract } : c));
+      if (selectedContract?.id === preXvData.id) setSelectedContract((prev: any) => ({ ...prev, ...result.contract }));
+      if (result.warning) toast.warning(result.warning);
+      else toast.success('PRE-XV guardado en el contrato y el calendario.');
       setPreXvModalOpen(false);
       fetchContratos();
     } catch (e) {
-      toast.error('Error guardando datos fotográficos.');
+      const message = e instanceof Error ? e.message : 'Error guardando PRE-XV.';
+      setPreXvError(message);
+      toast.error(message);
     } finally {
       setModalLoading(false);
     }
@@ -2387,7 +2399,7 @@ export default function DashboardPage() {
 
     // 0. PREXV Filter: Only show 15-year (PreXV) contracts if toggled
     if (filtroTipoEvento === 'PREXV') {
-      result = result.filter(c => c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos');
+      result = result.filter(c => hasPrexv(c));
     }
 
     // Apply administrative alert filters and return immediately — must mirror badge logic exactly.
@@ -2507,7 +2519,7 @@ export default function DashboardPage() {
 
     // 4. PREXV tipo evento filter after complementary filters
     if (filtroTipoEvento === 'PREXV') {
-      result = result.filter(c => c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos');
+      result = result.filter(c => hasPrexv(c));
     }
 
     return result;
@@ -2718,6 +2730,7 @@ export default function DashboardPage() {
       <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-8">
         
+        {String(user?.rol || '').toLowerCase() === 'admin' && <DepositAlert/>}
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-rose-100">
           <div className="flex-1">
@@ -2965,13 +2978,13 @@ export default function DashboardPage() {
               <div className="flex flex-wrap items-center gap-3">
                 {/* PREXV Toggle Filter */}
                 {(() => {
-                  const prexvCount = contratos.filter(c => c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos').length;
+                  const prexvCount = contratos.filter(c => hasPrexv(c)).length;
                   const prexvIncompletos = contratos.filter(c => {
-                    const isPreXV = c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos';
-                    if (!isPreXV || !c.fecha_pre_xv) return false;
+                    const isPreXV = hasPrexv(c);
+                    if (!isPreXV) return false;
                     const excluido = ['cancelado', 'rechazado', 'finalizado'].includes(c.estado?.toLowerCase());
                     if (excluido) return false;
-                    return !c.prexv_fotografo?.trim() || !c.prexv_maquilladora?.trim() || !c.prexv_locacion?.trim();
+                    return prexvPending(c).length > 0;
                   }).length;
                   return (
                     <button
@@ -3085,11 +3098,11 @@ export default function DashboardPage() {
                  </div>
               ) : contratosFiltrados.map((c) => {
                   const isPreXVIncompleto = (() => {
-                    const isPreXV = c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos';
-                    if (!isPreXV || !c.fecha_pre_xv) return false;
+                    const isPreXV = hasPrexv(c);
+                    if (!isPreXV) return false;
                     const excluido = ['cancelado', 'rechazado', 'finalizado'].includes(c.estado?.toLowerCase());
                     if (excluido) return false;
-                    return !c.prexv_fotografo?.trim() || !c.prexv_maquilladora?.trim() || !c.prexv_locacion?.trim();
+                    return prexvPending(c).length > 0;
                   })();
                   return (
                  <div key={c.id} className={`bg-white rounded-2xl shadow-sm border p-5 flex flex-col gap-4 relative hover:shadow-md transition-shadow ${
@@ -3151,7 +3164,7 @@ export default function DashboardPage() {
                             <div className="flex flex-col">
                               <span className={`text-[10px] font-black uppercase tracking-widest leading-none mb-0.5 ${isPreXVIncompleto ? 'text-amber-800' : 'text-emerald-700'}`}>Sesión Pre-XV</span>
                               <span className={`text-xs font-bold leading-tight ${isPreXVIncompleto ? 'text-amber-900' : 'text-emerald-600'}`}>
-                                {c.prexv_fotografo ? c.prexv_fotografo : 'Asignar Proveedores'}
+                                {prexvSummary(c)}
                               </span>
                             </div>
                           </div>
@@ -3221,11 +3234,11 @@ export default function DashboardPage() {
                 ) : (
                   contratosFiltrados.map((c) => {
                     const isPreXVIncompleto = (() => {
-                      const isPreXV = c.tipo_evento === 'PreXV' || c.tipo_evento === 'PREXV' || c.tipo_evento === 'Ambos';
-                      if (!isPreXV || !c.fecha_pre_xv) return false;
+                      const isPreXV = hasPrexv(c);
+                      if (!isPreXV) return false;
                       const excluido = ['cancelado', 'rechazado', 'finalizado'].includes(c.estado?.toLowerCase());
                       if (excluido) return false;
-                      return !c.prexv_fotografo?.trim() || !c.prexv_maquilladora?.trim() || !c.prexv_locacion?.trim();
+                      return prexvPending(c).length > 0;
                     })();
                     return (
                     <tr key={c.id} className={`transition-colors group border-b border-gray-100 ${isPreXVIncompleto ? 'bg-amber-50/60 hover:bg-amber-100/60' : 'hover:bg-rose-50/40'}`}>
@@ -3249,7 +3262,7 @@ export default function DashboardPage() {
                               <div className="flex flex-col">
                                 <span className={`text-[9px] font-black uppercase tracking-widest ${isPreXVIncompleto ? 'text-amber-800' : 'text-emerald-700'} leading-none`}>Sesión Pre-XV</span>
                                 <span className={`text-[11px] font-bold ${isPreXVIncompleto ? 'text-amber-900' : 'text-emerald-600'} leading-tight`}>
-                                  {c.prexv_fotografo ? c.prexv_fotografo : 'Asignar sesión'}
+                                  {prexvSummary(c)}
                                 </span>
                               </div>
                             </div>
@@ -3424,8 +3437,8 @@ export default function DashboardPage() {
 
       {/* Modal Reusable: Vendors Pre-XV */}
       {preXvModalOpen && preXvData && (
-        <div className="fixed inset-0 z-50 bg-gray-900/60 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div role="dialog" aria-modal="true" aria-label="Servicios PRE-XV del contrato" className="fixed inset-0 z-[200] bg-gray-900/60 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in duration-200">
             <div className="bg-emerald-600 px-6 py-4 flex justify-between items-center text-white">
               <h3 className="font-bold text-lg flex items-center gap-2">
                 <Camera className="w-5 h-5"/> Tarjeta Logística Pre-XV
@@ -3435,43 +3448,8 @@ export default function DashboardPage() {
               </button>
             </div>
             <div className="p-6 space-y-4">
-              <p className="text-sm text-gray-600">
-                Asegura y bloquea a los proveedores logísticos del evento fotográfico de <strong>{preXvData.cliente_nombre}</strong>.
-              </p>
-              
-              <div className="space-y-4">
-                <div>
-                   <label className="text-sm font-semibold text-gray-800 block mb-1">Fotógrafo *</label>
-                   <input 
-                     type="text"
-                     value={preXvForm.fotografo} 
-                     onChange={(e)=>setPreXvForm({...preXvForm, fotografo: e.target.value})} 
-                     className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-300 font-medium" 
-                     placeholder="Ej: Estudio Clic / Nombre del Artista"
-                   />
-                </div>
-                <div>
-                   <label className="text-sm font-semibold text-gray-800 block mb-1">Maquillador(a) *</label>
-                   <input 
-                     type="text"
-                     value={preXvForm.maquilladora} 
-                     onChange={(e)=>setPreXvForm({...preXvForm, maquilladora: e.target.value})} 
-                     className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-300 font-medium" 
-                     placeholder="Ej: Makeup by Sara"
-                   />
-                </div>
-                <div>
-                   <label className="text-sm font-semibold text-gray-800 block mb-1">Locación *</label>
-                   <input 
-                     type="text"
-                     value={preXvForm.locacion} 
-                     onChange={(e)=>setPreXvForm({...preXvForm, locacion: e.target.value})} 
-                     className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:ring-2 focus:ring-emerald-300 font-medium" 
-                     placeholder="Ej: Jardín Botánico / Hacienda"
-                   />
-                </div>
-              </div>
-              
+              <PreXvFields baseline={preXvData} value={preXvForm} onChange={patch => setPreXvForm(prev => ({ ...prev, ...patch }))} confirmations disabled={modalLoading} />
+              <div role="status" className="text-sm text-red-700">{preXvError}</div>
               <div className="pt-2 flex gap-3">
                 <button 
                   onClick={() => setPreXvModalOpen(false)}
@@ -3480,9 +3458,9 @@ export default function DashboardPage() {
                 >Cerrar</button>
                 <button 
                   onClick={submitPreXvModal}
-                  disabled={modalLoading || !preXvForm.fotografo || !preXvForm.maquilladora || !preXvForm.locacion}
+                  disabled={modalLoading}
                   className="flex-1 px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50 flex justify-center items-center gap-2 shadow-md shadow-emerald-200"
-                >{modalLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Sincronizar Panel'}</button>
+                >{modalLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Guardar PRE-XV'}</button>
               </div>
             </div>
           </div>
@@ -3824,6 +3802,12 @@ export default function DashboardPage() {
                     </div>
                   </section>
 
+                   <section className="rounded-xl border border-rose-200 p-4 space-y-3">
+                     <h3 className="font-bold">Servicios PRE-XV</h3>
+                     <p>{prexvSummary(selectedContract)}</p>
+                     {includedPrexv(selectedContract).map(service => <p key={service.id}>{service.label}: {selectedContract[service.name] || 'Sin asignar'} · {selectedContract[service.confirmed] ? 'Confirmado' : 'Pendiente'}</p>)}
+                     <button className="rounded-lg bg-rose-100 px-4 py-2 font-bold" onClick={() => openPreXvModal(selectedContract)}>Agregar o editar PRE-XV</button>
+                   </section>
                    {/* PRENDAS Y LOGÍSTICA (PERSISTENTE) */}
                    <section className="animate-in slide-in-from-right-4 duration-500 delay-150">
                      <div className="flex justify-between items-center mb-4">
@@ -4315,6 +4299,8 @@ export default function DashboardPage() {
                                 {field.label}
                                 <input
                                   type={field.type}
+                                  disabled={field.key === 'valor_deposito'}
+                                  title={field.key === 'valor_deposito' ? 'Gestiona el depósito y su comprobante en Depósitos y devoluciones.' : undefined}
                                   value={toEditingValue(editForm[field.key], field.type)}
                                   onChange={event => handleEditChange(field.key, event.target.value)}
                                   min={field.type === 'number' ? 0 : undefined}

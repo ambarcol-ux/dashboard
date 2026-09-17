@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { homeForRole } from '@/lib/role-access';
 import { Toaster, toast } from 'sonner';
 import { Loader2, Mail, Lock, LogIn } from 'lucide-react';
 
@@ -36,7 +37,8 @@ export default function LoginPage() {
         toast.success('¡Bienvenida a Ambar Couture!');
         
         // Empujar hacia el dashboard
-        router.push('/dashboard');
+        const { data: profile } = await supabase.from('profiles').select('rol').eq('id', data.user.id).single();
+        router.push(homeForRole(profile?.rol));
         router.refresh();
       }
 

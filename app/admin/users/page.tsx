@@ -164,7 +164,9 @@ export default function UsersManagementPage() {
 
   const handleUpdateRole = async (profileId: string, currentRole: string) => {
     try {
-      const newRole = currentRole?.toLowerCase() === 'admin' ? 'asesora' : 'admin';
+      const newRole = window.prompt('Nuevo rol: asesora, contabilidad o admin', currentRole?.toLowerCase() || 'asesora')?.trim().toLowerCase();
+      if (!newRole) return;
+      if (!['asesora','contabilidad','admin'].includes(newRole)) throw new Error('Selecciona asesora, contabilidad o admin.');
       const { data, error } = await supabase
         .from('profiles')
         .update({ rol: newRole })
@@ -438,6 +440,7 @@ export default function UsersManagementPage() {
                   >
                     <option value="asesora">Asesora (Limitado)</option>
                     <option value="admin">Admin (Full)</option>
+                    <option value="contabilidad">Contabilidad (Solo depósitos y devoluciones)</option>
                   </select>
                 </div>
               </div>

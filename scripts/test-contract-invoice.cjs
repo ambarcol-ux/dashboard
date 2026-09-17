@@ -43,7 +43,7 @@ function fixture() {
     vestidos: [{ vestido_id: 'dress', referencia: 'TEST' }],
     arreglos: [], totalArreglos: 10, vipDiscount: 0, vipCodeInput: '', vipStatus: 'idle',
     accesoriosSeleccionados: [], metodosPago: [], userRole: 'admin', adminAuthorizedTransfer: false,
-    alistamientoData: {}, asesoras: [], sedes: [],
+    alistamientoData: {}, asesoras: [], sedes: [], prexv: { prexv_componentes: [] }, prexvPayload: () => ({ prexv_componentes: [] }),
     supabase: {
       auth: { getUser: async () => ({ data: { user: context.user } }) },
       from(table) {
@@ -134,6 +134,8 @@ function renderComponent(file, props, mounted = false) {
     if (name === 'react') return hooks;
     if (name === '@/lib/supabase') return { supabase: {} };
     if (name === '@/lib/invoice-validation') return validation;
+    if (name === '@/lib/prexv') return require('../tests/compile.cjs')('lib/prexv.ts');
+    if (name === '@/components/PreXvFields') return { default: () => null, __esModule: true };
     if (name === 'next/navigation') return { useRouter: () => ({}) };
     return require(name);
   } });

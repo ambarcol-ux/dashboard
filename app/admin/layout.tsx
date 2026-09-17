@@ -36,7 +36,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         .eq('id', user.id)
         .single();
 
-      if (error || profile?.rol !== 'admin') {
+      if (error || profile?.rol?.toLowerCase() !== 'admin') {
         setIsAdmin(false);
       } else {
         setIsAdmin(true);

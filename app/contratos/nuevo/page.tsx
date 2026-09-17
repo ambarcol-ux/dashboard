@@ -1,5 +1,7 @@
 'use client';
 
+import PreXvFields from '@/components/PreXvFields';
+import { type PrexvData } from '@/lib/prexv';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { requireInvoice, INVOICE_REQUIRED_MESSAGE } from '@/lib/invoice-validation';
@@ -83,6 +85,9 @@ export default function NuevoContratoPage() {
     deposito_titular: '',
     autoriza_uso_imagen: false
   });
+
+  const [prexv, setPrexv] = useState<PrexvData>({ prexv_componentes: [] });
+  const prexvPayload = () => ({ ...prexv, fecha_pre_xv: formData.fecha_fotografia || null, prexv_fotografo_agendado: false, prexv_maquilladora_agendada: false, prexv_locacion_confirmada: false });
 
   // Items Multi-Vestido
   const [vestidos, setVestidos] = useState<{ vestido_id: string | null; referencia: string; tipo: string; observaciones: string }[]>([
@@ -822,7 +827,7 @@ export default function NuevoContratoPage() {
 
         // Fechas
         fecha_evento: formData.tipo_evento === 'PreXV' ? formData.fecha_fotografia : formData.fecha_evento,
-        fecha_pre_xv: formData.fecha_fotografia || null,
+        ...prexvPayload(),
         fecha_cita_medidas: formData.cita_medidas || null,
         fecha_prueba_final: formData.prueba_final || null,
         fecha_entrega_envio: formData.fecha_entrega || null,
@@ -831,7 +836,7 @@ export default function NuevoContratoPage() {
         valor_total: verdaderoValorTotal,
         anticipo: abonoInicial,
         total_arreglos: totalArreglos,
-        valor_deposito: parseFloat(String(formData.valor_deposito).replace(/[^0-9.-]+/g, "")) || null,
+        valor_deposito: null,
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
@@ -936,6 +941,7 @@ export default function NuevoContratoPage() {
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (prexv.prexv_componentes?.length && !formData.fecha_fotografia) { toast.error('Indica la fecha de sesión PRE-XV.'); return; }
 
     let numeroFactura: string;
     try {
@@ -1050,7 +1056,7 @@ export default function NuevoContratoPage() {
 
         // Fechas
         fecha_evento: formData.tipo_evento === 'PreXV' ? formData.fecha_fotografia : formData.fecha_evento,
-        fecha_pre_xv: formData.fecha_fotografia || null,
+        ...prexvPayload(),
         fecha_cita_medidas: formData.cita_medidas || null,
         fecha_prueba_final: formData.prueba_final || null,
         fecha_entrega_envio: formData.fecha_entrega || null,
@@ -1059,7 +1065,7 @@ export default function NuevoContratoPage() {
         valor_total: verdaderoValorTotal,
         anticipo: abonoInicial,
         total_arreglos: totalArreglos,
-        valor_deposito: parseFloat(String(formData.valor_deposito).replace(/[^0-9.-]+/g, "")) || null,
+        valor_deposito: null,
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
@@ -1365,34 +1371,11 @@ export default function NuevoContratoPage() {
               )}
             </div>
 
-            <div className={`transition-all duration-500 overflow-hidden ${formData.tipo_evento === 'PreXV' || formData.tipo_evento === 'Ambos'
-                ? 'max-h-[500px] opacity-100 mt-4'
-                : 'max-h-0 opacity-0 mt-0 pointer-events-none'
-              }`}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-5 rounded-xl border border-rose-100 shadow-sm transition-all hover:border-rose-200">
-                <div className="md:col-span-2 flex items-center gap-2 border-b pb-2">
-                  <Camera className="text-rose-500 w-5 h-5" /> <h3 className="font-bold text-gray-800">Logística de Vestido: Sesión Pre-XV</h3>
-                </div>
-                {renderTextInput("Fecha Sesión Pre-XV", "fecha_fotografia", <Calendar className="w-4 h-4 text-rose-500" />, "date", formData.tipo_evento !== 'Evento', "md:col-span-2")}
-                {/* 
-                  Campos Ocultos Temporalmente (Solo Vestidos Launch)
-                  {renderTextInput("Fecha Maquillaje", "fecha_maquillaje", <Calendar className="w-4 h-4 text-rose-500"/>, "datetime-local")}
-                  <div className="flex gap-6 mt-2">
-                    <label className="flex items-center gap-2 font-medium text-gray-700 cursor-pointer">
-                      <input type="checkbox" name="incluye_retablo" checked={formData.incluye_retablo} onChange={handleChange} className="w-5 h-5 accent-rose-500" />
-                      Incluye Retablo
-                    </label>
-                    <label className="flex items-center gap-2 font-medium text-gray-700 cursor-pointer">
-                      <input type="checkbox" name="incluye_book" checked={formData.incluye_book} onChange={handleChange} className="w-5 h-5 accent-rose-500" />
-                      Incluye Photobook
-                    </label>
-                  </div>
-                */}
-                <p className="md:col-span-2 text-[10px] text-gray-400 font-bold uppercase tracking-widest bg-gray-50 p-2 rounded-lg border border-dashed border-gray-200">
-                  ⚠️ NOTA: Al elegir fecha de sesión, el sistema valida un periodo de alistamiento de 5 DÍAS para el vestido.
-                </p>
-              </div>
-            </div>
+            <PreXvFields value={{ ...prexv, fecha_pre_xv: formData.fecha_fotografia }} onChange={patch => {
+              setPrexv(prev => ({ ...prev, ...patch }));
+              if ('fecha_pre_xv' in patch) setFormData(prev => ({ ...prev, fecha_fotografia: patch.fecha_pre_xv || '' }));
+            }} disabled={loading} />
+            {!prexv.prexv_componentes?.length && (formData.tipo_evento === 'PreXV' || formData.tipo_evento === 'Ambos') && renderTextInput('Fecha de uso del vestido PRE-XV', 'fecha_fotografia', <Calendar className="w-4 h-4" />, 'date', true)}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
               {renderTextInput("Cita Medidas", "cita_medidas", <Calendar className="w-4 h-4 text-rose-500" />, "date")}
@@ -1742,7 +1725,7 @@ export default function NuevoContratoPage() {
                   <h3 className="font-bold">Datos Cuenta Bancaria (Devolución Garantía)</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  {renderTextInput("Valor Depósito Garantía", "valor_deposito", null, "number", false, "col-span-2")}
+                  <p className="col-span-2 text-sm text-emerald-700">Después de crear el contrato, registra la garantía en Depósitos y devoluciones con su comprobante obligatorio.</p>
                   {renderTextInput("Banco", "deposito_banco", null, "text", false, "bg-white")}
                   {renderTextInput("Tipo Cta", "deposito_tipo_cuenta", null, "text", false, "bg-white")}
                   {renderTextInput("N° Cuenta", "deposito_numero", null, "text", false, "bg-white")}
