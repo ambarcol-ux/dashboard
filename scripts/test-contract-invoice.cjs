@@ -10,6 +10,7 @@ function moduleExports(file) {
   }).outputText, context);
   return context.exports;
 }
+const initialDeposit = moduleExports('lib/initial-deposit.ts');
 const validation = moduleExports('lib/invoice-validation.ts');
 const editing = moduleExports('lib/saved-record-editing.ts');
 function handler(file, name, context) {
@@ -29,7 +30,7 @@ function handler(file, name, context) {
 function fixture() {
   const errors = [], writes = [], rows = new Map();
   const context = {
-    exports: {}, ...validation, ...editing, console, Date, Number, String, Math,
+    exports: {}, ...validation, ...editing, ...initialDeposit, console, Date, Number, String, Math,
     document: { getElementById: () => ({ focus() {} }) },
     window: { confirm: () => true },
     toast: { error: e => errors.push(e), success() {}, warning() {}, info() {} },
@@ -79,17 +80,18 @@ const fields = ['sede','sede_id','asesora','asesora_id','cliente_nombre','client
 (async () => {
   for (const name of ['handleSubmit', 'handleSolicitarAutorizacion']) {
     for (const value of [undefined, null, '', ' ', '\t\n', '\u00a0', '\u2003']) {
-      const f = fixture(); f.context.formData = { numero_factura: value };
+      const f = fixture(); f.context.formData = { numero_factura: value, valor_deposito: '' };
       await handler(createFile, name, f.context)();
       assert.deepEqual(f.errors, [validation.INVOICE_REQUIRED_MESSAGE]);
       assert.equal(f.writes.length, 0, `${name} wrote data with blank invoice`);
     }
     const f = fixture(); f.context.formData = Object.fromEntries(fields.map(key => [key, '']));
-    Object.assign(f.context.formData, { numero_factura: ' FAC-001 ', sede: 'Bogotá', sede_id: 'sede', cliente_nombre: 'PRUEBA', valor_total: '100', servicios_adicionales: '20', anticipo: '0', fecha_evento: '2027-01-01' });
+    Object.assign(f.context.formData, { numero_factura: ' FAC-001 ', valor_deposito: '300000', sede: 'Bogotá', sede_id: 'sede', cliente_nombre: 'PRUEBA', valor_total: '100', servicios_adicionales: '20', anticipo: '0', fecha_evento: '2027-01-01' });
     await handler(createFile, name, f.context)();
     assert.deepEqual(f.errors, []);
     const saved = f.rows.get('new-contract');
     assert.equal(saved.numero_factura, 'FAC-001');
+    assert.equal(saved.valor_deposito, 300000);
     assert.equal(saved.valor_total, 120); assert.equal(saved.total_arreglos, 10);
   }
   for (const value of [undefined, null, '', ' ', '\u2003']) {
@@ -133,6 +135,7 @@ function renderComponent(file, props, mounted = false) {
   }).outputText, { exports: m.exports, console, Date, Intl, require(name) {
     if (name === 'react') return hooks;
     if (name === '@/lib/supabase') return { supabase: {} };
+    if (name === '@/lib/initial-deposit') return initialDeposit;
     if (name === '@/lib/invoice-validation') return validation;
     if (name === '@/lib/prexv') return require('../tests/compile.cjs')('lib/prexv.ts');
     if (name === '@/components/PreXvFields') return { default: () => null, __esModule: true };
@@ -144,6 +147,7 @@ function renderComponent(file, props, mounted = false) {
 const formHtml = renderComponent(createFile, {}, true);
 assert.match(formHtml, /id="numero_factura"[^>]*required=""/);
 assert.match(formHtml, /Número de factura/);
+assert.match(formHtml, /id="valor_deposito"[^>]*min="0"/);
 const doc = { numero_contrato: 'TEST-001', numero_factura: 'FAC-VISIBLE-123', cliente_nombre: 'PRUEBA', cliente_documento: 'TEST', cliente_direccion: '', valor_total: 100, anticipo: 20, saldo: 80 };
 assert.match(renderComponent('components/ContractTemplate.tsx', { data: doc, plantillas: [] }), /Factura: FAC-VISIBLE-123/);
 const legacyDoc = renderComponent('components/ContractTemplate.tsx', { data: { ...doc, numero_factura: null }, plantillas: [] });

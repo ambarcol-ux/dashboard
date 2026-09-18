@@ -1,6 +1,7 @@
 'use client';
 
 import PreXvFields from '@/components/PreXvFields';
+import { initialDepositAmount } from '@/lib/initial-deposit';
 import { type PrexvData } from '@/lib/prexv';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -749,6 +750,9 @@ export default function NuevoContratoPage() {
   };
 
   const handleSolicitarAutorizacion = async () => {
+    let depositoInicial: number;
+    try { depositoInicial = initialDepositAmount(formData.valor_deposito); }
+    catch { toast.error('El depósito debe ser un valor válido mayor o igual a cero.'); return; }
     let numeroFactura: string;
     try {
       numeroFactura = requireInvoice(formData.numero_factura);
@@ -836,7 +840,7 @@ export default function NuevoContratoPage() {
         valor_total: verdaderoValorTotal,
         anticipo: abonoInicial,
         total_arreglos: totalArreglos,
-        valor_deposito: null,
+        valor_deposito: depositoInicial,
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
@@ -943,6 +947,9 @@ export default function NuevoContratoPage() {
     if (e) e.preventDefault();
     if (prexv.prexv_componentes?.length && !formData.fecha_fotografia) { toast.error('Indica la fecha de sesión PRE-XV.'); return; }
 
+    let depositoInicial: number;
+    try { depositoInicial = initialDepositAmount(formData.valor_deposito); }
+    catch { toast.error('El depósito debe ser un valor válido mayor o igual a cero.'); return; }
     let numeroFactura: string;
     try {
       numeroFactura = requireInvoice(formData.numero_factura);
@@ -1065,7 +1072,7 @@ export default function NuevoContratoPage() {
         valor_total: verdaderoValorTotal,
         anticipo: abonoInicial,
         total_arreglos: totalArreglos,
-        valor_deposito: null,
+        valor_deposito: depositoInicial,
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
@@ -1725,7 +1732,11 @@ export default function NuevoContratoPage() {
                   <h3 className="font-bold">Datos Cuenta Bancaria (Devolución Garantía)</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <p className="col-span-2 text-sm text-emerald-700">Después de crear el contrato, registra la garantía en Depósitos y devoluciones con su comprobante obligatorio.</p>
+                  <div className="col-span-2 space-y-1">
+                    <label htmlFor="valor_deposito" className="text-sm font-semibold text-gray-700">Valor del depósito de garantía</label>
+                    <input id="valor_deposito" name="valor_deposito" type="number" min="0" step="0.01" value={formData.valor_deposito} onChange={handleChange} placeholder="0" className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3" />
+                    <p className="text-sm text-emerald-700">Registra el depósito recibido. No se suma al alquiler ni al abono. Adjunta su comprobante en Depósitos y devoluciones, sin registrar nuevamente el ingreso.</p>
+                  </div>
                   {renderTextInput("Banco", "deposito_banco", null, "text", false, "bg-white")}
                   {renderTextInput("Tipo Cta", "deposito_tipo_cuenta", null, "text", false, "bg-white")}
                   {renderTextInput("N° Cuenta", "deposito_numero", null, "text", false, "bg-white")}
