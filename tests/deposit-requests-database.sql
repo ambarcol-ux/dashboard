@@ -48,8 +48,6 @@ begin
  if (select count(*) from public.solicitudes_depositos where id=r and estado in ('pendiente','en_proceso','pagado'))<>1 then raise exception 'Admin alert cannot see pending deposit'; end if;
  if (select count(*) from public.sedes)=0 then raise exception 'Admin lost site access'; end if;
  perform set_config('request.jwt.claims',jsonb_build_object('sub',cfg->>'b','role','authenticated')::text,true);
- if (select count(*) from public.kpi_vestidos_populares)<>0 then raise exception 'Accounting can read inventory view'; end if;
- if (select count(*) from public.vista_historial_alquileres)<>0 then raise exception 'Accounting can read rental history view'; end if;
  if (select count(*) from public.vestidos)<>0 then raise exception 'Accounting can read inventory'; end if;
  if (select count(*) from public.sedes)<>0 then raise exception 'Accounting can access site management'; end if;
  if (select count(*) from public.referidores)<>0 then raise exception 'Accounting can read partners'; end if;
@@ -66,13 +64,41 @@ begin
   perform public.validar_y_quemar_codigo('TEST',c::text,100000::numeric);raise exception 'Accounting can use extended discount RPC';
  exception when insufficient_privilege then null; end;
 
+
+ if exists(select 1 from public.contratos) then raise exception 'Accounting can read complete contracts'; end if;
+ if not exists(select 1 from public.contratos_depositos_pendientes() where id=c) then raise exception 'Missing queue identification'; end if;
+ if exists(select 1 from public.movimientos_depositos) or exists(select 1 from public.devoluciones_depositos) then raise exception 'Accounting can read financial history'; end if;
+ if exists(select 1 from public.kpi_vestidos_populares) or exists(select 1 from public.vista_historial_alquileres) then raise exception 'Accounting view leak'; end if;
+ begin
+  perform public.gestionar_deposito('ingreso',jsonb_build_object('contrato_id',c));raise exception 'ACCOUNTING_INCOME_ACCEPTED';
+ exception when insufficient_privilege then null; end;
+ begin
+  perform public.gestionar_deposito('solicitar',jsonb_build_object('contrato_id',c));raise exception 'ACCOUNTING_REQUEST_ACCEPTED';
+ exception when insufficient_privilege then null; end;
+ begin
+  perform public.gestionar_deposito('soporte',jsonb_build_object('contrato_id',c));raise exception 'ACCOUNTING_SUPPORT_ACCEPTED';
+ exception when insufficient_privilege then null; end;
  if (select count(*) from public.solicitudes_depositos where id=r)<>1 then raise exception 'Accounting cannot see queue'; end if;
+ begin
+  insert into storage.objects(bucket_id,name) values('comprobantes_depositos',c||'/'||r||'/too-early.pdf');raise exception 'UPLOAD_BEFORE_ASSIGNMENT';
+ exception when insufficient_privilege then null; end;
  perform public.gestionar_deposito('proceso',jsonb_build_object('id',r));
+ insert into storage.objects(bucket_id,name) values('comprobantes_depositos',c||'/'||r||'/assigned.pdf');
+ if not exists(select 1 from storage.objects where name=c||'/'||r||'/assigned.pdf') then raise exception 'Assigned receipt not visible'; end if;
+ begin
+  insert into storage.objects(bucket_id,name) values('comprobantes_depositos',c||'/other/unrelated.pdf');raise exception 'UNRELATED_RECEIPT_UPLOAD';
+ exception when insufficient_privilege then null; end;
  begin
   perform public.gestionar_deposito('pagar',jsonb_build_object('id',r,'fecha',day));raise exception 'PAYMENT_WITHOUT_RECEIPT_ACCEPTED';
  exception when others then if sqlerrm not like '%comprobante es obligatorio%' then raise; end if; end;
  data:=jsonb_build_object('id',r,'fecha',day,'comprobante_path',c||'/salida.pdf');
  perform public.gestionar_deposito('pagar',data);perform public.gestionar_deposito('pagar',data);
+
+ if exists(select 1 from public.solicitudes_depositos where id=r) then raise exception 'Completed request leaked'; end if;
+ if exists(select 1 from public.historial_solicitudes_depositos where solicitud_id=r) then raise exception 'Completed history leaked'; end if;
+ if exists(select 1 from public.contratos_depositos_pendientes() where id=c) then raise exception 'Completed contract leaked'; end if;
+ if exists(select 1 from storage.objects where bucket_id='comprobantes_depositos' and name=c||'/salida.pdf') then raise exception 'Completed receipt leaked'; end if;
+ perform set_config('request.jwt.claims',jsonb_build_object('sub',cfg->>'a','role','authenticated')::text,true);
  if (select count(*) from public.devoluciones_depositos where contrato_id=c)<>1 then raise exception 'Duplicate payment'; end if;
  if (select estado from public.solicitudes_depositos where id=r)<>'devuelto' then raise exception 'Not returned'; end if;
  if (select count(*) from public.historial_solicitudes_depositos where solicitud_id=r)<>4 then raise exception 'Missing audit events'; end if;

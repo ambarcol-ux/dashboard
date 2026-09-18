@@ -1,5 +1,6 @@
 'use client';
 import {useState,useRef} from 'react';
+import {isAccounting} from '@/lib/role-access';
 import {supabase} from '@/lib/supabase';
 import {money,type DepositContract} from '@/lib/deposits';
 import {bogotaDay} from '@/lib/contract-calendar';
@@ -8,8 +9,10 @@ import styles from '@/app/dashboard/devoluciones-depositos/deposits.module.css';
 export default function DepositRequests({requests,events,contracts,profile,onChange,openReceipt}:{requests:DepositRequest[];events:RequestEvent[];contracts:DepositContract[];profile:{id:string;rol:string};onChange:()=>Promise<unknown>;openReceipt:(path:string|null,url:string|null)=>Promise<void>}){
  const [filter,setFilter]=useState('pendientes'),[query,setQuery]=useState(''),[site,setSite]=useState(''),[selected,setSelected]=useState<string|null>(null),[error,setError]=useState(''),[saving,setSaving]=useState(false),[file,setFile]=useState<File|null>(null),[date,setDate]=useState(bogotaDay(new Date().toISOString())!),[reason,setReason]=useState('');
  const busy=useRef(false),uploaded=useRef<{id:string;path:string}|null>(null);
- const rows=requests.filter(r=>{const c=contracts.find(c=>c.id===r.contrato_id);return (filter==='todos'||(filter==='pendientes'?isPending(r):r.estado===filter))&&(!site||c?.sede===site)&&`${c?.numero_contrato} ${c?.cliente_nombre}`.toLowerCase().includes(query.toLowerCase());}).sort((a,b)=>a.created_at.localeCompare(b.created_at));
- const current=requests.find(r=>r.id===selected);
+ const accountingOnly=isAccounting(profile.rol);
+ const visibleRequests=accountingOnly?requests.filter(isPending):requests;
+ const rows=visibleRequests.filter(r=>{const c=contracts.find(c=>c.id===r.contrato_id);return (filter==='todos'||(filter==='pendientes'?isPending(r):r.estado===filter))&&(!site||c?.sede===site)&&`${c?.numero_contrato} ${c?.cliente_nombre}`.toLowerCase().includes(query.toLowerCase());}).sort((a,b)=>a.created_at.localeCompare(b.created_at));
+ const current=visibleRequests.find(r=>r.id===selected);
  async function act(action:string,r:DepositRequest){
   if(busy.current)return;busy.current=true;setSaving(true);setError('');
   try{
@@ -23,7 +26,7 @@ export default function DepositRequests({requests,events,contracts,profile,onCha
  }
  return <section id="pendientes" className={styles.card}>
   <div className={styles.historyHeader}><div><h2>Depósitos pendientes por devolver</h2><p>Contabilidad · {requests.filter(isPending).length} solicitudes pendientes · {money(requests.filter(isPending).reduce((n,r)=>n+Number(r.monto),0))} por pagar</p></div></div>
-  <div className={styles.filters}><input aria-label="Buscar solicitud" placeholder="Cliente o contrato" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Sede de la solicitud" value={site} onChange={e=>setSite(e.target.value)}><option value="">Todas las sedes</option>{[...new Set(contracts.map(c=>c.sede))].map(s=><option key={s}>{s}</option>)}</select><select aria-label="Estado de la solicitud" value={filter} onChange={e=>setFilter(e.target.value)}><option value="pendientes">Pendientes de pago</option><option value="todos">Todo el historial</option>{Object.entries(requestLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></div>
+  <div className={styles.filters}><input aria-label="Buscar solicitud" placeholder="Cliente o contrato" value={query} onChange={e=>setQuery(e.target.value)}/><select aria-label="Sede de la solicitud" value={site} onChange={e=>setSite(e.target.value)}><option value="">Todas las sedes</option>{[...new Set(contracts.map(c=>c.sede))].map(s=><option key={s}>{s}</option>)}</select>{!accountingOnly&&<select aria-label="Estado de la solicitud" value={filter} onChange={e=>setFilter(e.target.value)}><option value="pendientes">Pendientes de pago</option><option value="todos">Todo el historial</option>{Object.entries(requestLabels).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select>}</div>
   <div className={styles.tableScroll}><table><thead><tr><th>Sede / contrato</th><th>Cliente</th><th>Valor</th><th>Solicitud</th><th>Estado / responsable</th><th>Gestión</th></tr></thead><tbody>{rows.map(r=>{const c=contracts.find(c=>c.id===r.contrato_id);return <tr key={r.id}><td>{c?.sede}<strong>{c?.numero_contrato}</strong></td><td>{c?.cliente_nombre}</td><td>{money(r.monto)}<small>Descuento: {money(r.descuento)}</small></td><td>{new Date(r.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota'})}<small>{r.solicitante_nombre}</small></td><td>{requestLabels[r.estado]}<small>{r.responsable_nombre||'Contabilidad'}</small></td><td><button onClick={()=>{setSelected(r.id);setFile(null);setReason('');setError('');}}>Ver solicitud</button></td></tr>;})}</tbody></table></div>
   {!rows.length&&<p className={styles.empty}>No hay solicitudes para estos filtros.</p>}
   {current&&<div className={styles.requestDetail}><h3>{contracts.find(c=>c.id===current.contrato_id)?.numero_contrato} · {requestLabels[current.estado]}</h3><p>{current.metodo} · {money(current.monto)} · Responsable: {current.responsable_nombre||'Contabilidad'}</p>{current.metodo==='Transferencia'&&<p>Banco: {current.banco} · {current.tipo_cuenta} · Cuenta: {current.cuenta} · Titular: {current.titular}</p>}<p>{current.motivo} {current.observaciones}</p>

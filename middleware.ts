@@ -5,7 +5,8 @@ import { canAccessPath, DEPOSITS_PATH } from '@/lib/role-access';
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
-  const token = req.cookies.get('sb-access-token')?.value;
+  const bearer = req.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
+  const token = bearer || req.cookies.get('sb-access-token')?.value;
   const protectedPath = /^\/(dashboard|contratos|admin|perfil)(\/|$)/.test(path);
   const deny = () => path === '/login' ? NextResponse.next() : req.method === 'GET' || req.method === 'HEAD'
     ? NextResponse.redirect(new URL('/login', req.url))

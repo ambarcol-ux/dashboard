@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { HandCoins,Plus,ArrowUpRight,Search,RefreshCw,ChevronLeft,ChevronRight,X } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
+import {isAccounting} from '@/lib/role-access';
 import DepositRequests from '@/components/DepositRequests';
 import {canPay,isPending,type DepositRequest,type RequestEvent} from '@/lib/deposit-requests';
 import {supabase} from '@/lib/supabase';
@@ -23,12 +24,20 @@ export default function Deposits(){
    const {data:{user},error:authError}=await supabase.auth.getUser();if(authError||!user){router.replace('/login');return false;}
    const {data:p,error:pe}=await supabase.from('profiles').select('id,nombre,email,rol,sede_id,activo').eq('id',user.id).single();
    if(pe||!p||p.activo===false||(!canPay(p.rol)&&!p.sede_id))throw Error('Tu perfil no tiene acceso a la gestión de depósitos.');setProfile(p);
+   if(isAccounting(p.rol)){
+    const qs:DepositRequest[]=[],es:RequestEvent[]=[];
+    const cs:DepositContract[]=[];
+    for(let offset=0;;offset+=500){const {data,error}=await supabase.rpc('contratos_depositos_pendientes').range(offset,offset+499);if(error)throw Error('No se pudo cargar la bandeja de devoluciones.');cs.push(...data);if(data.length<500)break;}
+    for(let offset=0;;offset+=500){const {data,error}=await supabase.from('solicitudes_depositos').select('*').in('estado',['pendiente','en_proceso','pagado']).order('id').range(offset,offset+499);if(error)throw error;qs.push(...data);if(data.length<500)break;}
+    for(let offset=0;;offset+=500){const {data,error}=await supabase.from('historial_solicitudes_depositos').select('*').order('id').range(offset,offset+499);if(error)throw error;es.push(...data);if(data.length<500)break;}
+    setContracts(cs);setRequests(qs);setEvents(es);setReturns([]);setMovements([]);setSupports([]);setSelected(null);setAction(null);return true;
+   }
    async function all(table:string,columns:string){const result:unknown[]=[];for(let offset=0;;offset+=500){let q=supabase.from(table).select(columns).order(table==='soportes_depositos_anteriores'?'contrato_id':'id').range(offset,offset+499);if(!canPay(p!.rol))q=q.eq(table==='contratos'?'sede_id':'contrato.sede_id',p!.sede_id);const {data,error}=await q;if(error)throw Error('No se pudieron consultar los contratos y movimientos. Pulsa Actualizar para reintentar.');result.push(...data);if(data.length<500)return result;}}
    const [cs,rs,ms,qs,ss]=await Promise.all([all('contratos','id,numero_contrato,cliente_nombre,cliente_documento,valor_deposito,sede,sede_id,estado,cliente_whatsapp,whatsapp,created_at'),all('devoluciones_depositos','*,contrato:contratos!inner(id,sede_id)'),all('movimientos_depositos','*,contrato:contratos!inner(id,sede_id)'),all('solicitudes_depositos','*,contrato:contratos!inner(id,sede_id)'),all('soportes_depositos_anteriores','*,contrato:contratos!inner(id,sede_id)')]);
    setSupports(ss as typeof supports);
    const es:RequestEvent[]=[];for(let offset=0;;offset+=500){const {data,error}=await supabase.from('historial_solicitudes_depositos').select('*').order('id').range(offset,offset+499);if(error)throw Error('No se pudo cargar la trazabilidad.');es.push(...data);if(data.length<500)break;}setRequests(qs as DepositRequest[]);setEvents(es);
    setContracts(cs as DepositContract[]);setReturns(rs as DepositReturn[]);setMovements(ms as DepositMovement[]);return true;
-  }catch(e){setError(e instanceof Error?e.message:'No se pudo cargar el módulo.');return false;}finally{setLoading(false);inFlight.current=false;}
+  }catch(e){setContracts([]);setRequests([]);setEvents([]);setReturns([]);setMovements([]);setSupports([]);setError(e instanceof Error?e.message:'No se pudo cargar el módulo.');return false;}finally{setLoading(false);inFlight.current=false;}
  },[router]);
  useEffect(()=>{void load();const id=new URLSearchParams(window.location.search).get('contratoId');if(id)setSelected(id);},[load]);
  useEffect(()=>{const refresh=()=>{if(document.visibilityState==='visible'&&!action)void load();};window.addEventListener('focus',refresh);const timer=window.setInterval(refresh,60000);return()=>{window.removeEventListener('focus',refresh);window.clearInterval(timer);};},[load,action]);
@@ -43,6 +52,11 @@ export default function Deposits(){
  const openReceipt=async(path:string|null,url:string|null)=>{try{if(!path&&url){const legacy=new URL(url);const origin=new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!);const prefix='/storage/v1/object/public/comprobantes_depositos/';if(legacy.origin===origin.origin&&legacy.pathname.startsWith(prefix))path=decodeURIComponent(legacy.pathname.slice(prefix.length));}if(path){const {data,error}=await supabase.storage.from('comprobantes_depositos').createSignedUrl(path,300);if(error)throw error;window.open(data.signedUrl,'_blank','noopener,noreferrer');}else if(url&&/^https:\/\//.test(url))window.open(url,'_blank','noopener,noreferrer');}catch{setNotice('No se pudo abrir el comprobante. Vuelve a intentarlo.');}};
  const logout=async()=>{await supabase.auth.signOut();document.cookie='sb-access-token=;path=/;max-age=0';router.replace('/login');};
  if(!profile)return <main className={styles.main}><h1>Depósitos y devoluciones</h1><p role={error?'alert':'status'} className={error?styles.error:styles.empty}>{error||'Verificando acceso y cargando contratos…'}</p>{error&&<button onClick={()=>void load()}>Reintentar</button>}</main>;
+ if(isAccounting(profile.rol))return <div className={styles.shell}><Sidebar user={profile} handleLogout={logout} activePage="depositos"/><main className={styles.main}>
+  <header className={styles.header}><div><span>Contabilidad · Todas las sedes</span><h1><HandCoins/> Depósitos</h1><p>Gestiona únicamente las devoluciones pendientes.</p></div><button onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/>{loading?'Actualizando…':'Actualizar'}</button></header>
+  {error?<div role="alert" className={styles.error}>{error}<button onClick={()=>void load()}>Reintentar</button></div>:<DepositRequests requests={requests} events={events} contracts={contracts} profile={profile} onChange={load} openReceipt={openReceipt}/>}
+  {notice&&<p role="status">{notice}</p>}
+ </main></div>;
  return <div className={styles.shell}><Sidebar user={profile} handleLogout={logout} activePage="depositos"/><main className={styles.main}>
  <header className={styles.header}><div>{profile.rol.toLowerCase()==='contabilidad'?<span>Contabilidad · Todas las sedes</span>:<Link href="/dashboard">Contratos / Depósitos</Link>}<h1><HandCoins/> Depósitos y devoluciones</h1><p>{canPay(profile.rol)?'Consulta depósitos y gestiona devoluciones de todas las sedes.':'Registra garantías y devoluciones de todos los contratos de tu sede.'}</p></div><button onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/>{loading?'Actualizando…':'Actualizar'}</button></header>
  <div className={styles.stats}>{[['Depósitos registrados',totals.total],['Devuelto a clientes',totals.returned],['Descuentos aplicados',totals.deducted],['Saldo por devolver',totals.available]].map(([label,value])=><div key={label}><span>{label}</span><strong>{money(Number(value))}</strong></div>)}</div>
