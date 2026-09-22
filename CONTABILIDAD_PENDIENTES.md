@@ -1,14 +1,9 @@
-[eval]:1
-process.stdout.write(require('fs').readFileSync(CONTABILIDAD_PENDIENTES.md,'utf8'))
-                                                ^
+# Acceso de Contabilidad — Dashboard
 
-ReferenceError: CONTABILIDAD_PENDIENTES is not defined
-    at [eval]:1:49
-    at runScriptInThisContext (node:internal/vm:209:10)
-    at node:internal/process/execution:118:14
-    at [eval]-wrapper:6:24
-    at runScript (node:internal/process/execution:101:62)
-    at evalScript (node:internal/process/execution:136:3)
-    at node:internal/main/eval_string:55:3
+Contabilidad entra exclusivamente en `/dashboard/devoluciones-depositos`, en la bandeja «Depósitos pendientes por devolver». Conserva tomar solicitud, registrar el pago con comprobante y cancelar pendientes con motivo. No ve entradas, indicadores globales, contratos completos ni historial finalizado.
 
-Node.js v22.13.1
+El backend deniega las demás tablas mediante políticas restrictivas que intersectan las existentes. La identificación del cliente/contrato/sede proviene de una operación con proyección mínima y solo para solicitudes pendientes. Los comprobantes se limitan a pendientes; subir una salida exige la solicitud asignada en proceso. Los permisos de otros roles permanecen intactos.
+
+Los accesos por URL redirigen a la bandeja. Las escrituras ajenas al módulo devuelven 403, tanto con cookie como con token Bearer. No se confía en información de rol editable por el usuario.
+
+Verificación: pruebas de rutas, consultas directas, pago atómico, carga restringida de comprobantes, prevención de duplicados, desaparición de solicitudes finalizadas, aislamiento por sede y regresiones de depósitos. Las pruebas SQL usan datos ficticios y ROLLBACK. TypeScript, revisión estática de archivos modificados y compilación de producción aprobados.
