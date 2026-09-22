@@ -1,6 +1,14 @@
-const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm'),ts=require('typescript');
-const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('lib/initial-deposit.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{exports:m.exports});
-const parse=m.exports.initialDepositAmount;
-assert.equal(parse(''),0);assert.equal(parse('0'),0);assert.equal(parse('300000'),300000);assert.equal(parse('10.25'),10.25);
-for(const v of ['-1','NaN','Infinity','abc','10000000000'])assert.throws(()=>parse(v));
-console.log('PASS: initial deposit accepts zero/positive amounts and rejects invalid amounts');
+[eval]:1
+process.stdout.write(require('fs').readFileSync(tests/initial-deposit.test.cjs,'utf8'))
+                                                ^
+
+ReferenceError: tests is not defined
+    at [eval]:1:49
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:118:14
+    at [eval]-wrapper:6:24
+    at runScript (node:internal/process/execution:101:62)
+    at evalScript (node:internal/process/execution:136:3)
+    at node:internal/main/eval_string:55:3
+
+Node.js v22.13.1
