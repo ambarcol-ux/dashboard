@@ -1,7 +1,14 @@
-export function initialDepositAmount(value: string): number {
-  const amount = value.trim() === '' ? 0 : Number(value);
-  if (!Number.isFinite(amount) || amount < 0 || amount > 9999999999.99) {
-    throw new Error('Depósito inválido');
-  }
-  return Math.round(amount * 100) / 100;
-}
+[eval]:1
+process.stdout.write(require('fs').readFileSync(lib/initial-deposit.ts,'utf8'))
+                                                ^
+
+ReferenceError: lib is not defined
+    at [eval]:1:49
+    at runScriptInThisContext (node:internal/vm:209:10)
+    at node:internal/process/execution:118:14
+    at [eval]-wrapper:6:24
+    at runScript (node:internal/process/execution:101:62)
+    at evalScript (node:internal/process/execution:136:3)
+    at node:internal/main/eval_string:55:3
+
+Node.js v22.13.1
