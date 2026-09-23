@@ -22,6 +22,8 @@ export async function PATCH(request:Request){
   const {data:row,error:re}=await read.single();
   if(re||!row)return NextResponse.json({error:'Contrato no disponible para tu usuario.'},{status:404});
   const current=row as unknown as Record<string,any>;
+  const contractIsPacted=!['borrador','pendiente_admin'].includes(String(current.estado||'').toLowerCase());
+  if(contractIsPacted&&profile.rol!=='admin')return NextResponse.json({error:'Solo un administrador puede modificar un contrato pactado.'},{status:403});
   const prexvKeys=[...prexvFields,'fecha_pre_xv','fecha_fotografia','fecha_maquillaje'];
   const touchesPrexv=Object.keys(patch).some(k=>prexvKeys.includes(k));
   const touchesSpecial=Object.keys(patch).some(k=>['bloqueo_especial_referencia','bloqueo_especial_fecha'].includes(k));
