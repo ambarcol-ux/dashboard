@@ -95,6 +95,16 @@ export default function NuevoContratoPage() {
     { vestido_id: null, referencia: '', tipo: 'XV', observaciones: '' }
   ]);
 
+  const [bloqueoEspecial, setBloqueoEspecial] = useState<{
+    vestido_id: string | null;
+    referencia: string;
+    fecha: string;
+  }>({
+    vestido_id: null,
+    referencia: '',
+    fecha: ''
+  });
+
   const [accesoriosSeleccionados, setAccesoriosSeleccionados] = useState<string[]>([]);
   const opcionesAccesorios = ["Tiara", "Corbatín", "Corbata", "Pañuelo", "Velo/Mantilla", "Aro/Gitana"];
 
@@ -123,6 +133,8 @@ export default function NuevoContratoPage() {
       formData.cliente_documento ||
       formData.whatsapp ||
       vestidos[0].referencia ||
+      bloqueoEspecial.referencia ||
+      bloqueoEspecial.fecha ||
       formData.valor_total
     );
   };
@@ -291,6 +303,18 @@ export default function NuevoContratoPage() {
           throw error;
         }
 
+        const { data: specialLocks, error: specialLocksError } = await supabase
+          .from('contratos')
+          .select('id, numero_contrato, bloqueo_especial_vestido_id, bloqueo_especial_referencia, bloqueo_especial_fecha, estado')
+          .not('estado', 'in', '("cancelado","anulado","rechazado","CANCELADO","ANULADO","RECHAZADO")')
+          .not('bloqueo_especial_vestido_id', 'is', null)
+          .not('bloqueo_especial_fecha', 'is', null);
+
+        if (specialLocksError) {
+          console.error('[CRASH] Error consultando bloqueos especiales:', specialLocksError);
+          throw specialLocksError;
+        }
+
         // Mapa de conteo de conflictos por ID de vestido
         const conflictCounts: Record<string, number> = {};
         const stockTable: Record<string, number> = {};
@@ -358,6 +382,16 @@ export default function NuevoContratoPage() {
           }
 
           if (hasLocalConflict) {
+            conflictCounts[vId] = (conflictCounts[vId] || 0) + 1;
+          }
+        });
+
+        (specialLocks || []).forEach((lock: any) => {
+          const vId = lock.bloqueo_especial_vestido_id;
+          const lockTime = parseSafeDate(lock.bloqueo_especial_fecha);
+          const conflictsRequestedDate = requestedDates.some(rd => parseSafeDate(rd.date) === lockTime);
+
+          if (vId && conflictsRequestedDate) {
             conflictCounts[vId] = (conflictCounts[vId] || 0) + 1;
           }
         });
@@ -603,6 +637,104 @@ export default function NuevoContratoPage() {
     return resolved;
   };
 
+  const resolveBloqueoEspecial = async () => {
+    const referencia = bloqueoEspecial.referencia.trim().toUpperCase();
+    const fecha = bloqueoEspecial.fecha;
+
+    if (!referencia && !fecha) return null;
+
+    if (!referencia || !fecha) {
+      throw new Error('⚠️ En Bloqueo fechas especiales debes indicar la referencia y la fecha por bloquear.');
+    }
+
+    let query = supabase
+      .from('vestidos')
+      .select('id, codigo, nombre, estado, sede_actual_id, stock_total, sedes(nombre)');
+
+    if (bloqueoEspecial.vestido_id) {
+      query = query.eq('id', bloqueoEspecial.vestido_id);
+    } else {
+      query = query.ilike('codigo', referencia);
+    }
+
+    const { data, error } = await query.limit(1);
+    if (error) throw error;
+
+    const vestido = data && data.length > 0 ? data[0] : null;
+    if (!vestido?.id) {
+      throw new Error(`❌ La referencia '${referencia}' del bloqueo especial no existe en el inventario.`);
+    }
+
+    if (vestido.estado === 'De Baja') {
+      throw new Error(`❌ La referencia ${vestido.codigo} está dada de baja y no puede bloquearse.`);
+    }
+
+    if (vestido.sede_actual_id !== formData.sede_id) {
+      const sedeActualNombre = (vestido.sedes as any)?.nombre || 'otra sede';
+      throw new Error(`❌ La referencia ${vestido.codigo} del bloqueo especial está ubicada en ${sedeActualNombre}. Realiza primero el traslado logístico.`);
+    }
+
+    return {
+      id: vestido.id,
+      referencia: vestido.codigo || referencia,
+      fecha,
+      stock_total: vestido.stock_total || 1
+    };
+  };
+
+  const checkBloqueoEspecialAvailability = async (block: any) => {
+    if (!block) return true;
+
+    const activeRegularStates = '("cancelado","anulado","rechazado","borrador","CANCELADO","ANULADO","RECHAZADO","BORRADOR")';
+    const inactiveSpecialStates = '("cancelado","anulado","rechazado","CANCELADO","ANULADO","RECHAZADO")';
+
+    const [{ data: itemRentals, error: itemError }, { data: legacyRentals, error: legacyError }, { data: specialLocks, error: specialError }] = await Promise.all([
+      supabase
+        .from('contrato_items_vestidos')
+        .select('contrato_id, contratos!inner(numero_contrato, estado, fecha_evento, fecha_pre_xv)')
+        .eq('vestido_id', block.id)
+        .not('contratos.estado', 'in', activeRegularStates),
+      supabase
+        .from('contratos')
+        .select('id, numero_contrato, estado, fecha_evento, fecha_pre_xv')
+        .eq('vestido_id', block.id)
+        .not('estado', 'in', activeRegularStates),
+      supabase
+        .from('contratos')
+        .select('id, numero_contrato, estado, bloqueo_especial_fecha')
+        .eq('bloqueo_especial_vestido_id', block.id)
+        .eq('bloqueo_especial_fecha', block.fecha)
+        .not('estado', 'in', inactiveSpecialStates)
+    ]);
+
+    if (itemError || legacyError || specialError) {
+      console.error('Error validando bloqueo especial:', itemError || legacyError || specialError);
+      toast.error('No se pudo verificar la disponibilidad del bloqueo especial.');
+      return false;
+    }
+
+    const regularContracts = [
+      ...(itemRentals || []).map((r: any) => r.contratos),
+      ...(legacyRentals || [])
+    ].filter(Boolean);
+
+    const regularConflict = regularContracts.find((c: any) =>
+      c.fecha_evento === block.fecha || c.fecha_pre_xv === block.fecha
+    );
+
+    const specialConflict = (specialLocks || [])[0];
+
+    if (regularConflict || specialConflict) {
+      const conflict = regularConflict || specialConflict;
+      toast.error(
+        `❌ La referencia ${block.referencia} ya está bloqueada el ${block.fecha} por el contrato ${conflict?.numero_contrato || 'existente'}.`
+      );
+      return false;
+    }
+
+    return true;
+  };
+
   const checkInventory = async (resolvedVestidos: any[]) => {
     if (resolvedVestidos.length === 0) return true;
 
@@ -635,6 +767,19 @@ export default function NuevoContratoPage() {
           return false;
         }
 
+        const { data: specialLocksForDress, error: specialLocksForDressError } = await supabase
+          .from('contratos')
+          .select('id, numero_contrato, bloqueo_especial_fecha, estado')
+          .eq('bloqueo_especial_vestido_id', v.id)
+          .not('estado', 'in', '("cancelado","anulado","rechazado","CANCELADO","ANULADO","RECHAZADO")')
+          .not('bloqueo_especial_fecha', 'is', null);
+
+        if (specialLocksForDressError) {
+          console.error('Error al validar bloqueos especiales del vestido:', specialLocksForDressError);
+          toast.error('Error al validar bloqueos especiales del vestido. Intente de nuevo.');
+          return false;
+        }
+
         for (const rd of requestedDates) {
           let conflictCount = 0;
           let lastConflictYellow = false;
@@ -642,6 +787,17 @@ export default function NuevoContratoPage() {
           let lastConflictType: 'logistica' | 'preparacion' = 'logistica';
           let lastConflictDays = 5;
           let lastAlistamiento = null;
+
+          const specialConflictCount = (specialLocksForDress || []).filter((lock: any) =>
+            lock.bloqueo_especial_fecha === rd.date
+          ).length;
+
+          if (specialConflictCount > 0) {
+            conflictCount += specialConflictCount;
+            lastConflictRed = true;
+            lastConflictType = 'logistica';
+            lastConflictDays = 0;
+          }
 
           for (const rental of existingRentals) {
             const oc = rental.contratos;
@@ -770,6 +926,11 @@ export default function NuevoContratoPage() {
         return;
       }
 
+      const resolvedSpecialBlock = await resolveBloqueoEspecial();
+      if (resolvedSpecialBlock && !(await checkBloqueoEspecialAvailability(resolvedSpecialBlock))) {
+        return;
+      }
+
       // 2. Crear contrato con estado 'pendiente_admin'
       const prefixMap: Record<string, string> = {
         'Villavicencio': 'VILL',
@@ -855,6 +1016,10 @@ export default function NuevoContratoPage() {
         // Vestido Principal (para consistencia con Dashboard)
         vestido_id: resolved.length > 0 ? resolved[0].id : null,
 
+        bloqueo_especial_referencia: resolvedSpecialBlock?.referencia || null,
+        bloqueo_especial_fecha: resolvedSpecialBlock?.fecha || null,
+        bloqueo_especial_vestido_id: resolvedSpecialBlock?.id || null,
+
         // Estado de Aprobación (Zona Amarilla)
         estado_aprobacion: 'pendiente_admin'
       };
@@ -922,7 +1087,8 @@ export default function NuevoContratoPage() {
       const { data: { user } } = await supabase.auth.getUser();
       const detalleMilestones = [
         formData.fecha_evento && `Evento: ${formData.fecha_evento}`,
-        formData.fecha_fotografia && `Sesión Pre-XV: ${formData.fecha_fotografia}`
+        formData.fecha_fotografia && `Sesión Pre-XV: ${formData.fecha_fotografia}`,
+        resolvedSpecialBlock && `Bloqueo especial: ${resolvedSpecialBlock.referencia} · ${resolvedSpecialBlock.fecha}`
       ].filter(Boolean).join(' | ');
 
       await supabase.from('bitacora_contratos').insert([{
@@ -975,6 +1141,19 @@ export default function NuevoContratoPage() {
     let resolvedVestidos: any[] = [];
     try {
       resolvedVestidos = await resolveVestidoIds(vestidos);
+    } catch (err: any) {
+      toast.error(err.message);
+      setLoading(false);
+      return;
+    }
+
+    let resolvedSpecialBlock: any = null;
+    try {
+      resolvedSpecialBlock = await resolveBloqueoEspecial();
+      if (resolvedSpecialBlock && !(await checkBloqueoEspecialAvailability(resolvedSpecialBlock))) {
+        setLoading(false);
+        return;
+      }
     } catch (err: any) {
       toast.error(err.message);
       setLoading(false);
@@ -1087,6 +1266,10 @@ export default function NuevoContratoPage() {
         // Vestido Principal (para consistencia con Dashboard)
         vestido_id: resolvedVestidos.length > 0 ? resolvedVestidos[0].id : null,
 
+        bloqueo_especial_referencia: resolvedSpecialBlock?.referencia || null,
+        bloqueo_especial_fecha: resolvedSpecialBlock?.fecha || null,
+        bloqueo_especial_vestido_id: resolvedSpecialBlock?.id || null,
+
         // Estado de Aprobación (Zona Amarilla)
         estado_aprobacion: 'aprobado',
         autoriza_uso_imagen: formData.autoriza_uso_imagen
@@ -1187,7 +1370,8 @@ export default function NuevoContratoPage() {
         const { data: { user: authUser } } = await supabase.auth.getUser();
         const detail = [
           formData.fecha_evento && `Evento: ${formData.fecha_evento}`,
-          formData.fecha_fotografia && `Sesión Pre-XV: ${formData.fecha_fotografia}`
+          formData.fecha_fotografia && `Sesión Pre-XV: ${formData.fecha_fotografia}`,
+          resolvedSpecialBlock && `Bloqueo especial: ${resolvedSpecialBlock.referencia} · ${resolvedSpecialBlock.fecha}`
         ].filter(Boolean).join(' | ');
 
         await supabase.from('bitacora_contratos').insert([{
@@ -1389,6 +1573,68 @@ export default function NuevoContratoPage() {
               {renderTextInput("Cita Medidas", "cita_medidas", <Calendar className="w-4 h-4 text-rose-500" />, "date")}
               {renderTextInput("Prueba Final", "prueba_final", <Calendar className="w-4 h-4 text-rose-500" />, "date")}
               {renderTextInput("Entrega/Envío Vestido", "fecha_entrega", <Calendar className="w-4 h-4 text-rose-500" />, "date")}
+            </div>
+          </section>
+
+          {/* BLOQUEO DE FECHAS ESPECIALES */}
+          <section className="space-y-5 bg-amber-50/60 p-6 rounded-2xl border border-amber-200">
+            <div>
+              <h2 className="text-2xl font-bold border-b border-amber-200 pb-2 text-gray-800 flex items-center gap-2">
+                <Calendar className="text-amber-600" /> Bloqueo fechas especiales
+              </h2>
+              <p className="text-sm text-amber-800 mt-2">
+                Reserva una referencia para una fecha adicional distinta al Evento o PRE-XV. Deja ambos campos vacíos si no aplica.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-gray-700">Referencia</label>
+                <input
+                  type="text"
+                  list="bloqueo-especial-opts"
+                  autoComplete="off"
+                  disabled={!formData.sede_id}
+                  placeholder={formData.sede_id ? "Busca o escribe la referencia..." : "Primero elige una sede"}
+                  value={bloqueoEspecial.referencia}
+                  onChange={(e) => {
+                    const value = e.target.value.toUpperCase();
+                    const found = vestidosMaestro.find(vm =>
+                      (vm.codigo || '').trim().toUpperCase() === value.trim()
+                    );
+                    setBloqueoEspecial(prev => ({
+                      ...prev,
+                      referencia: value,
+                      vestido_id: found?.id || null
+                    }));
+                  }}
+                  className={`w-full bg-white border rounded-xl px-4 py-3 font-bold tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50 ${
+                    bloqueoEspecial.referencia && !bloqueoEspecial.vestido_id
+                      ? 'border-amber-400'
+                      : 'border-gray-200'
+                  }`}
+                />
+                <datalist id="bloqueo-especial-opts">
+                  {vestidosMaestro.map((vm) => (
+                    <option key={vm.id} value={vm.codigo}>
+                      {vm.nombre || 'Vestido'} · {vm.sedes?.nombre || formData.sede}
+                    </option>
+                  ))}
+                </datalist>
+                {bloqueoEspecial.referencia && !bloqueoEspecial.vestido_id && (
+                  <p className="text-xs text-amber-700 font-semibold">Selecciona una referencia válida del inventario.</p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-gray-700">Fecha por bloquear</label>
+                <input
+                  type="date"
+                  value={bloqueoEspecial.fecha}
+                  onChange={(e) => setBloqueoEspecial(prev => ({ ...prev, fecha: e.target.value }))}
+                  className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:outline-none focus:ring-2 focus:ring-amber-300"
+                />
+              </div>
             </div>
           </section>
 
