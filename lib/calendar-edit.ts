@@ -3,6 +3,7 @@ import { bogotaDay, milestoneTypes } from './contract-calendar';
 export const editableDateFields = milestoneTypes.map(t=>t.field).filter(f=>!['fecha_entrega_prexv','fecha_entrega_evento'].includes(f));
 export const timestampFields = ['fecha_maquillaje','fecha_fotografia'];
 export const contactFields=['cliente_nombre','quinceanera_name','cliente_email','cliente_whatsapp','cliente_direccion','observaciones_vestido'] as const;
+export const specialBlockFields=['bloqueo_especial_referencia'] as const;
 export function dateInput(value:string|null|undefined){
  if(!value)return '';
  const day=bogotaDay(value);if(!day)return '';
@@ -14,7 +15,7 @@ export function validateCalendarPatch(input:unknown):Record<string,string|string
  if(!input||typeof input!=='object'||Array.isArray(input))throw new Error('Datos de edición inválidos.');
  const out:Record<string,string|string[]|boolean|null>={};
  for(const [key,value] of Object.entries(input)){
-  if(![...editableDateFields,...contactFields,...prexvFields].includes(key as never))throw new Error('Ese campo no se puede editar desde el calendario.');
+  if(![...editableDateFields,...contactFields,...specialBlockFields,...prexvFields].includes(key as never))throw new Error('Ese campo no se puede editar desde el calendario.');
   if(key==='prexv_componentes') {
    if(!Array.isArray(value)||value.some(v=>!prexvServices.some(s=>s.id===v))||new Set(value).size!==value.length)throw new Error('Componentes PRE-XV inválidos.');
    out[key]=value;continue;
