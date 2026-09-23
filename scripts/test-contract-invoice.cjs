@@ -34,7 +34,7 @@ function fixture() {
     document: { getElementById: () => ({ focus() {} }) },
     window: { confirm: () => true },
     toast: { error: e => errors.push(e), success() {}, warning() {}, info() {} },
-    router: { push() {} }, user: { id: 'tester', email: 'test@example.invalid' },
+    router: { push() {} }, user: { id: 'tester', email: 'test@example.invalid', rol: 'admin' }, isDashboardAdmin: true,
     setLoading() {}, setCrossBranchWarning() {}, setIsSubmittingException() {},
     setShowYellowModal() {}, setModalLoading() {}, setContratos() {}, setIsEditingDrawer() {},
     setSelectedContract(value) { context.saved = value; }, refreshBitacora: async () => {},
@@ -50,6 +50,9 @@ function fixture() {
       from(table) {
         let payload, id, operation;
         const execute = () => {
+          if (!operation && table === 'profiles') {
+            return { data: { rol: 'admin', activo: true }, error: null };
+          }
           if (operation) {
             writes.push({ table, operation, payload });
             if (table === 'contratos') {
