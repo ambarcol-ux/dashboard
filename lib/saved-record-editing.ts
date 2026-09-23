@@ -1,13 +1,13 @@
 type EditingUser = {
   email?: string;
+  rol?: string;
   app_metadata?: Record<string, unknown>;
 };
 
 // Consume only the server-managed claim returned by Supabase Auth.
 // Database access continues to be enforced by the existing RLS policies.
 export function canEditSavedRecords(user: EditingUser | null | undefined): boolean {
-  return user?.app_metadata?.can_edit_saved_records === true ||
-    user?.email === 'dubian.h88@gmail.com';
+  return String(user?.rol || '').toLowerCase() === 'admin';
 }
 
 export const additionalContractFields = [
