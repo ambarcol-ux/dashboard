@@ -2097,14 +2097,26 @@ export default function DashboardPage() {
 
     return (
       <div className="relative inline-block text-left">
-         <button 
-           onClick={() => setOpenDropdownId(openDropdownId === c.id ? null : c.id)} 
-           title="Gestionar Contrato"
-           className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white font-black rounded-xl shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all active:scale-95 uppercase text-[10px] tracking-wider"
-         >
-            <Settings className="w-4 h-4" />
-            <span>Gestionar</span>
-         </button>
+         <div className="flex items-center justify-end gap-2">
+           {isDashboardAdmin && (
+             <button
+               onClick={() => { setOpenDropdownId(null); void openDrawer(c, true); }}
+               title="Editar Contrato"
+               className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 font-black rounded-xl hover:bg-amber-100 transition-all active:scale-95 uppercase text-[10px] tracking-wider"
+             >
+               <Edit2 className="w-4 h-4" />
+               <span>Editar</span>
+             </button>
+           )}
+           <button 
+             onClick={() => setOpenDropdownId(openDropdownId === c.id ? null : c.id)} 
+             title="Gestionar Contrato"
+             className="flex items-center gap-2 px-4 py-2 bg-rose-500 text-white font-black rounded-xl shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all active:scale-95 uppercase text-[10px] tracking-wider"
+           >
+              <Settings className="w-4 h-4" />
+              <span>Gestionar</span>
+           </button>
+         </div>
          {openDropdownId === c.id && (
            <div className="absolute right-0 mt-2 w-64 rounded-2xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 z-[100] animate-in fade-in slide-in-from-top-2 border border-gray-100 overflow-hidden">
              <div className="py-2 p-1">
@@ -2120,15 +2132,7 @@ export default function DashboardPage() {
                  <Download className="w-4 h-4 text-rose-500" /> Generar PDF Contrato
                </button>
 
-               {isDashboardAdmin && (
-                 <button
-                   onClick={() => { setOpenDropdownId(null); void openDrawer(c, true); }}
-                   className="w-full text-left px-4 py-3 text-sm text-amber-700 hover:bg-amber-50 rounded-xl flex items-center gap-3 font-black transition-all"
-                 >
-                   <Edit2 className="w-4 h-4 text-amber-600" /> Editar Contrato
-                 </button>
-               )}
-               
+
                <Link href={`/dashboard/pago/${c.id}`} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-emerald-50 rounded-xl flex items-center gap-3 font-bold transition-all">
                  <DollarSign className="w-4 h-4 text-emerald-500" /> Registrar Abono
                </Link>
