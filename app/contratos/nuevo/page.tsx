@@ -307,7 +307,7 @@ export default function NuevoContratoPage() {
           if (c.fecha_evento) otherDates.push({ date: c.fecha_evento, type: mainType });
 
           const mDays = getMaintenanceDays(c.tipo_evento);
-          const deliveryTime = c.fecha_entrega_envio ? new Date(c.fecha_entrega_envio).getTime() : null;
+          const deliveryTime = c.fecha_entrega_envio ? parseSafeDate(c.fecha_entrega_envio) : null;
           const returnTime = deliveryTime ? deliveryTime + (mDays * 24 * 60 * 60 * 1000) : null;
 
           // NUEVO: Regla 2 días post Pre-XV
@@ -320,7 +320,7 @@ export default function NuevoContratoPage() {
           let hasLocalConflict = false;
 
           for (const myD of requestedDates) {
-            const tReq = new Date(myD.date).getTime();
+            const tReq = parseSafeDate(myD.date);
 
             // BLOQUEO PRE-XV STRICTO
             if (preXvBlockStart && preXvBlockEnd && !isPreXvLiberado) {
@@ -332,8 +332,8 @@ export default function NuevoContratoPage() {
 
             // BLOQUEO POR DISPONIBILIDAD REAL (Mantenimiento)
             if (c.fecha_disponibilidad_real) {
-              const tRelease = new Date(c.fecha_disponibilidad_real).getTime();
-              if (tReq < tRelease && tReq >= (deliveryTime || (new Date(c.fecha_evento).getTime() - (2 * 24 * 60 * 60 * 1000)))) {
+              const tRelease = parseSafeDate(c.fecha_disponibilidad_real);
+              if (tReq < tRelease && tReq >= (deliveryTime || (parseSafeDate(c.fecha_evento) - (2 * 24 * 60 * 60 * 1000)))) {
                 hasLocalConflict = true;
                 break;
               }
@@ -651,7 +651,7 @@ export default function NuevoContratoPage() {
             if (oc.fecha_evento) otherOccupiedDates.push({ date: oc.fecha_evento, type: otherMainType });
 
             const mDays = getMaintenanceDays(oc.tipo_evento);
-            const deliveryTime = oc.fecha_entrega_envio ? new Date(oc.fecha_entrega_envio).getTime() : null;
+            const deliveryTime = oc.fecha_entrega_envio ? parseSafeDate(oc.fecha_entrega_envio) : null;
             const returnTime = deliveryTime ? deliveryTime + (mDays * 24 * 60 * 60 * 1000) : null;
 
             // NUEVO: Regla 2 días post Pre-XV
@@ -680,7 +680,7 @@ export default function NuevoContratoPage() {
 
               // REGLA DE ORO: Bloqueo por Mantenimiento (Maintenance Lockout)
               if (oc.fecha_disponibilidad_real) {
-                const tRelease = new Date(oc.fecha_disponibilidad_real).getTime();
+                const tRelease = parseSafeDate(oc.fecha_disponibilidad_real);
                 if (tReq < tRelease && tReq >= (deliveryTime || (tExt - (2 * 24 * 60 * 60 * 1000)))) {
                   localConflict = true;
                   lastConflictRed = true;
@@ -1142,6 +1142,7 @@ export default function NuevoContratoPage() {
         const { error: vestidosError } = await supabase.from('contrato_items_vestidos').insert(vestidosPayload);
         if (vestidosError) {
           console.error("Error al insertar items de vestido", vestidosError);
+          throw vestidosError;
         }
       }
 
