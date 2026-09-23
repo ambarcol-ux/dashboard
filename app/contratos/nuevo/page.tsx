@@ -18,9 +18,17 @@ export default function NuevoContratoPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [editingContractId, setEditingContractId] = useState<string | null>(null);
+  const [editingContractNumber, setEditingContractNumber] = useState<string>('');
+  const [editingContractState, setEditingContractState] = useState<string>('');
+  const [editingSnapshot, setEditingSnapshot] = useState<any>(null);
+  const [loadingEditContract, setLoadingEditContract] = useState(false);
+  const isEditMode = Boolean(editingContractId);
 
   useEffect(() => {
     setMounted(true);
+    const id = new URLSearchParams(window.location.search).get('editar');
+    if (id) setEditingContractId(id);
   }, []);
   const [sedesList, setSedesList] = useState<any[]>([]);
   const [alistamientoData, setAlistamientoData] = useState<any>(null);
@@ -88,7 +96,15 @@ export default function NuevoContratoPage() {
   });
 
   const [prexv, setPrexv] = useState<PrexvData>({ prexv_componentes: [] });
-  const prexvPayload = () => ({ ...prexv, fecha_pre_xv: formData.fecha_fotografia || null, prexv_fotografo_agendado: false, prexv_maquilladora_agendada: false, prexv_locacion_confirmada: false });
+  const prexvPayload = () => ({
+    ...prexv,
+    fecha_pre_xv: formData.fecha_fotografia || null,
+    ...(isEditMode ? {} : {
+      prexv_fotografo_agendado: false,
+      prexv_maquilladora_agendada: false,
+      prexv_locacion_confirmada: false
+    })
+  });
 
   // Items Multi-Vestido
   const [vestidos, setVestidos] = useState<{ vestido_id: string | null; referencia: string; tipo: string; observaciones: string }[]>([
@@ -201,6 +217,147 @@ export default function NuevoContratoPage() {
     };
     fetchSedesYAsesoras();
   }, []);
+
+  // -- Carga del contrato existente en la MISMA pantalla de creación --
+  useEffect(() => {
+    if (!editingContractId) return;
+
+    const loadExistingContract = async () => {
+      setLoadingEditContract(true);
+      try {
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        if (authError || !user) throw new Error('Debes iniciar sesión nuevamente.');
+
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('rol, activo')
+          .eq('id', user.id)
+          .single();
+
+        if (profileError || !profile || profile.activo === false || String(profile.rol || '').toLowerCase() !== 'admin') {
+          toast.error('Solo un administrador puede editar un contrato pactado.');
+          router.replace('/dashboard');
+          return;
+        }
+
+        setUserRole('admin');
+
+        const { data: contract, error } = await supabase
+          .from('contratos')
+          .select(`
+            *,
+            items:contrato_items_vestidos(
+              id, vestido_id, tipo_uso, tipo, observaciones,
+              vestido:vestidos(id,codigo,nombre,estado,sede_actual_id)
+            ),
+            arreglos(*)
+          `)
+          .eq('id', editingContractId)
+          .single();
+
+        if (error || !contract) throw error || new Error('Contrato no encontrado.');
+
+        setEditingContractNumber(contract.numero_contrato || '');
+        setEditingContractState(contract.estado || '');
+        setEditingSnapshot(contract);
+
+        setFormData({
+          numero_factura: contract.numero_factura || '',
+          sede: contract.sede || '',
+          sede_id: contract.sede_id || '',
+          asesora: contract.asesora || '',
+          asesora_id: contract.asesora_id || '',
+          cliente_nombre: contract.cliente_nombre || '',
+          cliente_documento: contract.cliente_documento || '',
+          whatsapp: contract.cliente_whatsapp || '',
+          cliente_email: contract.cliente_email || '',
+          direccion: contract.cliente_direccion || '',
+          quinceanera_name: contract.quinceanera_name || '',
+          tipo_evento: contract.tipo_evento || 'Evento',
+          fecha_evento: contract.fecha_evento || '',
+          fecha_fotografia: contract.fecha_pre_xv || '',
+          fecha_maquillaje: contract.fecha_maquillaje ? String(contract.fecha_maquillaje).slice(0,10) : '',
+          incluye_retablo: false,
+          incluye_book: false,
+          cita_medidas: contract.fecha_cita_medidas || '',
+          prueba_final: contract.fecha_prueba_final || '',
+          fecha_entrega: contract.fecha_entrega_envio || '',
+          tipo_entrega: contract.tipo_entrega || 'Local',
+          valor_total: contract.valor_total == null ? '' : String(contract.valor_total),
+          servicios_adicionales: '',
+          anticipo: contract.anticipo == null ? '' : String(contract.anticipo),
+          valor_deposito: contract.valor_deposito == null ? '' : String(contract.valor_deposito),
+          deposito_banco: contract.banco_deposito || '',
+          deposito_tipo_cuenta: contract.tipo_cuenta_deposito || '',
+          deposito_numero: contract.numero_cuenta_deposito || '',
+          deposito_titular: contract.titular_cuenta_deposito || '',
+          autoriza_uso_imagen: Boolean(contract.autoriza_uso_imagen)
+        });
+
+        setPrexv({
+          prexv_componentes: contract.prexv_componentes || [],
+          prexv_fotografo: contract.prexv_fotografo || '',
+          prexv_maquilladora: contract.prexv_maquilladora || '',
+          prexv_locacion: contract.prexv_locacion || '',
+          prexv_fotografo_agendado: Boolean(contract.prexv_fotografo_agendado),
+          prexv_maquilladora_agendada: Boolean(contract.prexv_maquilladora_agendada),
+          prexv_locacion_confirmada: Boolean(contract.prexv_locacion_confirmada),
+          fecha_pre_xv: contract.fecha_pre_xv || null,
+          fecha_fotografia: contract.fecha_fotografia || null,
+          fecha_maquillaje: contract.fecha_maquillaje || null,
+          tipo_evento: contract.tipo_evento || null
+        });
+
+        const contractItems = Array.isArray(contract.items) ? contract.items : [];
+        setVestidos(
+          contractItems.length
+            ? contractItems.map((item: any) => ({
+                vestido_id: item.vestido_id || item.vestido?.id || null,
+                referencia: item.vestido?.codigo || '',
+                tipo: item.tipo_uso || item.tipo || 'XV',
+                observaciones: item.observaciones || ''
+              }))
+            : [{
+                vestido_id: contract.vestido_id || null,
+                referencia: '',
+                tipo: 'XV',
+                observaciones: contract.observaciones_vestido || ''
+              }]
+        );
+
+        setAccesoriosSeleccionados(Array.isArray(contract.accesorios) ? contract.accesorios : []);
+        setMetodosPago(Array.isArray(contract.metodos_pago) ? contract.metodos_pago : []);
+        setFechasBloqueoEspecial(Array.isArray(contract.fechas_bloqueo_especial) ? contract.fechas_bloqueo_especial : []);
+        setBloqueoEspecial({
+          vestido_id: contract.bloqueo_especial_vestido_id || null,
+          referencia: contract.bloqueo_especial_referencia || '',
+          fecha: contract.bloqueo_especial_fecha || ''
+        });
+
+        setArreglos(
+          Array.isArray(contract.arreglos)
+            ? contract.arreglos.map((a: any) => ({
+                tipo: a.tipo_arreglo || a.tipo || '',
+                cm: a.centimetros || a.cm || '',
+                precio: a.precio == null ? '' : String(a.precio)
+              }))
+            : []
+        );
+
+        setVipCodeInput('');
+        setVipDiscount(0);
+        setVipStatus('idle');
+      } catch (err: any) {
+        console.error('Error cargando contrato para edición:', err);
+        toast.error(err?.message || 'No se pudo cargar el contrato para edición.');
+        router.replace('/dashboard');
+      } finally {
+        setLoadingEditContract(false);
+      }
+    };
+
+    void loadExistingContract();
+  }, [editingContractId, router]);
 
   // -- Fetch Vestidos Dinámico por Sede --
   useEffect(() => {
