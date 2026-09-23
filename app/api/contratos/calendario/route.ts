@@ -24,10 +24,32 @@ export async function PATCH(request:Request){
   const current=row as unknown as Record<string,any>;
   const prexvKeys=[...prexvFields,'fecha_pre_xv','fecha_fotografia','fecha_maquillaje'];
   const touchesPrexv=Object.keys(patch).some(k=>prexvKeys.includes(k));
+  const touchesSpecial=Object.keys(patch).some(k=>['bloqueo_especial_referencia','bloqueo_especial_fecha'].includes(k));
   const lockKeys=[...new Set([...Object.keys(patch),...(touchesPrexv?prexvKeys:[])])];
   for(const key of lockKeys){
    if(!(key in body.original)||JSON.stringify(current[key]??null)!==JSON.stringify(body.original[key]??null))return NextResponse.json({error:'Este contrato cambió mientras lo editabas. Cierra el panel, actualiza y vuelve a abrirlo.'},{status:409});
   }
+
+  if(touchesSpecial){
+   const ref=String(('bloqueo_especial_referencia' in patch?patch.bloqueo_especial_referencia:current.bloqueo_especial_referencia)||'').trim().toUpperCase();
+   const date=('bloqueo_especial_fecha' in patch?patch.bloqueo_especial_fecha:current.bloqueo_especial_fecha) as string|null|undefined;
+
+   if(!ref&&!date){
+    patch.bloqueo_especial_referencia=null;
+    patch.bloqueo_especial_fecha=null;
+    patch.bloqueo_especial_vestido_id=null;
+   }else{
+    if(!ref||!date)return NextResponse.json({error:'En Bloqueo fechas especiales debes indicar la referencia y la fecha por bloquear.'},{status:400});
+    const {data:dress,error:dressError}=await db.from('vestidos').select('id,codigo,estado,sede_actual_id').ilike('codigo',ref).limit(1).maybeSingle();
+    if(dressError||!dress)return NextResponse.json({error:'La referencia del bloqueo especial no existe en el inventario.'},{status:400});
+    if(String(dress.estado||'').toLowerCase()==='de baja')return NextResponse.json({error:'La referencia del bloqueo especial está dada de baja.'},{status:400});
+    if(current.sede_id&&dress.sede_actual_id!==current.sede_id)return NextResponse.json({error:'La referencia del bloqueo especial pertenece a otra sede. Realiza primero el traslado logístico.'},{status:409});
+    patch.bloqueo_especial_referencia=dress.codigo;
+    patch.bloqueo_especial_fecha=date;
+    patch.bloqueo_especial_vestido_id=dress.id;
+   }
+  }
+
   const changed={...current,...patch};
   const pairs=[['fecha_cita_medidas','fecha_prueba_final'],['fecha_prueba_final','fecha_entrega_envio'],['fecha_entrega_envio','fecha_evento'],['fecha_evento','fecha_retorno_prevista'],['fecha_retorno_prevista','fecha_disponibilidad_real']];
   for(const [a,b] of pairs){if((a in patch||b in patch)&&changed[a]&&changed[b]&&changed[a]>changed[b])return NextResponse.json({error:'Revisa el orden: medidas, prueba final, entrega, evento, retorno y disponibilidad.'},{status:400});}
