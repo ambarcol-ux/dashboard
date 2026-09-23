@@ -119,6 +119,7 @@ export default function DashboardPage() {
   const [selectedAsesoraId, setSelectedAsesoraId] = useState<string>('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const isDashboardAdmin = canEditSavedRecords(user);
   // -- Modals Invoice/Factura QC --
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [invoiceContract, setInvoiceContract] = useState<any>(null);
@@ -457,14 +458,6 @@ export default function DashboardPage() {
       // Valores por defecto si el perfil no existe
       let profile = pData || { rol: 'asesora', sede_id: null, nombre: 'Colaborador' };
       
-      // -- OFICIAL ADMIN ELEVATION --
-      if (authUser.email === 'dubian.h88@gmail.com') {
-        if (profile.rol !== 'admin') {
-          await supabase.from('profiles').upsert({ id: authUser.id, rol: 'admin', email: authUser.email }, { onConflict: 'id' });
-          profile.rol = 'admin';
-        }
-      }
-      
       setUser({ ...authUser, rol: profile.rol, nombre: profile.nombre });
 
 
@@ -700,11 +693,16 @@ export default function DashboardPage() {
     }
   };
 
-  const openDrawer = async (contrato: any) => {
+  const openDrawer = async (contrato: any, startEditing = false) => {
+    if (startEditing && !isDashboardAdmin) {
+      toast.error('Solo un administrador puede editar un contrato pactado.');
+      return;
+    }
     setSelectedContract(contrato);
+    setEditForm(startEditing ? { ...contrato } : {});
     setDrawerOpen(true);
     setDrawerDelivery(null);
-    setIsEditingDrawer(false); // Reset edit mode
+    setIsEditingDrawer(startEditing);
     setShowDeliveryEvidence(false); // Reset evidence view
     setDrawerHistory([]);
     setShowAssignForm(false); // Reset assign form
@@ -733,6 +731,10 @@ export default function DashboardPage() {
 
   // -- Edit Functions --
   const handleEditStart = () => {
+    if (!isDashboardAdmin) {
+      toast.error('Solo un administrador puede editar un contrato pactado.');
+      return;
+    }
     setEditForm({ ...selectedContract });
     setIsEditingDrawer(true);
   };
@@ -899,6 +901,11 @@ export default function DashboardPage() {
 
   const saveContractEdit = async () => {
     if (!selectedContract) return;
+    if (!isDashboardAdmin) {
+      toast.error('Solo un administrador puede modificar un contrato pactado.');
+      setIsEditingDrawer(false);
+      return;
+    }
     
     let invoiceUpdate: { numero_factura?: string };
     try {
@@ -950,10 +957,15 @@ export default function DashboardPage() {
     try {
       const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) throw new Error('Debes iniciar sesión nuevamente.');
-      const additionalUpdates = getAdditionalContractUpdates(editForm, selectedContract);
-      if (Object.keys(additionalUpdates).length && !canEditSavedRecords(authUser)) {
-        throw new Error('No tienes permiso para modificar los campos adicionales del contrato.');
+      const { data: editorProfile, error: editorProfileError } = await supabase
+        .from('profiles')
+        .select('rol,activo')
+        .eq('id', authUser.id)
+        .single();
+      if (editorProfileError || !editorProfile || editorProfile.activo === false || String(editorProfile.rol || '').toLowerCase() !== 'admin') {
+        throw new Error('Solo un administrador activo puede modificar un contrato pactado.');
       }
+      const additionalUpdates = getAdditionalContractUpdates(editForm, selectedContract);
       for (const key of ['valor_total', 'anticipo', 'total_arreglos']) {
         if (!Number.isFinite(Number(editForm[key] || 0)) || Number(editForm[key] || 0) < 0) {
           throw new Error('Los valores del contrato deben ser números mayores o iguales a cero.');
@@ -1663,7 +1675,7 @@ export default function DashboardPage() {
 
     // 0. Seguridad: Verificar si el contrato está firmado y si el usuario es Admin
     const targetContract = contratos.find(c => c.id === contractId);
-    const isAdmin = canEditSavedRecords(user);
+    const isAdmin = isDashboardAdmin;
 
     if (targetContract?.estado?.toLowerCase() === 'firmado' && !isAdmin) {
       toast.error("Este contrato ya está firmado y no puede ser modificado.");
@@ -2103,6 +2115,15 @@ export default function DashboardPage() {
                <button onClick={() => { setOpenDropdownId(null); generatePDF(c); }} disabled={pdfGeneratingId === c.id} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-rose-50 rounded-xl flex items-center gap-3 font-bold transition-all">
                  <Download className="w-4 h-4 text-rose-500" /> Generar PDF Contrato
                </button>
+
+               {isDashboardAdmin && (
+                 <button
+                   onClick={() => { setOpenDropdownId(null); void openDrawer(c, true); }}
+                   className="w-full text-left px-4 py-3 text-sm text-amber-700 hover:bg-amber-50 rounded-xl flex items-center gap-3 font-black transition-all"
+                 >
+                   <Edit2 className="w-4 h-4 text-amber-600" /> Editar Contrato
+                 </button>
+               )}
                
                <Link href={`/dashboard/pago/${c.id}`} className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-emerald-50 rounded-xl flex items-center gap-3 font-bold transition-all">
                  <DollarSign className="w-4 h-4 text-emerald-500" /> Registrar Abono
@@ -2337,7 +2358,7 @@ export default function DashboardPage() {
   };
 
   // -- Admin Security Helper --
-  const isAdmin = user?.email === 'dubian.h88@gmail.com';
+  const isAdmin = isDashboardAdmin;
 
   // Motor de Filtros Locales (QC Logística & 4 Tabs)
   const tabCounts = React.useMemo(() => {
@@ -4304,7 +4325,7 @@ export default function DashboardPage() {
                   ) : (
                     <div className="p-8 space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
                       {/* Formulario de Edición */}
-                      {canEditSavedRecords(user) && (
+                      {isDashboardAdmin && (
                         <section className="space-y-4">
                           <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Datos adicionales del contrato</h3>
                           <div className="grid grid-cols-2 gap-3">
@@ -4545,12 +4566,14 @@ export default function DashboardPage() {
                       >
                         <Download className="w-5 h-5" /> PDF
                       </button>
-                      <button 
-                        onClick={handleEditStart}
-                        className="py-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-black rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
-                      >
-                        <Edit2 className="w-5 h-5" /> Editar
-                      </button>
+                      {isDashboardAdmin && (
+                        <button 
+                          onClick={handleEditStart}
+                          className="py-4 bg-amber-50 hover:bg-amber-100 text-amber-700 font-black rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 border border-amber-200"
+                        >
+                          <Edit2 className="w-5 h-5" /> Editar Contrato
+                        </button>
+                      )}
                     </>
                   )}
                 </div>
