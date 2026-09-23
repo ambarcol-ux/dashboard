@@ -41,6 +41,7 @@ export interface ContractData extends PrexvData {
   autoriza_uso_imagen?: boolean;
   bloqueo_especial_referencia?: string | null;
   bloqueo_especial_fecha?: string | null;
+  fechas_bloqueo_especial?: string[] | null;
 }
 
 interface ContractTemplateProps {
@@ -217,6 +218,20 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
               <strong>Servicios PRE-XV contratados · {formatDate(data.fecha_pre_xv || '')}</strong>
               {includedPrexv(data).map(service => <div key={service.id}>{service.label}: {data[service.name] || 'Por asignar'}</div>)}
             </div>}
+            {Array.isArray(data.fechas_bloqueo_especial) && data.fechas_bloqueo_especial.length > 0 && (
+              <div className="col-span-2 border-t border-amber-300 bg-amber-50/70 p-3 rounded mt-1">
+                <strong className="uppercase text-amber-800 block mb-1">Bloqueo fechas especiales</strong>
+                <div className="text-xs mb-2">
+                  <strong>Referencias bloqueadas:</strong>{' '}
+                  {(data.vestidos && data.vestidos.length > 0)
+                    ? data.vestidos.map(v => v.vestido?.codigo || '—').join(' · ')
+                    : '—'}
+                </div>
+                {Array.from(new Set(data.fechas_bloqueo_especial)).sort().map(fecha => (
+                  <div key={fecha}>• {formatDate(fecha)}</div>
+                ))}
+              </div>
+            )}
             {data.bloqueo_especial_referencia && data.bloqueo_especial_fecha && (
               <div className="col-span-2 border-t border-amber-300 bg-amber-50/70 p-3 rounded mt-1">
                 <strong className="uppercase text-amber-800">Bloqueo fecha especial:</strong>{' '}
