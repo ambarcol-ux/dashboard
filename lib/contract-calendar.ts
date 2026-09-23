@@ -11,17 +11,19 @@ export const milestoneTypes = [
   { field: 'fecha_disponibilidad_real', label: 'Disponibilidad del vestido', color: 'green' },
   { field: 'fecha_entrega_prexv', label: 'Entrega realizada Pre-XV', color: 'slate' },
   { field: 'fecha_entrega_evento', label: 'Entrega realizada evento', color: 'slate' },
+  { field: 'bloqueo_especial_fecha', label: 'Bloqueo fecha especial', color: 'amber' },
 ] as const;
 export type MilestoneField = typeof milestoneTypes[number]['field'];
 export type CalendarContract = {
   id: string; numero_factura?: string | null; numero_contrato: string; cliente_nombre: string; quinceanera_name: string | null;
   sede: string | null; sede_id: string | null; estado: string; tipo_evento: string | null;
   vestido_id: string | null; referencia_vestido: string | null;
+  bloqueo_especial_vestido_id?: string | null; bloqueo_especial_referencia?: string | null;
   cliente_email?: string | null; cliente_whatsapp?: string | null; cliente_direccion?: string | null; observaciones_vestido?: string | null; valor_total?: number | null; saldo?: number | null;
   items?: { vestido_id: string | null }[];
 } & PrexvData & Partial<Record<MilestoneField, string | null>>;
 export type ContractEvent = { id: string; contract: CalendarContract; field: MilestoneField; label: string; color: string; date: string; time: string | null; href: string };
-export const calendarColumns = [...prexvFields,'numero_factura','cliente_email','cliente_whatsapp','cliente_direccion','observaciones_vestido','valor_total','saldo','id','numero_contrato','cliente_nombre','quinceanera_name','sede','sede_id','estado','tipo_evento','vestido_id','referencia_vestido',...milestoneTypes.map(t=>t.field),'items:contrato_items_vestidos(vestido_id)'].join(',');
+export const calendarColumns = [...prexvFields,'numero_factura','cliente_email','cliente_whatsapp','cliente_direccion','observaciones_vestido','valor_total','saldo','id','numero_contrato','cliente_nombre','quinceanera_name','sede','sede_id','estado','tipo_evento','vestido_id','referencia_vestido','bloqueo_especial_vestido_id','bloqueo_especial_referencia',...milestoneTypes.map(t=>t.field),'items:contrato_items_vestidos(vestido_id)'].join(',');
 export function bogotaDay(value: string): string | null {
   if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     const date = new Date(value+'T12:00:00Z');
