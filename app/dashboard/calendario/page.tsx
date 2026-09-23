@@ -73,7 +73,7 @@ export default function ContractCalendar(){
   },[load]);
   const allEvents=useMemo(()=>contractEvents(contracts),[contracts]);
   const matching=useMemo(()=>allEvents.filter(e=>{
-    const c=e.contract;return (!type||e.field===type)&&(!sede||c.sede===sede)&&(showCancelled||!['cancelado','cancelada','anulado','anulada'].includes(c.estado.toLowerCase()))&&`${c.cliente_nombre} ${c.quinceanera_name||''} ${c.numero_contrato} ${c.numero_factura||''} ${c.referencia_vestido||''} ${c.bloqueo_especial_referencia||''}`.toLocaleLowerCase('es').includes(search.toLocaleLowerCase('es'));
+    const c=e.contract;return (!type||e.field===type)&&(!sede||c.sede===sede)&&(showCancelled||!['cancelado','cancelada','anulado','anulada'].includes(c.estado.toLowerCase()))&&`${c.cliente_nombre} ${c.quinceanera_name||''} ${c.numero_contrato} ${c.numero_factura||''} ${c.referencia_vestido||''} ${(c.items||[]).map(i=>i.vestido?.codigo||'').join(' ')}`.toLocaleLowerCase('es').includes(search.toLocaleLowerCase('es'));
   }),[allEvents,type,sede,showCancelled,search]);
   const start=new Date(cursor.getFullYear(),cursor.getMonth(),view!=='month'?cursor.getDate():1,12);
   if(view==='week')start.setDate(start.getDate()-(start.getDay()+6)%7);
