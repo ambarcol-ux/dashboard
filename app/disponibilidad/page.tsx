@@ -20,7 +20,7 @@ import { toast, Toaster } from 'sonner';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { es } from 'date-fns/locale';
-import { isWithinInterval, startOfDay, format, subDays } from 'date-fns';
+import { isWithinInterval, startOfDay, endOfDay, format, subDays, parseISO } from 'date-fns';
 import { generateBlockedRanges, isCurrentlyOccupied, ContractBlock } from '@/lib/availability';
 
 export default function AvailabilityPage() {
@@ -136,9 +136,32 @@ export default function AvailabilityPage() {
 
       if (contrError) throw contrError;
 
-      // Generar los bloques reales de disponibilidad
+      const { data: specialLocks, error: specialLocksError } = await supabase
+        .from('contratos')
+        .select('id, numero_contrato, cliente_nombre, estado, bloqueo_especial_referencia, bloqueo_especial_fecha, created_at')
+        .eq('bloqueo_especial_vestido_id', dressId)
+        .not('estado', 'in', '("cancelado","anulado","rechazado","CANCELADO","ANULADO","RECHAZADO")')
+        .not('bloqueo_especial_fecha', 'is', null);
+
+      if (specialLocksError) throw specialLocksError;
+
+      // Generar los bloques reales de disponibilidad + bloqueos especiales de un día
       const newBlocks = generateBlockedRanges(contracts || []);
-      setBlocks(newBlocks);
+      const specialCalendarBlocks: ContractBlock[] = (specialLocks || []).flatMap((lock: any) => {
+        if (!lock.bloqueo_especial_fecha) return [];
+        const date = parseISO(lock.bloqueo_especial_fecha);
+        return [{
+          id: `special-${lock.id}`,
+          contractNumber: lock.numero_contrato,
+          clientName: lock.cliente_nombre,
+          type: 'Fecha especial',
+          warningStart: startOfDay(date),
+          start: startOfDay(date),
+          end: endOfDay(date),
+          eventDate: startOfDay(date)
+        }];
+      });
+      setBlocks([...newBlocks, ...specialCalendarBlocks].sort((a, b) => a.start.getTime() - b.start.getTime()));
 
       // 2. Fetch Bitácora Local
       let logs: any[] = [];
@@ -164,6 +187,17 @@ export default function AvailabilityPage() {
           titulo: `Alquiler - Contrato #${c.numero_contrato}`,
           subtitulo: `Cliente: ${c.cliente_nombre}`,
           detalle: `Evento tipo ${c.tipo_evento}`
+        });
+      });
+
+      (specialLocks || []).forEach((lock: any) => {
+        unified.push({
+          id: `special-${lock.id}`,
+          fecha: new Date(`${lock.bloqueo_especial_fecha}T12:00:00`),
+          tipo: 'bloqueo_especial',
+          titulo: `Bloqueo fecha especial - Contrato #${lock.numero_contrato}`,
+          subtitulo: `Cliente: ${lock.cliente_nombre}`,
+          detalle: `Referencia ${lock.bloqueo_especial_referencia || '—'} reservada exclusivamente para esta fecha.`
         });
       });
 
