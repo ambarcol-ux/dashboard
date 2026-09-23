@@ -2100,7 +2100,7 @@ export default function DashboardPage() {
          <div className="flex items-center justify-end gap-2">
            {isDashboardAdmin && (
              <button
-               onClick={() => { setOpenDropdownId(null); void openDrawer(c, true); }}
+               onClick={() => { setOpenDropdownId(null); router.push(`/contratos/nuevo?editar=${encodeURIComponent(c.id)}`); }}
                title="Editar Contrato"
                className="flex items-center gap-2 px-4 py-2 bg-amber-50 text-amber-700 border border-amber-200 font-black rounded-xl hover:bg-amber-100 transition-all active:scale-95 uppercase text-[10px] tracking-wider"
              >
@@ -4636,7 +4636,7 @@ export default function DashboardPage() {
                       </button>
                       {isDashboardAdmin && (
                         <button 
-                          onClick={handleEditStart}
+                          onClick={() => router.push(`/contratos/nuevo?editar=${encodeURIComponent(selectedContract.id)}`)}
                           className="py-4 bg-amber-50 hover:bg-amber-100 text-amber-700 font-black rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 border border-amber-200"
                         >
                           <Edit2 className="w-5 h-5" /> Editar Contrato
