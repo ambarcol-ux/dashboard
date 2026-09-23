@@ -1169,6 +1169,10 @@ export default function NuevoContratoPage() {
   };
 
   const handleSolicitarAutorizacion = async () => {
+    if (isEditMode) {
+      toast.error('En modo edición no se crea una solicitud nueva. Ajusta las fechas o guarda el contrato existente.');
+      return;
+    }
     let depositoInicial: number;
     try { depositoInicial = initialDepositAmount(formData.valor_deposito); }
     catch { toast.error('El depósito debe ser un valor válido mayor o igual a cero.'); return; }
@@ -1377,6 +1381,83 @@ export default function NuevoContratoPage() {
     }
   };
 
+  const saveExistingContract = async (resolvedVestidos: any[], numeroFactura: string) => {
+    if (!editingContractId) throw new Error('No hay un contrato seleccionado para editar.');
+
+    const valorAlquilerBase = parseFloat(String(formData.valor_total).replace(/[^0-9.-]+/g, "")) || 0;
+    const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
+    const verdaderoValorTotal = Math.max(0, valorAlquilerBase - vipDiscount) + serviciosAdicionales;
+    const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
+
+    const datos = {
+      numero_factura: numeroFactura,
+      cliente_nombre: formData.cliente_nombre.trim(),
+      cliente_documento: formData.cliente_documento.trim(),
+      cliente_whatsapp: formData.whatsapp.trim(),
+      cliente_email: formData.cliente_email.trim(),
+      cliente_direccion: formData.direccion.trim(),
+      quinceanera_name: formData.quinceanera_name.trim(),
+      sede: formData.sede,
+      sede_id: formData.sede_id,
+      asesora: formData.asesora.trim(),
+      asesora_id: formData.asesora_id,
+      tipo_evento: formData.tipo_evento,
+      tipo_entrega: formData.tipo_entrega,
+      fecha_evento: formData.tipo_evento === 'PreXV' ? formData.fecha_fotografia : (formData.fecha_evento || null),
+      fecha_pre_xv: formData.fecha_fotografia || null,
+      fecha_cita_medidas: formData.cita_medidas || null,
+      fecha_prueba_final: formData.prueba_final || null,
+      fecha_entrega_envio: formData.fecha_entrega || null,
+      fecha_fotografia: prexv.fecha_fotografia || null,
+      fecha_maquillaje: prexv.fecha_maquillaje || null,
+      valor_total: verdaderoValorTotal,
+      anticipo: abonoInicial,
+      total_arreglos: totalArreglos,
+      banco_deposito: formData.deposito_banco || null,
+      tipo_cuenta_deposito: formData.deposito_tipo_cuenta || null,
+      numero_cuenta_deposito: formData.deposito_numero || null,
+      titular_cuenta_deposito: formData.deposito_titular || null,
+      accesorios: accesoriosSeleccionados,
+      metodos_pago: metodosPago,
+      prexv_componentes: prexv.prexv_componentes || [],
+      prexv_fotografo: prexv.prexv_fotografo || null,
+      prexv_maquilladora: prexv.prexv_maquilladora || null,
+      prexv_locacion: prexv.prexv_locacion || null,
+      prexv_fotografo_agendado: Boolean(prexv.prexv_fotografo_agendado),
+      prexv_maquilladora_agendada: Boolean(prexv.prexv_maquilladora_agendada),
+      prexv_locacion_confirmada: Boolean(prexv.prexv_locacion_confirmada),
+      autoriza_uso_imagen: formData.autoriza_uso_imagen,
+      fechas_bloqueo_especial: Array.from(new Set(fechasBloqueoEspecial.filter(Boolean))).sort()
+    };
+
+    const vestidosPayload = resolvedVestidos.map(v => ({
+      vestido_id: v.id,
+      tipo_uso: v.tipo,
+      tipo: v.tipo,
+      observaciones: v.observaciones?.trim() || null
+    }));
+
+    const arreglosPayload = arreglos
+      .filter(a => a.tipo.trim() !== '')
+      .map(a => ({
+        tipo: a.tipo.trim(),
+        cm: a.cm.trim() || null,
+        precio: parseFloat(a.precio) || 0
+      }));
+
+    const { data, error } = await supabase.rpc('editar_contrato_completo_admin', {
+      p_contrato: editingContractId,
+      p_datos: datos,
+      p_vestidos: vestidosPayload,
+      p_arreglos: arreglosPayload
+    });
+
+    if (error) throw error;
+
+    toast.success(`✅ Contrato ${editingContractNumber || data?.numero_contrato || ''} actualizado correctamente`);
+    router.push(`/dashboard?contratoId=${encodeURIComponent(editingContractId)}`);
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (prexv.prexv_componentes?.length && !formData.fecha_fotografia) { toast.error('Indica la fecha de sesión PRE-XV.'); return; }
@@ -1417,12 +1498,14 @@ export default function NuevoContratoPage() {
 
     let resolvedSpecialBlock: any = null;
     try {
-      resolvedSpecialBlock = await resolveBloqueoEspecial();
-      if (resolvedSpecialBlock && !(await checkBloqueoEspecialAvailability(resolvedSpecialBlock))) {
-        setLoading(false);
-        return;
+      if (!isEditMode) {
+        resolvedSpecialBlock = await resolveBloqueoEspecial();
+        if (resolvedSpecialBlock && !(await checkBloqueoEspecialAvailability(resolvedSpecialBlock))) {
+          setLoading(false);
+          return;
+        }
       }
-      if (!(await checkFechasEspecialesAvailability(resolvedVestidos, fechasBloqueoEspecial))) {
+      if (!(await checkFechasEspecialesAvailability(resolvedVestidos, fechasBloqueoEspecial, editingContractId))) {
         setLoading(false);
         return;
       }
@@ -1433,7 +1516,7 @@ export default function NuevoContratoPage() {
     }
 
     // 2. PRIORIDAD 1: Validar Inventario (Calendario Global)
-    const isAvailable = await checkInventory(resolvedVestidos);
+    const isAvailable = await checkInventory(resolvedVestidos, editingContractId);
     if (!isAvailable) {
       setLoading(false);
       return;
@@ -1448,6 +1531,18 @@ export default function NuevoContratoPage() {
         setLoading(false);
         return;
       }
+    }
+
+    if (isEditMode && editingContractId) {
+      try {
+        await saveExistingContract(resolvedVestidos, numeroFactura);
+      } catch (error: any) {
+        console.error('Error actualizando contrato existente:', error);
+        toast.error(error?.message || 'No se pudo actualizar el contrato.');
+      } finally {
+        setLoading(false);
+      }
+      return;
     }
 
     try {
