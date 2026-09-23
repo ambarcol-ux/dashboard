@@ -39,6 +39,8 @@ export interface ContractData extends PrexvData {
   asesora?: string;
   quinceanera_name?: string;
   autoriza_uso_imagen?: boolean;
+  bloqueo_especial_referencia?: string | null;
+  bloqueo_especial_fecha?: string | null;
 }
 
 interface ContractTemplateProps {
@@ -215,6 +217,14 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
               <strong>Servicios PRE-XV contratados · {formatDate(data.fecha_pre_xv || '')}</strong>
               {includedPrexv(data).map(service => <div key={service.id}>{service.label}: {data[service.name] || 'Por asignar'}</div>)}
             </div>}
+            {data.bloqueo_especial_referencia && data.bloqueo_especial_fecha && (
+              <div className="col-span-2 border-t border-amber-300 bg-amber-50/70 p-3 rounded mt-1">
+                <strong className="uppercase text-amber-800">Bloqueo fecha especial:</strong>{' '}
+                <span className="font-bold">{data.bloqueo_especial_referencia}</span>
+                {' · '}
+                <span>{formatDate(data.bloqueo_especial_fecha)}</span>
+              </div>
+            )}
             <div className="col-span-2 sm:col-span-1 pl-0 sm:pl-2">
               <strong>Accesorios Inclusivos:</strong> {data.accesorios && data.accesorios.length > 0 ? data.accesorios.join(', ') : '—'}<br />
               <strong>Asesora a Cargo:</strong> {data.asesora || '—'}<br />
