@@ -317,7 +317,8 @@ export default function DashboardPage() {
       asesora: contrato.asesora,
       vestidos: contrato.items || contrato.vestidos || [], // Los vestidos en la tabla contratos suelen estar NULL si es ERP, usamos el join 'items'
       quinceanera_name: contrato.quinceanera_name,
-      autoriza_uso_imagen: contrato.autoriza_uso_imagen
+      autoriza_uso_imagen: contrato.autoriza_uso_imagen,
+      fechas_bloqueo_especial: Array.isArray(contrato.fechas_bloqueo_especial) ? contrato.fechas_bloqueo_especial : []
     };
     setContractForPdf(mappedData);
     toast.info('Preparando el PDF, por favor espera un momento...');
@@ -988,6 +989,9 @@ export default function DashboardPage() {
         fecha_prueba_final: editForm.fecha_prueba_final || null,
         fecha_entrega_envio: editForm.fecha_entrega_envio || null,
         fecha_disponibilidad_real: (editForm.fecha_entrega_envio || editForm.fecha_evento) ? calculateReturnDate(editForm.fecha_entrega_envio || editForm.fecha_evento, editForm.tipo_evento) : null,
+        fechas_bloqueo_especial: Array.from(new Set(
+          (Array.isArray(editForm.fechas_bloqueo_especial) ? editForm.fechas_bloqueo_especial : []).filter(Boolean)
+        )).sort(),
         tipo_evento: editForm.tipo_evento,
         valor_total: Number(editForm.valor_total || 0),
         anticipo: Number(editForm.anticipo || 0),
@@ -4412,6 +4416,66 @@ export default function DashboardPage() {
                             />
                           </div>
                         </div>
+                      </section>
+
+                      <section className="space-y-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-amber-100 rounded-lg text-amber-600"><CalendarDays className="w-5 h-5"/></div>
+                            <div>
+                              <h3 className="font-black text-gray-900 text-sm uppercase tracking-wider">Bloqueo fechas especiales</h3>
+                              <p className="text-[10px] text-gray-400 font-bold mt-1">Bloquea todos los vestidos vinculados al contrato.</p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleEditChange('fechas_bloqueo_especial', [
+                              ...(Array.isArray(editForm.fechas_bloqueo_especial) ? editForm.fechas_bloqueo_especial : []),
+                              ''
+                            ])}
+                            className="p-2.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-xl hover:bg-amber-100 transition-all"
+                            title="Agregar fecha especial"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        </div>
+                        <div className="p-3 bg-amber-50/60 border border-amber-100 rounded-xl">
+                          <p className="text-[9px] uppercase font-black text-amber-700 tracking-widest">Referencias afectadas</p>
+                          <p className="text-xs font-bold text-gray-700 mt-1">
+                            {(selectedContract.items || []).map((item: any) => item.vestido?.codigo).filter(Boolean).join(' · ') || 'Sin referencias vinculadas'}
+                          </p>
+                        </div>
+                        {(Array.isArray(editForm.fechas_bloqueo_especial) && editForm.fechas_bloqueo_especial.length > 0) ? (
+                          <div className="space-y-2">
+                            {editForm.fechas_bloqueo_especial.map((fecha: string, idx: number) => (
+                              <div key={idx} className="grid grid-cols-[1fr_auto] gap-2 items-center">
+                                <input
+                                  type="date"
+                                  value={fecha || ''}
+                                  onChange={(e) => {
+                                    const next = [...editForm.fechas_bloqueo_especial];
+                                    next[idx] = e.target.value;
+                                    handleEditChange('fechas_bloqueo_especial', next);
+                                  }}
+                                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-amber-500 transition-all font-bold text-gray-900"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => handleEditChange(
+                                    'fechas_bloqueo_especial',
+                                    editForm.fechas_bloqueo_especial.filter((_: string, i: number) => i !== idx)
+                                  )}
+                                  className="p-3 bg-red-50 text-red-500 border border-red-100 rounded-xl hover:bg-red-100 transition-all"
+                                  title="Quitar fecha"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400 italic">Sin fechas especiales agregadas.</p>
+                        )}
                       </section>
 
                       <section className="space-y-4">
