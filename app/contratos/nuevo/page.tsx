@@ -458,22 +458,30 @@ export default function NuevoContratoPage() {
 
         if (requestedDates.length === 0) return;
 
-        const { data, error } = await supabase
+        let availabilityQuery = supabase
           .from('contrato_items_vestidos')
           .select('vestido_id, vestidos!inner(stock_total, estado), contratos!inner(id, numero_contrato, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, tipo_evento, tipo_entrega, estado, fecha_entrega_envio, fecha_disponibilidad_real)')
           .not('contratos.estado', 'in', '("cancelado","rechazado","CANCELADO","RECHAZADO","borrador","BORRADOR")');
+
+        if (editingContractId) availabilityQuery = availabilityQuery.neq('contrato_id', editingContractId);
+
+        const { data, error } = await availabilityQuery;
 
         if (error) {
           console.error('[CRASH] Error en checkAllAvailability:', error);
           throw error;
         }
 
-        const { data: specialLocks, error: specialLocksError } = await supabase
+        let specialLocksQuery = supabase
           .from('contratos')
           .select('id, numero_contrato, bloqueo_especial_vestido_id, bloqueo_especial_referencia, bloqueo_especial_fecha, estado')
           .not('estado', 'in', '("cancelado","anulado","rechazado","CANCELADO","ANULADO","RECHAZADO")')
           .not('bloqueo_especial_vestido_id', 'is', null)
           .not('bloqueo_especial_fecha', 'is', null);
+
+        if (editingContractId) specialLocksQuery = specialLocksQuery.neq('id', editingContractId);
+
+        const { data: specialLocks, error: specialLocksError } = await specialLocksQuery;
 
         if (specialLocksError) {
           console.error('[CRASH] Error consultando bloqueos especiales:', specialLocksError);
@@ -593,7 +601,7 @@ export default function NuevoContratoPage() {
     };
 
     checkAllAvailability();
-  }, [formData.fecha_evento, formData.fecha_fotografia, formData.fecha_entrega, formData.tipo_evento, formData.tipo_entrega, formData.sede_id]);
+  }, [formData.fecha_evento, formData.fecha_fotografia, formData.fecha_entrega, formData.tipo_evento, formData.tipo_entrega, formData.sede_id, editingContractId]);
 
   // -- "Freno de Mano": Limpieza Automática por Conflicto --
   useEffect(() => {
@@ -907,7 +915,7 @@ export default function NuevoContratoPage() {
     return true;
   };
 
-  const checkFechasEspecialesAvailability = async (resolvedVestidos: any[], fechas: string[]) => {
+  const checkFechasEspecialesAvailability = async (resolvedVestidos: any[], fechas: string[], currentContractId?: string | null) => {
     const fechasIngresadas = fechas.filter(Boolean);
     const fechasValidas = Array.from(new Set(fechasIngresadas));
 
@@ -949,6 +957,7 @@ export default function NuevoContratoPage() {
       }
 
       for (const contrato of contratosPorId.values()) {
+        if (currentContractId && contrato.id === currentContractId) continue;
         const estado = String(contrato.estado || '').toLowerCase();
         if (estadosInactivos.includes(estado)) continue;
 
@@ -973,7 +982,7 @@ export default function NuevoContratoPage() {
     return true;
   };
 
-  const checkInventory = async (resolvedVestidos: any[]) => {
+  const checkInventory = async (resolvedVestidos: any[], currentContractId?: string | null) => {
     if (resolvedVestidos.length === 0) return true;
 
     try {
@@ -992,11 +1001,15 @@ export default function NuevoContratoPage() {
       for (const v of resolvedVestidos) {
         if (!v.id) continue;
 
-        const { data, error } = await supabase
+        let rentalsQuery = supabase
           .from('contrato_items_vestidos')
           .select('contrato_id, contratos!inner(numero_contrato, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, fecha_entrega_envio, fecha_disponibilidad_real, sede, estado, tipo_evento, tipo_entrega)')
           .eq('vestido_id', v.id)
           .not('contratos.estado', 'in', '("cancelado","rechazado","CANCELADO","RECHAZADO","borrador","BORRADOR")');
+
+        if (currentContractId) rentalsQuery = rentalsQuery.neq('contrato_id', currentContractId);
+
+        const { data, error } = await rentalsQuery;
 
         const existingRentals = data as any[];
         if (error) {
@@ -1005,12 +1018,16 @@ export default function NuevoContratoPage() {
           return false;
         }
 
-        const { data: specialLocksForDress, error: specialLocksForDressError } = await supabase
+        let dressSpecialQuery = supabase
           .from('contratos')
           .select('id, numero_contrato, bloqueo_especial_fecha, estado')
           .eq('bloqueo_especial_vestido_id', v.id)
           .not('estado', 'in', '("cancelado","anulado","rechazado","CANCELADO","ANULADO","RECHAZADO")')
           .not('bloqueo_especial_fecha', 'is', null);
+
+        if (currentContractId) dressSpecialQuery = dressSpecialQuery.neq('id', currentContractId);
+
+        const { data: specialLocksForDress, error: specialLocksForDressError } = await dressSpecialQuery;
 
         if (specialLocksForDressError) {
           console.error('Error al validar bloqueos especiales del vestido:', specialLocksForDressError);
