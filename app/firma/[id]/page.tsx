@@ -102,7 +102,9 @@ export default function FirmaPage() {
       titular_cuenta_deposito: dbData.titular_cuenta_deposito,
       asesora: dbData.asesora,
       vestidos: dbData.vestidos || [],
-      quinceanera_name: dbData.quinceanera_name
+      quinceanera_name: dbData.quinceanera_name,
+      bloqueo_especial_referencia: dbData.bloqueo_especial_referencia,
+      bloqueo_especial_fecha: dbData.bloqueo_especial_fecha
     };
   };
 
