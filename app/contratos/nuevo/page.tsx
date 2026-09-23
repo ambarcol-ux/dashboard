@@ -105,6 +105,13 @@ export default function NuevoContratoPage() {
     fecha: ''
   });
 
+  const [fechasBloqueoEspecial, setFechasBloqueoEspecial] = useState<string[]>([]);
+  const addFechaBloqueoEspecial = () => setFechasBloqueoEspecial(prev => [...prev, '']);
+  const updateFechaBloqueoEspecial = (idx: number, value: string) =>
+    setFechasBloqueoEspecial(prev => prev.map((fecha, i) => i === idx ? value : fecha));
+  const removeFechaBloqueoEspecial = (idx: number) =>
+    setFechasBloqueoEspecial(prev => prev.filter((_, i) => i !== idx));
+
   const [accesoriosSeleccionados, setAccesoriosSeleccionados] = useState<string[]>([]);
   const opcionesAccesorios = ["Tiara", "Corbatín", "Corbata", "Pañuelo", "Velo/Mantilla", "Aro/Gitana"];
 
@@ -135,6 +142,7 @@ export default function NuevoContratoPage() {
       vestidos[0].referencia ||
       bloqueoEspecial.referencia ||
       bloqueoEspecial.fecha ||
+      fechasBloqueoEspecial.some(Boolean) ||
       formData.valor_total
     );
   };
@@ -295,7 +303,7 @@ export default function NuevoContratoPage() {
 
         const { data, error } = await supabase
           .from('contrato_items_vestidos')
-          .select('vestido_id, vestidos!inner(stock_total, estado), contratos!inner(id, numero_contrato, fecha_evento, fecha_pre_xv, tipo_evento, tipo_entrega, estado, fecha_entrega_envio, fecha_disponibilidad_real)')
+          .select('vestido_id, vestidos!inner(stock_total, estado), contratos!inner(id, numero_contrato, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, tipo_evento, tipo_entrega, estado, fecha_entrega_envio, fecha_disponibilidad_real)')
           .not('contratos.estado', 'in', '("cancelado","rechazado","CANCELADO","RECHAZADO","borrador","BORRADOR")');
 
         if (error) {
@@ -343,8 +351,15 @@ export default function NuevoContratoPage() {
 
           let hasLocalConflict = false;
 
+          const fechasEspeciales = Array.isArray(c.fechas_bloqueo_especial) ? c.fechas_bloqueo_especial : [];
+
           for (const myD of requestedDates) {
             const tReq = parseSafeDate(myD.date);
+
+            if (fechasEspeciales.includes(myD.date)) {
+              hasLocalConflict = true;
+              break;
+            }
 
             // BLOQUEO PRE-XV STRICTO
             if (preXvBlockStart && preXvBlockEnd && !isPreXvLiberado) {
@@ -735,6 +750,72 @@ export default function NuevoContratoPage() {
     return true;
   };
 
+  const checkFechasEspecialesAvailability = async (resolvedVestidos: any[], fechas: string[]) => {
+    const fechasIngresadas = fechas.filter(Boolean);
+    const fechasValidas = Array.from(new Set(fechasIngresadas));
+
+    if (fechasValidas.length !== fechasIngresadas.length) {
+      toast.error('No puedes repetir la misma fecha especial dentro del contrato.');
+      return false;
+    }
+
+    if (!fechasValidas.length) return true;
+
+    const estadosInactivos = ['cancelado', 'anulado', 'rechazado'];
+    const estadosRegularesInactivos = [...estadosInactivos, 'borrador'];
+
+    for (const vestido of resolvedVestidos) {
+      const [{ data: itemRows, error: itemError }, { data: legacyRows, error: legacyError }] = await Promise.all([
+        supabase
+          .from('contrato_items_vestidos')
+          .select('contrato_id, contratos!inner(id, numero_contrato, estado, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, bloqueo_especial_fecha)')
+          .eq('vestido_id', vestido.id),
+        supabase
+          .from('contratos')
+          .select('id, numero_contrato, estado, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, bloqueo_especial_fecha')
+          .eq('vestido_id', vestido.id)
+      ]);
+
+      if (itemError || legacyError) {
+        console.error('Error verificando fechas especiales:', itemError || legacyError);
+        toast.error('No se pudo verificar la disponibilidad de las fechas especiales.');
+        return false;
+      }
+
+      const contratosPorId = new Map<string, any>();
+      for (const row of itemRows || []) {
+        const contrato = (row as any).contratos;
+        if (contrato?.id) contratosPorId.set(contrato.id, contrato);
+      }
+      for (const contrato of legacyRows || []) {
+        if ((contrato as any)?.id) contratosPorId.set((contrato as any).id, contrato);
+      }
+
+      for (const contrato of contratosPorId.values()) {
+        const estado = String(contrato.estado || '').toLowerCase();
+        if (estadosInactivos.includes(estado)) continue;
+
+        const otrasEspeciales = Array.isArray(contrato.fechas_bloqueo_especial)
+          ? contrato.fechas_bloqueo_especial
+          : [];
+
+        for (const fecha of fechasValidas) {
+          const conflictoEspecial = otrasEspeciales.includes(fecha) || contrato.bloqueo_especial_fecha === fecha;
+          const conflictoRegular =
+            !estadosRegularesInactivos.includes(estado) &&
+            (contrato.fecha_evento === fecha || contrato.fecha_pre_xv === fecha);
+
+          if (conflictoEspecial || conflictoRegular) {
+            toast.error(`❌ El vestido ${vestido.referencia} ya está bloqueado el ${fecha} por el contrato ${contrato.numero_contrato || 'existente'}.`);
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
+  };
+
   const checkInventory = async (resolvedVestidos: any[]) => {
     if (resolvedVestidos.length === 0) return true;
 
@@ -756,7 +837,7 @@ export default function NuevoContratoPage() {
 
         const { data, error } = await supabase
           .from('contrato_items_vestidos')
-          .select('contrato_id, contratos!inner(numero_contrato, fecha_evento, fecha_pre_xv, fecha_entrega_envio, fecha_disponibilidad_real, sede, estado, tipo_evento, tipo_entrega)')
+          .select('contrato_id, contratos!inner(numero_contrato, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, fecha_entrega_envio, fecha_disponibilidad_real, sede, estado, tipo_evento, tipo_entrega)')
           .eq('vestido_id', v.id)
           .not('contratos.estado', 'in', '("cancelado","rechazado","CANCELADO","RECHAZADO","borrador","BORRADOR")');
 
@@ -820,6 +901,14 @@ export default function NuevoContratoPage() {
             let localConflict = false;
 
             const tReq = parseSafeDate(rd.date);
+            const fechasEspecialesContrato = Array.isArray(oc.fechas_bloqueo_especial) ? oc.fechas_bloqueo_especial : [];
+
+            if (fechasEspecialesContrato.includes(rd.date)) {
+              localConflict = true;
+              lastConflictRed = true;
+              lastConflictType = 'logistica';
+              lastConflictDays = 0;
+            }
 
             // BLOQUEO PRE-XV STRICTO
             if (preXvBlockStart && preXvBlockEnd && !isPreXvLiberado) {
@@ -930,6 +1019,9 @@ export default function NuevoContratoPage() {
       if (resolvedSpecialBlock && !(await checkBloqueoEspecialAvailability(resolvedSpecialBlock))) {
         return;
       }
+      if (!(await checkFechasEspecialesAvailability(resolved, fechasBloqueoEspecial))) {
+        return;
+      }
 
       // 2. Crear contrato con estado 'pendiente_admin'
       const prefixMap: Record<string, string> = {
@@ -1019,6 +1111,7 @@ export default function NuevoContratoPage() {
         bloqueo_especial_referencia: resolvedSpecialBlock?.referencia || null,
         bloqueo_especial_fecha: resolvedSpecialBlock?.fecha || null,
         bloqueo_especial_vestido_id: resolvedSpecialBlock?.id || null,
+        fechas_bloqueo_especial: Array.from(new Set(fechasBloqueoEspecial.filter(Boolean))).sort(),
 
         // Estado de Aprobación (Zona Amarilla)
         estado_aprobacion: 'pendiente_admin'
@@ -1088,7 +1181,8 @@ export default function NuevoContratoPage() {
       const detalleMilestones = [
         formData.fecha_evento && `Evento: ${formData.fecha_evento}`,
         formData.fecha_fotografia && `Sesión Pre-XV: ${formData.fecha_fotografia}`,
-        resolvedSpecialBlock && `Bloqueo especial: ${resolvedSpecialBlock.referencia} · ${resolvedSpecialBlock.fecha}`
+        resolvedSpecialBlock && `Bloqueo especial: ${resolvedSpecialBlock.referencia} · ${resolvedSpecialBlock.fecha}`,
+        fechasBloqueoEspecial.filter(Boolean).length > 0 && `Fechas especiales: ${Array.from(new Set(fechasBloqueoEspecial.filter(Boolean))).sort().join(', ')} · Todas las referencias del contrato`
       ].filter(Boolean).join(' | ');
 
       await supabase.from('bitacora_contratos').insert([{
@@ -1151,6 +1245,10 @@ export default function NuevoContratoPage() {
     try {
       resolvedSpecialBlock = await resolveBloqueoEspecial();
       if (resolvedSpecialBlock && !(await checkBloqueoEspecialAvailability(resolvedSpecialBlock))) {
+        setLoading(false);
+        return;
+      }
+      if (!(await checkFechasEspecialesAvailability(resolvedVestidos, fechasBloqueoEspecial))) {
         setLoading(false);
         return;
       }
@@ -1269,6 +1367,7 @@ export default function NuevoContratoPage() {
         bloqueo_especial_referencia: resolvedSpecialBlock?.referencia || null,
         bloqueo_especial_fecha: resolvedSpecialBlock?.fecha || null,
         bloqueo_especial_vestido_id: resolvedSpecialBlock?.id || null,
+        fechas_bloqueo_especial: Array.from(new Set(fechasBloqueoEspecial.filter(Boolean))).sort(),
 
         // Estado de Aprobación (Zona Amarilla)
         estado_aprobacion: 'aprobado',
@@ -1371,7 +1470,8 @@ export default function NuevoContratoPage() {
         const detail = [
           formData.fecha_evento && `Evento: ${formData.fecha_evento}`,
           formData.fecha_fotografia && `Sesión Pre-XV: ${formData.fecha_fotografia}`,
-          resolvedSpecialBlock && `Bloqueo especial: ${resolvedSpecialBlock.referencia} · ${resolvedSpecialBlock.fecha}`
+          resolvedSpecialBlock && `Bloqueo especial: ${resolvedSpecialBlock.referencia} · ${resolvedSpecialBlock.fecha}`,
+        fechasBloqueoEspecial.filter(Boolean).length > 0 && `Fechas especiales: ${Array.from(new Set(fechasBloqueoEspecial.filter(Boolean))).sort().join(', ')} · Todas las referencias del contrato`
         ].filter(Boolean).join(' | ');
 
         await supabase.from('bitacora_contratos').insert([{
@@ -1578,64 +1678,49 @@ export default function NuevoContratoPage() {
 
           {/* BLOQUEO DE FECHAS ESPECIALES */}
           <section className="space-y-5 bg-amber-50/60 p-6 rounded-2xl border border-amber-200">
-            <div>
-              <h2 className="text-2xl font-bold border-b border-amber-200 pb-2 text-gray-800 flex items-center gap-2">
-                <Calendar className="text-amber-600" /> Bloqueo fechas especiales
-              </h2>
-              <p className="text-sm text-amber-800 mt-2">
-                Reserva una referencia para una fecha adicional distinta al Evento o PRE-XV. Deja ambos campos vacíos si no aplica.
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+              <div>
+                <h2 className="text-2xl font-bold border-b border-amber-200 pb-2 text-gray-800 flex items-center gap-2">
+                  <Calendar className="text-amber-600" /> Bloqueo fechas especiales
+                </h2>
+                <p className="text-sm text-amber-800 mt-2">
+                  Agrega todas las fechas adicionales que necesites. Cada fecha bloqueará automáticamente todos los vestidos vinculados a este contrato.
+                </p>
+              </div>
+              <button type="button" onClick={addFechaBloqueoEspecial} className="shrink-0 flex items-center justify-center gap-2 bg-amber-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-amber-700 transition-colors">
+                <Plus className="w-4 h-4" /> Agregar fecha
+              </button>
+            </div>
+
+            <div className="bg-white/80 border border-amber-200 rounded-xl p-4">
+              <span className="text-xs uppercase tracking-wider font-black text-amber-700">Referencias que quedarán bloqueadas</span>
+              <p className="mt-1 font-bold text-gray-900">
+                {vestidos.filter(v => v.referencia.trim()).length > 0
+                  ? vestidos.filter(v => v.referencia.trim()).map(v => v.referencia.trim().toUpperCase()).join(' · ')
+                  : 'Selecciona primero los vestidos del contrato'}
               </p>
+              <p className="text-xs text-gray-500 mt-1">Si agregas o cambias un vestido del contrato, estas fechas se aplicarán también a esa referencia.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-1">
-                <label className="text-sm font-semibold text-gray-700">Referencia</label>
-                <input
-                  type="text"
-                  list="bloqueo-especial-opts"
-                  autoComplete="off"
-                  disabled={!formData.sede_id}
-                  placeholder={formData.sede_id ? "Busca o escribe la referencia..." : "Primero elige una sede"}
-                  value={bloqueoEspecial.referencia}
-                  onChange={(e) => {
-                    const value = e.target.value.toUpperCase();
-                    const found = vestidosMaestro.find(vm =>
-                      (vm.codigo || '').trim().toUpperCase() === value.trim()
-                    );
-                    setBloqueoEspecial(prev => ({
-                      ...prev,
-                      referencia: value,
-                      vestido_id: found?.id || null
-                    }));
-                  }}
-                  className={`w-full bg-white border rounded-xl px-4 py-3 font-bold tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-amber-300 disabled:opacity-50 ${
-                    bloqueoEspecial.referencia && !bloqueoEspecial.vestido_id
-                      ? 'border-amber-400'
-                      : 'border-gray-200'
-                  }`}
-                />
-                <datalist id="bloqueo-especial-opts">
-                  {vestidosMaestro.map((vm) => (
-                    <option key={vm.id} value={vm.codigo}>
-                      {vm.nombre || 'Vestido'} · {vm.sedes?.nombre || formData.sede}
-                    </option>
-                  ))}
-                </datalist>
-                {bloqueoEspecial.referencia && !bloqueoEspecial.vestido_id && (
-                  <p className="text-xs text-amber-700 font-semibold">Selecciona una referencia válida del inventario.</p>
-                )}
+            {fechasBloqueoEspecial.length === 0 ? (
+              <div className="border-2 border-dashed border-amber-200 rounded-xl p-5 text-center text-sm text-amber-700">
+                No hay fechas especiales agregadas.
               </div>
-
-              <div className="space-y-1">
-                <label className="text-sm font-semibold text-gray-700">Fecha por bloquear</label>
-                <input
-                  type="date"
-                  value={bloqueoEspecial.fecha}
-                  onChange={(e) => setBloqueoEspecial(prev => ({ ...prev, fecha: e.target.value }))}
-                  className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:outline-none focus:ring-2 focus:ring-amber-300"
-                />
+            ) : (
+              <div className="space-y-3">
+                {fechasBloqueoEspecial.map((fecha, idx) => (
+                  <div key={idx} className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3 items-end bg-white p-4 rounded-xl border border-amber-200">
+                    <div className="space-y-1">
+                      <label className="text-sm font-semibold text-gray-700">Fecha por bloquear #{idx + 1}</label>
+                      <input type="date" value={fecha} onChange={(e) => updateFechaBloqueoEspecial(idx, e.target.value)} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:outline-none focus:ring-2 focus:ring-amber-300" />
+                    </div>
+                    <button type="button" onClick={() => removeFechaBloqueoEspecial(idx)} className="h-[50px] px-4 rounded-xl border border-red-200 bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2">
+                      <Trash2 className="w-4 h-4" /> Quitar
+                    </button>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </section>
 
           {/* SECCIÓN 3: INVENTARIO, ACCESORIOS Y ARREGLOS */}
