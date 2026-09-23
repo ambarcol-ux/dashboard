@@ -3,3 +3,6 @@
 
 .depositAccess{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding:14px 16px;border:1px solid #c9ddd0;border-radius:9px;background:#f1f8f3;color:#276044;text-decoration:none}.depositAccess:hover{background:#e5f2e9}.depositAccess:focus-visible{outline:2px solid #276044;outline-offset:3px}.depositAccess span{display:flex;flex-direction:column;gap:4px}.depositAccess strong{font-size:14px;font-weight:600}.depositAccess small{font-size:12px;color:#52735e}.depositAccess svg{flex-shrink:0}
 
+
+
+.specialDateActions{display:flex;justify-content:flex-end;margin:8px 0 14px}.specialDateActions button{display:flex;align-items:center;gap:7px;padding:9px 12px;border:1px solid #d7aa4c;border-radius:7px;background:#fff6e0;color:#906517;font-size:13px;font-weight:600}.specialDateRow{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin:10px 0;padding:12px;border:1px solid #ead8aa;border-radius:9px;background:#fffaf0}.specialDateRow .field{margin:0}.specialDateRow>button{display:flex;align-items:center;gap:6px;height:42px;padding:0 12px;border:1px solid #fecaca;border-radius:7px;background:#fff1f2;color:#be123c;font-size:13px;font-weight:600}@media(max-width:700px){.specialDateRow{grid-template-columns:1fr}.specialDateRow>button{width:100%;justify-content:center}}
