@@ -196,7 +196,8 @@ export default function NuevoContratoPage() {
           setSedesList(sedes);
 
           // Auto-seleccionamos la sede si el perfil la tiene
-          if (userProfile?.sede_id) {
+          const editingFromUrl = new URLSearchParams(window.location.search).has('editar');
+          if (userProfile?.sede_id && !editingFromUrl) {
             const mySede = sedes.find(s => s.id === userProfile.sede_id);
             if (mySede) {
               setFormData(prev => ({ ...prev, sede_id: mySede.id, sede: mySede.nombre }));
@@ -400,7 +401,7 @@ export default function NuevoContratoPage() {
 
   // -- Cascading Filter for Asesoras --
   useEffect(() => {
-    if (formData.sede_id) {
+    if (formData.sede_id && asesorasList.length > 0) {
       console.log("[DEBUG CONTRATO] Sede Seleccionada ID:", formData.sede_id, "Primer asesora sede_id:", asesorasList[0]?.sede_id);
       const filtered = asesorasList.filter(a => a.sede_id === formData.sede_id);
       setAsesorasFiltradas(filtered);
@@ -408,7 +409,7 @@ export default function NuevoContratoPage() {
       if (formData.asesora_id && !filtered.find(a => a.id === formData.asesora_id)) {
         setFormData(prev => ({ ...prev, asesora_id: '', asesora: '' }));
       }
-    } else {
+    } else if (!formData.sede_id) {
       setAsesorasFiltradas([]);
     }
   }, [formData.sede_id, asesorasList]);
