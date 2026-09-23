@@ -104,7 +104,8 @@ export default function FirmaPage() {
       vestidos: dbData.vestidos || [],
       quinceanera_name: dbData.quinceanera_name,
       bloqueo_especial_referencia: dbData.bloqueo_especial_referencia,
-      bloqueo_especial_fecha: dbData.bloqueo_especial_fecha
+      bloqueo_especial_fecha: dbData.bloqueo_especial_fecha,
+      fechas_bloqueo_especial: Array.isArray(dbData.fechas_bloqueo_especial) ? dbData.fechas_bloqueo_especial : []
     };
   };
 
