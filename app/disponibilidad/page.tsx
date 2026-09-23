@@ -128,6 +128,7 @@ export default function AvailabilityPage() {
             estado,
             fecha_entrega_envio,
             fecha_pre_xv,
+            fechas_bloqueo_especial,
             fecha_disponibilidad_real,
             created_at
           )
@@ -145,13 +146,31 @@ export default function AvailabilityPage() {
 
       if (specialLocksError) throw specialLocksError;
 
-      // Generar los bloques reales de disponibilidad + bloqueos especiales de un día
+      // Generar los bloques reales de disponibilidad + todas las fechas especiales del contrato
       const newBlocks = generateBlockedRanges(contracts || []);
-      const specialCalendarBlocks: ContractBlock[] = (specialLocks || []).flatMap((lock: any) => {
+      const arraySpecialBlocks: ContractBlock[] = (contracts || []).flatMap((item: any) => {
+        const lock = item.contratos;
+        if (['cancelado','anulado','rechazado'].includes(String(lock?.estado||'').toLowerCase())) return [];
+        const dates = Array.isArray(lock?.fechas_bloqueo_especial) ? lock.fechas_bloqueo_especial : [];
+        return dates.map((value: string, index: number) => {
+          const date = parseISO(value);
+          return {
+            id: `special-array-${lock.id}-${index}-${value}`,
+            contractNumber: lock.numero_contrato,
+            clientName: lock.cliente_nombre,
+            type: 'Fecha especial',
+            warningStart: startOfDay(date),
+            start: startOfDay(date),
+            end: endOfDay(date),
+            eventDate: startOfDay(date)
+          };
+        });
+      });
+      const legacySpecialBlocks: ContractBlock[] = (specialLocks || []).flatMap((lock: any) => {
         if (!lock.bloqueo_especial_fecha) return [];
         const date = parseISO(lock.bloqueo_especial_fecha);
         return [{
-          id: `special-${lock.id}`,
+          id: `special-legacy-${lock.id}`,
           contractNumber: lock.numero_contrato,
           clientName: lock.cliente_nombre,
           type: 'Fecha especial',
@@ -161,7 +180,7 @@ export default function AvailabilityPage() {
           eventDate: startOfDay(date)
         }];
       });
-      setBlocks([...newBlocks, ...specialCalendarBlocks].sort((a, b) => a.start.getTime() - b.start.getTime()));
+      setBlocks([...newBlocks, ...arraySpecialBlocks, ...legacySpecialBlocks].sort((a, b) => a.start.getTime() - b.start.getTime()));
 
       // 2. Fetch Bitácora Local
       let logs: any[] = [];
@@ -190,9 +209,25 @@ export default function AvailabilityPage() {
         });
       });
 
+      (contracts || []).forEach((item: any) => {
+        const lock = item.contratos;
+        if (['cancelado','anulado','rechazado'].includes(String(lock?.estado||'').toLowerCase())) return;
+        const dates = Array.isArray(lock?.fechas_bloqueo_especial) ? lock.fechas_bloqueo_especial : [];
+        dates.forEach((value: string, index: number) => {
+          unified.push({
+            id: `special-array-${lock.id}-${index}-${value}`,
+            fecha: new Date(`${value}T12:00:00`),
+            tipo: 'bloqueo_especial',
+            titulo: `Bloqueo fecha especial - Contrato #${lock.numero_contrato}`,
+            subtitulo: `Cliente: ${lock.cliente_nombre}`,
+            detalle: 'Esta fecha bloquea automáticamente este vestido por estar vinculado al contrato.'
+          });
+        });
+      });
+
       (specialLocks || []).forEach((lock: any) => {
         unified.push({
-          id: `special-${lock.id}`,
+          id: `special-legacy-${lock.id}`,
           fecha: new Date(`${lock.bloqueo_especial_fecha}T12:00:00`),
           tipo: 'bloqueo_especial',
           titulo: `Bloqueo fecha especial - Contrato #${lock.numero_contrato}`,
