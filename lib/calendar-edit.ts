@@ -3,7 +3,7 @@ import { bogotaDay, milestoneTypes } from './contract-calendar';
 export const editableDateFields = milestoneTypes.map(t=>t.field).filter(f=>!['fecha_entrega_prexv','fecha_entrega_evento'].includes(f));
 export const timestampFields = ['fecha_maquillaje','fecha_fotografia'];
 export const contactFields=['cliente_nombre','quinceanera_name','cliente_email','cliente_whatsapp','cliente_direccion','observaciones_vestido'] as const;
-export const specialBlockFields=['bloqueo_especial_referencia'] as const;
+export const specialBlockFields=['fechas_bloqueo_especial'] as const;
 export function dateInput(value:string|null|undefined){
  if(!value)return '';
  const day=bogotaDay(value);if(!day)return '';
@@ -19,6 +19,14 @@ export function validateCalendarPatch(input:unknown):Record<string,string|string
   if(key==='prexv_componentes') {
    if(!Array.isArray(value)||value.some(v=>!prexvServices.some(s=>s.id===v))||new Set(value).size!==value.length)throw new Error('Componentes PRE-XV inválidos.');
    out[key]=value;continue;
+  }
+  if(key==='fechas_bloqueo_especial') {
+   if(!Array.isArray(value))throw new Error('Las fechas especiales deben ser una lista.');
+   const dates=value.filter((v):v is string=>typeof v==='string'&&v.length>0);
+   if(dates.length!==value.length||new Set(dates).size!==dates.length)throw new Error('Revisa las fechas especiales: no pueden estar vacías ni repetidas.');
+   if(dates.some(v=>!/^\d{4}-\d{2}-\d{2}$/.test(v)||!bogotaDay(v)))throw new Error('Hay una fecha especial inválida.');
+   out[key]=[...dates].sort();
+   continue;
   }
   if(prexvServices.some(s=>s.confirmed===key)) {if(typeof value!=='boolean')throw new Error('Confirmación inválida.');out[key]=value;continue;}
   if(value!==null&&typeof value!=='string')throw new Error('Valor de campo inválido.');
