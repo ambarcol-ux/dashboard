@@ -1152,6 +1152,13 @@ export default function NuevoContratoPage() {
               setShowConflictModal(true);
               return false;
             } else if (lastConflictYellow && lastAlistamiento) {
+              if (currentContractId) {
+                const continuar = window.confirm(
+                  '⚠️ La nueva programación queda en zona de cercanía logística (5–10 días).\n\nComo administrador puedes continuar bajo responsabilidad operativa. ¿Deseas guardar el cambio?'
+                );
+                if (!continuar) return false;
+                continue;
+              }
               setAlistamientoData(lastAlistamiento);
               setConflictSeverity('yellow');
               setShowYellowModal(true);
@@ -1786,13 +1793,23 @@ export default function NuevoContratoPage() {
         name={name}
         value={String(formData[name])}
         onChange={handleChange}
-        className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-300 font-medium"
+        disabled={isEditMode && name === 'anticipo'}
+        title={isEditMode && name === 'anticipo' ? 'Los abonos de un contrato pactado se gestionan desde Registrar Abono / Pago.' : undefined}
+        className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-300 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
         required={req}
       />
     </div>
   );
 
   if (!mounted) return null;
+  if (isEditMode && (loadingEditContract || !editingSnapshot)) {
+    return (
+      <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center gap-4">
+        <Loader2 className="w-10 h-10 animate-spin text-rose-500" />
+        <p className="font-bold text-gray-600">Cargando contrato para edición...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center py-8 font-sans px-2 sm:px-4 pb-24">
@@ -1814,8 +1831,12 @@ export default function NuevoContratoPage() {
           </button>
 
           <div className="relative z-10">
-            <h1 className="text-3xl font-black text-white tracking-wide uppercase">Nuevo Contrato ERP</h1>
-            <p className="text-rose-200 mt-1 font-medium tracking-[0.3em] uppercase opacity-80">Ambar Couture</p>
+            <h1 className="text-3xl font-black text-white tracking-wide uppercase">
+              {isEditMode ? 'Editar Contrato ERP' : 'Nuevo Contrato ERP'}
+            </h1>
+            <p className="text-rose-200 mt-1 font-medium tracking-[0.18em] uppercase opacity-80">
+              {isEditMode ? `${editingContractNumber} · Estado: ${editingContractState}` : 'Ambar Couture'}
+            </p>
           </div>
 
           <div className="absolute top-0 right-0 w-64 h-64 bg-rose-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20 -translate-y-10 translate-x-10 animate-pulse"></div>
@@ -1832,8 +1853,24 @@ export default function NuevoContratoPage() {
               onChange={(e) => setFormData(prev => ({ ...prev, numero_factura: e.target.value }))}
               placeholder="Número de factura"
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300" />
-            <p id="invoice-help" className="text-xs text-gray-500">El número de factura es obligatorio para guardar y generar el contrato.</p>
+            <p id="invoice-help" className="text-xs text-gray-500">
+              {isEditMode
+                ? 'Edición administrativa del contrato existente. El número de contrato, firma y estado actual se conservarán.'
+                : 'El número de factura es obligatorio para guardar y generar el contrato.'}
+            </p>
           </section>
+
+          {isEditMode && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-amber-600 mt-0.5 shrink-0" />
+              <div>
+                <p className="font-black text-amber-900 uppercase text-sm">Edición posterior al contrato</p>
+                <p className="text-sm text-amber-800 mt-1">
+                  Estás modificando el contrato pactado <strong>{editingContractNumber}</strong>. Los cambios quedarán auditados y se volverá a validar la disponibilidad de todos los vestidos.
+                </p>
+              </div>
+            </div>
+          )}
 
 
           {/* SECCIÓN 1: DATOS BÁSICOS */}
@@ -2335,7 +2372,7 @@ export default function NuevoContratoPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2 space-y-1">
                     <label htmlFor="valor_deposito" className="text-sm font-semibold text-gray-700">Valor del depósito de garantía</label>
-                    <input id="valor_deposito" name="valor_deposito" type="number" min="0" step="0.01" value={formData.valor_deposito} onChange={handleChange} placeholder="0" className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3" />
+                    <input id="valor_deposito" name="valor_deposito" type="number" min="0" step="0.01" value={formData.valor_deposito} onChange={handleChange} disabled={isEditMode} title={isEditMode ? 'El depósito de un contrato pactado se gestiona desde Depósitos y devoluciones.' : undefined} placeholder="0" className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 disabled:opacity-60 disabled:cursor-not-allowed" />
                     <p className="text-sm text-emerald-700">Registra el depósito recibido. No se suma al alquiler ni al abono. Adjunta su comprobante en Depósitos y devoluciones, sin registrar nuevamente el ingreso.</p>
                   </div>
                   {renderTextInput("Banco", "deposito_banco", null, "text", false, "bg-white")}
@@ -2437,7 +2474,9 @@ export default function NuevoContratoPage() {
               >
                 <div className="absolute inset-0 bg-gradient-to-r from-rose-500 to-rose-600 group-hover:from-rose-600 group-hover:to-rose-700 transition-colors"></div>
                 <div className="relative z-10 flex items-center justify-center gap-3">
-                  {loading ? <span className="animate-pulse">Validando Logística...</span> : <><Save className="w-6 h-6" /> Procesar y Generar Contrato</>}
+                  {loading
+                    ? <span className="animate-pulse">{isEditMode ? 'Guardando Cambios...' : 'Validando Logística...'}</span>
+                    : <><Save className="w-6 h-6" /> {isEditMode ? 'Guardar Cambios del Contrato' : 'Procesar y Generar Contrato'}</>}
                 </div>
               </button>
             </div>
