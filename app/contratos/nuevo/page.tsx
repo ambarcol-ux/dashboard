@@ -2286,7 +2286,8 @@ export default function NuevoContratoPage() {
                   </div>
                 </div>
 
-                {/* VIP Code Section */}
+                {/* VIP Code Section - solo al crear */}
+                {!isEditMode && (
                 <div className="p-4 bg-white border border-rose-100 rounded-xl shadow-sm">
                   <label className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
                     <Tag className="w-4 h-4 text-rose-500" /> Código VIP de Referido
@@ -2341,7 +2342,8 @@ export default function NuevoContratoPage() {
                     </div>
                   )}
                 </div>
-
+                )}
+                
                 <div className="grid grid-cols-2 gap-4 items-end">
                   {renderTextInput("Abono Inicial", "anticipo", <DollarSign className="w-4 h-4 text-emerald-600" />, "number", true)}
                   <div className="p-3 bg-white rounded-xl shadow-inner border border-rose-200 text-center relative overflow-hidden group">
