@@ -862,10 +862,7 @@ export default function DashboardPage() {
         return;
       }
       
-      if (validation.severity === 'yellow') {
-        const pass = window.confirm(`${validation.message}\n\n¿Deseas continuar bajo responsabilidad administrativa?`);
-        if (!pass) return;
-      }
+
     }
 
     setModalLoading(true);
