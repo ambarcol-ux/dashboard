@@ -5,101 +5,64 @@ export interface ContractBlock {
   contractNumber: string;
   clientName: string;
   type: string;
-  warningStart: Date; // Días preventivos (Amarillo)
-  start: Date; // Bloqueo estricto (Rojo)
-  end: Date;   // Fin del bloqueo por mantenimiento
+  warningStart: Date;
+  start: Date;
+  end: Date;
   eventDate: Date;
 }
 
+export const BLOCK_DAYS = {
+  evento: { before: 3, after: 2 },
+  prexv: { before: 1, after: 1 },
+  especial: { before: 1, after: 1 }
+} as const;
+
 export function getMaintenanceDays(tipoEvento?: string) {
-  if (tipoEvento === 'PreXV' || tipoEvento === 'Fotografía') return 2;
-  return 5;
+  return tipoEvento === 'PreXV' || tipoEvento === 'Fotografía' ? 1 : 2;
 }
 
 export function parseSafeDate(dateString: string | null | undefined): Date | null {
   if (!dateString) return null;
-  try {
-    return parseISO(dateString.split('T')[0]);
-  } catch (e) {
-    return null;
-  }
+  const parsed = parseISO(dateString.split('T')[0]);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 export function generateBlockedRanges(contracts: any[]): ContractBlock[] {
   const blocks: ContractBlock[] = [];
-
-  contracts.forEach(item => {
-    // Si viene del join 'contrato_items_vestidos', la info está en item.contratos
-    // Si viene directo, está en item
+  for (const item of contracts) {
     const c = item.contratos || item;
-    
-    // Ignorar contratos cancelados o rechazados
-    if (c.estado === 'cancelado' || c.estado === 'rechazado' || c.estado === 'CANCELADO') return;
-
-    if (c.fecha_evento) {
-      const eventDate = parseSafeDate(c.fecha_evento);
-      const deliveryDate = parseSafeDate(c.fecha_entrega_envio || c.fecha_evento);
-      
-      if (eventDate && deliveryDate) {
-        // Bloqueo logístico preventivo (10 días antes) y estricto (5 días antes)
-        const strictDays = (c.tipo_evento === 'PreXV' || c.tipo_evento === 'Fotografía') ? 2 : 5;
-        const warningDays = (c.tipo_evento === 'PreXV' || c.tipo_evento === 'Fotografía') ? 4 : 10;
-        
-        const warningStartBlocked = subDays(deliveryDate, warningDays);
-        const startBlocked = subDays(deliveryDate, strictDays);
-        
-        let endBlocked: Date;
-        if (c.fecha_disponibilidad_real) {
-          const dReal = parseSafeDate(c.fecha_disponibilidad_real);
-          endBlocked = dReal ? dReal : addDays(eventDate, getMaintenanceDays(c.tipo_evento));
-        } else {
-          endBlocked = addDays(eventDate, getMaintenanceDays(c.tipo_evento));
-        }
-
-        blocks.push({
-          id: `evt-${c.id}`,
-          contractNumber: c.numero_contrato,
-          clientName: c.cliente_nombre,
-          type: c.tipo_evento || 'Evento',
-          warningStart: startOfDay(warningStartBlocked),
-          start: startOfDay(startBlocked),
-          end: endOfDay(endBlocked),
-          eventDate: startOfDay(eventDate)
-        });
-      }
+    if (['cancelado', 'anulado', 'rechazado', 'borrador'].includes(String(c.estado || '').toLowerCase())) continue;
+    const addBlock = (kind: keyof typeof BLOCK_DAYS, dateValue: string, id: string) => {
+      const date = parseSafeDate(dateValue);
+      if (!date) return;
+      const { before, after } = BLOCK_DAYS[kind];
+      const start = startOfDay(subDays(date, before));
+      blocks.push({
+        id, contractNumber: c.numero_contrato, clientName: c.cliente_nombre,
+        type: kind === 'evento' ? 'Evento' : kind === 'prexv' ? 'PreXV' : 'Fecha especial',
+        warningStart: start, start, end: endOfDay(addDays(date, after)), eventDate: startOfDay(date)
+      });
+    };
+    // Every milestone is independent: an erroneous expected availability date
+    // must not bridge unrelated appointments into one months-long reservation.
+    if (c.fecha_evento) addBlock('evento', c.fecha_evento, `evt-${c.id}`);
+    if (c.fecha_pre_xv) addBlock('prexv', c.fecha_pre_xv, `pxv-${c.id}`);
+    for (const date of new Set<string>(Array.isArray(c.fechas_bloqueo_especial) ? c.fechas_bloqueo_especial : [])) {
+      addBlock('especial', date, `special-${c.id}-${date}`);
     }
-
-    if (c.fecha_pre_xv) {
-      const preXvDate = parseSafeDate(c.fecha_pre_xv);
-      if (preXvDate) {
-        const warningStartBlocked = subDays(preXvDate, 2);
-        const startBlocked = preXvDate;
-        const endBlocked = addDays(preXvDate, 2);
-
-        blocks.push({
-          id: `pxv-${c.id}`,
-          contractNumber: c.numero_contrato,
-          clientName: c.cliente_nombre,
-          type: 'PreXV',
-          warningStart: startOfDay(warningStartBlocked),
-          start: startOfDay(startBlocked),
-          end: endOfDay(endBlocked),
-          eventDate: startOfDay(preXvDate)
-        });
-      }
+    if (c.bloqueo_especial_fecha && c.bloqueo_especial_vestido_id &&
+      (!item.vestido_id || item.vestido_id === c.bloqueo_especial_vestido_id)) {
+      addBlock('especial', c.bloqueo_especial_fecha, `legacy-${c.id}`);
     }
-  });
-
+  }
   return blocks.sort((a, b) => a.start.getTime() - b.start.getTime());
+}
+
+export function rangesOverlap(a: ContractBlock, b: ContractBlock): boolean {
+  return a.start <= b.end && b.start <= a.end;
 }
 
 export function isCurrentlyOccupied(blocks: ContractBlock[]): ContractBlock | null {
   const today = new Date();
-  
-  for (const block of blocks) {
-    if (isWithinInterval(today, { start: block.start, end: block.end })) {
-      return block;
-    }
-  }
-  return null;
+  return blocks.find(block => isWithinInterval(today, { start: block.start, end: block.end })) || null;
 }
