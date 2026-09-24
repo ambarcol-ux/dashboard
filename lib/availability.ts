@@ -45,7 +45,8 @@ export function generateBlockedRanges(contracts: any[]): ContractBlock[] {
     };
     // Every milestone is independent: an erroneous expected availability date
     // must not bridge unrelated appointments into one months-long reservation.
-    if (c.fecha_evento) addBlock('evento', c.fecha_evento, `evt-${c.id}`);
+    if (c.fecha_evento && !['prexv', 'fotografía'].includes(String(c.tipo_evento || '').toLowerCase()))
+      addBlock('evento', c.fecha_evento, `evt-${c.id}`);
     if (c.fecha_pre_xv) addBlock('prexv', c.fecha_pre_xv, `pxv-${c.id}`);
     for (const date of new Set<string>(Array.isArray(c.fechas_bloqueo_especial) ? c.fechas_bloqueo_especial : [])) {
       addBlock('especial', date, `special-${c.id}-${date}`);
