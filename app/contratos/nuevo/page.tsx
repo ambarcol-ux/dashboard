@@ -874,6 +874,7 @@ export default function NuevoContratoPage() {
       id: currentContractId || 'nuevo',
       numero_contrato: editingContractNumber || 'Nuevo',
       estado: 'firmado',
+      tipo_evento: formData.tipo_evento,
       fecha_evento: formData.fecha_evento,
       fecha_pre_xv: formData.fecha_fotografia,
       fechas_bloqueo_especial: dates
@@ -887,10 +888,10 @@ export default function NuevoContratoPage() {
       const [{ data: items, error: itemError }, { data: legacy, error: legacyError },
         { data: special, error: specialError }] = await Promise.all([
         supabase.from('contrato_items_vestidos')
-          .select('vestido_id,contratos!inner(id,numero_contrato,cliente_nombre,estado,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial)')
+          .select('vestido_id,contratos!inner(id,numero_contrato,cliente_nombre,estado,tipo_evento,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial)')
           .eq('vestido_id', id),
         supabase.from('contratos')
-          .select('id,numero_contrato,cliente_nombre,estado,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial')
+          .select('id,numero_contrato,cliente_nombre,estado,tipo_evento,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial')
           .eq('vestido_id', id),
         supabase.from('contratos')
           .select('id,numero_contrato,cliente_nombre,estado,bloqueo_especial_fecha,bloqueo_especial_vestido_id')
