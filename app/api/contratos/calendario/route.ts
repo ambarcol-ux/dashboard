@@ -55,14 +55,21 @@ export async function PATCH(request:Request){
   const changed={...current,...patch};
   const pairs=[['fecha_cita_medidas','fecha_prueba_final'],['fecha_prueba_final','fecha_entrega_envio'],['fecha_entrega_envio','fecha_evento'],['fecha_evento','fecha_retorno_prevista'],['fecha_retorno_prevista','fecha_disponibilidad_real']];
   for(const [a,b] of pairs){if((a in patch||b in patch)&&changed[a]&&changed[b]&&changed[a]>changed[b])return NextResponse.json({error:'Revisa el orden: medidas, prueba final, entrega, evento, retorno y disponibilidad.'},{status:400});}
-  if(['fecha_evento','fecha_entrega_envio','fecha_pre_xv','fecha_disponibilidad_real','fecha_retorno_prevista'].some(k=>k in patch)){
-   const ids=Array.from(new Set([current.vestido_id,...(current.items||[]).map((i:any)=>i.vestido_id)].filter(Boolean)));
-   if(ids.length){
-    const {data:other,error:oe}=await db.from('contrato_items_vestidos').select('contratos!inner(id,numero_contrato,cliente_nombre,estado,tipo_evento,fecha_evento,fecha_entrega_envio,fecha_pre_xv,fecha_disponibilidad_real)').in('vestido_id',ids).neq('contrato_id',body.id);
-    if(oe)return NextResponse.json({error:'No se pudo verificar la disponibilidad del vestido. Intenta nuevamente.'},{status:503});
-    const blocks=generateBlockedRanges(other||[]);const proposed=generateBlockedRanges([changed]);const previous=generateBlockedRanges([current]);
+  if(['fecha_evento','fecha_pre_xv','fechas_bloqueo_especial','bloqueo_especial_fecha','bloqueo_especial_referencia'].some(k=>k in patch)){
+   const ids=Array.from(new Set<string>([current.vestido_id,...(current.items||[]).map((i:any)=>i.vestido_id),current.bloqueo_especial_vestido_id,changed.bloqueo_especial_vestido_id].filter(Boolean)));
+   for(const id of ids){
+    const [{data:items,error:itemError},{data:legacy,error:legacyError},{data:special,error:specialError}]=await Promise.all([
+     db.from('contrato_items_vestidos').select('vestido_id,contratos!inner(id,numero_contrato,cliente_nombre,estado,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial)').eq('vestido_id',id).neq('contrato_id',body.id),
+     db.from('contratos').select('id,numero_contrato,cliente_nombre,estado,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial').eq('vestido_id',id).neq('id',body.id),
+     db.from('contratos').select('id,numero_contrato,cliente_nombre,estado,bloqueo_especial_fecha,bloqueo_especial_vestido_id').eq('bloqueo_especial_vestido_id',id).neq('id',body.id).not('bloqueo_especial_fecha','is',null)
+    ]);
+    if(itemError||legacyError||specialError)return NextResponse.json({error:'No se pudo verificar la disponibilidad del vestido.'},{status:503});
+    const blocks=generateBlockedRanges([...(items||[]),...(legacy||[]),...(special||[])]);
+    const proposed=generateBlockedRanges([changed]).filter(b=>!b.id.startsWith('legacy-')||changed.bloqueo_especial_vestido_id===id);
+    const previous=generateBlockedRanges([current]).filter(b=>!b.id.startsWith('legacy-')||current.bloqueo_especial_vestido_id===id);
     const overlaps=(a:any,b:any)=>a.start<=b.end&&b.start<=a.end;
-    if(proposed.some(a=>blocks.some(b=>overlaps(a,b)&&!previous.some(old=>old.id===a.id&&overlaps(old,b)))))return NextResponse.json({error:'El vestido tiene otra reserva en estas fechas. Revisa su disponibilidad antes de reprogramar.'},{status:409});
+    if(proposed.some(a=>blocks.some(b=>overlaps(a,b)&&!previous.some(old=>old.id===a.id&&overlaps(old,b)))))
+     return NextResponse.json({error:'El vestido tiene otra reserva en estas fechas. Revisa su disponibilidad antes de reprogramar.'},{status:409});
    }
   }
   let update=db.from('contratos').update(patch).eq('id',body.id);
