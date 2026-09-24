@@ -1,6 +1,7 @@
 'use client';
 
 import PreXvFields from '@/components/PreXvFields';
+import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { initialDepositAmount } from '@/lib/initial-deposit';
 import { type PrexvData } from '@/lib/prexv';
 import React, { useEffect, useState } from 'react';
@@ -863,317 +864,65 @@ export default function NuevoContratoPage() {
     };
   };
 
-  const checkBloqueoEspecialAvailability = async (block: any) => {
-    if (!block) return true;
-
-    const activeRegularStates = '("cancelado","anulado","rechazado","borrador","CANCELADO","ANULADO","RECHAZADO","BORRADOR")';
-    const inactiveSpecialStates = '("cancelado","anulado","rechazado","CANCELADO","ANULADO","RECHAZADO")';
-
-    const [{ data: itemRentals, error: itemError }, { data: legacyRentals, error: legacyError }, { data: specialLocks, error: specialError }] = await Promise.all([
-      supabase
-        .from('contrato_items_vestidos')
-        .select('contrato_id, contratos!inner(numero_contrato, estado, fecha_evento, fecha_pre_xv)')
-        .eq('vestido_id', block.id)
-        .not('contratos.estado', 'in', activeRegularStates),
-      supabase
-        .from('contratos')
-        .select('id, numero_contrato, estado, fecha_evento, fecha_pre_xv')
-        .eq('vestido_id', block.id)
-        .not('estado', 'in', activeRegularStates),
-      supabase
-        .from('contratos')
-        .select('id, numero_contrato, estado, bloqueo_especial_fecha')
-        .eq('bloqueo_especial_vestido_id', block.id)
-        .eq('bloqueo_especial_fecha', block.fecha)
-        .not('estado', 'in', inactiveSpecialStates)
-    ]);
-
-    if (itemError || legacyError || specialError) {
-      console.error('Error validando bloqueo especial:', itemError || legacyError || specialError);
-      toast.error('No se pudo verificar la disponibilidad del bloqueo especial.');
-      return false;
-    }
-
-    const regularContracts = [
-      ...(itemRentals || []).map((r: any) => r.contratos),
-      ...(legacyRentals || [])
-    ].filter(Boolean);
-
-    const regularConflict = regularContracts.find((c: any) =>
-      c.fecha_evento === block.fecha || c.fecha_pre_xv === block.fecha
-    );
-
-    const specialConflict = (specialLocks || [])[0];
-
-    if (regularConflict || specialConflict) {
-      const conflict = regularConflict || specialConflict;
-      toast.error(
-        `❌ La referencia ${block.referencia} ya está bloqueada el ${block.fecha} por el contrato ${conflict?.numero_contrato || 'existente'}.`
-      );
-      return false;
-    }
-
-    return true;
-  };
-
-  const checkFechasEspecialesAvailability = async (resolvedVestidos: any[], fechas: string[], currentContractId?: string | null) => {
-    const fechasIngresadas = fechas.filter(Boolean);
-    const fechasValidas = Array.from(new Set(fechasIngresadas));
-
-    if (fechasValidas.length !== fechasIngresadas.length) {
+  const checkInventory = async (resolvedVestidos: any[], currentContractId?: string | null, specialBlock?: any) => {
+    const dates = Array.from(new Set(fechasBloqueoEspecial.filter(Boolean)));
+    if (dates.length !== fechasBloqueoEspecial.filter(Boolean).length) {
       toast.error('No puedes repetir la misma fecha especial dentro del contrato.');
       return false;
     }
-
-    if (!fechasValidas.length) return true;
-
-    const estadosInactivos = ['cancelado', 'anulado', 'rechazado'];
-    const estadosRegularesInactivos = [...estadosInactivos, 'borrador'];
-
-    for (const vestido of resolvedVestidos) {
-      const [{ data: itemRows, error: itemError }, { data: legacyRows, error: legacyError }] = await Promise.all([
-        supabase
-          .from('contrato_items_vestidos')
-          .select('contrato_id, contratos!inner(id, numero_contrato, estado, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, bloqueo_especial_fecha)')
-          .eq('vestido_id', vestido.id),
-        supabase
-          .from('contratos')
-          .select('id, numero_contrato, estado, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, bloqueo_especial_fecha')
-          .eq('vestido_id', vestido.id)
+    const proposed = generateBlockedRanges([{
+      id: currentContractId || 'nuevo',
+      numero_contrato: editingContractNumber || 'Nuevo',
+      estado: 'firmado',
+      fecha_evento: formData.fecha_evento,
+      fecha_pre_xv: formData.fecha_fotografia,
+      fechas_bloqueo_especial: dates
+    }]);
+    const dressIds = Array.from(new Set<string>([
+      ...resolvedVestidos.map((v: any) => v.id).filter(Boolean),
+      specialBlock?.id
+    ].filter(Boolean)));
+    if (!dressIds.length) return true;
+    for (const id of dressIds) {
+      const [{ data: items, error: itemError }, { data: legacy, error: legacyError },
+        { data: special, error: specialError }] = await Promise.all([
+        supabase.from('contrato_items_vestidos')
+          .select('vestido_id,contratos!inner(id,numero_contrato,cliente_nombre,estado,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial)')
+          .eq('vestido_id', id),
+        supabase.from('contratos')
+          .select('id,numero_contrato,cliente_nombre,estado,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial')
+          .eq('vestido_id', id),
+        supabase.from('contratos')
+          .select('id,numero_contrato,cliente_nombre,estado,bloqueo_especial_fecha,bloqueo_especial_vestido_id')
+          .eq('bloqueo_especial_vestido_id', id).not('bloqueo_especial_fecha', 'is', null)
       ]);
-
-      if (itemError || legacyError) {
-        console.error('Error verificando fechas especiales:', itemError || legacyError);
-        toast.error('No se pudo verificar la disponibilidad de las fechas especiales.');
+      if (itemError || legacyError || specialError) {
+        toast.error('No se pudo verificar la disponibilidad del vestido.');
         return false;
       }
-
-      const contratosPorId = new Map<string, any>();
-      for (const row of itemRows || []) {
-        const contrato = (row as any).contratos;
-        if (contrato?.id) contratosPorId.set(contrato.id, contrato);
+      const others = [...(items || []), ...(legacy || []), ...(special || [])]
+        .filter((row: any) => (row.contratos || row).id !== currentContractId);
+      const blocks = generateBlockedRanges(others);
+      const requested = [...proposed];
+      if (specialBlock?.id === id && specialBlock.fecha) {
+        requested.push(...generateBlockedRanges([{
+          id: currentContractId || 'nuevo-especial',
+          numero_contrato: editingContractNumber || 'Nuevo',
+          estado: 'firmado', bloqueo_especial_fecha: specialBlock.fecha,
+          bloqueo_especial_vestido_id: id
+        }]));
       }
-      for (const contrato of legacyRows || []) {
-        if ((contrato as any)?.id) contratosPorId.set((contrato as any).id, contrato);
-      }
-
-      for (const contrato of contratosPorId.values()) {
-        if (currentContractId && contrato.id === currentContractId) continue;
-        const estado = String(contrato.estado || '').toLowerCase();
-        if (estadosInactivos.includes(estado)) continue;
-
-        const otrasEspeciales = Array.isArray(contrato.fechas_bloqueo_especial)
-          ? contrato.fechas_bloqueo_especial
-          : [];
-
-        for (const fecha of fechasValidas) {
-          const conflictoEspecial = otrasEspeciales.includes(fecha) || contrato.bloqueo_especial_fecha === fecha;
-          const conflictoRegular =
-            !estadosRegularesInactivos.includes(estado) &&
-            (contrato.fecha_evento === fecha || contrato.fecha_pre_xv === fecha);
-
-          if (conflictoEspecial || conflictoRegular) {
-            toast.error(`❌ El vestido ${vestido.referencia} ya está bloqueado el ${fecha} por el contrato ${contrato.numero_contrato || 'existente'}.`);
-            return false;
-          }
+      const dress = resolvedVestidos.find((v: any) => v.id === id);
+      const capacity = Math.max(1, Number(dress?.stock_total || specialBlock?.stock_total || 1));
+      for (const wanted of requested) {
+        const conflicting = new Set(blocks.filter(block => rangesOverlap(wanted, block)).map(block => block.contractNumber));
+        if (conflicting.size >= capacity) {
+          toast.error(`El vestido ${dress?.referencia || specialBlock?.referencia || id} está reservado en esas fechas por el contrato ${[...conflicting].join(', ')}.`);
+          return false;
         }
       }
     }
-
     return true;
-  };
-
-  const checkInventory = async (resolvedVestidos: any[], currentContractId?: string | null) => {
-    if (resolvedVestidos.length === 0) return true;
-
-    try {
-      const requestedDates: Array<{ date: string; type: string }> = [];
-      const mainType = formData.tipo_evento === 'PreXV' ? 'PreXV' : 'Evento';
-      if (formData.fecha_evento) requestedDates.push({ date: formData.fecha_evento, type: mainType });
-      if (formData.fecha_fotografia) requestedDates.push({ date: formData.fecha_fotografia, type: 'PreXV' });
-
-      if (requestedDates.length === 0) {
-        toast.error('Debe seleccionar al menos una fecha para validar disponibilidad.');
-        return false;
-      }
-
-      const ONE_DAY = 24 * 60 * 60 * 1000;
-
-      for (const v of resolvedVestidos) {
-        if (!v.id) continue;
-
-        let rentalsQuery = supabase
-          .from('contrato_items_vestidos')
-          .select('contrato_id, contratos!inner(numero_contrato, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, fecha_entrega_envio, fecha_disponibilidad_real, sede, estado, tipo_evento, tipo_entrega)')
-          .eq('vestido_id', v.id)
-          .not('contratos.estado', 'in', '("cancelado","rechazado","CANCELADO","RECHAZADO","borrador","BORRADOR")');
-
-        if (currentContractId) rentalsQuery = rentalsQuery.neq('contrato_id', currentContractId);
-
-        const { data, error } = await rentalsQuery;
-
-        const existingRentals = data as any[];
-        if (error) {
-          console.error('Error al validar disponibilidad del vestido:', error);
-          toast.error('Error al validar disponibilidad del vestido. Intente de nuevo.');
-          return false;
-        }
-
-        let dressSpecialQuery = supabase
-          .from('contratos')
-          .select('id, numero_contrato, bloqueo_especial_fecha, estado')
-          .eq('bloqueo_especial_vestido_id', v.id)
-          .not('estado', 'in', '("cancelado","anulado","rechazado","CANCELADO","ANULADO","RECHAZADO")')
-          .not('bloqueo_especial_fecha', 'is', null);
-
-        if (currentContractId) dressSpecialQuery = dressSpecialQuery.neq('id', currentContractId);
-
-        const { data: specialLocksForDress, error: specialLocksForDressError } = await dressSpecialQuery;
-
-        if (specialLocksForDressError) {
-          console.error('Error al validar bloqueos especiales del vestido:', specialLocksForDressError);
-          toast.error('Error al validar bloqueos especiales del vestido. Intente de nuevo.');
-          return false;
-        }
-
-        for (const rd of requestedDates) {
-          let conflictCount = 0;
-          let lastConflictYellow = false;
-          let lastConflictRed = false;
-          let lastConflictType: 'logistica' | 'preparacion' = 'logistica';
-          let lastConflictDays = 5;
-          let lastAlistamiento = null;
-
-          const specialConflictCount = (specialLocksForDress || []).filter((lock: any) =>
-            lock.bloqueo_especial_fecha === rd.date
-          ).length;
-
-          if (specialConflictCount > 0) {
-            conflictCount += specialConflictCount;
-            lastConflictRed = true;
-            lastConflictType = 'logistica';
-            lastConflictDays = 0;
-          }
-
-          for (const rental of existingRentals) {
-            const oc = rental.contratos;
-            const otherOccupiedDates: Array<{ date: string; type: string }> = [];
-
-            const otherMainType = oc.tipo_evento === 'PreXV' ? 'PreXV' : 'Evento';
-            if (oc.fecha_evento) otherOccupiedDates.push({ date: oc.fecha_evento, type: otherMainType });
-
-            const mDays = getMaintenanceDays(oc.tipo_evento);
-            const deliveryTime = oc.fecha_entrega_envio ? parseSafeDate(oc.fecha_entrega_envio) : null;
-            const returnTime = deliveryTime ? deliveryTime + (mDays * 24 * 60 * 60 * 1000) : null;
-
-            // NUEVO: Regla 2 días post Pre-XV
-            const preXvBlockStart = oc.fecha_pre_xv ? parseSafeDate(oc.fecha_pre_xv) : null;
-            const preXvBlockEnd = preXvBlockStart ? preXvBlockStart + (2 * 24 * 60 * 60 * 1000) : null;
-            const isDisponible = v.estado === 'Disponible';
-            const now = new Date().getTime();
-            const isPreXvLiberado = isDisponible && preXvBlockEnd && now > preXvBlockEnd;
-
-            let localConflict = false;
-
-            const tReq = parseSafeDate(rd.date);
-            const fechasEspecialesContrato = Array.isArray(oc.fechas_bloqueo_especial) ? oc.fechas_bloqueo_especial : [];
-
-            if (fechasEspecialesContrato.includes(rd.date)) {
-              localConflict = true;
-              lastConflictRed = true;
-              lastConflictType = 'logistica';
-              lastConflictDays = 0;
-            }
-
-            // BLOQUEO PRE-XV STRICTO
-            if (preXvBlockStart && preXvBlockEnd && !isPreXvLiberado) {
-              if (tReq >= preXvBlockStart && tReq < preXvBlockEnd) {
-                localConflict = true;
-                lastConflictRed = true;
-                lastConflictType = 'logistica';
-                lastConflictDays = 2;
-              }
-            }
-
-            for (const od of otherOccupiedDates) {
-              const tExt = parseSafeDate(od.date);
-
-              // REGLA DE ORO: Bloqueo por Mantenimiento (Maintenance Lockout)
-              if (oc.fecha_disponibilidad_real) {
-                const tRelease = parseSafeDate(oc.fecha_disponibilidad_real);
-                if (tReq < tRelease && tReq >= (deliveryTime || (tExt - (2 * 24 * 60 * 60 * 1000)))) {
-                  localConflict = true;
-                  lastConflictRed = true;
-                  lastConflictType = 'logistica';
-                  lastConflictDays = mDays;
-                }
-              }
-
-              // CHECK 1: "Vestido en Evento" - El vestido está fuera de tienda
-              if (!localConflict && deliveryTime && returnTime && tReq >= deliveryTime && tReq <= returnTime) {
-                localConflict = true;
-                lastConflictRed = true;
-                lastConflictType = 'logistica';
-                lastConflictDays = mDays;
-              }
-
-              const s1 = getZoneSeverity(tReq, tExt, od.type);
-              const s2 = getZoneSeverity(tExt, tReq, od.type);
-
-              if (!localConflict && (s1 === 'red' || s2 === 'red')) {
-                localConflict = true;
-                lastConflictRed = true;
-                lastConflictType = s1 === 'red' ? 'logistica' : 'preparacion';
-                lastConflictDays = (od.type === 'PreXV' || od.type === 'Fotografía') ? 2 : 5;
-              }
-
-              if (!localConflict && (s1 === 'yellow' || s2 === 'yellow')) {
-                localConflict = true;
-                lastConflictYellow = true;
-                lastAlistamiento = {
-                  referencia: v.referencia,
-                  contratoPadre: oc.numero_contrato,
-                  fechaOcupado: new Date(tExt).toLocaleDateString(),
-                  sede: oc.sede
-                };
-              }
-            }
-
-            if (localConflict) {
-              conflictCount++;
-            }
-          }
-
-          // VALIDACIÓN AL FINALIZAR TODOS LOS CONTRATOS CONTRA EL STOCK_TOTAL
-          if (conflictCount >= (v.stock_total || 1)) {
-            if (lastConflictRed) {
-              setConflictDressCode(v.referencia || 'Seleccionado');
-              setConflictType(lastConflictType);
-              setConflictDays(lastConflictDays);
-              setShowConflictModal(true);
-              return false;
-            } else if (lastConflictYellow && lastAlistamiento) {
-              if (currentContractId) {
-                const continuar = window.confirm(
-                  '⚠️ La nueva programación queda en zona de cercanía logística (5–10 días).\n\nComo administrador puedes continuar bajo responsabilidad operativa. ¿Deseas guardar el cambio?'
-                );
-                if (!continuar) return false;
-                continue;
-              }
-              setAlistamientoData(lastAlistamiento);
-              setConflictSeverity('yellow');
-              setShowYellowModal(true);
-              return false;
-            }
-          }
-        }
-      }
-      return true;
-    } catch (err) {
-      console.error('Error en checkInventory:', err);
-      toast.error('Ocurrió un error inesperado al verificar el inventario.');
-      return false;
-    }
   };
 
   const handleSolicitarAutorizacion = async () => {
@@ -1202,12 +951,7 @@ export default function NuevoContratoPage() {
       }
 
       const resolvedSpecialBlock = await resolveBloqueoEspecial();
-      if (resolvedSpecialBlock && !(await checkBloqueoEspecialAvailability(resolvedSpecialBlock))) {
-        return;
-      }
-      if (!(await checkFechasEspecialesAvailability(resolved, fechasBloqueoEspecial))) {
-        return;
-      }
+      if (!(await checkInventory(resolved, null, resolvedSpecialBlock))) return;
 
       // 2. Crear contrato con estado 'pendiente_admin'
       const prefixMap: Record<string, string> = {
@@ -1508,15 +1252,9 @@ export default function NuevoContratoPage() {
     try {
       if (!isEditMode) {
         resolvedSpecialBlock = await resolveBloqueoEspecial();
-        if (resolvedSpecialBlock && !(await checkBloqueoEspecialAvailability(resolvedSpecialBlock))) {
-          setLoading(false);
-          return;
-        }
+
       }
-      if (!(await checkFechasEspecialesAvailability(resolvedVestidos, fechasBloqueoEspecial, editingContractId))) {
-        setLoading(false);
-        return;
-      }
+
     } catch (err: any) {
       toast.error(err.message);
       setLoading(false);
@@ -1524,7 +1262,7 @@ export default function NuevoContratoPage() {
     }
 
     // 2. PRIORIDAD 1: Validar Inventario (Calendario Global)
-    const isAvailable = await checkInventory(resolvedVestidos, editingContractId);
+    const isAvailable = await checkInventory(resolvedVestidos, editingContractId, resolvedSpecialBlock);
     if (!isAvailable) {
       setLoading(false);
       return;
