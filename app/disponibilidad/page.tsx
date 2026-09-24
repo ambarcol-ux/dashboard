@@ -118,6 +118,7 @@ export default function AvailabilityPage() {
         .from('contrato_items_vestidos')
         .select(`
           contrato_id,
+          vestido_id,
           contratos!inner (
             id,
             numero_contrato,
@@ -137,50 +138,29 @@ export default function AvailabilityPage() {
 
       if (contrError) throw contrError;
 
+      // Algunos contratos antiguos guardan el vestido directamente en contratos.
+      const { data: legacyContracts, error: legacyError } = await supabase
+        .from('contratos')
+        .select('id, vestido_id, numero_contrato, cliente_nombre, tipo_evento, estado, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, bloqueo_especial_fecha, bloqueo_especial_vestido_id')
+        .eq('vestido_id', dressId);
+      if (legacyError) throw legacyError;
+
       const { data: specialLocks, error: specialLocksError } = await supabase
         .from('contratos')
-        .select('id, numero_contrato, cliente_nombre, estado, bloqueo_especial_referencia, bloqueo_especial_fecha, created_at')
+        .select('id, numero_contrato, cliente_nombre, estado, bloqueo_especial_referencia, bloqueo_especial_fecha, bloqueo_especial_vestido_id, created_at')
         .eq('bloqueo_especial_vestido_id', dressId)
         .not('estado', 'in', '("cancelado","anulado","rechazado","CANCELADO","ANULADO","RECHAZADO")')
         .not('bloqueo_especial_fecha', 'is', null);
 
       if (specialLocksError) throw specialLocksError;
 
-      // Generar los bloques reales de disponibilidad + todas las fechas especiales del contrato
-      const newBlocks = generateBlockedRanges(contracts || []);
-      const arraySpecialBlocks: ContractBlock[] = (contracts || []).flatMap((item: any) => {
-        const lock = item.contratos;
-        if (['cancelado','anulado','rechazado'].includes(String(lock?.estado||'').toLowerCase())) return [];
-        const dates = Array.isArray(lock?.fechas_bloqueo_especial) ? lock.fechas_bloqueo_especial : [];
-        return dates.map((value: string, index: number) => {
-          const date = parseISO(value);
-          return {
-            id: `special-array-${lock.id}-${index}-${value}`,
-            contractNumber: lock.numero_contrato,
-            clientName: lock.cliente_nombre,
-            type: 'Fecha especial',
-            warningStart: startOfDay(date),
-            start: startOfDay(date),
-            end: endOfDay(date),
-            eventDate: startOfDay(date)
-          };
-        });
-      });
-      const legacySpecialBlocks: ContractBlock[] = (specialLocks || []).flatMap((lock: any) => {
-        if (!lock.bloqueo_especial_fecha) return [];
-        const date = parseISO(lock.bloqueo_especial_fecha);
-        return [{
-          id: `special-legacy-${lock.id}`,
-          contractNumber: lock.numero_contrato,
-          clientName: lock.cliente_nombre,
-          type: 'Fecha especial',
-          warningStart: startOfDay(date),
-          start: startOfDay(date),
-          end: endOfDay(date),
-          eventDate: startOfDay(date)
-        }];
-      });
-      setBlocks([...newBlocks, ...arraySpecialBlocks, ...legacySpecialBlocks].sort((a, b) => a.start.getTime() - b.start.getTime()));
+      // Todas las reservas, incluido el legado, usan el mismo cálculo.
+      const rawBlocks = generateBlockedRanges([
+        ...(contracts || []),
+        ...(legacyContracts || []),
+        ...(specialLocks || []).map((lock: any) => ({ vestido_id: dressId, contratos: lock }))
+      ]);
+      setBlocks(Array.from(new Map(rawBlocks.map(block => [block.id, block])).values()));
 
       // 2. Fetch Bitácora Local
       let logs: any[] = [];
@@ -292,12 +272,10 @@ export default function AvailabilityPage() {
   
   // Modifiers para el DayPicker
   const occupiedDates = blocks.map(b => ({ from: b.start, to: b.end }));
-  const warningDates = blocks.map(b => ({ from: b.warningStart, to: subDays(b.start, 1) }));
   const eventDates = blocks.map(b => b.eventDate);
 
   const modifiers = {
     occupied: occupiedDates,
-    warning: warningDates,
     eventDay: eventDates
   };
 
@@ -305,12 +283,6 @@ export default function AvailabilityPage() {
     occupied: { 
       backgroundColor: '#ffe4e6', // rose-100
       color: '#e11d48', // rose-600
-      fontWeight: 'bold',
-      borderRadius: '8px'
-    },
-    warning: {
-      backgroundColor: '#fef08a', // yellow-200
-      color: '#854d0e', // yellow-800
       fontWeight: 'bold',
       borderRadius: '8px'
     },
@@ -325,7 +297,7 @@ export default function AvailabilityPage() {
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);
     const dayStart = startOfDay(day);
-    const block = blocks.find(b => isWithinInterval(dayStart, { start: b.warningStart, end: b.end }));
+    const block = blocks.find(b => isWithinInterval(dayStart, { start: b.start, end: b.end }));
     setSelectedBlock(block || null);
   };
 
@@ -494,15 +466,11 @@ export default function AvailabilityPage() {
                   <div className="flex justify-center gap-6 mt-8 flex-wrap">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-rose-600"></div>
-                      <span className="text-xs font-bold text-gray-500 uppercase">Día del Evento</span>
+                      <span className="text-xs font-bold text-gray-500 uppercase">Fecha de uso</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 rounded-full bg-rose-100"></div>
-                      <span className="text-xs font-bold text-gray-500 uppercase">Bloqueo Estricto (5 días)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full bg-yellow-200"></div>
-                      <span className="text-xs font-bold text-gray-500 uppercase">Logística Preventiva (5 días)</span>
+                      <span className="text-xs font-bold text-gray-500 uppercase">Periodo reservado</span>
                     </div>
                   </div>
                 </div>
@@ -527,7 +495,7 @@ export default function AvailabilityPage() {
 
                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-2 gap-4">
                           <div>
-                            <p className="text-xs font-black text-gray-400 uppercase mb-1">Día del Evento</p>
+                            <p className="text-xs font-black text-gray-400 uppercase mb-1">Fecha de uso</p>
                             <p className="font-bold text-gray-900">{format(selectedBlock.eventDate, "d MMM yyyy", { locale: es })}</p>
                           </div>
                           <div>
@@ -546,7 +514,7 @@ export default function AvailabilityPage() {
                         </div>
                         
                         <Link 
-                          href={`/dashboard?contratoId=${selectedBlock.id.replace('evt-', '').replace('pxv-', '')}`}
+                          href={`/dashboard?contratoId=${selectedBlock.id.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/)?.[0] || ''}`}
                           className="w-full bg-gray-900 hover:bg-black text-white py-3 rounded-xl flex items-center justify-center gap-2 transition-all font-black uppercase tracking-widest text-xs shadow-md mt-4 active:scale-95 group"
                         >
                           <FileText className="w-4 h-4 group-hover:scale-110 transition-transform" />
