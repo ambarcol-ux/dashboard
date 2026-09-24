@@ -20,7 +20,7 @@ import { toast, Toaster } from 'sonner';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { es } from 'date-fns/locale';
-import { isWithinInterval, startOfDay, endOfDay, format, subDays, parseISO } from 'date-fns';
+import { isWithinInterval, startOfDay, endOfDay, format, subDays, addDays, parseISO } from 'date-fns';
 import { generateBlockedRanges, isCurrentlyOccupied, ContractBlock } from '@/lib/availability';
 
 export default function AvailabilityPage() {
@@ -148,24 +148,6 @@ export default function AvailabilityPage() {
 
       // Generar los bloques reales de disponibilidad + todas las fechas especiales del contrato
       const newBlocks = generateBlockedRanges(contracts || []);
-      const arraySpecialBlocks: ContractBlock[] = (contracts || []).flatMap((item: any) => {
-        const lock = item.contratos;
-        if (['cancelado','anulado','rechazado'].includes(String(lock?.estado||'').toLowerCase())) return [];
-        const dates = Array.isArray(lock?.fechas_bloqueo_especial) ? lock.fechas_bloqueo_especial : [];
-        return dates.map((value: string, index: number) => {
-          const date = parseISO(value);
-          return {
-            id: `special-array-${lock.id}-${index}-${value}`,
-            contractNumber: lock.numero_contrato,
-            clientName: lock.cliente_nombre,
-            type: 'Fecha especial',
-            warningStart: startOfDay(date),
-            start: startOfDay(date),
-            end: endOfDay(date),
-            eventDate: startOfDay(date)
-          };
-        });
-      });
       const legacySpecialBlocks: ContractBlock[] = (specialLocks || []).flatMap((lock: any) => {
         if (!lock.bloqueo_especial_fecha) return [];
         const date = parseISO(lock.bloqueo_especial_fecha);
@@ -174,13 +156,13 @@ export default function AvailabilityPage() {
           contractNumber: lock.numero_contrato,
           clientName: lock.cliente_nombre,
           type: 'Fecha especial',
-          warningStart: startOfDay(date),
-          start: startOfDay(date),
-          end: endOfDay(date),
+          warningStart: startOfDay(subDays(date, 1)),
+          start: startOfDay(subDays(date, 1)),
+          end: endOfDay(addDays(date, 1)),
           eventDate: startOfDay(date)
         }];
       });
-      setBlocks([...newBlocks, ...arraySpecialBlocks, ...legacySpecialBlocks].sort((a, b) => a.start.getTime() - b.start.getTime()));
+      setBlocks([...newBlocks, ...legacySpecialBlocks].sort((a, b) => a.start.getTime() - b.start.getTime()));
 
       // 2. Fetch Bitácora Local
       let logs: any[] = [];
