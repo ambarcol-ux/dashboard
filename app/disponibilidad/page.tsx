@@ -287,6 +287,8 @@ export default function AvailabilityPage() {
   };
 
   const currentOccupation = isCurrentlyOccupied(blocks);
+  const physicallyUnavailable = Boolean(dress && String(dress.estado || '').toLowerCase() !== 'disponible');
+  const unavailableNow = Boolean(currentOccupation || physicallyUnavailable);
   
   // Modifiers para el DayPicker
   const occupiedDates = blocks.map(b => ({ from: b.start, to: b.end }));
@@ -422,13 +424,13 @@ export default function AvailabilityPage() {
             <div className="space-y-6 animate-in fade-in duration-500">
               {/* Dynamic Status Card */}
               <div className={`rounded-[2rem] p-8 border shadow-lg flex flex-col md:flex-row items-center justify-between gap-6 transition-colors ${
-                currentOccupation 
+                unavailableNow 
                   ? 'bg-rose-600 border-rose-700 text-white' 
                   : 'bg-emerald-500 border-emerald-600 text-white'
               }`}>
                 <div className="flex items-center gap-6">
                   <div className={`w-20 h-20 rounded-[1.5rem] flex items-center justify-center font-black text-3xl shadow-inner ${
-                    currentOccupation ? 'bg-rose-700 text-rose-100' : 'bg-emerald-600 text-emerald-50'
+                    unavailableNow ? 'bg-rose-700 text-rose-100' : 'bg-emerald-600 text-emerald-50'
                   }`}>
                      {dress.codigo.substring(0, 2)}
                   </div>
@@ -441,14 +443,14 @@ export default function AvailabilityPage() {
                 </div>
                 
                 <div className="flex flex-col items-center md:items-end text-center md:text-right">
-                  {currentOccupation ? (
+                  {unavailableNow ? (
                     <>
                       <div className="flex items-center gap-2 mb-1">
                         <XCircle className="w-8 h-8 opacity-90" />
                         <span className="text-2xl font-black uppercase tracking-wider">Ocupado</span>
                       </div>
-                      <p className="text-sm font-bold opacity-90">Contrato #{currentOccupation.contractNumber}</p>
-                      <p className="text-xs opacity-75 mt-1">Se libera el {format(currentOccupation.end, "d 'de' MMMM", { locale: es })}</p>
+                      <p className="text-sm font-bold opacity-90">{currentOccupation ? `Contrato #${currentOccupation.contractNumber}` : `Estado físico: ${dress.estado}`}</p>
+                      <p className="text-xs opacity-75 mt-1">{physicallyUnavailable ? 'Pendiente de registrar ingreso y alistamiento' : `Se libera el ${format(currentOccupation!.end, "d 'de' MMMM", { locale: es })}`}</p>
                     </>
                   ) : (
                     <>
