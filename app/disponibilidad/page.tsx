@@ -20,7 +20,7 @@ import { toast, Toaster } from 'sonner';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { es } from 'date-fns/locale';
-import { isWithinInterval, startOfDay, endOfDay, format, subDays, addDays, parseISO } from 'date-fns';
+import { isWithinInterval, startOfDay, endOfDay, format, subDays, parseISO } from 'date-fns';
 import { generateBlockedRanges, isCurrentlyOccupied, ContractBlock } from '@/lib/availability';
 
 export default function AvailabilityPage() {
@@ -148,6 +148,24 @@ export default function AvailabilityPage() {
 
       // Generar los bloques reales de disponibilidad + todas las fechas especiales del contrato
       const newBlocks = generateBlockedRanges(contracts || []);
+      const arraySpecialBlocks: ContractBlock[] = (contracts || []).flatMap((item: any) => {
+        const lock = item.contratos;
+        if (['cancelado','anulado','rechazado'].includes(String(lock?.estado||'').toLowerCase())) return [];
+        const dates = Array.isArray(lock?.fechas_bloqueo_especial) ? lock.fechas_bloqueo_especial : [];
+        return dates.map((value: string, index: number) => {
+          const date = parseISO(value);
+          return {
+            id: `special-array-${lock.id}-${index}-${value}`,
+            contractNumber: lock.numero_contrato,
+            clientName: lock.cliente_nombre,
+            type: 'Fecha especial',
+            warningStart: startOfDay(date),
+            start: startOfDay(date),
+            end: endOfDay(date),
+            eventDate: startOfDay(date)
+          };
+        });
+      });
       const legacySpecialBlocks: ContractBlock[] = (specialLocks || []).flatMap((lock: any) => {
         if (!lock.bloqueo_especial_fecha) return [];
         const date = parseISO(lock.bloqueo_especial_fecha);
@@ -156,13 +174,13 @@ export default function AvailabilityPage() {
           contractNumber: lock.numero_contrato,
           clientName: lock.cliente_nombre,
           type: 'Fecha especial',
-          warningStart: startOfDay(subDays(date, 1)),
-          start: startOfDay(subDays(date, 1)),
-          end: endOfDay(addDays(date, 1)),
+          warningStart: startOfDay(date),
+          start: startOfDay(date),
+          end: endOfDay(date),
           eventDate: startOfDay(date)
         }];
       });
-      setBlocks([...newBlocks, ...legacySpecialBlocks].sort((a, b) => a.start.getTime() - b.start.getTime()));
+      setBlocks([...newBlocks, ...arraySpecialBlocks, ...legacySpecialBlocks].sort((a, b) => a.start.getTime() - b.start.getTime()));
 
       // 2. Fetch Bitácora Local
       let logs: any[] = [];
@@ -269,6 +287,8 @@ export default function AvailabilityPage() {
   };
 
   const currentOccupation = isCurrentlyOccupied(blocks);
+  const physicallyUnavailable = Boolean(dress && String(dress.estado || '').toLowerCase() !== 'disponible');
+  const unavailableNow = Boolean(currentOccupation || physicallyUnavailable);
   
   // Modifiers para el DayPicker
   const occupiedDates = blocks.map(b => ({ from: b.start, to: b.end }));
@@ -404,13 +424,13 @@ export default function AvailabilityPage() {
             <div className="space-y-6 animate-in fade-in duration-500">
               {/* Dynamic Status Card */}
               <div className={`rounded-[2rem] p-8 border shadow-lg flex flex-col md:flex-row items-center justify-between gap-6 transition-colors ${
-                currentOccupation 
+                unavailableNow 
                   ? 'bg-rose-600 border-rose-700 text-white' 
                   : 'bg-emerald-500 border-emerald-600 text-white'
               }`}>
                 <div className="flex items-center gap-6">
                   <div className={`w-20 h-20 rounded-[1.5rem] flex items-center justify-center font-black text-3xl shadow-inner ${
-                    currentOccupation ? 'bg-rose-700 text-rose-100' : 'bg-emerald-600 text-emerald-50'
+                    unavailableNow ? 'bg-rose-700 text-rose-100' : 'bg-emerald-600 text-emerald-50'
                   }`}>
                      {dress.codigo.substring(0, 2)}
                   </div>
@@ -423,14 +443,14 @@ export default function AvailabilityPage() {
                 </div>
                 
                 <div className="flex flex-col items-center md:items-end text-center md:text-right">
-                  {currentOccupation ? (
+                  {unavailableNow ? (
                     <>
                       <div className="flex items-center gap-2 mb-1">
                         <XCircle className="w-8 h-8 opacity-90" />
                         <span className="text-2xl font-black uppercase tracking-wider">Ocupado</span>
                       </div>
-                      <p className="text-sm font-bold opacity-90">Contrato #{currentOccupation.contractNumber}</p>
-                      <p className="text-xs opacity-75 mt-1">Se libera el {format(currentOccupation.end, "d 'de' MMMM", { locale: es })}</p>
+                      <p className="text-sm font-bold opacity-90">{currentOccupation ? `Contrato #${currentOccupation.contractNumber}` : `Estado físico: ${dress.estado}`}</p>
+                      <p className="text-xs opacity-75 mt-1">{physicallyUnavailable ? 'Pendiente de registrar ingreso y alistamiento' : `Se libera el ${format(currentOccupation!.end, "d 'de' MMMM", { locale: es })}`}</p>
                     </>
                   ) : (
                     <>
