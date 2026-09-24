@@ -59,8 +59,8 @@ export async function PATCH(request:Request){
    const ids=Array.from(new Set<string>([current.vestido_id,...(current.items||[]).map((i:any)=>i.vestido_id),current.bloqueo_especial_vestido_id,changed.bloqueo_especial_vestido_id].filter(Boolean)));
    for(const id of ids){
     const [{data:items,error:itemError},{data:legacy,error:legacyError},{data:special,error:specialError}]=await Promise.all([
-     db.from('contrato_items_vestidos').select('vestido_id,contratos!inner(id,numero_contrato,cliente_nombre,estado,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial)').eq('vestido_id',id).neq('contrato_id',body.id),
-     db.from('contratos').select('id,numero_contrato,cliente_nombre,estado,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial').eq('vestido_id',id).neq('id',body.id),
+     db.from('contrato_items_vestidos').select('vestido_id,contratos!inner(id,numero_contrato,cliente_nombre,estado,tipo_evento,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial)').eq('vestido_id',id).neq('contrato_id',body.id),
+     db.from('contratos').select('id,numero_contrato,cliente_nombre,estado,tipo_evento,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial').eq('vestido_id',id).neq('id',body.id),
      db.from('contratos').select('id,numero_contrato,cliente_nombre,estado,bloqueo_especial_fecha,bloqueo_especial_vestido_id').eq('bloqueo_especial_vestido_id',id).neq('id',body.id).not('bloqueo_especial_fecha','is',null)
     ]);
     if(itemError||legacyError||specialError)return NextResponse.json({error:'No se pudo verificar la disponibilidad del vestido.'},{status:503});
