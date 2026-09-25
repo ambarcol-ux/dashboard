@@ -181,7 +181,7 @@ export default function AvailabilityPage() {
         const c = item.contratos;
         unified.push({
           id: `contract-${c.id}`,
-          fecha: new Date(c.fecha_evento || c.created_at),
+          fecha: c.fecha_evento ? new Date(`${c.fecha_evento}T12:00:00`) : new Date(c.created_at),
           tipo: 'alquiler',
           titulo: `Alquiler - Contrato #${c.numero_contrato}`,
           subtitulo: `Cliente: ${c.cliente_nombre}`,
