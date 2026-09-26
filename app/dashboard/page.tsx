@@ -1,4 +1,5 @@
 'use client';
+import {loadDashboardContracts} from '@/lib/load-dashboard-contracts';
 import PreXvFields from '@/components/PreXvFields';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { saveCalendarContract } from '@/lib/save-calendar-contract';
@@ -70,6 +71,7 @@ export default function DashboardPage() {
   const [selectedDressToAssign, setSelectedDressToAssign] = useState('');
   const [contratos, setContratos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [contractsError, setContractsError] = useState('');
   const [pdfGeneratingId, setPdfGeneratingId] = useState<string | null>(null);
   const [contractForPdf, setContractForPdf] = useState<ContractData | null>(null);
   const [plantillas, setPlantillas] = useState<any[]>([]);
@@ -441,6 +443,7 @@ export default function DashboardPage() {
 
   const fetchContratos = async () => {
     setLoading(true);
+    setContractsError('');
 
     try {
       const [plantillasResult, authResult] = await Promise.all([
@@ -466,22 +469,7 @@ export default function DashboardPage() {
       setUser({ ...authUser, rol: profile.rol, nombre: profile.nombre });
 
 
-      // OFICIAL QUERY: Explicit joins to avoid 400 errors and multiple roundtrips
-      // Note: Bypassing any backend/server-side filters or conditions like .eq('saldo', 0) or where: { saldo: 0 }.
-      // This ensures all draft contracts with all balances travel in the initial payload.
-      let query = supabase
-        .from('contratos')
-        .select(`
-          *,
-          quinceanera_name,
-          arreglos(*),
-          items:contrato_items_vestidos(
-            *,
-            vestido:vestidos(*)
-          ),
-          entregas:entregas_bitacora(*)
-        `)
-        .order('created_at', { ascending: false });
+      const filters: {sedeId?: string; or?: string} = {};
 
       // -- NEW: State Filtering & Global Search (Dashboard 4 Tabs Requeriment) --
       if (searchTerm) {
@@ -503,7 +491,7 @@ export default function DashboardPage() {
            orQuery += `,id.in.(${relatedIds.join(',')})`;
         }
 
-        query = query.or(orQuery);
+        filters.or = orQuery;
       } else {
         // En el nuevo dashboard de 4 pestañas, fetchContratos trae todo "lo relevante".
         // Eliminamos filtros restrictivos para que la pestaña de HISTORIAL se llene correctamente.
@@ -511,17 +499,13 @@ export default function DashboardPage() {
       }
 
       if (profile && profile.rol !== 'admin' && profile.sede_id) {
-        query = query.eq('sede_id', profile.sede_id);
+        filters.sedeId = profile.sede_id;
       }
 
-      const [{ data: finalData, error: errC }, { data: outside }] = await Promise.all([
-        query,
+      const [finalData, { data: outside }] = await Promise.all([
+        loadDashboardContracts(supabase, filters),
         supabase.rpc('vestidos_fuera_activos')
       ]);
-      if (errC) {
-        console.error("Error en consulta maestra:", errC.message);
-        throw errC;
-      }
 
       // DEBUG: removed — data payload confirmed clean by Supabase REST audit.
 
@@ -542,6 +526,7 @@ export default function DashboardPage() {
       return mappedData;
     } catch (err) {
       console.error(err);
+      setContractsError('No se pudieron cargar los contratos. Pulsa Refrescar Datos para reintentar.');
       toast.error('Error al cargar la lista de contratos.');
       return [];
     } finally {
@@ -2649,6 +2634,7 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto space-y-8">
         
         {String(user?.rol || '').toLowerCase() === 'admin' && <DepositAlert count={pendingDeposits}/>}
+        {contractsError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">{contractsError}</div>}
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-rose-100">
           <div className="flex-1">
@@ -3013,7 +2999,7 @@ export default function DashboardPage() {
                  </div>
               ) : contratosFiltrados.length === 0 ? (
                  <div className="col-span-1 md:col-span-2 text-center text-gray-500 py-12 bg-gray-50 rounded-2xl border border-gray-100">
-                   No hay contratos que coincidan con los filtros actuales.
+                   {contractsError || 'No hay contratos que coincidan con los filtros actuales.'}
                  </div>
               ) : contratosFiltrados.map((c) => {
                   const isPreXVIncompleto = (() => {
@@ -3147,7 +3133,7 @@ export default function DashboardPage() {
                 ) : contratosFiltrados.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
-                      No hay contratos que coincidan con los filtros actuales.
+                      {contractsError || 'No hay contratos que coincidan con los filtros actuales.'}
                     </td>
                   </tr>
                 ) : (
