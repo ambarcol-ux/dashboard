@@ -1990,7 +1990,7 @@ export default function DashboardPage() {
            </button>
          </div>
          {openDropdownId === c.id && (
-           <div className="absolute right-0 mt-2 w-64 rounded-2xl shadow-2xl bg-white ring-1 ring-black ring-opacity-5 z-[100] animate-in fade-in slide-in-from-top-2 border border-gray-100 overflow-hidden">
+           <div className="mt-2 ml-auto w-64 max-w-full rounded-2xl shadow-xl bg-white ring-1 ring-black ring-opacity-5 animate-in fade-in slide-in-from-top-2 border border-gray-100 overflow-hidden">
              <div className="py-2 p-1">
                {/* 1. Abrir Vista 360 (Ruta Oficial) */}
                <button 
