@@ -1,0 +1,12 @@
+-- Facturación Siigo por sede y préstamos temporales.
+-- Aplicada en producción el 2026-09-26.
+-- Las credenciales completas viven en private.credenciales_siigo y solo service_role puede resolverlas.
+-- Ver esquema de producción para definiciones vigentes de:
+-- public.configurar_siigo_sede
+-- public.listar_configuracion_siigo
+-- public.siigo_credencial_servidor
+-- public.prestamos_vestidos_sedes
+-- private.validar_prestamo_vestido
+--
+-- Importante: contratos.sede_id quedó NOT NULL.
+-- vestidos.sede_id NO se fuerza todavía: existen registros históricos con IDs de sedes antiguas que requieren conciliación previa.
