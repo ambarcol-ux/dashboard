@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import { homeForRole } from '@/lib/role-access';
 import { Toaster, toast } from 'sonner';
 import { Loader2, Mail, Lock, LogIn } from 'lucide-react';
 
@@ -22,30 +21,39 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    let loginTimeout: ReturnType<typeof setTimeout> | undefined;
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      });
+      const { data, error } = await Promise.race([
+        supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password,
+        }),
+        new Promise<never>((_, reject) => {
+          loginTimeout = setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 20000);
+        }),
+      ]);
 
       if (error) throw error;
 
       // Guardamos un token en las cookies para que el Middleware de Next.js lo pueda leer
       if (data.session) {
-        document.cookie = `sb-access-token=${data.session.access_token}; path=/; max-age=31536000; SameSite=Lax; secure`;
+        const maxAge = Math.max(0, (data.session.expires_at ?? 0) - Math.floor(Date.now() / 1000));
+        document.cookie = `sb-access-token=${data.session.access_token}; path=/; max-age=${maxAge}; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
         toast.success('¡Bienvenida a Ambar Couture!');
         
-        // Empujar hacia el dashboard
-        const { data: profile } = await supabase.from('profiles').select('rol').eq('id', data.user.id).single();
-        router.push(homeForRole(profile?.rol));
+        // El middleware valida el perfil y dirige a contabilidad a su pantalla autorizada.
+        router.replace('/dashboard');
         router.refresh();
       }
 
     } catch (err: any) {
       console.error(err);
-      toast.error('Correo o contraseña incorrectos. Inténtalo de nuevo.');
+      toast.error(err?.message === 'AUTH_TIMEOUT'
+        ? 'El servicio de inicio de sesión está tardando. Inténtalo de nuevo en unos momentos.'
+        : 'No fue posible iniciar sesión. Verifica tus datos e inténtalo de nuevo.');
     } finally {
+      if (loginTimeout) clearTimeout(loginTimeout);
       setLoading(false);
     }
   };
