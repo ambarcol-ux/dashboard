@@ -39,6 +39,9 @@ export async function middleware(req: NextRequest) {
     ]);
     const user = authResult.data.user;
     const profile = profileResult.data;
+    if (authResult.error?.status === 0) {
+      return NextResponse.json({ error: 'La validación de acceso no respondió. Intenta de nuevo.' }, { status: 503 });
+    }
     if (authResult.error || !user || user.id !== subject ||
         profileResult.error || !profile || profile.id !== user.id || profile.activo === false) return deny();
     if (!canAccessPath(profile.rol, path)) {
