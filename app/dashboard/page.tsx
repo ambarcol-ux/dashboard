@@ -2066,7 +2066,1133 @@ export default function DashboardPage() {
                           .limit(1)
                           .single();
                         
-                        const link = `${window.locati…15126 tokens truncated…ay-600">{c.sede}</td>
+                        const link = `${window.location.origin}/entrega/${bit?.id || c.id}`;
+                        navigator.clipboard.writeText(link);
+                        toast.success('Link de Acta de Conformidad copiado');
+                      }} 
+                      className="w-full text-left px-4 py-3 text-sm text-indigo-700 hover:bg-indigo-50 rounded-xl flex items-center gap-3 font-black transition-all"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-indigo-500" /> Ver Acta de Entrega
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        setOpenDropdownId(null);
+                        const { data: bit } = await supabase
+                          .from('entregas_bitacora')
+                          .select('id')
+                          .eq('contrato_id', c.id)
+                          .order('created_at', { ascending: false })
+                          .limit(1)
+                          .single();
+                        
+                        const url = `${window.location.origin}/entrega/${bit?.id || c.id}`;
+                        const msg = `Hola ${c.cliente_nombre}, adjunto el link para tu entrega de Ámbar Couture: ${url}`;
+                        window.open(`https://wa.me/57${c.cliente_whatsapp}?text=${encodeURIComponent(msg)}`, '_blank');
+                      }} 
+                      className="w-full text-left px-4 py-3 text-sm text-green-700 hover:bg-green-50 rounded-xl flex items-center gap-3 font-black transition-all"
+                    >
+                      <MessageCircle className="w-4 h-4 text-green-500" /> WhatsApp Entrega
+                    </button>
+                  </>
+               ) : (
+                  <>
+                    {!isLavanderia && (
+                      <button 
+                        onClick={() => { setOpenDropdownId(null); openDeliveryModal(c); }} 
+                        disabled={Number(c.saldo) > 0}
+                        className={`w-full text-left px-4 py-3 text-sm rounded-xl flex items-center justify-between font-black transition-all ${
+                          Number(c.saldo) > 0
+                          ? 'text-rose-400 bg-rose-50 cursor-not-allowed'
+                          : 'text-amber-700 hover:bg-amber-50'
+                        }`}
+                      >
+                        <span className="flex items-center gap-3"><ShieldCheck className="w-4 h-4" /> Registrar Entrega</span>
+                      </button>
+                    )}
+                  </>
+               )}
+
+               {user?.rol === 'admin' && (
+                  <>
+                    <div className="h-px bg-gray-100 my-1 mx-2"></div>
+                    <button 
+                      onClick={() => { setOpenDropdownId(null); deleteContract(c.id, c.numero_contrato); }}
+                      className="w-full text-left px-4 py-3 text-xs text-rose-600 hover:bg-rose-50 rounded-xl flex items-center gap-3 font-bold transition-all"
+                    >
+                      <Trash2 className="w-4 h-4 text-rose-500" /> Eliminar Contrato Permanentemente
+                    </button>
+                  </>
+               )}
+             </div>
+           </div>
+         )}
+      </div>
+    );
+  };
+
+  const fetchDashboardMetas = async () => {
+    try {
+      // Fetch Global Meta
+      const { data: metaData } = await supabase
+        .from('metas')
+        .select('*')
+        .eq('tipo', 'global')
+        .maybeSingle();
+      
+      if (metaData) {
+        setGlobalMetaId(metaData.id);
+        setGlobalMetaVal(Number(metaData.monto_meta) || 120000000);
+      } else {
+        const now = new Date();
+        const { data: newMeta } = await supabase
+          .from('metas')
+          .insert({
+            tipo: 'global',
+            nombre_objetivo: 'Meta Global',
+            monto_meta: 120000000,
+            mes: now.getMonth() + 1,
+            anio: now.getFullYear()
+          })
+          .select()
+          .single();
+        if (newMeta) {
+          setGlobalMetaId(newMeta.id);
+          setGlobalMetaVal(120000000);
+        }
+      }
+
+      // Fetch Pagos for Recaudo Real
+      const now = new Date();
+      const firstDay = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+      const { data: pagos } = await supabase
+        .from('pagos')
+        .select('valor_pagado, fecha_pago, contratos!inner(sede_id, estado)')
+        .gte('fecha_pago', firstDay)
+        .lte('fecha_pago', lastDay);
+      const validPagos = (pagos || []).filter((p: any) => {
+        const est = p.contratos?.estado?.toLowerCase() || '';
+        return !['cancelado', 'borrador', 'anulado'].includes(est);
+      });
+      setPagosMesActual(validPagos);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    setIsMounted(true);
+    fetchContratos();
+    fetchAsesoras();
+    fetchSedes();
+    fetchKPIs();
+    fetchDashboardMetas();
+  }, []);
+
+  const handleUpdateGlobalMeta = async () => {
+    if (!globalMetaId) return;
+    try {
+      const newVal = Number(editGlobalMetaInput);
+      if (isNaN(newVal) || newVal <= 0) {
+        toast.error('Monto inválido');
+        return;
+      }
+      const { error } = await supabase
+        .from('metas')
+        .update({ monto_meta: newVal })
+        .eq('id', globalMetaId);
+      
+      if (error) throw error;
+      setGlobalMetaVal(newVal);
+      setIsEditGlobalMetaOpen(false);
+      toast.success('Meta global actualizada');
+    } catch (err: any) {
+      toast.error('Error al actualizar meta: ' + err.message);
+    }
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      minimumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  const copyToClipboard = async (id: string, numero: string) => {
+    if (!await validateStoredInvoice(id)) return;
+    const url = `${window.location.origin}/firma/${id}`;
+    navigator.clipboard.writeText(url);
+    toast.success(`Enlace del contrato ${numero} copiado al portapapeles.`);
+  };
+
+  const isToday = (dateString: string) => {
+    const cDate = new Date(dateString);
+    const today = new Date();
+    return cDate.getDate() === today.getDate() &&
+      cDate.getMonth() === today.getMonth() &&
+      cDate.getFullYear() === today.getFullYear();
+  };
+
+  const isOverdue = (dateString: string) => {
+    const d = new Date(dateString);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return d < today;
+  };
+
+  // -- Admin Security Helper --
+  const isAdmin = isDashboardAdmin;
+
+  // Motor de Filtros Locales (QC Logística & 4 Tabs)
+  const tabCounts = React.useMemo(() => {
+    return {
+      por_entregar: contratos.filter(c => {
+        const est = c.estado?.toLowerCase();
+        const hasDelivery = c.entregas && c.entregas.length > 0;
+        return !['entregado', 'mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(est) && !hasDelivery;
+      }).length,
+      en_evento: contratos.filter(c => {
+        const est = (c.estado || '').toLowerCase();
+        const hasDelivery = c.entregas && c.entregas.length > 0;
+        const isExcluded = ['mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(est);
+        return (est === 'entregado' || hasDelivery) && !isExcluded;
+      }).length,
+      lavanderia: contratos.filter(c => c.estado?.toLowerCase() === 'mantenimiento').length,
+      historial: contratos.filter(c => {
+        const est = c.estado?.toLowerCase();
+        const totalPendiente = (Number(c.saldo) || 0) + (Number(c.total_multas) || 0);
+        return ['finalizado', 'cancelado', 'rechazado'].includes(est) && totalPendiente === 0;
+      }).length,
+    };
+  }, [contratos]);
+
+  const alerts = React.useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+
+    // Entregas Vencidas — STRICTLY 'Por Entregar' only.
+    // A contract in 'Evento', 'Entregado', or with any delivery record already
+    // had its dress physically dispatched — it must NOT appear as overdue.
+    const ESTADOS_EXCLUIDOS_ENTREGA = [
+      'finalizado', 'cancelado', 'rechazado',
+      'mantenimiento', 'entregado', 'evento',
+      'liquidado', 'historial'
+    ];
+    const entregasOmitidasCount = contratos.filter(c => {
+      if (!c.fecha_entrega_envio) return false;
+      const estadoContrato = c.estado?.toLowerCase() || '';
+      if (ESTADOS_EXCLUIDOS_ENTREGA.includes(estadoContrato)) return false;
+      // Exclude if the dress has already been physically delivered (en evento)
+      const hasDelivery = c.entregas && c.entregas.length > 0;
+      if (hasDelivery) return false;
+      // Logistics state must be strictly 'Por Entregar' — 'Pendiente' alone is not overdue
+      if ((c.estado_entrega_envio || '') !== 'Por Entregar') return false;
+      return c.fecha_entrega_envio < todayStr;
+    }).length;
+
+    // FIX 2: Borradores — ALL drafts older than 48 h, no balance restriction whatsoever.
+    const borradoresVencidosCount = contratos.filter(c => {
+      const estadoLower = c.estado?.toLowerCase();
+      return (estadoLower === 'borrador' || estadoLower === 'draft') && new Date(c.created_at) < fortyEightHoursAgo;
+    }).length;
+
+    return {
+      entregasOmitidasCount,
+      borradoresVencidosCount
+    };
+  }, [contratos]);
+
+  const contratosFiltrados = React.useMemo(() => {
+    let result = [...contratos];
+
+    // 1. Prioridad: Búsqueda Global (Si hay término, ignora la pestaña activa y busca en todo)
+    // El backend (Supabase) ya hizo el filtro exhaustivo (por texto y por IDs vinculados).
+    // Devolvemos el resultado tal cual para asegurar que lo que trajo la BD se muestre siempre.
+    if (searchTerm) {
+      console.log('🔍 [Buscador Global] Contratos Encontrados por BD:', result.map(r => r.id));
+      return result;
+    }
+
+    // 0. PREXV Filter: Only show 15-year (PreXV) contracts if toggled
+    if (filtroTipoEvento === 'PREXV') {
+      result = result.filter(c => hasPrexv(c));
+    }
+
+    // Apply administrative alert filters and return immediately — must mirror badge logic exactly.
+    if (filtroAlerta === 'entregas_omitidas') {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const ESTADOS_EXCLUIDOS_ENTREGA = [
+        'finalizado', 'cancelado', 'rechazado',
+        'mantenimiento', 'entregado', 'evento',
+        'liquidado', 'historial'
+      ];
+      return result.filter(c => {
+        if (!c.fecha_entrega_envio) return false;
+        const estadoContrato = c.estado?.toLowerCase() || '';
+        if (ESTADOS_EXCLUIDOS_ENTREGA.includes(estadoContrato)) return false;
+        const hasDelivery = c.entregas && c.entregas.length > 0;
+        if (hasDelivery) return false;
+        if ((c.estado_entrega_envio || '') !== 'Por Entregar') return false;
+        return c.fecha_entrega_envio < todayStr;
+      });
+    } else if (filtroAlerta === 'borradores_sin_firmar') {
+      const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+      return result.filter(c => {
+        const estadoLower = c.estado?.toLowerCase();
+        return (estadoLower === 'borrador' || estadoLower === 'draft') && new Date(c.created_at) < fortyEightHoursAgo;
+      });
+    }
+
+    // 2. Filtrado por Pestaña Logística
+    if (filtroAlerta === 'ninguna') {
+      result = result.filter(c => {
+        const estado = c.estado?.toLowerCase();
+        switch (activeTabLogistica) {
+          case 'por_entregar': {
+            const hasDelivery = c.entregas && c.entregas.length > 0;
+            return !['entregado', 'mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(estado) && !hasDelivery;
+          }
+          case 'en_evento': {
+            const hasDelivery = c.entregas && c.entregas.length > 0;
+            const isExcluded = ['mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(estado);
+            return (estado === 'entregado' || hasDelivery) && !isExcluded;
+          }
+          case 'lavanderia':
+            return estado === 'mantenimiento';
+          case 'historial': {
+            const totalPendiente = (Number(c.saldo) || 0) + (Number(c.total_multas) || 0);
+            return ['finalizado', 'cancelado', 'rechazado'].includes(estado) && totalPendiente === 0;
+          }
+          case 'anulados':
+            return estado === 'anulado';
+          default:
+            return true;
+        }
+      });
+    }
+
+    // 3. Filtros Complementarios (Sede, Hito, Fecha)
+    if (filtroSede !== 'Todas') {
+      if (filtroSede === 'unassigned') {
+        result = result.filter(c => !c.sede_id || !sedes.some(s => s.id === c.sede_id));
+      } else {
+        result = result.filter(c => c.sede_id === filtroSede);
+      }
+    }
+
+    const startOfToday = new Date().setHours(0,0,0,0);
+    const endOfWeek = new Date(startOfToday + 7 * 24 * 60 * 60 * 1000).setHours(0,0,0,0);
+    const endOfMonth = new Date(startOfToday + 30 * 24 * 60 * 60 * 1000).setHours(0,0,0,0);
+
+    const toTimestamp = (ds: string | null) => {
+      if (!ds) return null;
+      try {
+        const d = new Date(ds);
+        if (isNaN(d.getTime())) return null;
+        const offset = d.getTimezoneOffset() * 60000;
+        return new Date(d.getTime() + offset).setHours(0,0,0,0);
+      } catch { return null; }
+    };
+
+    const isDateInRange = (t: number | null) => {
+      if (!t) return false;
+      if (filtroRango === 'Hoy') return t === startOfToday;
+      if (filtroRango === 'Esta Semana') return t >= startOfToday && t <= endOfWeek;
+      if (filtroRango === 'Este Mes') return t >= startOfToday && t <= endOfMonth;
+      if (filtroRango === 'Personalizado') {
+         const dDesde = toTimestamp(fechaDesde);
+         const dHasta = toTimestamp(fechaHasta);
+         if (dDesde && t < dDesde) return false;
+         if (dHasta && t > dHasta) return false;
+         return true;
+      }
+      return true;
+    };
+
+    if (filtroHito !== 'Todos') {
+      let dateKey = '';
+      if (filtroHito === 'Cita de Medidas') dateKey = 'fecha_cita_medidas';
+      else if (filtroHito === 'Prueba Final') dateKey = 'fecha_prueba_final';
+      else if (filtroHito === 'Fecha de Entrega/Envío') dateKey = 'fecha_entrega_envio';
+      else if (filtroHito === 'Sesión Pre-XV') dateKey = 'fecha_pre_xv';
+
+      if (dateKey) {
+        result = result.filter(c => {
+           const val = c[dateKey];
+           if (!val) return false;
+           if (filtroRango !== 'Cualquier Fecha' && !isDateInRange(toTimestamp(val))) return false;
+           return true;
+        });
+      }
+    } else if (filtroRango !== 'Cualquier Fecha') {
+       result = result.filter(c => 
+          isDateInRange(toTimestamp(c.fecha_cita_medidas)) || 
+          isDateInRange(toTimestamp(c.fecha_prueba_final)) || 
+          isDateInRange(toTimestamp(c.fecha_entrega_envio)) || 
+          isDateInRange(toTimestamp(c.fecha_pre_xv))
+       );
+    }
+
+    // 4. PREXV tipo evento filter after complementary filters
+    if (filtroTipoEvento === 'PREXV') {
+      result = result.filter(c => hasPrexv(c));
+    }
+
+    return result;
+  }, [contratos, activeTabLogistica, searchTerm, filtroSede, filtroHito, filtroRango, fechaDesde, fechaHasta, filtroAlerta, filtroTipoEvento]);
+
+  // -- KPI STATS CALCULATION (Imagen 5 Request Restore) --
+  const activeBranchName = filtroSede === 'Todas' ? 'Todas' : (filtroSede === 'unassigned' ? 'Pereira' : (sedes.find(s => s.id === filtroSede)?.nombre || 'Todas'));
+
+  const stats = React.useMemo(() => {
+    return {
+      totalPendiente: contratosFiltrados.reduce((acc, c) => acc + (Number(c.saldo) || 0) + (Number(c.total_multas) || 0), 0),
+      totalContratos: contratosFiltrados.length,
+      totalEnEvento: tabCounts.en_evento,
+      activeBranch: activeBranchName
+    };
+  }, [contratosFiltrados, tabCounts, activeBranchName]);
+
+  const salesStats = React.useMemo(() => {
+    try {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+
+      if (!Array.isArray(contratos)) return { recaudado: 0, count: 0, goal: 120000000 };
+
+      const monthContracts = contratos.filter(c => {
+         if (!c) return false;
+         
+         if (c.created_at) {
+           const createdDate = new Date(c.created_at);
+           if (isNaN(createdDate.getTime())) return false;
+           
+           if (createdDate.getMonth() !== currentMonth || createdDate.getFullYear() !== currentYear) {
+             return false;
+           }
+         } else {
+           return false; // Skip if no creation date
+         }
+
+         if (filtroSede && filtroSede !== 'Todas') {
+           if (filtroSede === 'unassigned') {
+             if (c.sede_id && sedes.some(s => s.id === c.sede_id)) return false;
+           } else {
+             if (String(c.sede_id) !== String(filtroSede)) return false;
+           }
+         }
+
+         return true;
+      });
+
+      const count = monthContracts.length;
+      
+      // Calcular recaudo real mensual basado en pagos filtrados por sede
+      const pagosFiltrados = pagosMesActual.filter(p => {
+        if (filtroSede && filtroSede !== 'Todas') {
+           if (filtroSede === 'unassigned') {
+             if (p.contratos?.sede_id && sedes.some(s => s.id === p.contratos?.sede_id)) return false;
+           } else {
+             if (String(p.contratos?.sede_id) !== String(filtroSede)) return false;
+           }
+        }
+        return true;
+      });
+
+      const recaudado = pagosFiltrados.reduce((acc, p) => acc + (Number(p.valor_pagado) || 0), 0);
+
+      console.log(`[VERIFICACIÓN] Sede Filtro: ${filtroSede} | Contratos: ${count} | Recaudo: ${recaudado}`);
+
+      return {
+         recaudado,
+         count,
+         goal: globalMetaVal
+      };
+    } catch (err) {
+      console.error("Error in salesStats useMemo:", err);
+      return { recaudado: 0, count: 0, goal: globalMetaVal };
+    }
+  }, [contratos, filtroSede, globalMetaVal, pagosMesActual]);
+
+  const uniqueSedes = Array.from(new Set(contratos.map(c => c.sede_id).filter(Boolean)));
+
+  const renderLogisticsDate = (contrato: any, label: string, dateString: string | null, stateField: string, stateValue: string, dateField: string) => {
+     if (!dateString) return null;
+     const d = new Date(dateString);
+     
+     // Normalize to midnight para comprobaciones
+     const offset = d.getTimezoneOffset() * 60000;
+     const t = new Date(d.getTime() + offset).setHours(0,0,0,0);
+     const startOfToday = new Date().setHours(0,0,0,0);
+
+     let colorClass = "text-gray-500 bg-gray-100";
+     let displayState = stateValue;
+     let isDelivery = label === 'P. de Entrega';
+     let isCompletedDelivery = isDelivery && (
+       stateValue?.toLowerCase() === 'entregado' || 
+       contrato.estado_entrega?.toLowerCase() === 'entregado' ||
+       contrato.estado?.toLowerCase() === 'entregado' ||
+       contrato.entregado_evento === true
+     );
+
+     if (isDelivery) {
+       if (isCompletedDelivery) {
+         colorClass = "text-emerald-700 bg-emerald-100 border-emerald-200";
+         displayState = "ENTREGADO";
+       } else if (t === startOfToday) {
+         colorClass = "text-amber-800 bg-amber-100 animate-pulse border-amber-300";
+       } else if (t < startOfToday) {
+         colorClass = "text-rose-800 bg-rose-50 border-rose-300";
+       } else {
+         colorClass = "text-indigo-700 bg-indigo-50 border-indigo-100";
+       }
+     } else {
+       if (stateValue === 'Asistió') {
+         colorClass = "text-emerald-700 bg-emerald-100 border-emerald-200";
+       } else if (stateValue === 'No Asistió') {
+         colorClass = "text-rose-700 bg-rose-100 border-rose-200";
+       } else if (t === startOfToday) {
+         colorClass = "text-amber-800 bg-amber-100 animate-pulse border-amber-300";
+       } else if (t < startOfToday) {
+         colorClass = "text-rose-800 bg-rose-50 border-rose-300"; // Past due but pending
+       } else {
+         colorClass = "text-indigo-700 bg-indigo-50 border-indigo-100"; // Future appointments
+       }
+     }
+
+     return (
+       <div className={`text-xs p-2 mt-1.5 font-medium rounded-lg border ${colorClass} flex justify-between items-center group transition-colors shadow-sm`}>
+         <div>
+           <span className="font-bold uppercase opacity-80">{label}</span><br/>
+           <span className="font-semibold text-sm -mt-0.5 block">{new Date(t).toLocaleDateString('es-CO')}</span>
+           {(stateValue === 'Asistió' || stateValue === 'No Asistió' || isCompletedDelivery) && (
+             <span className="block text-[9px] font-black uppercase tracking-wider mt-0.5">{displayState}</span>
+           )}
+         </div>
+         <div className="flex gap-1 items-center">
+           {!isDelivery && t <= startOfToday && stateValue !== 'Asistió' && (
+             <>
+               <button onClick={() => handleMarkAsistio(contrato.id, stateField)} className="p-1.5 bg-white hover:bg-emerald-50 text-emerald-600 rounded-md shadow-sm transition-colors border border-gray-100" title="Asistió / Realizado">
+                 <CheckCircle2 className="w-4 h-4" />
+               </button>
+               <button onClick={() => openMissedModal(contrato.id, stateField, label)} className="p-1.5 bg-white hover:bg-rose-50 text-rose-600 rounded-md shadow-sm transition-colors border border-gray-100" title="No Asistió / Faltó">
+                 <XCircle className="w-4 h-4" />
+               </button>
+             </>
+           )}
+           <button onClick={() => openEditModal(contrato, dateField, label)} className="p-1.5 bg-white hover:bg-blue-50 text-blue-600 rounded-md shadow-sm transition-colors border border-gray-100" title="Reprogramar">
+             <Edit2 className="w-4 h-4" />
+           </button>
+         </div>
+       </div>
+     );
+  };
+
+  if (!isMounted) return null; // Evitar Hydration Mismatch en render inicial de fechas
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc] flex">
+      {/* MODAL DE EDICIÓN DE META GLOBAL */}
+      {isEditGlobalMetaOpen && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 border border-white/20">
+            <h3 className="text-xl font-black text-gray-900 mb-6 flex items-center gap-2">
+              <TrendingUp className="w-6 h-6 text-indigo-500" /> Editar Meta Global
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest mb-1.5">Meta (COP)</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <span className="text-gray-400 font-bold">$</span>
+                  </div>
+                  <input
+                    type="number"
+                    value={editGlobalMetaInput}
+                    onChange={(e) => setEditGlobalMetaInput(e.target.value)}
+                    className="w-full pl-8 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-gray-900 font-bold focus:ring-4 focus:ring-indigo-50 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 mt-8">
+                <button
+                  type="button"
+                  onClick={() => setIsEditGlobalMetaOpen(false)}
+                  className="flex-1 py-3 text-sm font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-2xl transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleUpdateGlobalMeta}
+                  className="flex-1 py-3 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-2xl shadow-[0_0_20px_rgba(79,70,229,0.3)] transition-all"
+                >
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Toaster position="top-center" richColors />
+
+      <Sidebar user={user} handleLogout={handleLogout} activePage="dashboard" pendingDeposits={pendingDeposits} />
+
+      {/* MAIN CONTENT AREA */}
+      <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
+        <div className="max-w-7xl mx-auto space-y-8">
+        
+        {String(user?.rol || '').toLowerCase() === 'admin' && <DepositAlert count={pendingDeposits}/>}
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-rose-100">
+          <div className="flex-1">
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight">Dashboard Logístico</h1>
+            <p className="text-rose-500 font-bold uppercase tracking-widest text-[10px] mt-1">Gestión Central de Inventario · Ambar Couture</p>
+          </div>
+          
+          {/* SEARCH BAR COMPACTA */}
+          <div className="relative group w-full sm:w-80">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <Search className="h-4 w-4 text-gray-400 group-hover:text-rose-500 transition-colors" />
+            </div>
+            <input
+              type="text"
+              placeholder="Buscar por nombre, cédula o contrato..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="block w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 transition-all hover:bg-white"
+            />
+          </div>
+
+          <div className="flex items-center gap-3">
+             <button 
+               onClick={fetchContratos}
+               className="p-2.5 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-all"
+               title="Refrescar Datos"
+             >
+               <RefreshCw className="w-5 h-5" />
+             </button>
+             <Link 
+               href="/contratos/nuevo"
+               className="flex items-center gap-2 px-5 py-2.5 bg-rose-500 text-white rounded-xl font-black text-sm shadow-lg shadow-rose-200 hover:bg-rose-600 transition-all active:scale-95"
+             >
+               <Plus className="w-5 h-5" /> NUEVO CONTRATO
+             </Link>
+          </div>
+        </div>
+
+        {/* --- CITAS ANALYTICS DASHBOARD --- */}
+
+
+        {/* SUMMARY STATS (Imagen 5 Restore) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-700">
+           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5 group hover:border-rose-200 transition-all">
+              <div className="p-4 bg-rose-50 rounded-2xl text-rose-500 group-hover:rotate-6 transition-transform">
+                 <ClipboardList className="w-6 h-6" />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Contratos {stats.activeBranch !== 'Todas' ? `(${stats.activeBranch})` : 'Globales'}</p>
+                 <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">{stats.totalContratos}</h3>
+              </div>
+           </div>
+
+           <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex items-center gap-5 group hover:border-indigo-200 transition-all">
+              <div className="p-4 bg-indigo-50 rounded-2xl text-indigo-500 group-hover:rotate-6 transition-transform">
+                 <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">Vestidos en Evento</p>
+                 <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">{stats.totalEnEvento}</h3>
+              </div>
+           </div>
+
+           <div className="bg-white p-6 rounded-3xl shadow-sm border-2 border-emerald-100 flex items-center gap-5 group hover:bg-emerald-50 transition-all bg-emerald-50/20">
+              <div className="p-4 bg-emerald-500 rounded-2xl text-white shadow-lg shadow-emerald-100 group-hover:scale-110 transition-transform">
+                 <DollarSign className="w-6 h-6" />
+              </div>
+              <div>
+                 <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-1">Pendiente por Recaudar</p>
+                 <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">{formatCurrency(stats.totalPendiente)}</h3>
+              </div>
+           </div>
+        </div>
+
+        {/* NEW: KPI QUICK VIEW (Imagen 5 Request) */}
+        {kpiVestidos.length > 0 && (
+           <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-6 animate-in slide-in-from-top-4 duration-500">
+             <div className="flex items-center justify-between mb-4 px-2">
+                <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-500" /> Vestidos con mayor rentabilidad
+                </h3>
+                <Link href="/admin/reports" className="text-[10px] font-black text-rose-500 hover:text-rose-600 uppercase tracking-tighter"> Ver Reporte Full → </Link>
+             </div>
+             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                {kpiVestidos.map((v, i) => (
+                  <div key={v.codigo} className="relative group">
+                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 group-hover:bg-rose-50 group-hover:border-rose-100 transition-all">
+                       <div className="flex items-center justify-between mb-1">
+                          <span className="text-[10px] font-black text-gray-900 truncate pr-2">{v.codigo}</span>
+                          <span className="text-[10px] bg-white px-2 py-0.5 rounded-lg border border-gray-100 text-gray-500 font-bold">#{i+1}</span>
+                       </div>
+                       
+                       {/* Official Name from sede_actual_id */}
+                       <span className="mb-2 px-2 py-0.5 bg-gray-200 text-gray-600 rounded-lg text-[8px] font-black uppercase tracking-tight inline-block">
+                          📍 {v.sede_nombre}
+                       </span>
+
+                       <p className="text-[9px] text-gray-400 font-bold truncate mb-2">{v.nombre || 'Vestido'}</p>
+                       <div className="flex items-center gap-1">
+                          <div className="h-1.5 flex-1 bg-gray-200 rounded-full overflow-hidden">
+                             <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (v.total_alquileres / kpiVestidos[0].total_alquileres) * 100)}%` }}></div>
+                          </div>
+                          <span className="text-[10px] font-black text-emerald-600">{v.total_alquileres} rentals</span>
+                       </div>
+                    </div>
+                  </div>
+                ))}
+             </div>
+           </div>
+         )}
+
+        {/* NEW: SALES THERMOMETER (Dashboard Recaudo) */}
+        <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-6 animate-in slide-in-from-top-4 duration-500 mt-6 relative">
+          
+          {filtroSede === 'Todas' && isAdmin && (
+            <div className="absolute top-6 right-6 z-10">
+              <button 
+                onClick={() => {
+                  setEditGlobalMetaInput(globalMetaVal.toString());
+                  setIsEditGlobalMetaOpen(true);
+                }}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                title="Editar Meta Global"
+              >
+                <MoreVertical className="w-5 h-5 text-gray-400" />
+              </button>
+            </div>
+          )}
+
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
+             <div>
+               <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
+                 <DollarSign className="w-4 h-4 text-rose-500" /> Rendimiento Comercial (Mes Actual)
+               </h3>
+               <p className="text-[10px] text-gray-500 font-bold mt-1">Contratos Creados este Mes: <span className="text-rose-500 font-black text-xs ml-1">{salesStats.count}</span></p>
+             </div>
+             
+             <div className="text-right pr-10">
+               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none mb-1">
+                 Recaudo Real {filtroSede === 'Todas' ? '(Global)' : `(${activeBranchName})`}
+               </p>
+               <h3 className="text-3xl font-black text-gray-900 leading-none tracking-tighter">
+                 {formatCurrency(salesStats.recaudado)}
+               </h3>
+               {filtroSede === 'Todas' && (
+                 <p className="text-xs text-gray-400 font-bold mt-1">
+                   Meta: {formatCurrency(salesStats.goal)}
+                 </p>
+               )}
+             </div>
+          </div>
+
+          {/* Barra de Progreso Dinámica (Solo Global) */}
+          {filtroSede === 'Todas' && (
+            <div className="mt-4">
+               {(() => {
+                 const pct = Math.min(100, Math.round((salesStats.recaudado / salesStats.goal) * 100));
+                 let colorClass = "bg-red-500";
+                 if (pct > 50 && pct <= 99) colorClass = "bg-yellow-500";
+                 if (pct >= 100) colorClass = "bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)]";
+
+                 return (
+                   <div className="relative">
+                     <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1">
+                       <span>Progreso de Meta</span>
+                       <span className={pct >= 100 ? 'text-green-500 font-black' : ''}>{pct}%</span>
+                     </div>
+                     <div className="h-4 bg-gray-100 rounded-full overflow-hidden relative">
+                       <div 
+                         className={`h-full rounded-full transition-all duration-1000 ${colorClass}`}
+                         style={{ width: `${pct}%` }}
+                       />
+                     </div>
+                   </div>
+                 );
+               })()}
+            </div>
+          )}
+        </div>
+
+        {/* ALERTAS DE CONTROL OPERATIVO */}
+        {(alerts.entregasOmitidasCount > 0 || alerts.borradoresVencidosCount > 0) && (
+          <div className="flex flex-wrap gap-4 p-4 bg-white rounded-2xl border border-rose-100 shadow-sm animate-in fade-in duration-500">
+            <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center mr-2 self-center">
+              ⚠️ Alertas de Control:
+            </span>
+            
+            {alerts.entregasOmitidasCount > 0 && (
+              <button
+                onClick={() => setFiltroAlerta(filtroAlerta === 'entregas_omitidas' ? 'ninguna' : 'entregas_omitidas')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 border uppercase tracking-tighter ${
+                  filtroAlerta === 'entregas_omitidas'
+                    ? 'bg-rose-600 border-rose-700 text-white shadow-md shadow-rose-200 animate-pulse'
+                    : 'bg-rose-50 border-rose-100 text-rose-600 hover:bg-rose-100'
+                }`}
+              >
+                ⚠️ {alerts.entregasOmitidasCount} Entregas pendientes por registrar (fechas vencidas)
+              </button>
+            )}
+
+            {alerts.borradoresVencidosCount > 0 && (
+              <button
+                onClick={() => setFiltroAlerta(filtroAlerta === 'borradores_sin_firmar' ? 'ninguna' : 'borradores_sin_firmar')}
+                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 border uppercase tracking-tighter ${
+                  filtroAlerta === 'borradores_sin_firmar'
+                    ? 'bg-amber-500 border-amber-600 text-white shadow-md shadow-amber-100 animate-pulse'
+                    : 'bg-amber-50 border-amber-100 text-amber-600 hover:bg-amber-100'
+                }`}
+              >
+                📝 {alerts.borradoresVencidosCount} Contratos en borrador pendientes por firmar
+              </button>
+            )}
+
+            {filtroAlerta !== 'ninguna' && (
+              <button
+                onClick={() => setFiltroAlerta('ninguna')}
+                className="ml-auto px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 bg-gray-50 border border-gray-200 rounded-xl transition-all"
+              >
+                Mostrar Todos
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Filtros de Calidad Logistica */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-6">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="flex flex-wrap gap-2 items-center">
+                <span className="text-gray-500 font-bold text-sm mr-2 w-full md:w-auto">Hito Logístico:</span>
+                {['Todos', 'Cita de Medidas', 'Prueba Final', 'Fecha de Entrega/Envío', 'Sesión Pre-XV'].map(fh => (
+                  <button
+                    key={fh}
+                    onClick={() => setFiltroHito(fh)}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                      filtroHito === fh 
+                        ? 'bg-rose-500 text-white shadow-md shadow-rose-200' 
+                        : 'bg-gray-100 text-gray-600 hover:bg-rose-50 hover:text-rose-600'
+                    }`}
+                  >
+                    {fh}
+                  </button>
+                ))}
+              </div>
+              
+              <div className="flex flex-wrap items-center gap-3">
+                {/* PREXV Toggle Filter */}
+                {(() => {
+                  const prexvCount = contratos.filter(c => hasPrexv(c)).length;
+                  const prexvIncompletos = contratos.filter(c => {
+                    const isPreXV = hasPrexv(c);
+                    if (!isPreXV) return false;
+                    const excluido = ['cancelado', 'rechazado', 'finalizado'].includes(c.estado?.toLowerCase());
+                    if (excluido) return false;
+                    return prexvPending(c).length > 0;
+                  }).length;
+                  return (
+                    <button
+                      onClick={() => setFiltroTipoEvento(filtroTipoEvento === 'PREXV' ? 'Todos' : 'PREXV')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-all border-2 ${
+                        filtroTipoEvento === 'PREXV'
+                          ? 'bg-violet-600 border-violet-700 text-white shadow-md shadow-violet-200'
+                          : 'bg-white border-gray-200 text-gray-500 hover:border-violet-300 hover:text-violet-600'
+                      }`}
+                    >
+                      <Camera className="w-4 h-4" />
+                      Solo PREXV / 15 Años
+                      <span className={`ml-1 px-1.5 py-0.5 rounded-full text-[10px] font-black ${
+                        filtroTipoEvento === 'PREXV' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {prexvCount}
+                      </span>
+                      {prexvIncompletos > 0 && (
+                        <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-400 text-white rounded-full text-[10px] font-black">
+                          <AlertTriangle className="w-2.5 h-2.5" />
+                          {prexvIncompletos} incompletos
+                        </span>
+                      )}
+                    </button>
+                  );
+                })()}
+
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500 font-bold text-sm">Sede:</span>
+                  <select 
+                    value={filtroSede} 
+                    onChange={(e) => setFiltroSede(e.target.value)}
+                    className="bg-gray-50 border border-gray-200 text-gray-800 rounded-xl px-4 py-2 font-bold focus:ring-2 focus:ring-rose-300 outline-none"
+                  >
+                    <option value="Todas">Todas las Sedes</option>
+                    {sedes.map((s: any) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                    {contratos.some(c => !c.sede_id || !sedes.some(s => s.id === c.sede_id)) && (
+                      <option value="unassigned">Pereira</option>
+                    )}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2 items-center pt-4 border-t border-gray-100">
+              <span className="text-gray-500 font-bold text-sm mr-2 w-full md:w-auto">Rango de Tiempo:</span>
+              {['Cualquier Fecha', 'Hoy', 'Esta Semana', 'Este Mes', 'Personalizado'].map(fr => (
+                 <button
+                   key={fr}
+                   onClick={() => setFiltroRango(fr)}
+                   className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${
+                     filtroRango === fr 
+                       ? 'bg-indigo-50 border-indigo-200 text-indigo-700 shadow-sm' 
+                       : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                   }`}
+                 >
+                   {fr}
+                 </button>
+              ))}
+
+              {filtroRango === 'Personalizado' && (
+                <div className="flex items-center gap-2 ml-2 animate-in fade-in zoom-in duration-200">
+                  <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)} className="text-sm bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 font-medium focus:ring-2 focus:ring-indigo-300" />
+                  <span className="text-gray-400 font-bold">-</span>
+                  <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)} className="text-sm bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 font-medium focus:ring-2 focus:ring-indigo-300" />
+                </div>
+              )}
+            </div>
+        </div>
+
+        {/* Tabla Principal */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">Gestión de Operaciones</h2>
+              <div className="flex bg-gray-200/50 p-1 rounded-2xl border border-gray-100 shadow-inner">
+                {[
+                  { id: 'por_entregar', label: 'Por Entregar', icon: '📦' },
+                  { id: 'en_evento', label: 'En Evento', icon: '👗' },
+                  { id: 'lavanderia', label: 'Logística / Lavandería', icon: '🧼' },
+                  { id: 'historial', label: 'Historial', icon: '📁' },
+                  { id: 'anulados', label: 'Anulados', icon: '🚫' },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTabLogistica(tab.id as any)}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black transition-all ${
+                      activeTabLogistica === tab.id
+                        ? `bg-white text-rose-600 shadow-md transform scale-105`
+                        : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
+                    }`}
+                  >
+                    <span>{tab.icon}</span>
+                    <span className="hidden md:inline uppercase tracking-tighter">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          
+          <div className="overflow-x-visible pb-32">
+            {outsideDresses.filter(v=>Number(v.dias_fuera)>=9).length>0&&<section className="mx-4 mb-5 rounded-2xl border border-red-200 bg-red-50 p-5"><h2 className="font-black text-red-800">Gestión de Operaciones · vestidos fuera de tienda</h2><div className="mt-3 grid gap-3">{outsideDresses.filter(v=>Number(v.dias_fuera)>=9).map(v=><article key={v.id} className="rounded-xl bg-white p-4 text-sm shadow-sm"><strong className="text-red-700">⚠️ Vestido fuera de tienda por {v.dias_fuera} días</strong><p>Vestido: {v.vestido_codigo} · Cliente: {v.cliente_nombre} · Contrato: {v.numero_contrato}</p><p>Factura: {v.numero_factura||'Sin factura'} · Sede: {v.sede} · Salida: {new Date(v.salida_at).toLocaleString('es-CO')}</p><p className="font-bold">Estado: ALERTA · Requiere seguimiento</p></article>)}</div></section>}
+            
+            {/* VISTA MOBILE (Cards) */}
+            <div className="xl:hidden p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {loading && contratos.length === 0 ? (
+                 <div className="col-span-1 md:col-span-2 text-center text-gray-400 py-12">
+                   <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-rose-300" />
+                   Cargando contratos...
+                 </div>
+              ) : contratosFiltrados.length === 0 ? (
+                 <div className="col-span-1 md:col-span-2 text-center text-gray-500 py-12 bg-gray-50 rounded-2xl border border-gray-100">
+                   No hay contratos que coincidan con los filtros actuales.
+                 </div>
+              ) : contratosFiltrados.map((c) => {
+                  const isPreXVIncompleto = (() => {
+                    const isPreXV = hasPrexv(c);
+                    if (!isPreXV) return false;
+                    const excluido = ['cancelado', 'rechazado', 'finalizado'].includes(c.estado?.toLowerCase());
+                    if (excluido) return false;
+                    return prexvPending(c).length > 0;
+                  })();
+                  return (
+                 <div key={c.id} className={`bg-white rounded-2xl shadow-sm border p-5 flex flex-col gap-4 relative hover:shadow-md transition-shadow ${
+                    calculateLateDays(c) > 0 && activeTabLogistica === 'en_evento' ? 'border-rose-500 border-2 animate-pulse-slow shadow-rose-100 ring-4 ring-rose-50/50' : 
+                    isPreXVIncompleto ? 'border-amber-300 border-2 bg-amber-50/30' : 'border-gray-200'
+                  }`}>
+                    <div className="absolute top-4 right-4 z-10"><ActionMenu c={c} /></div>
+                    
+                    <div>
+                      <div className="flex justify-between items-start">
+                        <div className="flex flex-col gap-1">
+                           <span className="text-xs bg-rose-100 text-rose-700 font-black px-2 py-1 rounded-md w-fit">
+                             {c.numero_contrato}
+                           </span>
+                           {calculateLateDays(c) > 0 && activeTabLogistica === 'en_evento' && (
+                             <span className="text-[10px] bg-rose-600 text-white font-black px-2 py-0.5 rounded-full animate-bounce w-fit shadow-lg">
+                               ⚠️ MORA: {calculateLateDays(c)} DÍAS
+                             </span>
+                           )}
+                        </div>
+                      </div>
+                      <h3 className="font-bold text-gray-900 mt-2 text-lg">
+                        {c.cliente_nombre}
+                      </h3>
+                      <p className="text-xs text-gray-500 flex items-center gap-1 mt-1"><FileText className="w-3 h-3"/> {c.cliente_documento}</p>
+                    </div>
+
+                    <div className="flex flex-wrap justify-between items-center gap-2 border-y border-gray-50 py-3">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2.5 py-1 inline-flex text-xs font-bold rounded-lg ${
+                          ['finalizado', 'cancelado', 'rechazado'].includes(c.estado?.toLowerCase()) ? 'bg-emerald-500 text-white shadow-sm' :
+                          c.estado === 'mantenimiento' ? 'bg-amber-500 text-white shadow-sm shadow-amber-200' :
+                          ((c.entregas && c.entregas.length > 0) || c.estado === 'entregado') ? 'bg-indigo-600 text-white shadow-sm' :
+                          c.estado === 'firmado' ? 'bg-emerald-100 text-emerald-800' : 
+                          c.estado === 'borrador' ? 'bg-amber-100 text-amber-800' : 
+                          'bg-gray-100 text-gray-800'}`}>
+                          {['finalizado', 'cancelado', 'rechazado'].includes(c.estado?.toLowerCase()) ? '✅ FINALIZADO' :
+                           c.estado === 'mantenimiento' ? '🛠️ EN MANTENIMIENTO' :
+                           ((c.entregas && c.entregas.length > 0) || c.estado === 'entregado') ? '👗 EN EVENTO' : 
+                           c.estado.toUpperCase()}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50/50 rounded-xl p-3 border border-gray-100/50 space-y-1">
+                      {renderLogisticsDate(c, 'Cita Medidas', c.fecha_cita_medidas, 'estado_medidas', c.estado_medidas, 'fecha_cita_medidas')}
+                      {renderLogisticsDate(c, 'Prueba Final', c.fecha_prueba_final, 'estado_prueba_final', c.estado_prueba_final, 'fecha_prueba_final')}
+                      {renderLogisticsDate(c, 'P. de Entrega', c.fecha_entrega_envio, 'estado_entrega_envio', c.estado_entrega_envio, 'fecha_entrega_envio')}
+                      
+                      {c.fecha_pre_xv && (
+                        <div 
+                          onClick={() => openPreXvModal(c)}
+                          className={`flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-all group/prexv ${isPreXVIncompleto ? 'bg-amber-100 hover:bg-amber-200 border border-amber-200' : 'bg-emerald-50 hover:bg-emerald-100 border border-emerald-100'}`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <div className={`p-1.5 rounded-md shadow-sm ${isPreXVIncompleto ? 'bg-amber-200 text-amber-700' : 'bg-white text-emerald-600'}`}>
+                              <Camera className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="flex flex-col">
+                              <span className={`text-[10px] font-black uppercase tracking-widest leading-none mb-0.5 ${isPreXVIncompleto ? 'text-amber-800' : 'text-emerald-700'}`}>Sesión Pre-XV</span>
+                              <span className={`text-xs font-bold leading-tight ${isPreXVIncompleto ? 'text-amber-900' : 'text-emerald-600'}`}>
+                                {prexvSummary(c)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex justify-between items-end mt-2 pt-2 border-t border-gray-100">
+                      <div>
+                        <span className="block text-[10px] uppercase font-bold text-gray-400">Saldo</span>
+                        {Number(c.saldo) > 0 ? (
+                           <span className="font-bold text-rose-600 text-base">{formatCurrency(Number(c.saldo))}</span>
+                        ) : (
+                           <span className="font-bold text-emerald-500 text-base flex items-center gap-1"><CheckCircle2 className="w-4 h-4"/> Pagado</span>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
+                        <span className="text-xs font-bold text-gray-500 line-clamp-1 max-w-[100px]" title="Vestidos Atados">
+                          Vestidos: {loading ? '(Cargando...)' : (c.vestidos_count || c.prendas?.length || 0)}
+                        </span>
+                        {activeTabLogistica === 'lavanderia' && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleManualRelease(c);
+                            }}
+                            className="px-3 py-1.5 bg-indigo-500 text-white text-[10px] font-black rounded-lg transition-all shadow-md shadow-indigo-100 flex items-center gap-1.5 uppercase active:scale-95"
+                          >
+                            <RefreshCw className="w-3 h-3" /> Ingreso Tienda
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                 </div>
+              ); })}
+            </div>
+
+            {/* VISTA DESKTOP (Table) */}
+            <div className="hidden xl:block overflow-x-auto overflow-y-visible">
+              <table className="w-full text-left border-collapse min-w-[1200px]">
+              <thead>
+                <tr className="bg-gray-50/80 border-b border-gray-100 text-gray-500 text-xs uppercase tracking-wider">
+                  <th className="px-6 py-4 font-semibold">Número</th>
+                  <th className="px-6 py-4 font-semibold">Cliente</th>
+                  <th className="px-6 py-4 font-semibold">Logística</th>
+                  <th className="px-6 py-4 font-semibold">Vestido(s)</th>
+                  <th className="px-6 py-4 font-semibold">Sede</th>
+                  <th className="px-6 py-4 font-semibold">Estado</th>
+                  <th className="px-6 py-4 font-semibold">Saldo</th>
+                  <th className="px-6 py-4 font-black uppercase text-rose-800 text-center sticky right-0 bg-gray-50/95 z-10 shadow-l-md">Gestión</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {loading && contratos.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-gray-400">
+                      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2 text-rose-300" />
+                      Cargando contratos...
+                    </td>
+                  </tr>
+                ) : contratosFiltrados.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-6 py-12 text-center text-gray-500">
+                      No hay contratos que coincidan con los filtros actuales.
+                    </td>
+                  </tr>
+                ) : (
+                  contratosFiltrados.map((c) => {
+                    const isPreXVIncompleto = (() => {
+                      const isPreXV = hasPrexv(c);
+                      if (!isPreXV) return false;
+                      const excluido = ['cancelado', 'rechazado', 'finalizado'].includes(c.estado?.toLowerCase());
+                      if (excluido) return false;
+                      return prexvPending(c).length > 0;
+                    })();
+                    return (
+                    <tr key={c.id} className={`transition-colors group border-b border-gray-100 ${isPreXVIncompleto ? 'bg-amber-50/60 hover:bg-amber-100/60' : 'hover:bg-rose-50/40'}`}>
+                      <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-800">{c.numero_contrato}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium text-gray-900">{c.cliente_nombre}</div>
+                        <div className="text-xs text-gray-500">{c.cliente_documento}</div>
+                      </td>
+                      <td className="px-4 py-2 min-w-[200px]">
+                        {renderLogisticsDate(c, 'Cita Medidas', c.fecha_cita_medidas, 'estado_medidas', c.estado_medidas, 'fecha_cita_medidas')}
+                        {renderLogisticsDate(c, 'Prueba Final', c.fecha_prueba_final, 'estado_prueba_final', c.estado_prueba_final, 'fecha_prueba_final')}
+                        {renderLogisticsDate(c, 'P. de Entrega', c.fecha_entrega_envio, 'estado_entrega_envio', c.estado_entrega_envio, 'fecha_entrega_envio')}
+                        
+                        {c.fecha_pre_xv && (
+                          <div 
+                            onClick={() => openPreXvModal(c)}
+                            className={`mt-1 flex items-center justify-between p-2 border rounded-lg cursor-pointer transition-all ${isPreXVIncompleto ? 'bg-amber-100 border-amber-200' : 'bg-emerald-50 border-emerald-100'}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <Camera className={`w-3.5 h-3.5 ${isPreXVIncompleto ? 'text-amber-700' : 'text-emerald-600'}`} />
+                              <div className="flex flex-col">
+                                <span className={`text-[9px] font-black uppercase tracking-widest ${isPreXVIncompleto ? 'text-amber-800' : 'text-emerald-700'} leading-none`}>Sesión Pre-XV</span>
+                                <span className={`text-[11px] font-bold ${isPreXVIncompleto ? 'text-amber-900' : 'text-emerald-600'} leading-tight`}>
+                                  {prexvSummary(c)}
+                                </span>
+                              </div>
+                            </div>
+                            {isPreXVIncompleto && <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-700">
+                        {c.vestidos_count || c.prendas?.length || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{c.sede}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-lg border ${
                           ['finalizado', 'cancelado', 'rechazado'].includes(c.estado?.toLowerCase()) ? 'bg-emerald-500 text-white shadow-md border-transparent' :
@@ -3745,4 +4871,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
