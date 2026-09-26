@@ -2429,7 +2429,7 @@ export default function DashboardPage() {
   }, [contratos, activeTabLogistica, searchTerm, filtroSede, filtroHito, filtroRango, fechaDesde, fechaHasta, filtroAlerta, filtroTipoEvento]);
 
   // -- KPI STATS CALCULATION (Imagen 5 Request Restore) --
-  const activeBranchName = filtroSede === 'Todas' ? 'Todas' : (filtroSede === 'unassigned' ? 'Pereira' : (sedes.find(s => s.id === filtroSede)?.nombre || 'Todas'));
+  const activeBranchName = filtroSede === 'Todas' ? 'Todas' : (filtroSede === 'unassigned' ? 'Sin sede válida' : (sedes.find(s => s.id === filtroSede)?.nombre || 'Todas'));
 
   const stats = React.useMemo(() => {
     return {
@@ -2926,7 +2926,7 @@ export default function DashboardPage() {
                     <option value="Todas">Todas las Sedes</option>
                     {sedes.map((s: any) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                     {contratos.some(c => !c.sede_id || !sedes.some(s => s.id === c.sede_id)) && (
-                      <option value="unassigned">Pereira</option>
+                      <option value="unassigned">Sin sede válida</option>
                     )}
                   </select>
                 </div>
