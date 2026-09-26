@@ -5,6 +5,8 @@ import { canAccessPath, DEPOSITS_PATH } from '@/lib/role-access';
 
 export async function middleware(req: NextRequest) {
   const path = req.nextUrl.pathname;
+  // Login must render even when Supabase Auth is slow or an old cookie exists.
+  if (path === '/login') return NextResponse.next();
   const bearer = req.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
   const token = bearer || req.cookies.get('sb-access-token')?.value;
   const protectedPath = /^\/(dashboard|contratos|admin|perfil)(\/|$)/.test(path);
