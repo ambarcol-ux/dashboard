@@ -5,7 +5,7 @@ import Link from 'next/link';
 import DepositAlert from '@/components/DepositAlert';
 import { isAccounting } from '@/lib/role-access';
 import {
-  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins
+  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins, KeyRound
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -73,7 +73,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       items: [
         { id: 'users', label: 'GESTIÓN DE EQUIPO', icon: Users, href: '/admin/users', color: 'indigo' },
         { id: 'horarios', label: 'CONTROL DE ASISTENCIA', icon: Clock, href: '/dashboard/horarios', color: 'rose' },
-        { id: 'config', label: 'CONFIGURACIÓN BASE', icon: Settings, href: '/admin/config', color: 'gray' },
+        { id: 'config', label: 'CONFIGURACIÓN BASE', icon: Settings, href: '/admin/config', color: 'gray' },\n        { id: 'siigo', label: 'FACTURACIÓN POR SEDE', icon: KeyRound, href: '/admin/config/siigo', color: 'emerald' },
       ]
     },
     {
