@@ -57,8 +57,6 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
-import { jsPDF } from 'jspdf';
-import html2canvas from 'html2canvas';
 import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
 import Sidebar from '@/components/Sidebar';
 
@@ -186,7 +184,7 @@ export default function DashboardPage() {
   const fetchKPIs = async () => {
     try {
       // 1. Ranking Query para Vestidos por su sede_actual_id
-      const { data: rankingData, error: rankingErr } = await supabase
+      const rankingQuery = supabase
         .from('contrato_items_vestidos')
         .select(`
           vestido_id,
@@ -196,10 +194,12 @@ export default function DashboardPage() {
             sede_actual_id
           )
         `);
+      // 2. Fetch Sedes in parallel with the independent ranking query.
+      const [{ data: rankingData, error: rankingErr }, { data: sedesData, error: sedesErr }] = await Promise.all([
+        rankingQuery,
+        supabase.from('sedes').select('id, nombre')
+      ]);
       if (rankingErr) throw rankingErr;
-
-      // 2. Fetch Sedes
-      const { data: sedesData, error: sedesErr } = await supabase.from('sedes').select('id, nombre');
       if (sedesErr) throw sedesErr;
 
       const sedesMap = new Map((sedesData || []).map((s: any) => [s.id, s.nombre]));
@@ -329,6 +329,10 @@ export default function DashboardPage() {
         const element = document.getElementById('hidden-pdf-template');
         if (!element) throw new Error('Contenedor no encontrado');
 
+        const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+          import('html2canvas'),
+          import('jspdf')
+        ]);
         let canvas;
         try {
           canvas = await html2canvas(element, { 
@@ -437,15 +441,13 @@ export default function DashboardPage() {
   const fetchContratos = async () => {
     setLoading(true);
 
-    const { data: plantillasData } = await supabase
-      .from('plantillas_contratos')
-      .select('*')
-      .order('numero_orden', { ascending: true });
-    if (plantillasData) setPlantillas(plantillasData);
-    
-    let allData: any[] = [];
     try {
-      const { data: { user: authUser }, error: authErr } = await supabase.auth.getUser();
+      const [plantillasResult, authResult] = await Promise.all([
+      supabase.from('plantillas_contratos').select('*').order('numero_orden', { ascending: true }),
+      supabase.auth.getUser()
+    ]);
+      if (plantillasResult.data) setPlantillas(plantillasResult.data);
+      const { data: { user: authUser }, error: authErr } = authResult;
       if (authErr || !authUser) throw new Error("No autenticado");
       setUser(authUser);
 
@@ -511,7 +513,10 @@ export default function DashboardPage() {
         query = query.eq('sede_id', profile.sede_id);
       }
 
-      const { data: finalData, error: errC } = await query;
+      const [{ data: finalData, error: errC }, { data: outside }] = await Promise.all([
+        query,
+        supabase.rpc('vestidos_fuera_activos')
+      ]);
       if (errC) {
         console.error("Error en consulta maestra:", errC.message);
         throw errC;
@@ -531,7 +536,6 @@ export default function DashboardPage() {
       // as a side-effect of the dashboard load.
 
       setContratos(mappedData);
-      const { data: outside } = await supabase.rpc('vestidos_fuera_activos');
       setOutsideDresses(outside || []);
       setLoading(false);
       return mappedData;
