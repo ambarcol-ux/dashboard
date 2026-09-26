@@ -4,7 +4,7 @@ import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { saveCalendarContract } from '@/lib/save-calendar-contract';
 import { hasPrexv, includedPrexv, prexvPending, prexvSummary, prexvFields, type PrexvData } from '@/lib/prexv';
 import { dateInput } from '@/lib/calendar-edit';
-import DepositAlert from '@/components/DepositAlert';
+import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -118,6 +118,7 @@ export default function DashboardPage() {
   const [selectedAsesoraId, setSelectedAsesoraId] = useState<string>('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const pendingDeposits = useDepositCount(user ? undefined : null, user?.id);
   const isDashboardAdmin = canEditSavedRecords(user);
   // -- Modals Invoice/Factura QC --
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
@@ -2641,13 +2642,13 @@ export default function DashboardPage() {
 
       <Toaster position="top-center" richColors />
 
-      <Sidebar user={user} handleLogout={handleLogout} activePage="dashboard" />
+      <Sidebar user={user} handleLogout={handleLogout} activePage="dashboard" pendingDeposits={pendingDeposits} />
 
       {/* MAIN CONTENT AREA */}
       <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-8">
         
-        {String(user?.rol || '').toLowerCase() === 'admin' && <DepositAlert/>}
+        {String(user?.rol || '').toLowerCase() === 'admin' && <DepositAlert count={pendingDeposits}/>}
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-rose-100">
           <div className="flex-1">
@@ -4870,3 +4871,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

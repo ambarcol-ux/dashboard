@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import DepositAlert from '@/components/DepositAlert';
+import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
 import { isAccounting } from '@/lib/role-access';
 import {
   FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins, KeyRound
@@ -10,11 +10,13 @@ import {
 
 interface SidebarProps {
   user: any;
+  pendingDeposits?: number | null;
   handleLogout: () => void;
   activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'depositos';
 }
 
-export default function Sidebar({ user, handleLogout, activePage }: SidebarProps) {
+export default function Sidebar({ user, handleLogout, activePage, pendingDeposits }: SidebarProps) {
+  const depositCount = useDepositCount(pendingDeposits, user?.id);
   const [isOpen, setIsOpen] = useState(false);
   const normalizedRole = String(user?.rol || '').toLowerCase();
   const accountingOnly = isAccounting(normalizedRole);
@@ -86,7 +88,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
     }
   ];
 
-  const SidebarContent = ({ isMobile = false }) => (
+  const renderSidebarContent = (isMobile = false) => (
     <>
       <div className="p-6 border-b border-gray-50 flex items-center justify-between lg:justify-start gap-3">
         <div className="flex items-center gap-3">
@@ -110,7 +112,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       </div>
 
       <nav className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar pb-10">
-        <DepositAlert/>
+        <DepositAlert count={depositCount}/>
         {sidebarBlocks.map((block, blockIndex) => {
           if (block.adminOnly && !isAdmin) return null;
           if (accountingOnly && !block.items.some(item => item.id === 'depositos')) return null;
@@ -226,12 +228,13 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       )}
 
       <div className={`lg:hidden fixed top-0 left-0 h-screen w-72 bg-white z-[110] shadow-2xl transition-transform duration-300 ease-out flex flex-col ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <SidebarContent isMobile />
+        {renderSidebarContent(true)}
       </div>
 
       <aside className="w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col sticky top-0 h-screen">
-        <SidebarContent />
+        {renderSidebarContent()}
       </aside>
     </>
   );
 }
+
