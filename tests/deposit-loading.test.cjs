@@ -1,0 +1,38 @@
+const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm'),ts=require('typescript'),React=require('react');
+const compile=require('./compile.cjs');
+const transpile=file=>ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+const flush=async()=>{for(let i=0;i<25;i++)await Promise.resolve();};
+(async()=>{
+ const {collectPages}=compile('lib/collect-pages.ts');
+ const offsets=[];const rows=await collectPages(async(from,to)=>{offsets.push([from,to]);return{data:from===0?Array.from({length:500},(_,id)=>id):[500],error:null}});
+ assert.equal(rows.length,501);assert.deepEqual(offsets,[[0,499],[500,999]]);
+ await assert.rejects(()=>collectPages(async()=>({data:null,error:new Error('unavailable')})),/unavailable/);
+ const state=[],effects=[],calls=[],pending=[];let cursor=0,profileReads=0,active=true,sessionId='user-1';
+ const profile={id:'user-1',rol:'contabilidad',nombre:'María',email:'test@example.invalid',sede_id:null,activo:true};
+ const request={id:'r1',contrato_id:'c1',estado:'pendiente',monto:200};
+ const hooks={...React,useState(value){const i=cursor++;if(!(i in state))state[i]=value;return[state[i],v=>{state[i]=typeof v==='function'?v(state[i]):v;}]},useRef(value){const i=cursor++;return state[i]??(state[i]={current:value})},useCallback:fn=>fn,useMemo:fn=>fn(),useEffect:fn=>effects.push(fn)};
+ const query=table=>({select(){return this},eq(){return this},in(){return this},order(){return this},single:async()=>{profileReads++;return{data:{...profile,id:sessionId,activo:active},error:null}},range(){calls.push(table);return new Promise(resolve=>pending.push(()=>resolve({data:table==='solicitudes_depositos'?[request]:[],error:null})))}});
+ const mod={exports:{}};
+ vm.runInNewContext(transpile('app/dashboard/devoluciones-depositos/DepositsClient.tsx'),{exports:mod.exports,Date,URLSearchParams,window:{location:{search:''}},console,require(n){
+  if(n==='react')return hooks;if(n==='react/jsx-runtime')return require(n);
+  if(n==='next/navigation')return{useRouter:()=>({replace(){}})};
+  if(n==='@/lib/supabase')return{supabase:{auth:{getSession:async()=>({data:{session:{user:{id:sessionId}}}}),getUser(){throw Error('Redundant Auth call')}},from:query,rpc:query}};
+  if(n==='@/lib/collect-pages')return{collectPages};
+  if(n.startsWith('@/lib/'))return compile(n.slice(2)+'.ts');
+  if(n==='lucide-react')return new Proxy({},{get:()=>()=>null});return{default:()=>null};
+ }});
+ const render=()=>{cursor=0;return mod.exports.default({initialProfile:profile})};
+ const flatten=e=>!e||typeof e!=='object'?[]:[e,...React.Children.toArray(e.props?.children).flatMap(flatten)];
+ render();effects[0]();await flush();
+ assert.equal(profileReads,0,'Initial verified profile must not be fetched again');
+ assert.equal(calls.length,3,'All three reads must start before any resolves');
+ pending.splice(0).forEach(resolve=>resolve());await flush();
+ let tree=render();const sidebar=flatten(tree).find(e=>e.props?.activePage==='depositos');
+ assert.equal(sidebar.props.pendingDeposits,1,'Sidebar reuses loaded requests');
+ const reload=flatten(tree).find(e=>typeof e.props?.onChange==='function').props.onChange;
+ const refresh=reload();await flush();assert.equal(profileReads,1,'Subsequent refresh rechecks active profile via RLS');
+ pending.splice(0).forEach(resolve=>resolve());await refresh;
+ active=false;const before=calls.length;await reload();assert.equal(calls.length,before,'Inactive profile must not load data');
+ tree=render();assert(flatten(tree).some(e=>e.props?.role==='alert'));
+ console.log('PASS: pagination, parallel reads, initial profile reuse, refresh validation, inactive access and shared count');
+})().catch(e=>{console.error(e);process.exitCode=1});

@@ -1,6 +1,6 @@
 const fs=require('fs'),vm=require('vm'),ts=require('typescript'),assert=require('assert/strict'),React=require('react');
 const compile=require('./compile.cjs');
-const source=fs.readFileSync('app/dashboard/devoluciones-depositos/page.tsx','utf8').replace('function MovementForm(', 'export function MovementForm(');
+const source=fs.readFileSync('app/dashboard/devoluciones-depositos/DepositsClient.tsx','utf8').replace('function MovementForm(', 'export function MovementForm(');
 async function check(type){
  let cursor=0,success=0;const states=[],calls=[];
  const hooks={...React,useState(initial){const i=cursor++;if(!(i in states))states[i]=typeof initial==='function'?initial():initial;return[states[i],v=>{states[i]=v}]},useRef(initial){const i=cursor++;return states[i]??(states[i]={current:initial})},useEffect(){}};
@@ -16,3 +16,4 @@ async function check(type){
  else{assert.equal(success,0);assert.equal(calls.length,0,'Blank additional income must not be recorded')}
 }
 (async()=>{await check('soporte');await check('ingreso');console.log('PASS: uploading receipt without amount submits support with zero; new income still requires a positive amount.');})().catch(e=>{console.error(e);process.exitCode=1});
+
