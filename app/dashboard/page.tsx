@@ -2232,26 +2232,31 @@ export default function DashboardPage() {
 
   // Motor de Filtros Locales (QC Logística & 4 Tabs)
   const tabCounts = React.useMemo(() => {
+    const branchContracts = filtroSede === 'Todas' ? contratos : contratos.filter(c =>
+      filtroSede === 'unassigned'
+        ? !c.sede_id || !sedes.some(s => s.id === c.sede_id)
+        : c.sede_id === filtroSede
+    );
     return {
-      por_entregar: contratos.filter(c => {
+      por_entregar: branchContracts.filter(c => {
         const est = c.estado?.toLowerCase();
         const hasDelivery = c.entregas && c.entregas.length > 0;
         return !['entregado', 'mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(est) && !hasDelivery;
       }).length,
-      en_evento: contratos.filter(c => {
+      en_evento: branchContracts.filter(c => {
         const est = (c.estado || '').toLowerCase();
         const hasDelivery = c.entregas && c.entregas.length > 0;
         const isExcluded = ['mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(est);
         return (est === 'entregado' || hasDelivery) && !isExcluded;
       }).length,
-      lavanderia: contratos.filter(c => c.estado?.toLowerCase() === 'mantenimiento').length,
-      historial: contratos.filter(c => {
+      lavanderia: branchContracts.filter(c => c.estado?.toLowerCase() === 'mantenimiento').length,
+      historial: branchContracts.filter(c => {
         const est = c.estado?.toLowerCase();
         const totalPendiente = (Number(c.saldo) || 0) + (Number(c.total_multas) || 0);
         return ['finalizado', 'cancelado', 'rechazado'].includes(est) && totalPendiente === 0;
       }).length,
     };
-  }, [contratos]);
+  }, [contratos, filtroSede, sedes]);
 
   const alerts = React.useMemo(() => {
     const todayStr = new Date().toISOString().split('T')[0];
