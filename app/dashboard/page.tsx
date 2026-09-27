@@ -1,5 +1,5 @@
 'use client';
-import {loadDashboardContracts} from '@/lib/load-dashboard-contracts';
+import {loadDashboardContracts, loadContractSignature} from '@/lib/load-dashboard-contracts';
 import PreXvFields from '@/components/PreXvFields';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { saveCalendarContract } from '@/lib/save-calendar-contract';
@@ -280,6 +280,9 @@ export default function DashboardPage() {
     const numeroFactura = await validateStoredInvoice(contrato.id);
     if (!numeroFactura) return;
     setPdfGeneratingId(contrato.id);
+    let signature;
+    try { signature = await loadContractSignature(supabase, contrato.id); }
+    catch { toast.error('No se pudo cargar la firma. Reintenta generar el PDF.'); setPdfGeneratingId(null); return; }
     const mappedData: ContractData = {
       numero_contrato: contrato.numero_contrato,
       numero_factura: numeroFactura,
@@ -298,7 +301,7 @@ export default function DashboardPage() {
       anticipo: Number(contrato.anticipo) || 0,
       saldo: (Number(contrato.valor_total) || 0) + (Number(contrato.total_arreglos) || 0) - (Number(contrato.anticipo) || 0),
       created_at: contrato.created_at,
-      firma_base64: contrato.firma_base64,
+      firma_base64: signature,
       tipo_evento: contrato.tipo_evento,
       fecha_pre_xv: contrato.fecha_pre_xv,
       prexv_componentes: contrato.prexv_componentes,
