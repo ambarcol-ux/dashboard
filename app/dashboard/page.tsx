@@ -2,6 +2,7 @@
 import {loadContractSignature} from '@/lib/load-dashboard-contracts';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 import {CONTRACT_PAGE_SIZE, type DashboardSummary} from '@/lib/dashboard-summary';
+import FinalizeContractDialog from '@/components/FinalizeContractDialog';
 import PreXvFields from '@/components/PreXvFields';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { saveCalendarContract } from '@/lib/save-calendar-contract';
@@ -1127,7 +1128,12 @@ export default function DashboardPage() {
     }
   };
 
+  const [finalizeContract, setFinalizeContract] = useState<any>(null);
   const handleManualRelease = async (contrato: any) => {
+    if ((Number(contrato.saldo)||0)+(Number(contrato.total_multas)||0)<=0) {
+      setFinalizeContract(contrato);
+      return;
+    }
     if (!await validateStoredInvoice(contrato.id)) return;
     const pass = window.confirm(`⚠️ ADVERTENCIA ADMINISTRATIVA: ¿Confirmas la liberación MANUAL y ANTICIPADA del contrato #${contrato.numero_contrato}? Esto pondrá los vestidos como DISPONIBLES de inmediato e ignorará los días de lavandería restantes.`);
     if (!pass) return;
@@ -1158,13 +1164,7 @@ export default function DashboardPage() {
       let finalMsg = 'Vestido liberado y disponible correctamente ✅';
       
       if (totalPendiente <= 0) {
-        // Solo si el total (incluyendo multas) es <= 0 lo mandamos a Historial
-        const { error } = await supabase
-          .from('contratos')
-          .update({ estado: 'finalizado' })
-          .eq('id', contrato.id);
-        if (error) throw error;
-        finalMsg = 'Vestido liberado y contrato FINALIZADO (saldo $0) ✅';
+        throw new Error('Vuelve a abrir la confirmación de cierre para revisar el depósito.');
       } else {
         // Bloqueo de Finalización Administrative
         await supabase
@@ -2371,6 +2371,7 @@ export default function DashboardPage() {
       )}
 
       <Toaster position="top-center" richColors />
+      {finalizeContract && <FinalizeContractDialog contract={finalizeContract} onClose={()=>setFinalizeContract(null)} onSaved={()=>{setFinalizeContract(null);setDrawerOpen(false);setOpenDropdownId(null);toast.success('Contrato finalizado. Depósito revisado correctamente.');void fetchContratos();}}/>}
 
       <Sidebar user={user} handleLogout={handleLogout} activePage="dashboard" pendingDeposits={pendingDeposits} />
 
