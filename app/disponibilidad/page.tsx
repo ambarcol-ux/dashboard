@@ -1,4 +1,5 @@
 'use client';
+import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -24,6 +25,7 @@ import { isWithinInterval, startOfDay, endOfDay, format, subDays, parseISO } fro
 import { generateBlockedRanges, isCurrentlyOccupied, ContractBlock } from '@/lib/availability';
 
 export default function AvailabilityPage() {
+  const readAccess = useVerifiedAccess();
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [dress, setDress] = useState<any>(null);
@@ -44,17 +46,12 @@ export default function AvailabilityPage() {
 
   useEffect(() => {
     const getProfile = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {user, profile} = await readAccess();
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('id, email, rol, nombre')
-          .eq('id', user.id)
-          .single();
         setUserProfile(profile);
       }
     };
-    getProfile();
+    void getProfile().catch(() => {window.location.href='/login';});
   }, []);
 
   const handleSearch = async (e?: React.FormEvent, manualDressId?: string) => {
@@ -640,3 +637,4 @@ export default function AvailabilityPage() {
     </div>
   );
 }
+

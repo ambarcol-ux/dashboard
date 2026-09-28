@@ -11,7 +11,8 @@ export async function loadContractSignature(client: SupabaseClient, id: string) 
   return data.firma_base64;
 }
 
-export async function loadDashboardContracts(client: SupabaseClient, filters: {sedeId?: string; or?: string} = {}) {
+export async function loadDashboardContracts(client: SupabaseClient, filters: {sedeId?: string; or?: string; ids?: string[]} = {}): Promise<Row[]> {
+  if (filters.ids && filters.ids.length === 0) return [];
   // A single queue bounds all requests, including relation pagination.
   let active = 0;
   const waiting: Array<() => void> = [];
@@ -39,11 +40,14 @@ export async function loadDashboardContracts(client: SupabaseClient, filters: {s
   const buildContracts = () => {
     let query = client.from('contratos').select(DASHBOARD_CONTRACT_COLUMNS).order('created_at', {ascending: false}).order('id');
     if (filters.sedeId) query = query.eq('sede_id', filters.sedeId);
+    if (filters.ids) query = query.in('id', filters.ids);
     if (filters.or) query = query.or(filters.or);
     return query;
   };
   const contracts: Row[] = [];
-  for (let offset = 0; ; offset += 300) {
+  if (filters.ids) {
+    contracts.push(...await pages(buildContracts));
+  } else for (let offset = 0; ; offset += 300) {
     const batches = await Promise.all([0,100,200].map(delta =>
       request(() => buildContracts().range(offset + delta, offset + delta + 99))));
     for (const batch of batches) {

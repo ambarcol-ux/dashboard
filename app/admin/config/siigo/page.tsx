@@ -1,4 +1,5 @@
 'use client';
+import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 import {useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 import Sidebar from '@/components/Sidebar';
@@ -6,13 +7,14 @@ import {KeyRound,Loader2,ShieldCheck} from 'lucide-react';
 import {toast,Toaster} from 'sonner';
 
 export default function SiigoConfigPage(){
+  const readAccess = useVerifiedAccess();
  const [user,setUser]=useState<any>(null),[sedes,setSedes]=useState<any[]>([]),[configs,setConfigs]=useState<any[]>([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState<string|null>(null);
  const [forms,setForms]=useState<Record<string,any>>({});
  const load=async()=>{
   setLoading(true);
-  const {data:{user:u}}=await supabase.auth.getUser();
-  if(!u){location.href='/login';return;}
-  const {data:p}=await supabase.from('profiles').select('id,email,nombre,rol').eq('id',u.id).single();
+  const access = await readAccess().catch(() => null);
+  if(!access){location.href='/login';return;}
+  const {user:u,profile:p}=access;
   setUser({...u,...p});
   if(String(p?.rol||'').toLowerCase()!=='admin'){location.href='/dashboard';return;}
   const [{data:s},{data:c,error}]=await Promise.all([supabase.from('sedes').select('id,nombre,activo').eq('activo',true).order('nombre'),supabase.rpc('listar_configuracion_siigo')]);

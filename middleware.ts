@@ -10,14 +10,14 @@ export async function middleware(req: NextRequest) {
   // Never trust a profile supplied by the browser. Only this request's verified
   // Auth + RLS result may be forwarded to the server component.
   requestHeaders.delete(DEPOSIT_PROFILE_HEADER);
+  requestHeaders.delete('x-ambar-profile-verified-at');
   const next = () => NextResponse.next({ request: { headers: requestHeaders } });
-  const depositPage = path === DEPOSITS_PATH || path === `${DEPOSITS_PATH}/`;
   // Login must render even when Supabase Auth is slow or an old cookie exists.
   if (path === '/login') return next();
   const bearer = req.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
   const token = bearer || req.cookies.get('sb-access-token')?.value;
-  const protectedPath = /^\/(dashboard|contratos|admin|perfil)(\/|$)/.test(path);
-  const deny = () => path === '/login' ? next() : req.method === 'GET' || req.method === 'HEAD'
+  const protectedPath = /^\/(dashboard|contratos|admin|perfil|disponibilidad)(\/|$)/.test(path) || path === '/api/dashboard/contracts';
+  const deny = () => path === '/api/dashboard/contracts' ? NextResponse.json({error: 'Inicia sesión para continuar.'}, {status: 401}) : path === '/login' ? next() : req.method === 'GET' || req.method === 'HEAD'
     ? NextResponse.redirect(new URL('/login', req.url))
     : NextResponse.json({ error: 'Inicia sesión para continuar.' }, { status: 401 });
   if (!token) return protectedPath ? deny() : next();
@@ -44,7 +44,7 @@ export async function middleware(req: NextRequest) {
     // Auth and the RLS-protected profile lookup are independent network calls.
     const [authResult, profileResult] = await Promise.all([
       client.auth.getUser(token),
-      client.from('profiles').select(depositPage ? 'id,nombre,email,rol,sede_id,activo' : 'id,rol,activo').eq('id', subject).single<DepositProfile>(),
+      client.from('profiles').select('id,nombre,email,rol,sede_id,activo').eq('id', subject).single<DepositProfile>(),
     ]);
     const user = authResult.data.user;
     const profile = profileResult.data;
@@ -58,7 +58,8 @@ export async function middleware(req: NextRequest) {
       ? NextResponse.redirect(new URL(DEPOSITS_PATH, req.url))
       : NextResponse.json({ error: 'Contabilidad solo tiene acceso a depósitos y devoluciones.' }, { status: 403 });
     }
-    if (depositPage) requestHeaders.set(DEPOSIT_PROFILE_HEADER, encodeURIComponent(JSON.stringify(profile)));
+    requestHeaders.set(DEPOSIT_PROFILE_HEADER, encodeURIComponent(JSON.stringify({...profile, authEmail: user.email ?? null})));
+    requestHeaders.set('x-ambar-profile-verified-at', String(Date.now()));
     return next();
   } catch (error) {
     console.error('La validación de acceso tardó demasiado:', error);

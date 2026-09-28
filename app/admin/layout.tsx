@@ -1,65 +1,14 @@
-'use client';
-
-import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { Loader2, ShieldAlert } from 'lucide-react';
+import React from 'react';
+import {headers} from 'next/headers';
+import {redirect} from 'next/navigation';
+import {DEPOSIT_PROFILE_HEADER,parseDepositProfile} from '@/lib/deposit-profile';
+import {ShieldAlert} from 'lucide-react';
 import Link from 'next/link';
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const [loading, setLoading] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
-
-  useEffect(() => {
-    checkAdmin();
-  }, []);
-
-  const checkAdmin = async () => {
-    try {
-      setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        window.location.href = '/login';
-        return;
-      }
-
-      // Bypas para el administrador principal
-      if (user.email === 'dubian.h88@gmail.com') {
-        setIsAdmin(true);
-        setLoading(false);
-        return;
-      }
-
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('rol')
-        .eq('id', user.id)
-        .single();
-
-      if (error || profile?.rol?.toLowerCase() !== 'admin') {
-        setIsAdmin(false);
-      } else {
-        setIsAdmin(true);
-      }
-    } catch (err) {
-      console.error('Error verificando rol administrativo:', err);
-      setIsAdmin(false);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-rose-500 mx-auto mb-4" />
-          <p className="text-gray-500 font-bold uppercase tracking-widest text-xs">Validando Credenciales...</p>
-        </div>
-      </div>
-    );
-  }
-
+export default async function AdminLayout({children}: {children: React.ReactNode}) {
+  const profile = parseDepositProfile((await headers()).get(DEPOSIT_PROFILE_HEADER));
+  if (!profile || profile.activo === false) redirect('/login');
+  const isAdmin = profile.authEmail === 'dubian.h88@gmail.com' || profile.rol.toLowerCase() === 'admin';
   if (!isAdmin) {
     return (
       <div className="min-h-screen bg-rose-50 flex items-center justify-center p-6">
@@ -84,3 +33,4 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return <>{children}</>;
 }
+
