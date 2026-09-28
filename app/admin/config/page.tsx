@@ -1,4 +1,5 @@
 'use client';
+import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -20,6 +21,7 @@ import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 
 export default function AdminConfigPage() {
+  const readAccess = useVerifiedAccess();
   const [activeTab, setActiveTab] = useState<'sedes' | 'asesoras'>('sedes');
   const [loading, setLoading] = useState(true);
   const [sedes, setSedes] = useState<any[]>([]);
@@ -40,16 +42,11 @@ export default function AdminConfigPage() {
   const checkAdmin = async () => {
     setLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {user, profile} = await readAccess();
       if (!user) {
         window.location.href = '/login';
         return;
       }
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('rol, nombre')
-        .eq('id', user.id)
-        .single();
       
       let role = profile?.rol || null;
       
@@ -357,3 +354,4 @@ export default function AdminConfigPage() {
     </div>
   );
 }
+

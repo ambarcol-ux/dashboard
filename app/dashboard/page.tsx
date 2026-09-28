@@ -1,5 +1,7 @@
 'use client';
-import {loadDashboardContracts, loadContractSignature} from '@/lib/load-dashboard-contracts';
+import {loadContractSignature} from '@/lib/load-dashboard-contracts';
+import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
+import {CONTRACT_PAGE_SIZE, type DashboardSummary} from '@/lib/dashboard-summary';
 import PreXvFields from '@/components/PreXvFields';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { saveCalendarContract } from '@/lib/save-calendar-contract';
@@ -70,6 +72,12 @@ export default function DashboardPage() {
   const [showAssignForm, setShowAssignForm] = useState(false);
   const [selectedDressToAssign, setSelectedDressToAssign] = useState('');
   const [contratos, setContratos] = useState<any[]>([]);
+  const readAccess = useVerifiedAccess();
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [contractPage, setContractPage] = useState(1);
+  const requestNumber = React.useRef(0);
+  const contractRequest = React.useRef<AbortController | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [contractsError, setContractsError] = useState('');
   const [pdfGeneratingId, setPdfGeneratingId] = useState<string | null>(null);
@@ -181,7 +189,7 @@ export default function DashboardPage() {
   const [pagosMesActual, setPagosMesActual] = useState<any[]>([]);
 
   const getPendingInvoicesCount = () => {
-    return contratos.filter(c => !c.numero_factura && isOverdue(c.created_at)).length;
+    return summary?.pendingInvoices ?? 0;
   };
 
   const fetchKPIs = async () => {
@@ -251,19 +259,16 @@ export default function DashboardPage() {
   }, [editForm.sede_id, asesoras]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && contratos.length > 0 && !drawerOpen) {
-      const urlParams = new URLSearchParams(window.location.search);
-      const contratoId = urlParams.get('contratoId');
-      if (contratoId) {
-        window.history.replaceState({}, document.title, window.location.pathname);
-        const found = contratos.find(c => c.id === contratoId || c.numero_contrato === contratoId);
-        if (found) {
-          setSelectedContract(found);
-          setDrawerOpen(true);
-        }
-      }
-    }
-  }, [contratos, drawerOpen]);
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('contratoId');
+    if (!id) return;
+    const controller = new AbortController();
+    void fetch(`/api/dashboard/contracts?${new URLSearchParams({contractId:id})}`, {cache:'no-store',signal:controller.signal})
+      .then(response => {if(!response.ok)throw new Error('No se pudo consultar el contrato.');return response.json();})
+      .then(({contracts}) => {if(contracts[0]){window.history.replaceState({},document.title,window.location.pathname);openDrawer({...contracts[0],prendas:contracts[0].items||[]});}})
+      .catch(error => {if(!controller.signal.aborted)toast.error(error.message);});
+    return () => controller.abort();
+  }, []);
 
   const validateStoredInvoice = async (id: string): Promise<string | null> => {
     try {
@@ -444,97 +449,50 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchContratos = async () => {
-    setLoading(true);
-    setContractsError('');
-
+  const fetchContratos = async (page = contractPage, refreshSupport = true) => {
+    if (refreshSupport) void fetchContractSupport();
+    const request = ++requestNumber.current;
+    contractRequest.current?.abort();
+    const controller = new AbortController();
+    contractRequest.current = controller;
+    setLoading(true); setContractsError('');
     try {
-      const [plantillasResult, authResult] = await Promise.all([
-      supabase.from('plantillas_contratos').select('*').order('numero_orden', { ascending: true }),
-      supabase.auth.getUser()
-    ]);
-      if (plantillasResult.data) setPlantillas(plantillasResult.data);
-      const { data: { user: authUser }, error: authErr } = authResult;
-      if (authErr || !authUser) throw new Error("No autenticado");
-      setUser(authUser);
-
-      const { data: pData, error: pError } = await supabase
-        .from('profiles')
-        .select('id, email, rol, nombre, sede_id')
-        .eq('id', authUser.id)
-        .maybeSingle();
-
-      if (pError) console.error("Error al cargar perfil:", pError.message);
-      
-      // Valores por defecto si el perfil no existe
-      let profile = pData || { rol: 'asesora', sede_id: null, nombre: 'Colaborador' };
-      
-      setUser({ ...authUser, rol: profile.rol, nombre: profile.nombre });
-
-
-      const filters: {sedeId?: string; or?: string} = {};
-
-      // -- NEW: State Filtering & Global Search (Dashboard 4 Tabs Requeriment) --
-      if (searchTerm) {
-        // 1. Check if the search term matches any dress code in the database
-        const { data: matchedItems } = await supabase
-          .from('contrato_items_vestidos')
-          .select('contrato_id, vestidos!inner(codigo)')
-          .ilike('vestidos.codigo', `%${searchTerm}%`);
-        
-        let relatedIds: string[] = [];
-        if (matchedItems && matchedItems.length > 0) {
-          relatedIds = Array.from(new Set(matchedItems.map(m => m.contrato_id)));
-        }
-
-        // Búsqueda Global: Construimos el operador .or dinámicamente
-        let orQuery = `cliente_nombre.ilike.%${searchTerm}%,cliente_documento.ilike.%${searchTerm}%,numero_contrato.ilike.%${searchTerm}%`;
-        
-        if (relatedIds.length > 0) {
-           orQuery += `,id.in.(${relatedIds.join(',')})`;
-        }
-
-        filters.or = orQuery;
-      } else {
-        // En el nuevo dashboard de 4 pestañas, fetchContratos trae todo "lo relevante".
-        // Eliminamos filtros restrictivos para que la pestaña de HISTORIAL se llene correctamente.
-        // Si la tabla crece mucho en el futuro, podríamos añadir .limit(1000).
-      }
-
-      if (profile && profile.rol !== 'admin' && profile.sede_id) {
-        filters.sedeId = profile.sede_id;
-      }
-
-      const [finalData, { data: outside }] = await Promise.all([
-        loadDashboardContracts(supabase, filters),
-        supabase.rpc('vestidos_fuera_activos')
-      ]);
-
-      // DEBUG: removed — data payload confirmed clean by Supabase REST audit.
-
-      const mappedData = (finalData || []).map(c => ({
-        ...c,
-        prendas: (c as any).items || []
-      }));
-
-      // NOTE: Auto-cleanup of expired borradores has been REMOVED.
-      // It was silently mutating estado = 'cancelado' on non-zero-balance drafts
-      // BEFORE the alert counter ran, which caused the alert to under-count.
-      // Draft expiry management must be done explicitly by an admin action, not
-      // as a side-effect of the dashboard load.
-
-      setContratos(mappedData);
-      setOutsideDresses(outside || []);
-      setLoading(false);
-      return mappedData;
-    } catch (err) {
-      console.error(err);
+      const now = new Date();
+      const today = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+      const params = new URLSearchParams({
+        searchTerm, filtroSede, filtroHito, filtroRango, fechaDesde, fechaHasta,
+        filtroAlerta, filtroTipoEvento, activeTabLogistica, today,
+        monthStart: String(new Date(now.getFullYear(),now.getMonth(),1).getTime()),
+        monthEnd: String(new Date(now.getFullYear(),now.getMonth()+1,1).getTime()),
+        page: String(page), dayStart:String(new Date().setHours(0,0,0,0)),
+      });
+      const response = await fetch(`/api/dashboard/contracts?${params}`, {cache:'no-store', signal:controller.signal});
+      if (!response.ok) throw new Error('No se pudieron consultar los contratos.');
+      const payload = await response.json();
+      if (request !== requestNumber.current) return [];
+      const rows = payload.contracts.map((c:any) => ({...c, prendas:c.items || []}));
+      setContratos(rows); setSummary(payload.summary); setContractPage(payload.page);
+      setUser((previous:any) => ({...previous, ...payload.profile}));
+      return rows;
+    } catch (error) {
+      if (controller.signal.aborted || request !== requestNumber.current) return [];
+      console.error(error);
+      setContratos([]); setSummary(null);
       setContractsError('No se pudieron cargar los contratos. Pulsa Refrescar Datos para reintentar.');
       toast.error('Error al cargar la lista de contratos.');
       return [];
     } finally {
-      setLoading(false);
+      if (request === requestNumber.current) setLoading(false);
     }
+  };
+
+  const fetchContractSupport = async () => {
+    const [templates, outside] = await Promise.all([
+      supabase.from('plantillas_contratos').select('*').order('numero_orden', {ascending:true}),
+      supabase.rpc('vestidos_fuera_activos'),
+    ]);
+    if (templates.data) setPlantillas(templates.data);
+    if (outside.data) setOutsideDresses(outside.data);
   };
 
 
@@ -631,7 +589,7 @@ export default function DashboardPage() {
   };
 
   const rejectContract = async (id: string) => {
-    const contrato = contratos.find(c => c.id === id);
+    const contrato = contratos.find(c => c.id === id) || (selectedContract?.id === id ? selectedContract : null);
     if (!confirm('¿Estás seguro de que deseas rechazar esta solicitud de excepción? El contrato se marcará como cancelado y los vestidos se liberarán.')) return;
     try {
       setLoading(true);
@@ -1543,7 +1501,7 @@ export default function DashboardPage() {
     if (!dressId) return;
 
     // 0. Seguridad: Verificar si el contrato está firmado y si el usuario es Admin
-    const targetContract = contratos.find(c => c.id === contractId);
+    const targetContract = contratos.find(c => c.id === contractId) || (selectedContract?.id === contractId ? selectedContract : null);
     const isAdmin = isDashboardAdmin;
 
     if (targetContract?.estado?.toLowerCase() === 'firmado' && !isAdmin) {
@@ -2171,12 +2129,22 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    fetchContratos();
+    void readAccess().then(({user,profile}) => setUser({...user,...profile})).catch(() => router.replace('/login'));
+    void fetchContractSupport();
     fetchAsesoras();
     fetchSedes();
     fetchKPIs();
     fetchDashboardMetas();
   }, []);
+
+  useEffect(() => {
+    // Cancel the previous list immediately; typing is debounced before another read.
+    contractRequest.current?.abort();
+    ++requestNumber.current;
+    setLoading(true); setContratos([]); setSummary(null); setContractPage(1);
+    const timer = setTimeout(() => {void fetchContratos(1, false);}, searchTerm ? 350 : 0);
+    return () => {clearTimeout(timer); contractRequest.current?.abort(); ++requestNumber.current;};
+  }, [searchTerm,filtroSede,filtroHito,filtroRango,fechaDesde,fechaHasta,filtroAlerta,filtroTipoEvento,activeTabLogistica]);
 
   const handleUpdateGlobalMeta = async () => {
     if (!globalMetaId) return;
@@ -2233,256 +2201,26 @@ export default function DashboardPage() {
   // -- Admin Security Helper --
   const isAdmin = isDashboardAdmin;
 
-  // Motor de Filtros Locales (QC Logística & 4 Tabs)
-  const tabCounts = React.useMemo(() => {
-    const branchContracts = filtroSede === 'Todas' ? contratos : contratos.filter(c =>
-      filtroSede === 'unassigned'
-        ? !c.sede_id || !sedes.some(s => s.id === c.sede_id)
-        : c.sede_id === filtroSede
-    );
-    return {
-      por_entregar: branchContracts.filter(c => {
-        const est = c.estado?.toLowerCase();
-        const hasDelivery = c.entregas && c.entregas.length > 0;
-        return !['entregado', 'mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(est) && !hasDelivery;
-      }).length,
-      en_evento: branchContracts.filter(c => {
-        const est = (c.estado || '').toLowerCase();
-        const hasDelivery = c.entregas && c.entregas.length > 0;
-        const isExcluded = ['mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(est);
-        return (est === 'entregado' || hasDelivery) && !isExcluded;
-      }).length,
-      lavanderia: branchContracts.filter(c => c.estado?.toLowerCase() === 'mantenimiento').length,
-      historial: branchContracts.filter(c => {
-        const est = c.estado?.toLowerCase();
-        const totalPendiente = (Number(c.saldo) || 0) + (Number(c.total_multas) || 0);
-        return ['finalizado', 'cancelado', 'rechazado'].includes(est) && totalPendiente === 0;
-      }).length,
-    };
-  }, [contratos, filtroSede, sedes]);
-
-  const alerts = React.useMemo(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
-
-    // Entregas Vencidas — STRICTLY 'Por Entregar' only.
-    // A contract in 'Evento', 'Entregado', or with any delivery record already
-    // had its dress physically dispatched — it must NOT appear as overdue.
-    const ESTADOS_EXCLUIDOS_ENTREGA = [
-      'finalizado', 'cancelado', 'rechazado',
-      'mantenimiento', 'entregado', 'evento',
-      'liquidado', 'historial'
-    ];
-    const entregasOmitidasCount = contratos.filter(c => {
-      if (!c.fecha_entrega_envio) return false;
-      const estadoContrato = c.estado?.toLowerCase() || '';
-      if (ESTADOS_EXCLUIDOS_ENTREGA.includes(estadoContrato)) return false;
-      // Exclude if the dress has already been physically delivered (en evento)
-      const hasDelivery = c.entregas && c.entregas.length > 0;
-      if (hasDelivery) return false;
-      // Logistics state must be strictly 'Por Entregar' — 'Pendiente' alone is not overdue
-      if ((c.estado_entrega_envio || '') !== 'Por Entregar') return false;
-      return c.fecha_entrega_envio < todayStr;
-    }).length;
-
-    // FIX 2: Borradores — ALL drafts older than 48 h, no balance restriction whatsoever.
-    const borradoresVencidosCount = contratos.filter(c => {
-      const estadoLower = c.estado?.toLowerCase();
-      return (estadoLower === 'borrador' || estadoLower === 'draft') && new Date(c.created_at) < fortyEightHoursAgo;
-    }).length;
-
-    return {
-      entregasOmitidasCount,
-      borradoresVencidosCount
-    };
-  }, [contratos]);
-
-  const contratosFiltrados = React.useMemo(() => {
-    let result = [...contratos];
-
-    // 1. Prioridad: Búsqueda Global (Si hay término, ignora la pestaña activa y busca en todo)
-    // El backend (Supabase) ya hizo el filtro exhaustivo (por texto y por IDs vinculados).
-    // Devolvemos el resultado tal cual para asegurar que lo que trajo la BD se muestre siempre.
-    if (searchTerm) {
-      console.log('🔍 [Buscador Global] Contratos Encontrados por BD:', result.map(r => r.id));
-      return result;
-    }
-
-    // 0. PREXV Filter: Only show 15-year (PreXV) contracts if toggled
-    if (filtroTipoEvento === 'PREXV') {
-      result = result.filter(c => hasPrexv(c));
-    }
-
-    // Apply administrative alert filters and return immediately — must mirror badge logic exactly.
-    if (filtroAlerta === 'entregas_omitidas') {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const ESTADOS_EXCLUIDOS_ENTREGA = [
-        'finalizado', 'cancelado', 'rechazado',
-        'mantenimiento', 'entregado', 'evento',
-        'liquidado', 'historial'
-      ];
-      return result.filter(c => {
-        if (!c.fecha_entrega_envio) return false;
-        const estadoContrato = c.estado?.toLowerCase() || '';
-        if (ESTADOS_EXCLUIDOS_ENTREGA.includes(estadoContrato)) return false;
-        const hasDelivery = c.entregas && c.entregas.length > 0;
-        if (hasDelivery) return false;
-        if ((c.estado_entrega_envio || '') !== 'Por Entregar') return false;
-        return c.fecha_entrega_envio < todayStr;
-      });
-    } else if (filtroAlerta === 'borradores_sin_firmar') {
-      const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
-      return result.filter(c => {
-        const estadoLower = c.estado?.toLowerCase();
-        return (estadoLower === 'borrador' || estadoLower === 'draft') && new Date(c.created_at) < fortyEightHoursAgo;
-      });
-    }
-
-    // 2. Filtrado por Pestaña Logística
-    if (filtroAlerta === 'ninguna') {
-      result = result.filter(c => {
-        const estado = c.estado?.toLowerCase();
-        switch (activeTabLogistica) {
-          case 'por_entregar': {
-            const hasDelivery = c.entregas && c.entregas.length > 0;
-            return !['entregado', 'mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(estado) && !hasDelivery;
-          }
-          case 'en_evento': {
-            const hasDelivery = c.entregas && c.entregas.length > 0;
-            const isExcluded = ['mantenimiento', 'finalizado', 'cancelado', 'rechazado'].includes(estado);
-            return (estado === 'entregado' || hasDelivery) && !isExcluded;
-          }
-          case 'lavanderia':
-            return estado === 'mantenimiento';
-          case 'historial': {
-            const totalPendiente = (Number(c.saldo) || 0) + (Number(c.total_multas) || 0);
-            return ['finalizado', 'cancelado', 'rechazado'].includes(estado) && totalPendiente === 0;
-          }
-          case 'anulados':
-            return estado === 'anulado';
-          default:
-            return true;
-        }
-      });
-    }
-
-    // 3. Filtros Complementarios (Sede, Hito, Fecha)
-    if (filtroSede !== 'Todas') {
-      if (filtroSede === 'unassigned') {
-        result = result.filter(c => !c.sede_id || !sedes.some(s => s.id === c.sede_id));
-      } else {
-        result = result.filter(c => c.sede_id === filtroSede);
-      }
-    }
-
-    const startOfToday = new Date().setHours(0,0,0,0);
-    const endOfWeek = new Date(startOfToday + 7 * 24 * 60 * 60 * 1000).setHours(0,0,0,0);
-    const endOfMonth = new Date(startOfToday + 30 * 24 * 60 * 60 * 1000).setHours(0,0,0,0);
-
-    const toTimestamp = (ds: string | null) => {
-      if (!ds) return null;
-      try {
-        const d = new Date(ds);
-        if (isNaN(d.getTime())) return null;
-        const offset = d.getTimezoneOffset() * 60000;
-        return new Date(d.getTime() + offset).setHours(0,0,0,0);
-      } catch { return null; }
-    };
-
-    const isDateInRange = (t: number | null) => {
-      if (!t) return false;
-      if (filtroRango === 'Hoy') return t === startOfToday;
-      if (filtroRango === 'Esta Semana') return t >= startOfToday && t <= endOfWeek;
-      if (filtroRango === 'Este Mes') return t >= startOfToday && t <= endOfMonth;
-      if (filtroRango === 'Personalizado') {
-         const dDesde = toTimestamp(fechaDesde);
-         const dHasta = toTimestamp(fechaHasta);
-         if (dDesde && t < dDesde) return false;
-         if (dHasta && t > dHasta) return false;
-         return true;
-      }
-      return true;
-    };
-
-    if (filtroHito !== 'Todos') {
-      let dateKey = '';
-      if (filtroHito === 'Cita de Medidas') dateKey = 'fecha_cita_medidas';
-      else if (filtroHito === 'Prueba Final') dateKey = 'fecha_prueba_final';
-      else if (filtroHito === 'Fecha de Entrega/Envío') dateKey = 'fecha_entrega_envio';
-      else if (filtroHito === 'Sesión Pre-XV') dateKey = 'fecha_pre_xv';
-
-      if (dateKey) {
-        result = result.filter(c => {
-           const val = c[dateKey];
-           if (!val) return false;
-           if (filtroRango !== 'Cualquier Fecha' && !isDateInRange(toTimestamp(val))) return false;
-           return true;
-        });
-      }
-    } else if (filtroRango !== 'Cualquier Fecha') {
-       result = result.filter(c => 
-          isDateInRange(toTimestamp(c.fecha_cita_medidas)) || 
-          isDateInRange(toTimestamp(c.fecha_prueba_final)) || 
-          isDateInRange(toTimestamp(c.fecha_entrega_envio)) || 
-          isDateInRange(toTimestamp(c.fecha_pre_xv))
-       );
-    }
-
-    // 4. PREXV tipo evento filter after complementary filters
-    if (filtroTipoEvento === 'PREXV') {
-      result = result.filter(c => hasPrexv(c));
-    }
-
-    return result;
-  }, [contratos, activeTabLogistica, searchTerm, filtroSede, filtroHito, filtroRango, fechaDesde, fechaHasta, filtroAlerta, filtroTipoEvento]);
+  const tabCounts = summary?.tabCounts ?? {por_entregar:0,en_evento:0,lavanderia:0,historial:0};
+  const alerts = summary?.alerts ?? {entregasOmitidasCount:0,borradoresVencidosCount:0};
+  const contratosFiltrados = contratos;
 
   // -- KPI STATS CALCULATION (Imagen 5 Request Restore) --
   const activeBranchName = filtroSede === 'Todas' ? 'Todas' : (filtroSede === 'unassigned' ? 'Sin sede válida' : (sedes.find(s => s.id === filtroSede)?.nombre || 'Todas'));
 
   const stats = React.useMemo(() => {
     return {
-      totalPendiente: contratosFiltrados.reduce((acc, c) => acc + (Number(c.saldo) || 0) + (Number(c.total_multas) || 0), 0),
-      totalContratos: contratosFiltrados.length,
+      totalPendiente: summary?.totalPendiente ?? 0,
+      totalContratos: summary?.total ?? 0,
       totalEnEvento: tabCounts.en_evento,
       activeBranch: activeBranchName
     };
-  }, [contratosFiltrados, tabCounts, activeBranchName]);
+  }, [summary, tabCounts, activeBranchName]);
 
   const salesStats = React.useMemo(() => {
     try {
-      const now = new Date();
-      const currentMonth = now.getMonth();
-      const currentYear = now.getFullYear();
+      const count = summary?.monthCount ?? 0;
 
-      if (!Array.isArray(contratos)) return { recaudado: 0, count: 0, goal: 120000000 };
-
-      const monthContracts = contratos.filter(c => {
-         if (!c) return false;
-         
-         if (c.created_at) {
-           const createdDate = new Date(c.created_at);
-           if (isNaN(createdDate.getTime())) return false;
-           
-           if (createdDate.getMonth() !== currentMonth || createdDate.getFullYear() !== currentYear) {
-             return false;
-           }
-         } else {
-           return false; // Skip if no creation date
-         }
-
-         if (filtroSede && filtroSede !== 'Todas') {
-           if (filtroSede === 'unassigned') {
-             if (c.sede_id && sedes.some(s => s.id === c.sede_id)) return false;
-           } else {
-             if (String(c.sede_id) !== String(filtroSede)) return false;
-           }
-         }
-
-         return true;
-      });
-
-      const count = monthContracts.length;
-      
       // Calcular recaudo real mensual basado en pagos filtrados por sede
       const pagosFiltrados = pagosMesActual.filter(p => {
         if (filtroSede && filtroSede !== 'Todas') {
@@ -2508,9 +2246,8 @@ export default function DashboardPage() {
       console.error("Error in salesStats useMemo:", err);
       return { recaudado: 0, count: 0, goal: globalMetaVal };
     }
-  }, [contratos, filtroSede, globalMetaVal, pagosMesActual]);
+  }, [summary, filtroSede, globalMetaVal, pagosMesActual, sedes]);
 
-  const uniqueSedes = Array.from(new Set(contratos.map(c => c.sede_id).filter(Boolean)));
 
   const renderLogisticsDate = (contrato: any, label: string, dateString: string | null, stateField: string, stateValue: string, dateField: string) => {
      if (!dateString) return null;
@@ -2666,7 +2403,7 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-3">
              <button 
-               onClick={fetchContratos}
+               onClick={() => void fetchContratos()}
                className="p-2.5 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-all"
                title="Refrescar Datos"
              >
@@ -2890,14 +2627,8 @@ export default function DashboardPage() {
               <div className="flex flex-wrap items-center gap-3">
                 {/* PREXV Toggle Filter */}
                 {(() => {
-                  const prexvCount = contratos.filter(c => hasPrexv(c)).length;
-                  const prexvIncompletos = contratos.filter(c => {
-                    const isPreXV = hasPrexv(c);
-                    if (!isPreXV) return false;
-                    const excluido = ['cancelado', 'rechazado', 'finalizado'].includes(c.estado?.toLowerCase());
-                    if (excluido) return false;
-                    return prexvPending(c).length > 0;
-                  }).length;
+                  const prexvCount = summary?.prexvCount ?? 0;
+                  const prexvIncompletos = summary?.prexvIncomplete ?? 0;
                   return (
                     <button
                       onClick={() => setFiltroTipoEvento(filtroTipoEvento === 'PREXV' ? 'Todos' : 'PREXV')}
@@ -2933,7 +2664,7 @@ export default function DashboardPage() {
                   >
                     <option value="Todas">Todas las Sedes</option>
                     {sedes.map((s: any) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                    {contratos.some(c => !c.sede_id || !sedes.some(s => s.id === c.sede_id)) && (
+                    {summary?.hasUnassigned && (
                       <option value="unassigned">Sin sede válida</option>
                     )}
                   </select>
@@ -2998,6 +2729,15 @@ export default function DashboardPage() {
           <div className="overflow-x-visible pb-32">
             {outsideDresses.filter(v=>Number(v.dias_fuera)>=9).length>0&&<section className="mx-4 mb-5 rounded-2xl border border-red-200 bg-red-50 p-5"><h2 className="font-black text-red-800">Gestión de Operaciones · vestidos fuera de tienda</h2><div className="mt-3 grid gap-3">{outsideDresses.filter(v=>Number(v.dias_fuera)>=9).map(v=><article key={v.id} className="rounded-xl bg-white p-4 text-sm shadow-sm"><strong className="text-red-700">⚠️ Vestido fuera de tienda por {v.dias_fuera} días</strong><p>Vestido: {v.vestido_codigo} · Cliente: {v.cliente_nombre} · Contrato: {v.numero_contrato}</p><p>Factura: {v.numero_factura||'Sin factura'} · Sede: {v.sede} · Salida: {new Date(v.salida_at).toLocaleString('es-CO')}</p><p className="font-bold">Estado: ALERTA · Requiere seguimiento</p></article>)}</div></section>}
             
+            <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-gray-100" aria-label="Paginación de contratos">
+              <span className="text-sm text-gray-500" aria-live="polite">
+                {loading ? 'Cargando contratos…' : `${summary?.total ?? 0} contratos · Página ${contractPage} de ${Math.max(1,Math.ceil((summary?.total ?? 0)/CONTRACT_PAGE_SIZE))}`}
+              </span>
+              <div className="flex gap-2">
+                <button type="button" disabled={loading || contractPage<=1} onClick={()=>void fetchContratos(contractPage-1, false)} className="px-4 py-2 rounded-lg border font-bold disabled:opacity-40">Anterior</button>
+                <button type="button" disabled={loading || contractPage*CONTRACT_PAGE_SIZE >= (summary?.total ?? 0)} onClick={()=>void fetchContratos(contractPage+1, false)} className="px-4 py-2 rounded-lg border font-bold disabled:opacity-40">Siguiente</button>
+              </div>
+            </div>
             {/* VISTA MOBILE (Cards) */}
             <div className="xl:hidden p-4 grid grid-cols-1 md:grid-cols-2 gap-6">
               {loading && contratos.length === 0 ? (

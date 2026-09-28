@@ -1,4 +1,5 @@
 'use client';
+import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -15,6 +16,7 @@ type Profile={id:string;nombre:string;email:string;rol:string;sede_id:string|nul
 type View='month'|'week'|'agenda';
 const dateLabel=(value:string)=>new Date(value+'T12:00:00').toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric'});
 export default function ContractCalendar(){
+  const readAccess = useVerifiedAccess();
   const router=useRouter();
   const [profile,setProfile]=useState<Profile|null>(null);
   const [contracts,setContracts]=useState<CalendarContract[]>([]);
@@ -33,10 +35,7 @@ export default function ContractCalendar(){
   const load=useCallback(async()=>{
     setLoading(true);setError('');
     try{
-      const {data:{user},error:authError}=await supabase.auth.getUser();
-      if(authError||!user){router.replace('/login');return;}
-      const {data:p,error:profileError}=await supabase.from('profiles').select('id,nombre,email,rol,sede_id').eq('id',user.id).single();
-      if(profileError||!p)throw new Error('No pudimos verificar tu perfil. Vuelve a iniciar sesión.');
+      const {profile: p} = await readAccess();
       p.rol=String(p.rol).toLowerCase();
       if(p.rol!=='admin'&&!p.sede_id)throw new Error('Tu perfil necesita una sede asignada para consultar el calendario.');
       setProfile(p);
@@ -51,7 +50,7 @@ export default function ContractCalendar(){
       setContracts(rows);setLoadedAt(new Date());
     }catch(e){setError(e instanceof Error?e.message:'No pudimos cargar el calendario.');}
     finally{setLoading(false);}
-  },[router]);
+  },[router,readAccess]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{
     const syncDay=()=>{
@@ -108,4 +107,5 @@ export default function ContractCalendar(){
     </section><p className={styles.note}>Selecciona una fila para consultar y editar el contrato en el panel lateral. La agenda abre en hoy y avanza automáticamente al cambiar el día en Colombia. Los cambios del ERP se actualizan al volver a esta página y cada minuto.</p>
   </main>{selectedContract&&selected&&<ContractPanel key={selected.eventId} contract={selectedContract} field={selected.field} eventId={selected.eventId} onClose={()=>setSelected(null)} onSaved={updated=>{setContracts(rows=>rows.map(c=>c.id===updated.id?updated:c));setLoadedAt(new Date());}} canPrevious={selectedIndex>0} canNext={selectedIndex>=0&&selectedIndex<visible.length-1} onNavigate={direction=>{const event=visible[selectedIndex+direction];if(event)setSelected({id:event.contract.id,field:event.field,eventId:event.id});}}/>}</div>;
 }
+
 

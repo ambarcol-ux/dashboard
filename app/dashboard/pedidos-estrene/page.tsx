@@ -1,4 +1,5 @@
 'use client';
+import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -105,6 +106,7 @@ const diasParaFecha = (d: string | null): number | null => {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function PedidosEstrenePage() {
+  const readAccess = useVerifiedAccess();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
@@ -141,12 +143,10 @@ export default function PedidosEstrenePage() {
   useEffect(() => {
     setIsMounted(true);
     const init = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) { router.push('/login'); return; }
-      const { data: pData } = await supabase.from('profiles').select('*').eq('id', authUser.id).maybeSingle();
+      const {user: authUser, profile: pData} = await readAccess();
       setUser({ ...authUser, rol: pData?.rol || 'asesora', nombre: pData?.nombre || authUser.email });
     };
-    init();
+    void init().catch(() => router.replace('/login'));
   }, [router]);
 
   // ─── Fetch Pedidos ─────────────────────────────────────────────────────────
@@ -1187,3 +1187,4 @@ function PedidoCard({
     </div>
   );
 }
+

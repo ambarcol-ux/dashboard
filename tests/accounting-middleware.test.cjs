@@ -30,5 +30,10 @@ const request=(path,method='GET',transport='cookie',value=token)=>({nextUrl:{pat
  authError={status:401};assert.equal((await mod.exports.middleware(request(role.exports.DEPOSITS_PATH))).status,307);
  authError={status:0};assert.equal((await mod.exports.middleware(request(role.exports.DEPOSITS_PATH))).status,503);authError=null;
  profileError={message:'RLS denied'};assert.equal((await mod.exports.middleware(request(role.exports.DEPOSITS_PATH))).status,307);
+ profileError=null; currentRole='admin';
+ assert.equal((await mod.exports.middleware(request('/api/dashboard/contracts','GET','cookie',null))).status,401);
+ const api=await mod.exports.middleware(request('/api/dashboard/contracts'));
+ assert.equal(api.status,200);assert.equal(profileModule.exports.parseDepositProfile(api.headers.get(HEADER)).id,'accounting');
+ assert.ok(Number(api.headers.get('x-ambar-profile-verified-at'))>0);
  console.log('PASS: access boundaries, inactive/invalid sessions, RLS failure, timeout, forged header removal and verified profile forwarding');
 })().catch(e=>{console.error(e);process.exitCode=1});

@@ -1,4 +1,5 @@
 'use client';
+import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -7,6 +8,7 @@ import { TrendingUp, RefreshCw, Loader2, DollarSign, Calendar } from 'lucide-rea
 import Sidebar from '@/components/Sidebar';
 
 export default function ReportsPage() {
+  const readAccess = useVerifiedAccess();
   const [user, setUser] = useState<any>(null);
   const [popularDresses, setPopularDresses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,18 +33,13 @@ export default function ReportsPage() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {user, profile} = await readAccess();
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
         setUser({ ...user, rol: profile?.rol, nombre: profile?.nombre });
       }
       setLoading(false);
     };
-    checkUser();
+    void checkUser().catch(() => {window.location.href='/login';});
     fetchSedes();
   }, []);
 
@@ -418,3 +415,4 @@ export default function ReportsPage() {
     </div>
   );
 }
+

@@ -1,5 +1,6 @@
 export const DEPOSIT_PROFILE_HEADER = 'x-ambar-verified-deposit-profile';
 export type DepositProfile = {
+  authEmail?: string | null;
   id: string;
   rol: string;
   sede_id: string | null;

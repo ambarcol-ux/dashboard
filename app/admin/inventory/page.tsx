@@ -1,4 +1,5 @@
 'use client';
+import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -12,6 +13,7 @@ import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 
 export default function InventoryPage() {
+  const readAccess = useVerifiedAccess();
   const [loading, setLoading] = useState(true);
   const [vestidos, setVestidos] = useState<any[]>([]);
   const [sedes, setSedes] = useState<any[]>([]);
@@ -60,17 +62,12 @@ export default function InventoryPage() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {user, profile} = await readAccess();
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
         setUser({ ...user, rol: profile?.rol, nombre: profile?.nombre });
       }
     };
-    checkUser();
+    void checkUser().catch(() => {window.location.href='/login';});
     loadData();
   }, []);
 
@@ -1272,3 +1269,4 @@ export default function InventoryPage() {
     </div>
   );
 }
+

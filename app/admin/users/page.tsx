@@ -1,4 +1,5 @@
 'use client';
+import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -21,6 +22,7 @@ import Sidebar from '@/components/Sidebar';
 import { createUserAction } from './actions';
 
 export default function UsersManagementPage() {
+  const readAccess = useVerifiedAccess();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
   const [sedes, setSedes] = useState<any[]>([]);
@@ -46,13 +48,8 @@ export default function UsersManagementPage() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {user, profile} = await readAccess();
       if (user) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
           
         let role = profile?.rol || null;
         if (user.email === 'dubian.h88@gmail.com') {
@@ -65,7 +62,7 @@ export default function UsersManagementPage() {
         window.location.href = '/login';
       }
     };
-    checkUser();
+    void checkUser().catch(() => {window.location.href='/login';});
     fetchData();
   }, []);
 
@@ -505,3 +502,4 @@ export default function UsersManagementPage() {
     </div>
   );
 }
+
