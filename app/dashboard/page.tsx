@@ -449,7 +449,8 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchContratos = async (page = contractPage) => {
+  const fetchContratos = async (page = contractPage, refreshSupport = true) => {
+    if (refreshSupport) void fetchContractSupport();
     const request = ++requestNumber.current;
     contractRequest.current?.abort();
     const controller = new AbortController();
@@ -2141,7 +2142,7 @@ export default function DashboardPage() {
     contractRequest.current?.abort();
     ++requestNumber.current;
     setLoading(true); setContratos([]); setSummary(null); setContractPage(1);
-    const timer = setTimeout(() => {void fetchContratos(1);}, searchTerm ? 350 : 0);
+    const timer = setTimeout(() => {void fetchContratos(1, false);}, searchTerm ? 350 : 0);
     return () => {clearTimeout(timer); contractRequest.current?.abort(); ++requestNumber.current;};
   }, [searchTerm,filtroSede,filtroHito,filtroRango,fechaDesde,fechaHasta,filtroAlerta,filtroTipoEvento,activeTabLogistica]);
 
@@ -2402,7 +2403,7 @@ export default function DashboardPage() {
 
           <div className="flex items-center gap-3">
              <button 
-               onClick={() => {void fetchContratos(); void fetchContractSupport();}}
+               onClick={() => void fetchContratos()}
                className="p-2.5 bg-white border border-gray-100 rounded-xl text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition-all"
                title="Refrescar Datos"
              >
@@ -2733,8 +2734,8 @@ export default function DashboardPage() {
                 {loading ? 'Cargando contratos…' : `${summary?.total ?? 0} contratos · Página ${contractPage} de ${Math.max(1,Math.ceil((summary?.total ?? 0)/CONTRACT_PAGE_SIZE))}`}
               </span>
               <div className="flex gap-2">
-                <button type="button" disabled={loading || contractPage<=1} onClick={()=>void fetchContratos(contractPage-1)} className="px-4 py-2 rounded-lg border font-bold disabled:opacity-40">Anterior</button>
-                <button type="button" disabled={loading || contractPage*CONTRACT_PAGE_SIZE >= (summary?.total ?? 0)} onClick={()=>void fetchContratos(contractPage+1)} className="px-4 py-2 rounded-lg border font-bold disabled:opacity-40">Siguiente</button>
+                <button type="button" disabled={loading || contractPage<=1} onClick={()=>void fetchContratos(contractPage-1, false)} className="px-4 py-2 rounded-lg border font-bold disabled:opacity-40">Anterior</button>
+                <button type="button" disabled={loading || contractPage*CONTRACT_PAGE_SIZE >= (summary?.total ?? 0)} onClick={()=>void fetchContratos(contractPage+1, false)} className="px-4 py-2 rounded-lg border font-bold disabled:opacity-40">Siguiente</button>
               </div>
             </div>
             {/* VISTA MOBILE (Cards) */}
