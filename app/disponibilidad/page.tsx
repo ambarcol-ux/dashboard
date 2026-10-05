@@ -482,7 +482,7 @@ export default function AvailabilityPage() {
 
                 {/* Info Panel */}
                 <div className="flex-1 w-full bg-gray-50 rounded-[2rem] p-6 border border-gray-100 min-h-[350px]">
-                  {selectedDayBlocks.length > 1 && <div className="mb-4 space-y-2"><h4 className="font-bold">{selectedDayBlocks.length} bloqueos coinciden en esta fecha</h4>{selectedDayBlocks.map(block => <button type="button" key={block.id} onClick={() => setSelectedBlock(block)} aria-pressed={selectedBlock?.id === block.id} className="block w-full rounded-xl border border-rose-200 bg-white p-3 text-left text-sm"><strong>{block.contractNumber} · {block.type}</strong><p>{format(block.start,'d MMM yyyy',{locale:es})} – {format(block.end,'d MMM yyyy',{locale:es})}</p></button>)}</div>}
+                  {selectedDayBlocks.length > 1 && <div className="mb-4 space-y-2 text-gray-900"><h4 className="font-bold">{selectedDayBlocks.length} bloqueos coinciden en esta fecha</h4>{selectedDayBlocks.map(block => <button type="button" key={block.id} onClick={() => setSelectedBlock(block)} aria-pressed={selectedBlock?.id === block.id} className="block w-full rounded-xl border border-rose-200 bg-white p-3 text-left text-sm"><strong>{block.contractNumber} · {block.type}</strong><p>{format(block.start,'d MMM yyyy',{locale:es})} – {format(block.end,'d MMM yyyy',{locale:es})}</p></button>)}</div>}
                   {selectedBlock ? (
                     <div className="space-y-6 animate-in fade-in">
                       <div className="flex items-center gap-3">
@@ -540,7 +540,7 @@ export default function AvailabilityPage() {
                 </div>
               </div>
 
-              <section className="rounded-2xl border border-gray-200 bg-white p-6"><h3 className="font-black">Todos los bloqueos del vestido ({blocks.length})</h3><p className="mb-3 text-sm text-gray-500">Incluye fechas anteriores y futuras. Selecciona un bloqueo para verlo en el calendario.</p><div className="grid gap-2">{blocks.map(block => <button type="button" key={block.id} onClick={() => {setCalendarMonth(block.eventDate);setSelectedDate(block.eventDate);setSelectedBlock(block);}} className="rounded-xl border border-rose-100 p-3 text-left text-sm"><strong>{block.contractNumber} · {block.type}</strong><p>{format(block.start,'d MMM yyyy',{locale:es})} – {format(block.end,'d MMM yyyy',{locale:es})}</p></button>)}</div>{!blocks.length && <p>No hay bloqueos registrados para este vestido.</p>}</section>
+              <section className="rounded-2xl border border-gray-200 bg-white p-6 text-gray-900"><h3 className="font-black">Todos los bloqueos del vestido ({blocks.length})</h3><p className="mb-3 text-sm text-gray-500">Incluye fechas anteriores y futuras. Selecciona un bloqueo para verlo en el calendario.</p><div className="grid gap-2">{blocks.map(block => <button type="button" key={block.id} onClick={() => {setCalendarMonth(block.eventDate);setSelectedDate(block.eventDate);setSelectedBlock(block);}} className="rounded-xl border border-rose-100 p-3 text-left text-sm"><strong>{block.contractNumber} · {block.type}</strong><p>{format(block.start,'d MMM yyyy',{locale:es})} – {format(block.end,'d MMM yyyy',{locale:es})}</p></button>)}</div>{!blocks.length && <p>No hay bloqueos registrados para este vestido.</p>}</section>
               {/* Botón Dar de baja (Admin) */}
               {userProfile?.rol === 'admin' && dress.estado !== 'De Baja' && (
                 <div className="flex justify-end">
