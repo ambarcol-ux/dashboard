@@ -12,7 +12,7 @@ interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'depositos';
+  activePage?: 'dashboard' | 'operaciones' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'depositos';
 }
 
 export default function Sidebar({ user, handleLogout, activePage, pendingDeposits }: SidebarProps) {
@@ -44,8 +44,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       title: 'OPERACIONES',
       adminOnly: false,
       items: [
-        { id: 'dashboard', label: 'DASHBOARD', icon: FileText, href: '/dashboard', color: 'rose' },
-        { id: 'calendario', label: 'CALENDARIO CONTRATOS', icon: Calendar, href: '/dashboard/calendario', color: 'rose' },
+        { id: 'operaciones', label: 'OPERACIONES', icon: Calendar, href: '/dashboard/operaciones', color: 'rose' },
         { id: 'disponibilidad', label: 'AGENDA DE VESTIDOS', icon: CalendarDays, href: '/disponibilidad', color: 'emerald' },
         { id: 'pedidos_estrene', label: 'PEDIDOS ESTRENE', icon: ShoppingBag, href: '/dashboard/pedidos-estrene', color: 'violet' },
         { id: 'depositos', label: 'DEPÓSITOS Y DEVOLUCIONES', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
