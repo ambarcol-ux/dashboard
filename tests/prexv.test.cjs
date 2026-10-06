@@ -23,3 +23,6 @@ assert.equal(fallback.find(e=>e.field==='fecha_maquillaje').date,'2026-09-15');
 for(const invalid of [{prexv_componentes:['foo']},{prexv_componentes:['fotos','fotos']},{prexv_componentes:'fotos'},{prexv_fotografo_agendado:'true'},{prexv_componentes:null}])assert.throws(()=>edit.validateCalendarPatch(invalid));
 assert.equal(edit.validateCalendarPatch({prexv_maquilladora_agendada:true}).prexv_maquilladora_agendada,true);
 console.log('PASS: eight combinations, included-only calendar milestones and confirmations, legacy review, date fallback, invalid payloads');
+
+assert.equal(pre.prexvPending({prexv_componentes:['fotos'],prexv_fotografo_agendado:true,prexv_fotografo:'  '}).length,1);
+assert.match(pre.prexvSummary({prexv_componentes:['fotos'],prexv_fotografo_agendado:true}),/Fotos: falta nombre/);

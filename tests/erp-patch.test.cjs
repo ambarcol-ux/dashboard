@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const migration = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20260922012625_patch_depositos_vestidos_fuera.sql'), 'utf8');
-const dashboard = fs.readFileSync(path.join(__dirname, '../app/dashboard/page.tsx'), 'utf8');
+const dashboard = fs.readFileSync(path.join(__dirname, '../app/dashboard/DashboardWorkspace.tsx'), 'utf8');
 const deposits = fs.readFileSync(path.join(__dirname, '../components/DepositRequests.tsx'), 'utf8');
 
 for (const required of [

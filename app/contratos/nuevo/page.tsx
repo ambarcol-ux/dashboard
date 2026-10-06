@@ -2,6 +2,7 @@
 
 import PreXvFields from '@/components/PreXvFields';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
+import {guaranteeError} from '@/lib/contract-guarantee';
 import { initialDepositAmount } from '@/lib/initial-deposit';
 import { type PrexvData } from '@/lib/prexv';
 import React, { useEffect, useState } from 'react';
@@ -931,6 +932,8 @@ export default function NuevoContratoPage() {
       toast.error('En modo edición no se crea una solicitud nueva. Ajusta las fechas o guarda el contrato existente.');
       return;
     }
+    const garantiaError=isEditMode?null:guaranteeError(formData);
+    if(garantiaError){toast.error(garantiaError);return;}
     let depositoInicial: number;
     try { depositoInicial = initialDepositAmount(formData.valor_deposito); }
     catch { toast.error('El depósito debe ser un valor válido mayor o igual a cero.'); return; }
@@ -1024,7 +1027,8 @@ export default function NuevoContratoPage() {
         valor_total: verdaderoValorTotal,
         anticipo: abonoInicial,
         total_arreglos: totalArreglos,
-        valor_deposito: depositoInicial,
+        valor_deposito: null,
+        valor_garantia_acordada: depositoInicial,
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
@@ -1215,6 +1219,8 @@ export default function NuevoContratoPage() {
     if (e) e.preventDefault();
     if (prexv.prexv_componentes?.length && !formData.fecha_fotografia) { toast.error('Indica la fecha de sesión PRE-XV.'); return; }
 
+    const garantiaError=isEditMode?null:guaranteeError(formData);
+    if(garantiaError){toast.error(garantiaError);return;}
     let depositoInicial: number;
     try { depositoInicial = initialDepositAmount(formData.valor_deposito); }
     catch { toast.error('El depósito debe ser un valor válido mayor o igual a cero.'); return; }
@@ -1365,7 +1371,8 @@ export default function NuevoContratoPage() {
         valor_total: verdaderoValorTotal,
         anticipo: abonoInicial,
         total_arreglos: totalArreglos,
-        valor_deposito: depositoInicial,
+        valor_deposito: null,
+        valor_garantia_acordada: depositoInicial,
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
@@ -2115,7 +2122,7 @@ export default function NuevoContratoPage() {
                   <div className="col-span-2 space-y-1">
                     <label htmlFor="valor_deposito" className="text-sm font-semibold text-gray-700">Valor del depósito de garantía</label>
                     <input id="valor_deposito" name="valor_deposito" type="number" min="0" step="0.01" value={formData.valor_deposito} onChange={handleChange} disabled={isEditMode} title={isEditMode ? 'El depósito de un contrato pactado se gestiona desde Depósitos y devoluciones.' : undefined} placeholder="0" className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 disabled:opacity-60 disabled:cursor-not-allowed" />
-                    <p className="text-sm text-emerald-700">Registra el depósito recibido. No se suma al alquiler ni al abono. Adjunta su comprobante en Depósitos y devoluciones, sin registrar nuevamente el ingreso.</p>
+                    <p className="text-sm text-emerald-700">{isEditMode?'El depósito recibido se gestiona desde Operaciones o Depósitos y devoluciones.':'Indica la garantía acordada. No representa dinero recibido ni se suma al alquiler o al abono. Registra su recepción desde Operaciones antes de entregar el vestido.'}</p>
                   </div>
                   {renderTextInput("Banco", "deposito_banco", null, "text", false, "bg-white")}
                   {renderTextInput("Tipo Cta", "deposito_tipo_cuenta", null, "text", false, "bg-white")}

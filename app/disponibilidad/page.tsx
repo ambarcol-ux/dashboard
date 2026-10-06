@@ -42,6 +42,7 @@ export default function AvailabilityPage() {
 
   // Tooltip state for calendar
   const [selectedBlock, setSelectedBlock] = useState<ContractBlock | null>(null);
+  const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
   useEffect(() => {
@@ -67,6 +68,7 @@ export default function AvailabilityPage() {
     setBlocks([]);
     setSelectedBlock(null);
     setSelectedDate(undefined);
+    setCalendarMonth(new Date());
 
     try {
       if (manualDressId) {
@@ -138,7 +140,7 @@ export default function AvailabilityPage() {
       // Algunos contratos antiguos guardan el vestido directamente en contratos.
       const { data: legacyContracts, error: legacyError } = await supabase
         .from('contratos')
-        .select('id, vestido_id, numero_contrato, cliente_nombre, tipo_evento, estado, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, bloqueo_especial_fecha, bloqueo_especial_vestido_id')
+        .select('id, vestido_id, numero_contrato, cliente_nombre, tipo_evento, estado, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, bloqueo_especial_fecha, bloqueo_especial_vestido_id, created_at')
         .eq('vestido_id', dressId);
       if (legacyError) throw legacyError;
 
@@ -174,8 +176,10 @@ export default function AvailabilityPage() {
       // 3. Procesar Historial Unificado (Timeline)
       const unified: any[] = [];
       
-      (contracts as any[]).forEach(item => {
-        const c = item.contratos;
+      const historyContracts = Array.from(new Map([
+        ...(contracts || []).map((item: any) => item.contratos), ...(legacyContracts || [])
+      ].map((c: any) => [c.id,c])).values());
+      historyContracts.forEach(c => {
         unified.push({
           id: `contract-${c.id}`,
           fecha: c.fecha_evento ? new Date(`${c.fecha_evento}T12:00:00`) : new Date(c.created_at),
@@ -186,8 +190,7 @@ export default function AvailabilityPage() {
         });
       });
 
-      (contracts || []).forEach((item: any) => {
-        const lock = item.contratos;
+      historyContracts.forEach((lock: any) => {
         if (['cancelado','anulado','rechazado'].includes(String(lock?.estado||'').toLowerCase())) return;
         const dates = Array.isArray(lock?.fechas_bloqueo_especial) ? lock.fechas_bloqueo_especial : [];
         dates.forEach((value: string, index: number) => {
@@ -228,6 +231,8 @@ export default function AvailabilityPage() {
 
     } catch (err) {
       console.error("Error unificando historial", err);
+      setBlocks([]); setHistory([]);
+      throw err;
     }
   };
 
@@ -291,6 +296,7 @@ export default function AvailabilityPage() {
     }
   };
 
+  const selectedDayBlocks = selectedDate ? blocks.filter(b => isWithinInterval(startOfDay(selectedDate), {start:b.start,end:b.end})) : [];
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);
     const dayStart = startOfDay(day);
@@ -389,7 +395,7 @@ export default function AvailabilityPage() {
             </div>
           )}
 
-          {dress && (
+          {dress && !loading && !error && (
             <div className="space-y-6 animate-in fade-in duration-500">
               {/* Dynamic Status Card */}
               <div className={`rounded-[2rem] p-8 border shadow-lg flex flex-col md:flex-row items-center justify-between gap-6 transition-colors ${
@@ -452,6 +458,8 @@ export default function AvailabilityPage() {
                   
                   <DayPicker
                     mode="single"
+                    month={calendarMonth}
+                    onMonthChange={setCalendarMonth}
                     locale={es}
                     selected={selectedDate}
                     onSelect={(d) => d && handleDayClick(d)}
@@ -474,6 +482,7 @@ export default function AvailabilityPage() {
 
                 {/* Info Panel */}
                 <div className="flex-1 w-full bg-gray-50 rounded-[2rem] p-6 border border-gray-100 min-h-[350px]">
+                  {selectedDayBlocks.length > 1 && <div className="mb-4 space-y-2 text-gray-900"><h4 className="font-bold">{selectedDayBlocks.length} bloqueos coinciden en esta fecha</h4>{selectedDayBlocks.map(block => <button type="button" key={block.id} onClick={() => setSelectedBlock(block)} aria-pressed={selectedBlock?.id === block.id} className="block w-full rounded-xl border border-rose-200 bg-white p-3 text-left text-sm"><strong>{block.contractNumber} · {block.type}</strong><p>{format(block.start,'d MMM yyyy',{locale:es})} – {format(block.end,'d MMM yyyy',{locale:es})}</p></button>)}</div>}
                   {selectedBlock ? (
                     <div className="space-y-6 animate-in fade-in">
                       <div className="flex items-center gap-3">
@@ -531,6 +540,7 @@ export default function AvailabilityPage() {
                 </div>
               </div>
 
+              <section className="rounded-2xl border border-gray-200 bg-white p-6 text-gray-900"><h3 className="font-black">Todos los bloqueos del vestido ({blocks.length})</h3><p className="mb-3 text-sm text-gray-500">Incluye fechas anteriores y futuras. Selecciona un bloqueo para verlo en el calendario.</p><div className="grid gap-2">{blocks.map(block => <button type="button" key={block.id} onClick={() => {setCalendarMonth(block.eventDate);setSelectedDate(block.eventDate);setSelectedBlock(block);}} className="rounded-xl border border-rose-100 p-3 text-left text-sm"><strong>{block.contractNumber} · {block.type}</strong><p>{format(block.start,'d MMM yyyy',{locale:es})} – {format(block.end,'d MMM yyyy',{locale:es})}</p></button>)}</div>{!blocks.length && <p>No hay bloqueos registrados para este vestido.</p>}</section>
               {/* Botón Dar de baja (Admin) */}
               {userProfile?.rol === 'admin' && dress.estado !== 'De Baja' && (
                 <div className="flex justify-end">

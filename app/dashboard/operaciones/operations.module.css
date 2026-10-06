@@ -1,0 +1,8 @@
+.eyebrow{display:inline-block;font-size:11px;font-weight:700;letter-spacing:1.5px;color:#a34362;background:#faedf1;border:1px solid #f0d7df;padding:7px 10px;border-radius:6px}
+.summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:24px}
+.summary>div{border:1px solid #e8e3e5;background:white;border-radius:14px;padding:22px 24px}
+.summary span{display:block;color:#6d6570;font-size:13px}.summary strong{display:block;font-size:34px;font-weight:650;letter-spacing:-1px;margin:5px 0}.summary small{font-size:12px;color:#938a94}
+.stateTabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 24px}.stateTabs button{padding:11px 14px;border:1px solid #e5e0e3;background:#fff;border-radius:9px;font-size:13px;color:#6e6570;cursor:pointer;display:flex;gap:12px;align-items:center}
+.stateTabs button[aria-pressed=true]{background:#332b33;border-color:#332b33;color:white}.stateTabs b{font-size:12px;background:#f3eff2;color:#665264;padding:2px 7px;border-radius:5px}
+.clear{font-size:12px;color:#9d4663;text-decoration:underline;cursor:pointer}.stateTabs button:focus-visible,.clear:focus-visible{outline:3px solid #be8ca6;outline-offset:3px}
+@media(max-width:700px){.summary{grid-template-columns:1fr;gap:8px}.summary>div{padding:14px 18px}.summary strong{font-size:26px}.stateTabs{flex-wrap:nowrap;overflow:auto}.stateTabs button{white-space:nowrap}}
