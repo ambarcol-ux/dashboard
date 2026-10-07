@@ -10,7 +10,7 @@ import { hasPrexv, includedPrexv, prexvPending, prexvSummary, prexvFields, type 
 import { dateInput } from '@/lib/calendar-edit';
 import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { requireInvoice, INVOICE_REQUIRED_MESSAGE } from '@/lib/invoice-validation';
 import { canEditSavedRecords, additionalContractFields, toEditingValue, getAdditionalContractUpdates } from '@/lib/saved-record-editing';
@@ -120,6 +120,10 @@ export default function DashboardPage() {
   const [deliveryData, setDeliveryData] = useState<any>(null);
   const [deliveryObs, setDeliveryObs] = useState('');
   const [deliveryPhotos, setDeliveryPhotos] = useState<File[]>([]);
+  const [depositReceipt, setDepositReceipt] = useState<File|null>(null);
+  const [depositReceiptPath, setDepositReceiptPath] = useState<string|null>(null);
+  const [depositMethod, setDepositMethod] = useState('Transferencia');
+  const deliveryBusy = useRef(false);
   const [deliveryType, setDeliveryType] = useState<'PREXV' | 'EVENTO' | 'AMBOS'>('EVENTO');
   const [deliveryConjunta, setDeliveryConjunta] = useState(false);
   const [depositBlock, setDepositBlock] = useState<{id:string;numero:string}|null>(null);
@@ -500,22 +504,12 @@ export default function DashboardPage() {
 
   const deleteContract = async (id: string, numero: string) => {
     if (!confirm(`¿Estás seguro de que deseas eliminar PERMANENTEMENTE el contrato ${numero}? Esta acción es IRREVERSIBLE.`)) return;
-    if (!confirm(`CONFIRMACIÓN DOBLE: Al eliminar este contrato se borrarán en cascada todos los vestidos, pagos y bitácoras vinculadas. ¿Deseas proceder?`)) return;
+    if (!confirm(`CONFIRMACIÓN DOBLE: Solo se eliminará si no tiene movimientos de dinero. Las prendas del inventario se conservan. ¿Deseas proceder?`)) return;
     
     try {
       setLoading(true);
       
-      // Cascada manual: Eliminar dependencias primero
-      await supabase.from('contrato_items_vestidos').delete().eq('contrato_id', id);
-      await supabase.from('pagos').delete().eq('contrato_id', id);
-      await supabase.from('bitacora_contratos').delete().eq('contrato_id', id);
-      await supabase.from('entregas_bitacora').delete().eq('contrato_id', id);
-      await supabase.from('arreglos').delete().eq('contrato_id', id);
-
-      const { error } = await supabase
-        .from('contratos')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.rpc('operacion_contrato', {p_contrato_id:id,p_accion:'eliminar'});
       
       if (error) throw error;
       
@@ -527,6 +521,23 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const desistContract = async (contract:any) => {
+    const reason=window.prompt(`Motivo del desistimiento del contrato ${contract.numero_contrato}:`);
+    if(reason===null)return;
+    if(!reason.trim()){toast.error('Escribe el motivo del desistimiento.');return;}
+    if(!window.confirm('Se cancelará el contrato conservando pagos, depósito y bitácora. Las devoluciones se gestionan por separado. ¿Confirmas el desistimiento?'))return;
+    setLoading(true);
+    try {
+      const {error}=await supabase.rpc('desistir_contrato',{p_contrato:contract.id,p_motivo:reason.trim()});
+      if(error)throw error;
+      toast.success('Desistimiento registrado. Se conserva el historial del contrato.');
+      if(selectedContract?.id===contract.id)setSelectedContract({...selectedContract,estado:'cancelado'});
+      await fetchContratos();
+      await refreshBitacora(contract.id);
+    }catch(error:any){toast.error(error.message||'No se pudo registrar el desistimiento.');}
+    finally{setLoading(false);}
   };
 
   const handleApproveException = async (id: string) => {
@@ -1772,7 +1783,7 @@ export default function DashboardPage() {
     setDeliveryType(tipo);
     setDeliveryConjunta(tipo === 'AMBOS');
     setDeliveryObs('');
-    setDeliveryPhotos([]);
+    setDeliveryPhotos([]);setDepositReceipt(null);setDepositReceiptPath(null);setDepositMethod('Transferencia');
     setSelectedAsesoraId(''); // Reset selector
     setDeliveryModalOpen(true);
   };
@@ -1813,11 +1824,13 @@ export default function DashboardPage() {
   };
 
   const submitDeliveryModal = async () => {
+    if(deliveryBusy.current)return;
+    if(!depositReceipt&&!depositReceiptPath)return toast.error('Adjunta el comprobante del depósito para esta entrega.');
     if (!selectedAsesoraId) return toast.error('Debes seleccionar a la asesora responsable.');
     if (!deliveryObs.trim()) return toast.error('Las observaciones de entrega son obligatorias.');
     if (deliveryPhotos.length === 0) return toast.error('Se requiere al menos una foto de evidencia.');
     
-    setModalLoading(true);
+    deliveryBusy.current=true;setModalLoading(true);
     try {
       // 1. Verificar autenticación antes de cualquier operación
       const { data: { user: supabaseUser }, error: authError } = await supabase.auth.getUser();
@@ -1839,6 +1852,16 @@ export default function DashboardPage() {
         return;
       }
 
+      let receiptPath=depositReceiptPath;
+      if(!receiptPath&&depositReceipt){
+        const extensions:Record<string,string>={'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'};
+        const ext=extensions[depositReceipt.type];
+        if(!ext||depositReceipt.size>10*1024*1024)throw Error('El comprobante debe ser PDF, JPG, PNG o WebP de hasta 10 MB.');
+        receiptPath=`${deliveryData.id}/${crypto.randomUUID()}/deposito-entrega.${ext}`;
+        const {error}=await supabase.storage.from('comprobantes_depositos').upload(receiptPath,depositReceipt,{upsert:false});
+        if(error)throw Error('No se pudo cargar el comprobante del depósito.');
+        setDepositReceiptPath(receiptPath);
+      }
       const uploadedUrls: string[] = [];
       const bucket = 'fotos-entregas'; // Exact name check
 
@@ -1868,6 +1891,8 @@ export default function DashboardPage() {
       const { data: insertedBitacora, error: insertErr } = await supabase.from('entregas_bitacora').insert([{
         contrato_id: deliveryData.id,
         fotos_uris: uploadedUrls,
+        comprobante_deposito_path: receiptPath,
+        metodo_deposito: depositMethod,
         usuario_id: selectedAsesoraId,
         tipo_entrega: deliveryConjunta ? 'AMBOS' : deliveryType
       }]).select('id').single();
@@ -1897,7 +1922,7 @@ export default function DashboardPage() {
       }
       console.error(err);
     } finally {
-      setModalLoading(false);
+      deliveryBusy.current=false;setModalLoading(false);
     }
   };
 
@@ -2057,6 +2082,8 @@ export default function DashboardPage() {
                     )}
                   </>
                )}
+
+               <button onClick={()=>{setOpenDropdownId(null);void desistContract(c);}} disabled={loading||['cancelado','anulado','rechazado','finalizado','entregado','mantenimiento'].includes(String(c.estado).toLowerCase())} className="w-full text-left px-4 py-3 text-sm text-amber-700 hover:bg-amber-50 rounded-xl font-bold disabled:opacity-50">Desistir del contrato</button>
 
                {user?.rol === 'admin' && (
                   <>
@@ -3136,6 +3163,16 @@ export default function DashboardPage() {
             
             <div className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
               {depositBlock?.id===deliveryData.id&&<div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"><strong className="block">No se puede entregar el vestido.</strong> Primero debe registrarse el depósito correspondiente. <Link className="mt-3 inline-flex rounded-lg bg-red-700 px-3 py-2 font-bold text-white" href={`/dashboard/devoluciones-depositos?contratoId=${encodeURIComponent(deliveryData.id)}`}>REGISTRAR DEPÓSITO</Link></div>}
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+                <label className="block text-sm font-bold text-gray-800">Comprobante del depósito para esta entrega *
+                  <input aria-label="Comprobante del depósito" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" disabled={modalLoading||!!depositReceiptPath} onChange={e=>setDepositReceipt(e.target.files?.[0]||null)} className="mt-2 block w-full text-sm"/>
+                </label>
+                <label className="block text-sm font-bold text-gray-800">Método del depósito
+                  <select value={depositMethod} disabled={modalLoading} onChange={e=>setDepositMethod(e.target.value)} className="ml-2 rounded border p-2">{['Efectivo','Transferencia','Tarjeta','Otro'].map(method=><option key={method}>{method}</option>)}</select>
+                </label>
+                <p className="text-xs text-gray-700">Adjunta el soporte del depósito ya recibido. Este archivo quedará en el historial de Depósitos y no sumará dinero otra vez.</p>
+                {depositReceiptPath&&<p role="status" className="text-sm text-green-700">Comprobante cargado. Puedes reintentar la entrega.</p>}
+              </div>
               <p className="text-sm text-gray-600">
                 Registra fotográficamente el estado del vestido al momento de entregarlo. El expediente generará un acta de conformidad vinculante.
               </p>

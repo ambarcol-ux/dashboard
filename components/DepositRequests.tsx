@@ -22,6 +22,18 @@ export default function DepositRequests({requests,events,contracts,profile,onCha
    await onChange();window.dispatchEvent(new Event('depositos-actualizados'));setEditing(false);
   }catch(e){setError(e instanceof Error?e.message:'No se pudieron guardar los datos de devolución.');}finally{busy.current=false;setSaving(false);}
  }
+ async function retake(r:DepositRequest){
+  const reason=window.prompt('Motivo para retomar esta solicitud de devolución:');
+  if(reason===null)return;
+  if(!reason.trim()){setError('Indica el motivo del cambio de responsable.');return;}
+  if(!window.confirm('Confirma con la responsable anterior que la transferencia no se haya realizado. ¿Retomar el pago a tu nombre?'))return;
+  if(busy.current)return;busy.current=true;setSaving(true);setError('');
+  try{
+   const {error}=await supabase.rpc('retomar_devolucion',{p_solicitud:r.id,p_responsable_esperado:r.responsable_id,p_motivo:reason.trim()});
+   if(error)throw Error(error.message);
+   uploaded.current=null;setFile(null);await onChange();window.dispatchEvent(new Event('depositos-actualizados'));
+  }catch(e){setError(e instanceof Error?e.message:'No se pudo retomar la solicitud.');}finally{busy.current=false;setSaving(false);}
+ }
  async function act(action:string,r:DepositRequest){
   if(busy.current)return;busy.current=true;setSaving(true);setError('');
   try{
@@ -48,6 +60,7 @@ export default function DepositRequests({requests,events,contracts,profile,onCha
    <ol>{events.filter(e=>e.solicitud_id===current.id).sort((a,b)=>a.created_at.localeCompare(b.created_at)).map(e=><li key={e.id}><strong>{requestLabels[e.estado]||e.estado}</strong> · {new Date(e.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota'})} · {e.usuario_nombre}<small>{e.detalle}</small></li>)}</ol>
    {current.comprobante_path&&<button onClick={()=>void openReceipt(current.comprobante_path,null)}>Ver comprobante de salida</button>}
    {current.estado==='pendiente'&&canPay(profile.rol)&&<button disabled={saving} onClick={()=>void act('proceso',current)}>Tomar solicitud e iniciar pago</button>}
+   {current.estado==='en_proceso'&&current.responsable_id!==profile.id&&canPay(profile.rol)&&<button disabled={saving} onClick={()=>void retake(current)}>Retomar pago a mi nombre</button>}
    {current.estado==='en_proceso'&&current.responsable_id===profile.id&&canPay(profile.rol)&&<form onSubmit={e=>{e.preventDefault();void act('pagar',current);}}><label>Fecha del pago<input type="date" required min={bogotaDay(current.created_at)!} max={bogotaDay(new Date().toISOString())!} value={date} onChange={e=>setDate(e.target.value)}/></label><label>Comprobante de salida obligatorio<input type="file" required={!uploaded.current||uploaded.current.id!==current.id} accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>{uploaded.current=null;setFile(e.target.files?.[0]||null);}}/></label><p>Registra aquí la transferencia ya realizada. Al guardar el comprobante, el depósito quedará devuelto.</p><button className={styles.primary} disabled={saving}>Registrar pago y comprobante</button></form>}
    {current.estado==='pendiente'&&(current.solicitante_id===profile.id||canPay(profile.rol))&&<form onSubmit={e=>{e.preventDefault();void act('cancelar',current);}}><label>Motivo de cancelación<input required value={reason} onChange={e=>setReason(e.target.value)}/></label><button disabled={saving}>Cancelar solicitud</button></form>}
    {error&&<p role="alert" className={styles.error}>{error}</p>}

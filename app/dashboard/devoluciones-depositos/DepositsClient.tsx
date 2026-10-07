@@ -13,12 +13,14 @@ import type {DepositProfile} from '@/lib/deposit-profile';
 import {bogotaDay} from '@/lib/contract-calendar';
 import {depositSummary,movementHistory,needsDepositReceipt,money,cents,type DepositContract,type DepositReturn,type DepositMovement} from '@/lib/deposits';
 import styles from './deposits.module.css';
+type DeliveryReceipt={id:string;contrato_id:string;comprobante_path:string;monto:number;metodo:string;created_at:string};
 type Profile=DepositProfile;
 export default function Deposits({initialProfile}:{initialProfile:Profile}){
  const router=useRouter();const [profile,setProfile]=useState<Profile|null>(null),[contracts,setContracts]=useState<DepositContract[]>([]),[returns,setReturns]=useState<DepositReturn[]>([]),[movements,setMovements]=useState<DepositMovement[]>([]);
  const [loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState(''),[search,setSearch]=useState(''),[sede,setSede]=useState(''),[status,setStatus]=useState(''),[selected,setSelected]=useState<string|null>(null),[page,setPage]=useState(1),[start,setStart]=useState(''),[end,setEnd]=useState('');
  const [action,setAction]=useState<{contract:DepositContract;type:'ingreso'|'devolucion'|'soporte';available:number}|null>(null);
  const [requests,setRequests]=useState<DepositRequest[]>([]),[events,setEvents]=useState<RequestEvent[]>([]),[supports,setSupports]=useState<{contrato_id:string;comprobante_path:string;monto:number;metodo:string;created_at:string}[]>([]);
+ const [deliveryReceipts,setDeliveryReceipts]=useState<DeliveryReceipt[]>([]);
  const inFlight=useRef(false),bootstrapProfile=useRef<Profile|null>(initialProfile),lastLoaded=useRef(0);
  const load=useCallback(async()=>{
   if(inFlight.current)return false;inFlight.current=true;setLoading(true);setError('');
@@ -38,22 +40,23 @@ export default function Deposits({initialProfile}:{initialProfile:Profile}){
    if(!p||p.activo===false||(!canPay(p.rol)&&!p.sede_id))throw Error('Tu perfil no tiene acceso a la gestión de depósitos.');setProfile(p);
    if(isAccounting(p.rol)){
     const read=<T,>(table:string,key='id')=>collectPages<T>((from,to)=>supabase.from(table).select('*').order(key).range(from,to));
-    const [cs,rs,ms,qs,ss,es]=await Promise.all([
+    const [cs,rs,ms,qs,ss,es,ds]=await Promise.all([
      collectPages<DepositContract>((from,to)=>supabase.rpc('contratos_depositos_contabilidad').range(from,to)),
      read<DepositReturn>('devoluciones_depositos'),
      read<DepositMovement>('movimientos_depositos'),
      read<DepositRequest>('solicitudes_depositos'),
      read<(typeof supports)[number]>('soportes_depositos_anteriores','contrato_id'),
      read<RequestEvent>('historial_solicitudes_depositos'),
+     collectPages<DeliveryReceipt>((from,to)=>supabase.rpc('comprobantes_entrega_depositos').range(from,to)),
     ]);
-    setContracts(cs);setRequests(qs);setEvents(es);setReturns(rs);setMovements(ms);setSupports(ss);lastLoaded.current=Date.now();return true;
+    setDeliveryReceipts(ds);setContracts(cs);setRequests(qs);setEvents(es);setReturns(rs);setMovements(ms);setSupports(ss);lastLoaded.current=Date.now();return true;
    }
    async function all(table:string,columns:string){const result:unknown[]=[];for(let offset=0;;offset+=500){let q=supabase.from(table).select(columns).order(table==='soportes_depositos_anteriores'?'contrato_id':'id').range(offset,offset+499);if(!canPay(p!.rol))q=q.eq(table==='contratos'?'sede_id':'contrato.sede_id',p!.sede_id);const {data,error}=await q;if(error)throw Error('No se pudieron consultar los contratos y movimientos. Pulsa Actualizar para reintentar.');result.push(...data);if(data.length<500)return result;}}
-    const [cs,rs,ms,qs,ss,es]=await Promise.all([all('contratos','id,numero_contrato,numero_factura,cliente_nombre,cliente_documento,valor_deposito,sede,sede_id,estado,cliente_whatsapp,whatsapp,created_at,banco_deposito,tipo_cuenta_deposito,numero_cuenta_deposito,titular_cuenta_deposito'),all('devoluciones_depositos','*,contrato:contratos!inner(id,sede_id)'),all('movimientos_depositos','*,contrato:contratos!inner(id,sede_id)'),all('solicitudes_depositos','*,contrato:contratos!inner(id,sede_id)'),all('soportes_depositos_anteriores','*,contrato:contratos!inner(id,sede_id)'),collectPages<RequestEvent>((from,to)=>supabase.from('historial_solicitudes_depositos').select('*').order('id').range(from,to))]);
-   setSupports(ss as typeof supports);
+    const [cs,rs,ms,qs,ss,es,ds]=await Promise.all([all('contratos','id,numero_contrato,numero_factura,cliente_nombre,cliente_documento,valor_deposito,sede,sede_id,estado,cliente_whatsapp,whatsapp,created_at,banco_deposito,tipo_cuenta_deposito,numero_cuenta_deposito,titular_cuenta_deposito'),all('devoluciones_depositos','*,contrato:contratos!inner(id,sede_id)'),all('movimientos_depositos','*,contrato:contratos!inner(id,sede_id)'),all('solicitudes_depositos','*,contrato:contratos!inner(id,sede_id)'),all('soportes_depositos_anteriores','*,contrato:contratos!inner(id,sede_id)'),collectPages<RequestEvent>((from,to)=>supabase.from('historial_solicitudes_depositos').select('*').order('id').range(from,to)),collectPages<DeliveryReceipt>((from,to)=>supabase.rpc('comprobantes_entrega_depositos').range(from,to))]);
+   setDeliveryReceipts(ds);setSupports(ss as typeof supports);
    setRequests(qs as DepositRequest[]);setEvents(es as RequestEvent[]);
    setContracts(cs as DepositContract[]);setReturns(rs as DepositReturn[]);setMovements(ms as DepositMovement[]);lastLoaded.current=Date.now();return true;
-  }catch(e){setContracts([]);setRequests([]);setEvents([]);setReturns([]);setMovements([]);setSupports([]);setError(e instanceof Error?e.message:'No se pudo cargar el módulo.');return false;}finally{setLoading(false);inFlight.current=false;}
+  }catch(e){setDeliveryReceipts([]);setContracts([]);setRequests([]);setEvents([]);setReturns([]);setMovements([]);setSupports([]);setError(e instanceof Error?e.message:'No se pudo cargar el módulo.');return false;}finally{setLoading(false);inFlight.current=false;}
  },[router]);
  useEffect(()=>{void load();const id=new URLSearchParams(window.location.search).get('contratoId');if(id)setSelected(id);},[load]);
  useEffect(()=>{const refresh=()=>{if(document.visibilityState==='visible'&&!action&&Date.now()-lastLoaded.current>=60000)void load();};window.addEventListener('focus',refresh);const timer=window.setInterval(refresh,60000);return()=>{window.removeEventListener('focus',refresh);window.clearInterval(timer);};},[load,action]);
@@ -63,7 +66,7 @@ export default function Deposits({initialProfile}:{initialProfile:Profile}){
  const needsReceipt=(contract:DepositContract)=>needsDepositReceipt(contract,movements,supports);
  const openIncoming=(contract:DepositContract,available:number)=>setAction({contract,available,type:needsReceipt(contract)?'soporte':'ingreso'});
  const current=enriched.find(c=>c.contract.id===selected);const pages=Math.max(1,Math.ceil(filtered.length/15)),currentPage=Math.min(page,pages);
- const history=current?[...movementHistory(current.contract,returns,movements),...supports.filter(s=>s.contrato_id===current.contract.id).map(s=>({id:'soporte-'+s.contrato_id,type:'Comprobante de ingreso anterior',date:bogotaDay(s.created_at)!,amount:s.monto,deduction:0,method:s.metodo,note:'Respaldo del depósito anterior. No suma dinero nuevamente.',path:s.comprobante_path,url:null}))].filter(m=>(!start||m.date>=start)&&(!end||m.date<=end)):[];
+ const history=current?[...movementHistory(current.contract,returns,movements),...deliveryReceipts.filter(r=>r.contrato_id===current.contract.id).map(r=>({id:'entrega-'+r.id,type:'Comprobante verificado en entrega',date:bogotaDay(r.created_at)!,amount:0,deduction:0,method:r.metodo,note:'Soporte del depósito para la entrega. No suma dinero.',path:r.comprobante_path,url:null})),...supports.filter(s=>s.contrato_id===current.contract.id).map(s=>({id:'soporte-'+s.contrato_id,type:'Comprobante de ingreso anterior',date:bogotaDay(s.created_at)!,amount:s.monto,deduction:0,method:s.metodo,note:'Respaldo del depósito anterior. No suma dinero nuevamente.',path:s.comprobante_path,url:null}))].filter(m=>(!start||m.date>=start)&&(!end||m.date<=end)):[];
  const totals=enriched.reduce((a,c)=>({total:a.total+c.total,returned:a.returned+c.returned,deducted:a.deducted+c.deducted,available:a.available+c.available}),{total:0,returned:0,deducted:0,available:0});
  const openReceipt=async(path:string|null,url:string|null)=>{try{if(!path&&url){const legacy=new URL(url);const origin=new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!);const prefix='/storage/v1/object/public/comprobantes_depositos/';if(legacy.origin===origin.origin&&legacy.pathname.startsWith(prefix))path=decodeURIComponent(legacy.pathname.slice(prefix.length));}if(path){const {data,error}=await supabase.storage.from('comprobantes_depositos').createSignedUrl(path,300);if(error)throw error;window.open(data.signedUrl,'_blank','noopener,noreferrer');}else if(url&&/^https:\/\//.test(url))window.open(url,'_blank','noopener,noreferrer');}catch{setNotice('No se pudo abrir el comprobante. Vuelve a intentarlo.');}};
   const logout=async()=>{await supabase.auth.signOut();document.cookie='sb-access-token=;path=/;max-age=0';router.replace('/login');};
