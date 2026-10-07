@@ -23,12 +23,12 @@ export const needsPrexvReview = (data: PrexvData) => data.prexv_componentes == n
 export const includedPrexv = (data: PrexvData) => prexvServices.filter(s => data.prexv_componentes?.includes(s.id));
 export function prexvPending(data: PrexvData): string[] {
   if (needsPrexvReview(data)) return ['Revisar componentes PRE-XV contratados'];
-  return includedPrexv(data).filter(s => !data[s.confirmed] || !data[s.name]?.trim()).map(s => s.confirmation);
+  return includedPrexv(data).filter(s => !data[s.confirmed]).map(s => s.confirmation);
 }
 export function prexvSummary(data: PrexvData): string {
   if (needsPrexvReview(data)) return 'PRE-XV · Revisar componentes';
   const included = includedPrexv(data);
   if (!included.length) return 'Sin servicios PRE-XV';
   const pending = prexvPending(data).length;
-  return `${included.map(s => s.label).join(' + ')} · ${pending ? included.filter(s => !data[s.confirmed] || !data[s.name]?.trim()).map(s => !data[s.name]?.trim() ? `${s.label}: falta nombre` : `${s.label}: por confirmar`).join(' · ') : 'Confirmado'}`;
+  return `${included.map(s => s.label).join(' + ')} · ${pending ? `${pending} por confirmar` : 'Confirmado'}`;
 }
