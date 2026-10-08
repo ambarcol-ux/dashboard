@@ -13,7 +13,7 @@ export async function middleware(req: NextRequest) {
   requestHeaders.delete('x-ambar-profile-verified-at');
   const next = () => NextResponse.next({ request: { headers: requestHeaders } });
   // Login must render even when Supabase Auth is slow or an old cookie exists.
-  if (path === '/login') return next();
+  if (path === '/login' || path === '/agendar-primera-cita' || path === '/api/primeras-citas') return next();
   const bearer = req.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
   const token = bearer || req.cookies.get('sb-access-token')?.value;
   const protectedPath = /^\/(dashboard|contratos|admin|perfil|disponibilidad)(\/|$)/.test(path) || path === '/api/dashboard/contracts';

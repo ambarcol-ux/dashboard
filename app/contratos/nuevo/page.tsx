@@ -25,6 +25,9 @@ export default function NuevoContratoPage() {
   const [editingSnapshot, setEditingSnapshot] = useState<any>(null);
   const [loadingEditContract, setLoadingEditContract] = useState(false);
   const isEditMode = Boolean(editingContractId);
+  const [firstVisit,setFirstVisit]=useState<any>(null);
+  const [firstVisitError,setFirstVisitError]=useState('');
+  const [firstVisitLoading,setFirstVisitLoading]=useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -148,6 +151,29 @@ export default function NuevoContratoPage() {
   const [asesorasList, setAsesorasList] = useState<any[]>([]);
   const [asesorasFiltradas, setAsesorasFiltradas] = useState<any[]>([]);
   const [busyVestidoIds, setBusyVestidoIds] = useState<Set<string>>(new Set());
+
+  useEffect(()=>{
+    const params=new URLSearchParams(window.location.search),id=params.get('primeraCita');
+    if(!id||params.has('editar')||!sedesList.length)return;
+    let live=true;setFirstVisitLoading(true);
+    void (async()=>{
+      const {data:c,error}=await supabase.from('primeras_citas').select('id,sede_id,cliente_nombre,telefono,email,estado').eq('id',id).single();
+      if(error||!c)throw new Error('No puedes acceder a esta primera cita. Vuelve al Calendario.');
+      if(!['asistio','seguimiento'].includes(c.estado))throw new Error('Registra primero la atención de la cita en Calendario.');
+      const {data:existing,error:ce}=await supabase.from('contratos').select('id').eq('primera_cita_id',id).maybeSingle();
+      if(ce)throw new Error('No se pudo verificar si la cita ya tiene contrato.');
+      if(existing)throw new Error('Esta cita ya tiene un contrato. Ábrelo desde Calendario.');
+      const site=sedesList.find(s=>s.id===c.sede_id);if(!site)throw new Error('La sede de la cita no está disponible.');
+      if(live){setFirstVisit(c);setFormData(prev=>({...prev,cliente_nombre:c.cliente_nombre,whatsapp:c.telefono,cliente_email:c.email||'',sede_id:site.id,sede:site.nombre}));}
+    })().catch(e=>{if(live)setFirstVisitError(e.message);}).finally(()=>{if(live)setFirstVisitLoading(false);});
+    return()=>{live=false;};
+  },[sedesList]);
+  const assertFirstVisitReady=()=>{
+    if(!isEditMode&&new URLSearchParams(window.location.search).has('primeraCita')){
+      if(!firstVisit||firstVisitLoading||firstVisitError)throw new Error(firstVisitError||'Espera a que se cargue la primera cita.');
+      if(formData.sede_id!==firstVisit.sede_id)throw new Error('El contrato debe conservar la sede de la primera cita.');
+    }
+  };
 
   // -- Helper de UX: Confirmación al Salir --
   const isFormDirty = () => {
@@ -992,7 +1018,9 @@ export default function NuevoContratoPage() {
       const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount);
       const verdaderoValorTotal = valorAlquilerConDescuento + serviciosAdicionales;
 
+      assertFirstVisitReady();
       const payload = {
+        ...(firstVisit?{primera_cita_id:firstVisit.id}:{}),
         numero_contrato,
         numero_factura: numeroFactura,
         estado: 'borrador',
@@ -1333,7 +1361,9 @@ export default function NuevoContratoPage() {
       const verdaderoValorTotal = valorAlquilerConDescuento + serviciosAdicionales;
 
       // 5. Inserción ERP: Mapeo Estricto de Columnas
+      assertFirstVisitReady();
       const payload = {
+        ...(firstVisit?{primera_cita_id:firstVisit.id}:{}),
         numero_contrato,
         numero_factura: numeroFactura,
         estado: 'borrador',
@@ -1554,6 +1584,7 @@ export default function NuevoContratoPage() {
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center py-8 font-sans px-2 sm:px-4 pb-24">
       <Toaster position="top-right" richColors />
+      {(firstVisit||firstVisitLoading||firstVisitError)&&<div className="mx-auto max-w-6xl rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm" role={firstVisitError?'alert':'status'}>{firstVisitError|| (firstVisitLoading?'Cargando primera cita…':`Contrato originado en primera visita: ${firstVisit.cliente_nombre}. Al guardarlo quedará vinculado a su seguimiento.`)} <a className="font-bold underline" href="/dashboard/calendario#primeras-visitas">Volver al Calendario</a></div>}
 
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-200">
 

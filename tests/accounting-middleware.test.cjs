@@ -21,7 +21,7 @@ const request=(path,method='GET',transport='cookie',value=token)=>({nextUrl:{pat
  assert.equal(allowed.status,200);
  const profile=profileModule.exports.parseDepositProfile(allowed.headers.get(HEADER));
  assert.equal(profile.id,'accounting');assert.equal(profile.rol,'contabilidad');assert.equal(profile.nombre,'María Ámbar');
- for(const path of ['/login','/public']){
+ for(const path of ['/login','/public','/agendar-primera-cita','/api/primeras-citas']){
   const before=calls;const response=await mod.exports.middleware(request(path,'GET','cookie',null));
   assert.equal(response.status,200);assert.equal(response.headers.has(HEADER),false);assert.equal(calls,before);
  }
