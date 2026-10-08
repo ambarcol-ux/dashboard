@@ -1,0 +1,11 @@
+const assert=require('node:assert/strict'),{createHmac}=require('node:crypto'),compile=require('./compile.cjs');
+const {validMetaSignature,whatsappPayload}=compile('lib/first-visit-messaging.ts');
+const raw='{"entry":[]}',secret='test-secret',signature='sha256='+createHmac('sha256',secret).update(raw).digest('hex');
+assert(validMetaSignature(raw,signature,secret));assert(!validMetaSignature(raw+' ',signature,secret));assert(!validMetaSignature(raw,signature,''));assert(!validMetaSignature(raw,'bad',secret));
+const c={id:'test',fecha:'2026-10-20',hora:'09:00:00',cliente_nombre:'QA',telefono:'3001234567',sede_id:'site',modalidad:'presencial'};
+let p=whatsappPayload('recordatorio24',c,'Pereira','https://example.invalid/#token');
+assert.equal(p.to,'573001234567');assert.equal(p.template.name,'ambar_recordatorio_cita');assert.equal(p.template.components[0].parameters[5].text,'https://example.invalid/#token');
+p=whatsappPayload('post_cita',c,'Pereira','link');assert.equal(p.template.components[0].parameters[0].payload,'pc_asisti');
+p=whatsappPayload('pregunta_motivo',c,'Pereira','link');assert.equal(p.interactive.action.sections[0].rows.length,7);
+const worker=compile('app/api/primeras-citas/procesar/route.ts');
+(async()=>{delete process.env.FIRST_VISIT_WORKER_SECRET;assert.equal((await worker.POST(new Request('https://example.invalid'))).status,401);process.env.FIRST_VISIT_WORKER_SECRET='test';delete process.env.FIRST_VISIT_MESSAGES_ENABLED;const r=await worker.POST(new Request('https://example.invalid',{headers:{authorization:'Bearer test'}}));assert.equal((await r.json()).activo,false);console.log('PASS signed Meta webhook, template payloads and disabled worker');})().catch(e=>{console.error(e);process.exitCode=1;});

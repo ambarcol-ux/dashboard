@@ -1,0 +1,57 @@
+do $$
+declare s uuid; v uuid:=gen_random_uuid(); v2 uuid:=gen_random_uuid(); d date:=(now() at time zone 'America/Bogota')::date+7; ver timestamptz; r jsonb; admin_id uuid; stage uuid; job jsonb; next_visit uuid:=gen_random_uuid();
+begin
+ select id into s from public.sedes where activo is true limit 1;
+ if extract(isodow from d)=7 then d:=d+1;end if;
+ r:=public.reservar_primera_cita_completa(v,d,'09:00','presencial',s,'QA TRANSACCION ENLACES','9908886601','qa@example.invalid',true,repeat('f',64),d+40,'Gala');
+ if r->>'reservada'<>'true' then raise exception 'FAIL reservation';end if;
+ if (select count(*) from public.primeras_citas_mensajes where cita_id=v)<>5 then raise exception 'FAIL messages';end if;
+ select updated_at into ver from public.primeras_citas where id=v;
+ r:=public.accion_cliente_primera_cita(v,'consultar','{}');
+ if r ? 'telefono' or r ? 'cliente_nombre' then raise exception 'FAIL public data';end if;
+ perform public.accion_cliente_primera_cita(v,'reprogramar',jsonb_build_object('version',ver,'fecha',d,'hora','10:00','modalidad','presencial','sede',s,'motivo','Cambio de horario'));
+ if (select revision from public.primeras_citas where id=v)<>2 then raise exception 'FAIL revision';end if;
+ if (select count(*) from public.primeras_citas_mensajes where cita_id=v and estado='omitido')<>5 then raise exception 'FAIL stale messages';end if;
+ begin
+  perform public.accion_cliente_primera_cita(v,'cancelar',jsonb_build_object('version',ver,'motivo','Cancelación vieja'));
+  raise exception 'FAIL stale version accepted';
+ exception when raise_exception then if sqlerrm='FAIL stale version accepted' then raise;end if;end;
+ select updated_at into ver from public.primeras_citas where id=v;
+ begin
+  perform public.accion_cliente_primera_cita(v,'reprogramar',jsonb_build_object('version',ver,'fecha',d,'hora','19:00','modalidad','presencial','sede',s,'motivo','Horario inválido'));
+  raise exception 'FAIL invalid hour';
+ exception when raise_exception then if sqlerrm='FAIL invalid hour' then raise;end if;end;
+ if (select hora from public.primeras_citas where id=v)<>time '10:00' then raise exception 'FAIL old slot lost';end if;
+ perform public.accion_cliente_primera_cita(v,'cancelar',jsonb_build_object('version',ver,'motivo','No puedo asistir'));
+ if exists(select 1 from public.primeras_citas_mensajes where cita_id=v and estado='pendiente') then raise exception 'FAIL cancel notifications';end if;
+ insert into public.primeras_citas(id,modalidad,sede_id,fecha,hora,cliente_nombre,telefono,email,estado) values(v2,'presencial',s,d-8,'09:00','QA SEGUIMIENTO','9908886602','qa@example.invalid','asistio');
+ select updated_at into ver from public.primeras_citas where id=v2;
+ perform public.accion_cliente_primera_cita(v2,'respuesta',jsonb_build_object('version',ver,'asistio',true,'alquilo',false,'motivo','Precio'));
+ select id into admin_id from public.profiles where activo is true and lower(rol)='admin' limit 1;
+ perform set_config('request.jwt.claim.sub',admin_id::text,true);
+ select updated_at into ver from public.primeras_citas where id=v2;
+ perform public.editar_comercial_primera_cita(v2,jsonb_build_object('fecha_evento',d+32,'resultado','EN SEGUIMIENTO'),ver);
+ if (select count(*) from public.primeras_citas_seguimientos where cita_id=v2)<>5 then raise exception 'FAIL five stages';end if;
+ if exists(select 1 from public.primeras_citas_seguimientos where cita_id=v2 and fecha>=d+32) then raise exception 'FAIL stage after event';end if;
+ select id into stage from public.primeras_citas_seguimientos where cita_id=v2 and etapa=1;
+ perform public.gestionar_seguimiento_primera_cita(stage,d-7,'Conversación registrada',true,(select updated_at from public.primeras_citas_seguimientos where id=stage));
+ if (select realizado_at is null from public.primeras_citas_seguimientos where id=stage) then raise exception 'FAIL completed';end if;
+ insert into public.primeras_citas_mensajes(cita_id,revision,tipo,programado_at,estado,provider_id) values(v2,1,'post_cita',now(),'enviado','qa-context') on conflict(cita_id,revision,tipo) do update set estado='enviado',provider_id='qa-context';
+ update public.primeras_citas set respuesta_asistencia=null,respuesta_alquiler=null,motivo_no_alquiler='' where id=v2;
+ if public.respuesta_whatsapp_primera_cita('qa-message-wrong','qa-context','573001111111','pc_asisti') then raise exception 'FAIL wrong recipient';end if;
+ if not public.respuesta_whatsapp_primera_cita('qa-message','qa-context','579908886602','pc_asisti') then raise exception 'FAIL reply';end if;
+ perform public.respuesta_whatsapp_primera_cita('qa-message','qa-context','579908886602','pc_asisti');
+ if (select count(*) from public.primeras_citas_mensajes where cita_id=v2 and tipo='pregunta_alquiler')<>1 then raise exception 'FAIL duplicated reply';end if;
+ if not public.estado_whatsapp_primera_cita('qa-context','579908886602','read',now()) then raise exception 'FAIL delivery status';end if;
+ perform public.estado_whatsapp_primera_cita('qa-context','579908886602','sent',now()-interval '1 minute');
+ if (select entrega_estado from public.primeras_citas_mensajes where provider_id='qa-context')<>'read' then raise exception 'FAIL status regression';end if;
+ if public.estado_whatsapp_primera_cita('qa-context','573001111111','failed',now()) then raise exception 'FAIL status wrong recipient';end if;
+ perform public.reservar_primera_cita_completa(next_visit,d,'11:00','presencial',s,'QA SEGUIMIENTO','9908886602','qa@example.invalid',true,repeat('e',64),d+32,'Gala');
+ select updated_at into ver from public.primeras_citas where id=v2;
+ perform public.editar_comercial_primera_cita(v2,jsonb_build_object('fecha_evento',d+32,'resultado','AGENDÓ NUEVA CITA','nueva_cita',next_visit),ver);
+ if (select nueva_cita_id from public.primeras_citas where id=v2) is distinct from next_visit then raise exception 'FAIL linked native booking';end if;
+ if has_function_privilege('anon','public.accion_cliente_primera_cita(uuid,text,jsonb)','EXECUTE') or has_function_privilege('authenticated','public.accion_cliente_primera_cita(uuid,text,jsonb)','EXECUTE') then raise exception 'FAIL public bypass';end if;
+end $$;
+set local role service_role;
+select public.tomar_mensaje_primera_cita();
+reset role;

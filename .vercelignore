@@ -1,0 +1,8 @@
+agenda-bloqueos.patch
+verificacion-agenda.json
+.env*.local
+verificacion-agenda.jpg
+
+verification/
+tests/
+CALENDARIO_APPS_SCRIPT.md

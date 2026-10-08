@@ -1,5 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {createHmac} from 'node:crypto';
+import {visitManagementLink} from '@/lib/first-visit-links';
 import {validateVisitInput} from '@/lib/first-visits';
 export const dynamic='force-dynamic';
 const reply=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
@@ -32,9 +33,9 @@ export async function POST(request:Request){
   const db=client();
   const ip=(request.headers.get('x-vercel-forwarded-for')||request.headers.get('x-forwarded-for')||'local').split(',')[0].trim();
   const key=createHmac('sha256',process.env.SUPABASE_SERVICE_ROLE_KEY!).update(ip).digest('hex');
-  const {data,error}=await db.rpc('reservar_primera_cita',{p_id:input.id,p_fecha:input.fecha,p_hora:input.hora,p_modalidad:input.modalidad,p_sede:input.sede,p_nombre:input.nombre,p_telefono:input.telefono,p_email:input.email,p_consentimiento:true,p_limite:key});
+  const {data,error}=await db.rpc('reservar_primera_cita_completa',{p_id:input.id,p_fecha:input.fecha,p_hora:input.hora,p_modalidad:input.modalidad,p_sede:input.sede,p_nombre:input.nombre,p_telefono:input.telefono,p_email:input.email,p_consentimiento:true,p_limite:key,p_fecha_evento:input.fechaEvento||null,p_tipo_vestido:input.tipoVestido});
   if(error)return reply({error:'No se pudo confirmar la reserva. Revisa tus datos y vuelve a consultar el horario.'},400);
   if(!data?.reservada)return reply({error:data?.error||'El horario ya no está disponible.'},409);
-  return reply({reservada:true,id:data.id});
+  return reply({reservada:true,id:data.id,enlace:visitManagementLink(new URL(request.url).origin,data.id,Date.parse(input.fecha+'T23:59:59-05:00')+30*86400000,process.env.FIRST_VISIT_LINK_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY!)});
  }catch{return reply({error:'No se pudo confirmar la reserva. Reintenta con los mismos datos para comprobarla sin duplicarla.'},503);}
 }

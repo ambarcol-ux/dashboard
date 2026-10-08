@@ -1,0 +1,18 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+const {signVisitLink}=compile('lib/first-visit-links.ts');
+process.env.SUPABASE_SERVICE_ROLE_KEY='test-secret';process.env.NEXT_PUBLIC_SUPABASE_URL='https://test.invalid';
+let calls=0,allowed=false,auth=true;
+const api=compile('app/api/primeras-citas/gestionar/route.ts',{'@supabase/supabase-js':{createClient:()=>({auth:{getUser:async()=>({data:{user:auth?{id:'user'}:null},error:null})},from:()=>({select:()=>({eq:()=>({single:async()=>({data:allowed?{id:'00000000-0000-0000-0000-000000000001',fecha:'2026-10-20'}:null,error:allowed?null:{}})})})}),rpc:async()=>{calls++;return {data:{ok:true},error:null};}})}});
+const req=(b,h={})=>new Request('https://erp.test/api/primeras-citas/gestionar',{method:'POST',headers:{'content-type':'application/json',...h},body:JSON.stringify(b)});
+(async()=>{
+ assert.equal((await api.POST(req({accion:'consultar',token:'bad'}))).status,403);assert.equal(calls,0);
+ const token=signVisitLink('00000000-0000-0000-0000-000000000001',Date.now()+10000,'test-secret');
+ assert.equal((await api.POST(req({accion:'consultar',token},{origin:'https://evil.invalid'}))).status,403);
+ assert.equal((await api.POST(req({accion:'eliminar',token}))).status,400);
+ assert.equal((await api.POST(req({accion:'consultar',token}))).status,200);assert.equal(calls,1);
+ assert.equal((await api.POST(req({accion:'enlace',id:'other'}))).status,401);
+ assert.equal((await api.POST(req({accion:'enlace',id:'other'},{authorization:'Bearer user'}))).status,403);
+ allowed=true;assert.equal((await api.POST(req({accion:'enlace',id:'allowed'},{authorization:'Bearer user'}))).status,200);
+ auth=false;assert.equal((await api.POST(req({accion:'enlace',id:'allowed'},{authorization:'Bearer user'}))).status,401);
+ console.log('PASS private links: expiry/tamper, origin, action allowlist and advisor site authorization');
+})().catch(e=>{console.error(e);process.exitCode=1});
