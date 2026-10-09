@@ -22,3 +22,12 @@ export function whatsappPhone(value:string){
  const digits=value.replace(/\D/g,'');return digits.length===10?`57${digits}`:digits;
 }
 export const noRentalReasons=['Precio','No encontré vestido','Visitaré otras tiendas','Debo consultarlo','Fecha del evento','Talla / diseño / ajuste','Otro'];
+
+// Document searches issue short-lived rescheduling-only capabilities.
+export function signRescheduleLink(id:string,expires:number,key:string){
+ return 'r.'+signVisitLink(id,expires,createHmac('sha256',key).update('first-visit-reschedule-only').digest('hex'));
+}
+export function verifyRescheduleLink(token:string,key:string,now=Date.now()){
+ if(!key||!token.startsWith('r.'))return null;
+ return verifyVisitLink(token.slice(2),createHmac('sha256',key).update('first-visit-reschedule-only').digest('hex'),now);
+}

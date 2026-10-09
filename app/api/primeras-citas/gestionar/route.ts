@@ -1,5 +1,5 @@
 import {createClient} from '@supabase/supabase-js';
-import {verifyVisitLink,visitManagementLink} from '@/lib/first-visit-links';
+import {verifyVisitLink,verifyRescheduleLink,visitManagementLink} from '@/lib/first-visit-links';
 export const dynamic='force-dynamic';
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
 function key(){return process.env.FIRST_VISIT_LINK_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY||'';}
@@ -21,7 +21,9 @@ export async function POST(request:Request){
    const expires=Math.max(Date.now()+30*86400000,Date.parse(data.fecha+'T23:59:59-05:00')+30*86400000);
    return reply({enlace:visitManagementLink(new URL(request.url).origin,data.id,expires,key())});
   }
-  const token=verifyVisitLink(String(body.token||''),key());
+  const limited=verifyRescheduleLink(String(body.token||''),key());
+  const token=limited||verifyVisitLink(String(body.token||''),key());
+  if(limited&&!['consultar','reprogramar'].includes(body.accion))return reply({error:'Esta consulta solo permite reprogramar la cita.'},403);
   if(!token)return reply({error:'El enlace venció o no es válido. Solicita uno nuevo a la sede.'},403);
   if(!['consultar','confirmar','reprogramar','cancelar','respuesta'].includes(body.accion))return reply({error:'Acción no permitida.'},400);
   const {data,error}=await server().rpc('accion_cliente_primera_cita',{p_id:token.id,p_accion:body.accion,p_datos:body.datos||{}});
@@ -29,6 +31,7 @@ export async function POST(request:Request){
    // Only controlled PL/pgSQL business errors, never provider/internal diagnostics.
    return reply({error:error.code==='P0001'?error.message:'No se pudo actualizar. Revisa la fecha y el horario.'},400);
   }
+  if(limited&&body.accion==='consultar')return reply({fecha:data.fecha,hora:data.hora,modalidad:data.modalidad,sede_id:data.sede_id,sede:data.sede,estado:data.estado,version:data.version,solo_reprogramar:true});
   return reply(data);
  }catch{return reply({error:'No pudimos procesar la solicitud. Intenta nuevamente.'},503);}
 }
