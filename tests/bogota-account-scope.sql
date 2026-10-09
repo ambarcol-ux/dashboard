@@ -1,0 +1,28 @@
+select set_config('test.bogota',(select id::text from public.sedes where nombre='Bogotá'),true);
+select set_config('test.other_contract',(select id::text from public.contratos where sede_id<>(select id from public.sedes where nombre='Bogotá') limit 1),true);
+select set_config('test.own_contract',(select id::text from public.contratos where sede_id=(select id from public.sedes where nombre='Bogotá') limit 1),true);
+select set_config('request.jwt.claim.sub',(select id::text from auth.users where lower(email)='asesor1bogotaambar@gmail.com'),true);
+set local role authenticated;
+do $$ declare n integer; r jsonb;begin
+ if not exists(select 1 from public.profiles where id=auth.uid() and rol='asesora' and sede_id=current_setting('test.bogota')::uuid) then raise exception 'FAIL role';end if;
+ if not exists(select 1 from public.contratos where id=current_setting('test.own_contract')::uuid) then raise exception 'FAIL own contract';end if;
+ if exists(select 1 from public.contratos where sede_id is distinct from current_setting('test.bogota')::uuid) then raise exception 'FAIL other contracts';end if;
+ if exists(select 1 from public.vestidos where sede_actual_id is distinct from current_setting('test.bogota')::uuid) then raise exception 'FAIL other dresses';end if;
+ if (select count(*) from public.sedes)<>1 then raise exception 'FAIL site selector';end if;
+ if exists(select 1 from public.primeras_citas where sede_id is distinct from current_setting('test.bogota')::uuid) then raise exception 'FAIL other visits';end if;
+ if exists(select 1 from public.pagos where contrato_id=current_setting('test.other_contract')::uuid) then raise exception 'FAIL other payments';end if;
+ if exists(select 1 from public.vista_historial_alquileres h where not exists(select 1 from public.contratos c where c.numero_contrato=h.numero_contrato)) then raise exception 'FAIL history view';end if;
+ if exists(select 1 from public.kpi_vestidos_populares k where not exists(select 1 from public.vestidos v where v.id=k.id)) then raise exception 'FAIL inventory ranking';end if;
+ if private.acceso_deposito(current_setting('test.other_contract')::uuid) then raise exception 'FAIL deposit RPC authorization';end if;
+ if private.acceso_primera_cita(gen_random_uuid(),'virtual') then raise exception 'FAIL virtual scope';end if;
+ update public.profiles set rol='admin' where id=auth.uid();get diagnostics n=row_count;if n<>0 then raise exception 'FAIL privilege escalation';end if;
+ update public.contratos set cliente_nombre=cliente_nombre where id=current_setting('test.other_contract')::uuid;get diagnostics n=row_count;if n<>0 then raise exception 'FAIL cross site update';end if;
+ perform * from public.vestidos_fuera_activos();
+ r:=public.listar_primeras_citas(current_date-30,current_date+30);
+ if exists(select 1 from jsonb_array_elements(r) x where x->>'sede_id'<>current_setting('test.bogota')) then raise exception 'FAIL first visits RPC';end if;
+end $$;
+reset role;
+select set_config('request.jwt.claim.sub',(select id::text from public.profiles where rol='admin' and activo is true limit 1),true);
+set local role authenticated;
+do $$ begin if private.sede_operativa_limitada() is not null then raise exception 'FAIL other user scope';end if;if not exists(select 1 from public.contratos where id=current_setting('test.other_contract')::uuid) then raise exception 'FAIL admin regression';end if;end $$;
+reset role;

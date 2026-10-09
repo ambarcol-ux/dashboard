@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
-import { isAccounting } from '@/lib/role-access';
+import { isAccounting, isBogotaOperationsAccount, operationsPanels } from '@/lib/role-access';
 import {
   FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins, KeyRound
 } from 'lucide-react';
@@ -19,8 +19,9 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
   const depositCount = useDepositCount(pendingDeposits, user?.id);
   const [isOpen, setIsOpen] = useState(false);
   const normalizedRole = String(user?.rol || '').toLowerCase();
+  const bogotaOnly = isBogotaOperationsAccount(user?.id);
   const accountingOnly = isAccounting(normalizedRole);
-  const isAdmin = !accountingOnly && (normalizedRole === 'admin' || user?.email === 'dubian.h88@gmail.com');
+  const isAdmin = !bogotaOnly && !accountingOnly && (normalizedRole === 'admin' || user?.email === 'dubian.h88@gmail.com');
 
   type SidebarItem = {
     id: string;
@@ -114,6 +115,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       <nav className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar pb-10">
         <DepositAlert count={depositCount}/>
         {sidebarBlocks.map((block, blockIndex) => {
+          if (bogotaOnly && block.title !== 'OPERACIONES') return null;
           if (block.adminOnly && !isAdmin) return null;
           if (accountingOnly && !block.items.some(item => item.id === 'depositos')) return null;
 
@@ -122,7 +124,8 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
               <p className="px-4 py-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">{block.title}</p>
 
               {block.items.map((item) => {
-                if (item.adminOnly && !isAdmin) return null;
+                if (bogotaOnly && !operationsPanels.includes(item.href)) return null;
+                if (item.adminOnly && !isAdmin && !(bogotaOnly && item.id === 'inventory')) return null;
                 if (accountingOnly && item.id !== 'depositos') return null;
                 const Icon = item.icon;
                 const isActive = activePage === item.id;
@@ -178,7 +181,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       </nav>
 
       <div className="p-4 border-t border-gray-50 flex flex-col gap-2">
-        {!accountingOnly && <Link
+        {!accountingOnly && !bogotaOnly && <Link
           href="/perfil"
           onClick={() => isMobile && setIsOpen(false)}
           className={`flex items-center gap-3 px-4 py-3 rounded-xl font-black text-sm transition-all group ${
