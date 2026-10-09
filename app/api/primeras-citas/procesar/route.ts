@@ -2,11 +2,25 @@ import {createClient} from '@supabase/supabase-js';
 import {visitManagementLink} from '@/lib/first-visit-links';
 import {whatsappPayload} from '@/lib/first-visit-messaging';
 import {Resend} from 'resend';
+import {authorizedVisitWorker,visitWorkerConfiguration} from '@/lib/first-visit-worker-config';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
+export async function GET(request:Request){
+ if(!authorizedVisitWorker(request))return Response.json({error:'No autorizado'},{status:401});
+ const config=visitWorkerConfiguration();
+ if(!config.configuracion.base_datos)return Response.json({...config,listo:false},{headers:{'Cache-Control':'no-store'}});
+ try{
+  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:(input,init)=>fetch(input,{...init,signal:AbortSignal.timeout(10000)})}});
+  const {count,error}=await db.from('primeras_citas_mensajes').select('id',{count:'exact',head:true}).in('estado',['pendiente','error']).lte('programado_at',new Date().toISOString()).lt('intentos',3);
+  if(error)return Response.json({...config,listo:false,error:'No se pudo consultar la cola'},{status:503,headers:{'Cache-Control':'no-store'}});
+  return Response.json({...config,listo:config.activo&&config.faltantes.length===0,pendientes:count||0},{headers:{'Cache-Control':'no-store'}});
+ }catch{return Response.json({...config,listo:false,error:'La base de datos no respondió'},{status:503,headers:{'Cache-Control':'no-store'}});}
+}
 export async function POST(request:Request){
- if(!process.env.FIRST_VISIT_WORKER_SECRET||request.headers.get('authorization')!==`Bearer ${process.env.FIRST_VISIT_WORKER_SECRET}`)return Response.json({error:'No autorizado'},{status:401});
+ if(!authorizedVisitWorker(request))return Response.json({error:'No autorizado'},{status:401});
  if(process.env.FIRST_VISIT_MESSAGES_ENABLED!=='true')return Response.json({activo:false,motivo:'Automatización desactivada'});
+ const configuration=visitWorkerConfiguration();
+ if(configuration.faltantes.length)return Response.json({error:'Completa la configuración antes de enviar mensajes.',faltantes:configuration.faltantes},{status:503});
  const {META_WA_TOKEN:token,META_WA_PHONE_NUMBER_ID:phone,META_GRAPH_VERSION:version,FIRST_VISIT_PUBLIC_ORIGIN:origin,SUPABASE_SERVICE_ROLE_KEY:key}=process.env;
  if(!token||!phone||!version||!/^v\d+\.0$/.test(version)||!origin||!origin.startsWith('https://')||!key)return Response.json({error:'Falta configurar WhatsApp, versión de Meta u origen público.'},{status:503});
  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,key,{auth:{persistSession:false,autoRefreshToken:false}});

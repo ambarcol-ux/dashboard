@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+const {commercialRows,commercialMetrics}=compile('lib/crm-analysis.ts');
+const historic={id:'source',hoja:'CITAS',fila:2,id_externo:'old',sede_id:'site',fecha:'2026-10-10',nombre:'Cliente',asesora:'Asesora',asistencia:true,alquilo:true,recuperada:false,motivo:'',incidencia:''};
+const visit={id:'native',crm_origen_id:'source',fecha:'2026-10-11',hora:'10:00:00',sede_id:'site',sede:'Bogotá',cliente_nombre:'Cliente',telefono:'3000000000',email:'',estado:'asistio',respuesta_asistencia:true,respuesta_alquiler:true,resultado_comercial:'ALQUILÓ',contrato_id:null,contrato_estado:null,responsable:'Asesora'};
+let rows=commercialRows([historic],[visit],{site:'Bogotá'});assert.equal(rows.length,1);assert.equal(rows[0].fecha,'2026-10-11');assert.equal(rows[0].calendarId,'native');let m=commercialMetrics(rows);assert.equal(m.alquileres,1);assert.equal(m.contratos,0);assert.equal(m.conversion,100);
+rows=commercialRows([historic],[{...visit,contrato_id:'contract',contrato_estado:'firmado'}],{site:'Bogotá'});assert.equal(commercialMetrics(rows).contratos,1);
+rows=commercialRows([{...historic,incidencia:'ID duplicado'}],[],{site:'Bogotá'});assert.equal(commercialMetrics(rows).registros,0);
+rows=commercialRows([{...historic,asistencia:null,alquilo:true}],[],{site:'Bogotá'});assert.equal(commercialMetrics(rows).alquileres,0);assert.equal(commercialMetrics(rows).conversion,0);
+rows=commercialRows([historic],[{...visit,id:'other',crm_origen_id:null,estado:'no_asistio',respuesta_asistencia:false,respuesta_alquiler:false,resultado_comercial:'EN SEGUIMIENTO'}],{site:'Bogotá'});assert.equal(rows.length,2);assert.equal(commercialMetrics(rows).atendidas,1);
+console.log('PASS CRM metrics: imported visit deduplicated, current date, declared vs contract, invalid source rows and unattended denominator');

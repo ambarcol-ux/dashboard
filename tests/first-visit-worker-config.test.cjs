@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+const {authorizedVisitWorker,visitWorkerConfiguration}=compile('lib/first-visit-worker-config.ts');
+const request=secret=>new Request('https://example.invalid',{headers:{authorization:'Bearer '+secret}});
+assert.equal(authorizedVisitWorker(request('x'),{}),false);
+assert.equal(authorizedVisitWorker(request('other'),{FIRST_VISIT_WORKER_SECRET:'test'}),false);
+assert.equal(authorizedVisitWorker(request('test'),{FIRST_VISIT_WORKER_SECRET:'test'}),true);
+const env={FIRST_VISIT_MESSAGES_ENABLED:'true',NEXT_PUBLIC_SUPABASE_URL:'https://example.supabase.co',SUPABASE_SERVICE_ROLE_KEY:'private-test-key',META_WA_TOKEN:'private-test-meta',META_WA_PHONE_NUMBER_ID:'test-phone',META_GRAPH_VERSION:'v26.0',META_APP_SECRET:'test-app',META_WA_VERIFY_TOKEN:'test-verify',FIRST_VISIT_PUBLIC_ORIGIN:'https://erp.ambarcouture.com',FIRST_VISIT_LINK_SECRET:'test-link',RESEND_API_KEY:'test-email',FIRST_VISIT_EMAIL_FROM:'Citas <citas@example.invalid>',FIRST_VISIT_INTERNAL_RECIPIENTS:'{"site":["test@example.invalid"]}'};
+let c=visitWorkerConfiguration(env);assert.equal(c.faltantes.length,0);assert.equal(c.activo,true);
+assert(!JSON.stringify(c).includes('private-test'));
+for(const origin of ['http://example.invalid','https://u:p@example.invalid','https://example.invalid/path','https://example.invalid/?secret=test','https://example.invalid/#token'])assert(visitWorkerConfiguration({...env,FIRST_VISIT_PUBLIC_ORIGIN:origin}).faltantes.includes('origen_publico'));
+for(const recipients of ['bad','{}','{"site":[]}','{"site":["not-email"]}'])assert(visitWorkerConfiguration({...env,FIRST_VISIT_INTERNAL_RECIPIENTS:recipients}).faltantes.includes('correo_interno'));
+assert(visitWorkerConfiguration({...env,META_APP_SECRET:''}).faltantes.includes('webhook'));
+const worker=compile('app/api/primeras-citas/procesar/route.ts');
+(async()=>{delete process.env.FIRST_VISIT_WORKER_SECRET;assert.equal((await worker.GET(request('test'))).status,401);process.env.FIRST_VISIT_WORKER_SECRET='test';delete process.env.SUPABASE_SERVICE_ROLE_KEY;const r=await worker.GET(request('test'));const status=await r.json();assert.equal(status.listo,false);assert(status.faltantes.includes('base_datos'));console.log('PASS worker authorization, redacted readiness, configuration validation and no database claim during diagnosis');})().catch(e=>{console.error(e);process.exitCode=1;});
