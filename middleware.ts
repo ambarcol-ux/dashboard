@@ -55,7 +55,7 @@ export async function middleware(req: NextRequest) {
         profileResult.error || !profile || profile.id !== user.id || profile.activo === false) return deny();
     if (!canAccessAccountPath(profile.id, path)) {
       return path.startsWith('/api/') || !['GET','HEAD'].includes(req.method)
-        ? NextResponse.json({error:'Tu cuenta solo tiene acceso a los módulos de operaciones de Bogotá.'},{status:403})
+        ? NextResponse.json({error:'Tu cuenta solo tiene acceso a los módulos de operaciones de tu sede.'},{status:403})
         : NextResponse.redirect(new URL('/dashboard',req.url));
     }
     if (!canAccessPath(profile.rol, path)) {
