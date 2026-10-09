@@ -1,4 +1,5 @@
 'use client';
+import {canEditSavedRecords} from '@/lib/saved-record-editing';
 
 import PreXvFields from '@/components/PreXvFields';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
@@ -262,13 +263,13 @@ export default function NuevoContratoPage() {
           .eq('id', user.id)
           .single();
 
-        if (profileError || !profile || profile.activo === false || String(profile.rol || '').toLowerCase() !== 'admin') {
+        if (profileError || !profile || profile.activo === false || !canEditSavedRecords({...profile,id:user.id})) {
           toast.error('Solo un administrador puede editar un contrato pactado.');
           router.replace('/dashboard');
           return;
         }
 
-        setUserRole('admin');
+        setUserRole(profile.rol);
 
         const { data: contract, error } = await supabase
           .from('contratos')

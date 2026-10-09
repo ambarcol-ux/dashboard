@@ -2081,7 +2081,7 @@ export default function DashboardPage() {
 
                <button onClick={()=>{setOpenDropdownId(null);void desistContract(c);}} disabled={loading||['cancelado','anulado','rechazado','finalizado','entregado','mantenimiento'].includes(String(c.estado).toLowerCase())} className="w-full text-left px-4 py-3 text-sm text-amber-700 hover:bg-amber-50 rounded-xl font-bold disabled:opacity-50">Desistir del contrato</button>
 
-               {user?.rol === 'admin' && (
+               {isDashboardAdmin && (
                   <>
                     <div className="h-px bg-gray-100 my-1 mx-2"></div>
                     <button 
@@ -3608,7 +3608,7 @@ export default function DashboardPage() {
                                     </button>
                                   )}
 
-                                   {(user?.rol === 'admin' || user?.email === 'dubian.h88@gmail.com') && (
+                                   {(isDashboardAdmin || user?.email === 'dubian.h88@gmail.com') && (
                                      <button 
                                        onClick={() => openRemoveModal(item)}
                                        className="px-3 py-1.5 bg-rose-500 hover:bg-rose-600 text-white text-[9px] font-black rounded-lg transition-all shadow-sm border-b-2 border-rose-700 flex items-center gap-1"
@@ -3817,7 +3817,7 @@ export default function DashboardPage() {
 
                   {/* Internal Control Section */}
                   <section>
-                    {selectedContract.estado?.toLowerCase() === 'finalizado' && user?.rol === 'admin' && (
+                    {selectedContract.estado?.toLowerCase() === 'finalizado' && isDashboardAdmin && (
                       <div className="mb-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                         <div className="flex items-center gap-3 mb-4">
                           <div className="p-2 bg-red-100 rounded-lg text-red-600"><AlertTriangle className="w-5 h-5"/></div>

@@ -1,4 +1,5 @@
 'use client';
+import {canEditSavedRecords} from '@/lib/saved-record-editing';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
 import React, { useEffect, useState } from 'react';
@@ -748,7 +749,7 @@ export default function InventoryPage() {
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                          {user?.rol === 'admin' && (
+                          {canEditSavedRecords(user) && (
                             v.estado === 'Vendido' ? (
                               <button 
                                 onClick={(e) => {
@@ -885,7 +886,7 @@ export default function InventoryPage() {
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
-                    {user?.rol === 'admin' && (
+                    {canEditSavedRecords(user) && (
                       v.estado === 'Vendido' ? (
                         <button 
                           onClick={(e) => {
