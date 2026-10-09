@@ -3,6 +3,7 @@ import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { HandCoins,Plus,ArrowUpRight,Search,RefreshCw,ChevronLeft,ChevronRight,X } from 'lucide-react';
+import OutsideDressAlerts from '@/components/OutsideDressAlerts';
 import Sidebar from '@/components/Sidebar';
 import {isAccounting} from '@/lib/role-access';
 import DepositRequests from '@/components/DepositRequests';
@@ -75,6 +76,7 @@ export default function Deposits({initialProfile}:{initialProfile:Profile}){
 
  return <div className={styles.shell}><Sidebar user={profile} handleLogout={logout} activePage="depositos" pendingDeposits={error||!lastLoaded.current?null:requests.filter(isPending).length}/><main className={styles.main}>
  <header className={styles.header}><div>{profile.rol.toLowerCase()==='contabilidad'?<span>Contabilidad · Todas las sedes</span>:<Link href="/dashboard">Contratos / Depósitos</Link>}<h1><HandCoins/> Depósitos y devoluciones</h1><p>{canPay(profile.rol)?'Consulta depósitos y gestiona devoluciones de todas las sedes.':'Registra garantías y devoluciones de todos los contratos de tu sede.'}</p></div><button onClick={()=>void load()} disabled={loading}><RefreshCw size={16}/>{loading?'Actualizando…':'Actualizar'}</button></header>
+ <OutsideDressAlerts />
  <div className={styles.stats}>{[['Depósitos registrados',totals.total],['Devuelto a clientes',totals.returned],['Descuentos aplicados',totals.deducted],['Saldo por devolver',totals.available]].map(([label,value])=><div key={label}><span>{label}</span><strong>{money(Number(value))}</strong></div>)}</div>
  {error&&<div role="alert" className={styles.error}>{error}<button onClick={()=>void load()}>Reintentar</button></div>}{notice&&<div role="status" className={styles.notice}>{notice}<button aria-label="Cerrar mensaje" onClick={()=>setNotice('')}><X size={16}/></button></div>}
  <DepositRequests requests={requests} events={events} contracts={contracts} profile={profile} onChange={load} openReceipt={openReceipt}/>

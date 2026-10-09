@@ -16,7 +16,7 @@ for (const required of [
 
 assert.match(dashboard, /contrato_tiene_deposito_valido/);
 assert.match(dashboard, /REGISTRAR DEPÓSITO/);
-assert.match(dashboard, /Vestido fuera de tienda por/);
+assert.match(dashboard, /OutsideDressAlerts/);
 assert.match(deposits, /FALTA INFORMACIÓN DE CUENTA/);
 assert.match(deposits, /EXPORTAR PENDIENTES A EXCEL/);
 assert.match(deposits, /e\.key==='Escape'/);

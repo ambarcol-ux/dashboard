@@ -2,6 +2,7 @@
 import {loadContractSignature} from '@/lib/load-dashboard-contracts';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 import {CONTRACT_PAGE_SIZE, type DashboardSummary} from '@/lib/dashboard-summary';
+import OutsideDressAlerts from '@/components/OutsideDressAlerts';
 import FinalizeContractDialog from '@/components/FinalizeContractDialog';
 import PreXvFields from '@/components/PreXvFields';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
@@ -127,7 +128,6 @@ export default function DashboardPage() {
   const [deliveryType, setDeliveryType] = useState<'PREXV' | 'EVENTO' | 'AMBOS'>('EVENTO');
   const [deliveryConjunta, setDeliveryConjunta] = useState(false);
   const [depositBlock, setDepositBlock] = useState<{id:string;numero:string}|null>(null);
-  const [outsideDresses, setOutsideDresses] = useState<any[]>([]);
   const [asesoras, setAsesoras] = useState<any[]>([]);
   const [sedes, setSedes] = useState<any[]>([]);
   const [selectedAsesoraId, setSelectedAsesoraId] = useState<string>('');
@@ -492,12 +492,8 @@ export default function DashboardPage() {
   };
 
   const fetchContractSupport = async () => {
-    const [templates, outside] = await Promise.all([
-      supabase.from('plantillas_contratos').select('*').order('numero_orden', {ascending:true}),
-      supabase.rpc('vestidos_fuera_activos'),
-    ]);
+    const templates = await supabase.from('plantillas_contratos').select('*').order('numero_orden', {ascending:true});
     if (templates.data) setPlantillas(templates.data);
-    if (outside.data) setOutsideDresses(outside.data);
   };
 
 
@@ -2755,7 +2751,7 @@ export default function DashboardPage() {
             </div>
           
           <div className="overflow-x-visible pb-32">
-            {outsideDresses.filter(v=>Number(v.dias_fuera)>=9).length>0&&<section className="mx-4 mb-5 rounded-2xl border border-red-200 bg-red-50 p-5"><h2 className="font-black text-red-800">Gestión de Operaciones · vestidos fuera de tienda</h2><div className="mt-3 grid gap-3">{outsideDresses.filter(v=>Number(v.dias_fuera)>=9).map(v=><article key={v.id} className="rounded-xl bg-white p-4 text-sm shadow-sm"><strong className="text-red-700">⚠️ Vestido fuera de tienda por {v.dias_fuera} días</strong><p>Vestido: {v.vestido_codigo} · Cliente: {v.cliente_nombre} · Contrato: {v.numero_contrato}</p><p>Factura: {v.numero_factura||'Sin factura'} · Sede: {v.sede} · Salida: {new Date(v.salida_at).toLocaleString('es-CO')}</p><p className="font-bold">Estado: ALERTA · Requiere seguimiento</p></article>)}</div></section>}
+            <OutsideDressAlerts />
             
             <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-gray-100" aria-label="Paginación de contratos">
               <span className="text-sm text-gray-500" aria-live="polite">

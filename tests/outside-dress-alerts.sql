@@ -1,0 +1,26 @@
+-- Execute with the candidate migration inside BEGIN/ROLLBACK only.
+select set_config('test.outside_id',(select f.id::text from public.vestidos_fuera_tienda f where not exists(select 1 from public.vestidos_fuera_tienda x where x.contrato_id=f.contrato_id and x.vestido_id=f.vestido_id and x.regreso_at is null and x.id<>f.id) limit 1),true);
+select set_config('request.jwt.claim.sub',(select id::text from public.profiles where activo is true and lower(rol)='contabilidad' limit 1),true);
+do $$ begin if nullif(current_setting('test.outside_id'),'') is null or nullif(current_setting('request.jwt.claim.sub'),'') is null then raise exception 'Missing test fixture';end if;end $$;
+update public.vestidos_fuera_tienda set regreso_at=null,salida_at=(((now() at time zone 'America/Bogota')::date-4)+time '12:00') at time zone 'America/Bogota' where id=current_setting('test.outside_id')::uuid;
+set local role authenticated;
+do $$ begin if not exists(select 1 from public.vestidos_fuera_activos() where id=current_setting('test.outside_id')::uuid and dias_fuera=4 and semaforo='NORMAL') then raise exception 'FAIL accounting day four';end if;end $$;
+reset role;
+update public.vestidos_fuera_tienda set salida_at=salida_at-interval '1 day' where id=current_setting('test.outside_id')::uuid;
+set local role authenticated;
+do $$ begin if not exists(select 1 from public.vestidos_fuera_activos() where id=current_setting('test.outside_id')::uuid and dias_fuera=5 and semaforo='ALERTA') then raise exception 'FAIL accounting day five';end if;end $$;
+reset role;
+select set_config('request.jwt.claim.sub',(select id::text from public.profiles where activo is true and lower(rol)='admin' limit 1),true);
+set local role authenticated;
+do $$ begin if not exists(select 1 from public.vestidos_fuera_activos() where id=current_setting('test.outside_id')::uuid and dias_fuera=5 and semaforo='ALERTA') then raise exception 'FAIL admin day five';end if; if exists(select 1 from private.vestidos_fuera_contabilidad()) then raise exception 'FAIL helper authorization';end if;end $$;
+reset role;
+update public.vestidos_fuera_tienda set regreso_at=now() where id=current_setting('test.outside_id')::uuid;
+select set_config('request.jwt.claim.sub',(select id::text from public.profiles where activo is true and lower(rol)='contabilidad' limit 1),true);
+set local role authenticated;
+do $$ begin if exists(select 1 from public.vestidos_fuera_activos() where id=current_setting('test.outside_id')::uuid) then raise exception 'FAIL returned dress';end if;end $$;
+reset role;
+select set_config('request.jwt.claim.sub','',true);
+set local role authenticated;
+do $$ begin if exists(select 1 from public.vestidos_fuera_activos()) then raise exception 'FAIL missing identity';end if;end $$;
+reset role;
+do $$ begin if has_function_privilege('anon','public.vestidos_fuera_activos()','EXECUTE') or has_function_privilege('anon','private.vestidos_fuera_contabilidad()','EXECUTE') then raise exception 'FAIL anonymous access';end if;end $$;
