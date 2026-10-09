@@ -16,8 +16,17 @@ export function visitMetrics(rows:FirstVisit[]){
 export const outcomeLabel=(v:FirstVisit)=>({cerrado:'Cerró · contrato activo',contrato_pendiente:'Contrato creado · pendiente de cierre'}[visitOutcome(v)]||visitStates[v.estado]||v.estado);
 export function validateVisitInput(b:Record<string,unknown>){
  const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
- const name=String(b.nombre||'').trim(),phone=String(b.telefono||'').replace(/[\s()+-]/g,''),email=String(b.email||'').trim().toLowerCase();
- if(!uuid.test(String(b.id))||!uuid.test(String(b.sede))||!['presencial','virtual'].includes(String(b.modalidad))||!/^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha))||!/^(09|1[0-8]):00$/.test(String(b.hora))||name.length<2||name.length>120||!/^\d{10,15}$/.test(phone)||email.length>160||(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))||b.consentimiento!==true||b.website)throw new Error('Revisa tu nombre, teléfono, sede y horario, y acepta el uso de tus datos para la cita.');
+ const name=String(b.nombre||'').trim(),phone=String(b.telefono||'').replace(/[\s().+-]/g,''),email=String(b.email||'').trim().toLowerCase();
+ if(!uuid.test(String(b.id)))throw Error('Recarga la página e intenta reservar nuevamente.');
+ if(!uuid.test(String(b.sede)))throw Error('Selecciona la sede de tu cita.');
+ if(!['presencial','virtual'].includes(String(b.modalidad)))throw Error('Selecciona la modalidad de tu cita.');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha)))throw Error('Selecciona una fecha válida para tu cita.');
+ if(!/^(09|1[0-8]):00$/.test(String(b.hora)))throw Error('Selecciona una hora disponible para tu cita.');
+ if(name.length<2||name.length>120)throw Error('Escribe tu nombre completo, entre 2 y 120 caracteres.');
+ if(!/^\d{10,15}$/.test(phone))throw Error('Revisa el teléfono: escribe entre 10 y 15 números, incluyendo el indicativo si corresponde. Ejemplo: 3001234567.');
+ if(email.length>160||(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))throw Error('Revisa el correo electrónico o déjalo vacío si no deseas registrarlo.');
+ if(b.consentimiento!==true)throw Error('Marca la casilla de autorización de uso de datos para reservar.');
+ if(b.website)throw Error('No se pudo validar el formulario. Recarga la página y completa los campos visibles manualmente.');
  const documento=String(b.documento||'').replace(/[.\s-]/g,'');
  if(!/^\d{5,15}$/.test(documento))throw Error('Ingresa la cédula de la persona que reserva, solo números.');
  const fechaEvento=String(b.fechaEvento||''),tipoVestido=String(b.tipoVestido||'').trim();

@@ -11,3 +11,8 @@ assert.equal(m.closed,1);assert.equal(m.attended,4);assert.equal(m.lost,1);asser
 console.log('PASS: input validation, draft vs signed conversion, cancellation and non-attendance metrics');
 
 for(const tipoVestido of ['Gala','Quince','Novia'])assert.equal(validateVisitInput({...valid,tipoVestido}).tipoVestido,tipoVestido);
+for(const telefono of ['300.123.4567','+57 (300) 123-4567','300 123 4567'])assert.match(validateVisitInput({...valid,telefono}).telefono,/^\d{10,15}$/);
+assert.throws(()=>validateVisitInput({...valid,telefono:'123'}),/Revisa el teléfono/);
+assert.throws(()=>validateVisitInput({...valid,consentimiento:false}),/casilla de autorización/);
+assert.throws(()=>validateVisitInput({...valid,hora:''}),/hora disponible/);
+assert.throws(()=>validateVisitInput({...valid,website:'autofill'}),/campos visibles/);
