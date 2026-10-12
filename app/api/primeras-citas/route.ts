@@ -2,7 +2,6 @@ import {createClient} from '@supabase/supabase-js';
 import {createHmac} from 'node:crypto';
 import {visitManagementLink} from '@/lib/first-visit-links';
 import {validateVisitInput} from '@/lib/first-visits';
-import {scheduleVisitEmails} from '@/lib/first-visit-email';
 export const dynamic='force-dynamic';
 const reply=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
 function client(){
@@ -38,7 +37,6 @@ export async function POST(request:Request){
   if(error)return reply({error:'No se pudo confirmar la reserva. Revisa tus datos y vuelve a consultar el horario.'},400);
   if(!data?.reservada&&data?.error==='Ya tienes una primera cita pendiente. Contacta a la sede para cambiarla.')return reply({error:'Ya tienes una primera cita pendiente. Puedes cambiar su fecha y horario desde aquí.',reprogramar:true},409);
   if(!data?.reservada)return reply({error:data?.error||'El horario ya no está disponible.'},409);
-  scheduleVisitEmails(new URL(request.url).origin,data.id);
-  return reply({reservada:true,id:data.id,enlace:visitManagementLink(new URL(request.url).origin,data.id,Date.parse(input.fecha+'T23:59:59-05:00')+30*86400000,process.env.FIRST_VISIT_LINK_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY!)});
+   return reply({reservada:true,id:data.id,enlace:visitManagementLink(new URL(request.url).origin,data.id,Date.parse(input.fecha+'T23:59:59-05:00')+30*86400000,process.env.FIRST_VISIT_LINK_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY!)});
  }catch{return reply({error:'No se pudo confirmar la reserva. Reintenta con los mismos datos para comprobarla sin duplicarla.'},503);}
 }

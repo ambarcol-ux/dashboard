@@ -1,7 +1,6 @@
 'use client';
 import {useCallback,useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
-import {notifyVisitChange} from '@/lib/first-visit-notify';
 import {commercialResults,followupUrgency} from '@/lib/first-visit-followup';
 import type {FirstVisit} from '@/lib/first-visits';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
@@ -16,7 +15,7 @@ export default function FirstVisitCommercial({visit,onChanged}:{visit:FirstVisit
  useEffect(()=>{let active=true;void supabase.from('primeras_citas').select('id,fecha,hora,modalidad').eq('telefono',visit.telefono).neq('id',visit.id).in('estado',['agendada','confirmada']).gte('fecha',new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).format(new Date())).order('fecha').order('hora').limit(30).then(({data,error})=>{if(active){if(error)setError('No se pudieron consultar las nuevas reservas de este cliente.');else setNextVisits(data||[]);}});return()=>{active=false;};},[visit.id,visit.telefono]);
  async function run(work:()=>Promise<void>){if(busy)return;setBusy(true);setError('');setNotice('');try{await work();await load();onChanged();}catch(e){setError(e instanceof Error?e.message:'No se pudo guardar.');}finally{setBusy(false);}}
  async function makeLink(){await run(async()=>{const {data}=await supabase.auth.getSession();const r=await fetch('/api/primeras-citas/gestionar',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${data.session?.access_token||''}`},body:JSON.stringify({accion:'enlace',id:visit.id})});const d=await r.json();if(!r.ok)throw Error(d.error);setLink(d.enlace);});}
- async function save(){await run(async()=>{const {error}=await supabase.rpc('editar_comercial_primera_cita',{p_id:row.id,p_version:row.updated_at,p_datos:{fecha_evento:event,enlace_virtual:meet,resultado:result,nota:note,nueva_cita:newVisit}});if(error)throw error;setNotice((await notifyVisitChange(row.id))?'Gestión comercial guardada. Se notificó al cliente por correo.':'Gestión comercial guardada.');});}
+ async function save(){await run(async()=>{const {error}=await supabase.rpc('editar_comercial_primera_cita',{p_id:row.id,p_version:row.updated_at,p_datos:{fecha_evento:event,enlace_virtual:meet,resultado:result,nota:note,nueva_cita:newVisit}});if(error)throw error;setNotice('Gestión comercial guardada.');});}
  async function stageSave(stage:Followup,done:boolean){await run(async()=>{const {error}=await supabase.rpc('gestionar_seguimiento_primera_cita',{p_id:stage.id,p_fecha:stage.fecha,p_nota:stage.nota,p_realizado:done,p_version:stage.updated_at});if(error)throw error;setNotice(done?'Seguimiento completado.':'Nota y fecha guardadas.');});}
  async function saveDocument(){await run(async()=>{const {error}=await supabase.rpc('guardar_documento_primera_cita',{p_id:row.id,p_documento:documento,p_version:row.updated_at});if(error)throw error;setNotice('Cédula guardada para reprogramar la cita.');});}
  const phone=visit.telefono.length===10?'57'+visit.telefono:visit.telefono;

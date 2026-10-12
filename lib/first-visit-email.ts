@@ -1,6 +1,4 @@
-import {after} from 'next/server';
-import {createClient,type SupabaseClient} from '@supabase/supabase-js';
-import {Resend} from 'resend';
+import type {SupabaseClient} from '@supabase/supabase-js';
 import {visitManagementLink} from './first-visit-links';
 
 export type VisitEmailEvent='reserva'|'reprogramacion'|'cancelacion'|'confirmacion'|'enlace_virtual';
@@ -33,39 +31,21 @@ export function visitChangeEmail(event:VisitEmailEvent,detail:VisitEmailDetail,n
  return {subject:`${title} · Ámbar Couture`,text,html};
 }
 
-function serviceClient(){
- const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
- if(!key||key==='[SENSITIVE]'||!process.env.NEXT_PUBLIC_SUPABASE_URL)return null;
- return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL,key,{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:(input,init)=>fetch(input,{...init,signal:AbortSignal.timeout(10000)})}});
-}
-export const visitEmailConfigured=()=>Boolean(process.env.RESEND_API_KEY);
+export type ClaimedVisitEmail={id:string;para:string;asunto:string;texto:string;html:string};
+type Job={omitido?:boolean;correo:{id:string;evento:VisitEmailEvent;detalle:VisitEmailDetail};cita:{id:string;fecha:string;cliente_nombre:string;email:string}};
 
-/** Sends queued change emails (optionally for one appointment). Unsent rows stay queued for the worker. */
-export async function deliverVisitEmails(origin:string,{cita,limit=5,db=serviceClient()}:{cita?:string;limit?:number;db?:SupabaseClient|null}={}){
- let sent=0,failed=0;
- const apiKey=process.env.RESEND_API_KEY,secret=process.env.FIRST_VISIT_LINK_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY||'';
- if(!apiKey||!db)return {enviados:sent,fallidos:failed};
- const resend=new Resend(apiKey),from=process.env.FIRST_VISIT_EMAIL_FROM||'Ámbar Couture <citas@ambarcouture.com>';
+/** Claims queued change emails and renders them for the Apps Script sender. */
+export async function claimVisitEmails(db:SupabaseClient,origin:string,linkSecret:string,limit=10){
+ const emails:ClaimedVisitEmail[]=[];
  for(let i=0;i<limit;i++){
-  const {data:job,error}=await db.rpc('tomar_correo_primera_cita',{p_cita:cita??null});
-  if(error||!job)break;if(job.omitido)continue;
-  const {correo,cita:c}=job as {correo:{id:string;evento:VisitEmailEvent;detalle:VisitEmailDetail};cita:{id:string;fecha:string;cliente_nombre:string;email:string}};
-  let update:Record<string,unknown>;
-  try{
-   const link=correo.evento==='cancelacion'?`${origin}/agendar-primera-cita`:visitManagementLink(origin,c.id,Date.parse(c.fecha+'T23:59:59-05:00')+30*86400000,secret);
-   const message=visitChangeEmail(correo.evento,correo.detalle,c.cliente_nombre,link);
-   const r=await resend.emails.send({from,to:c.email,...message},{idempotencyKey:correo.id});
-   update=r.error?{estado:'error',error:'El proveedor de correo rechazó el envío.'}:{estado:'enviado',provider_id:r.data?.id||null,error:null};
-  }catch{update={estado:'error',error:'No se pudo contactar al proveedor de correo.'};}
-  if(update.estado==='enviado')sent++;else failed++;
-  await db.from('primeras_citas_correos').update({...update,updated_at:new Date().toISOString()}).eq('id',correo.id).eq('estado','enviando');
+  const {data,error}=await db.rpc('tomar_correo_primera_cita',{p_cita:null});
+  if(error)throw Error('No se pudo consultar la cola de correos.');
+  if(!data)break;
+  const job=data as Job;if(job.omitido)continue;
+  const {correo,cita}=job;
+  const link=correo.evento==='cancelacion'?`${origin}/agendar-primera-cita`:visitManagementLink(origin,cita.id,Date.parse(cita.fecha+'T23:59:59-05:00')+30*86400000,linkSecret);
+  const message=visitChangeEmail(correo.evento,correo.detalle,cita.cliente_nombre,link);
+  emails.push({id:correo.id,para:cita.email,asunto:message.subject,texto:message.text,html:message.html});
  }
- return {enviados:sent,fallidos:failed};
-}
-
-/** Sends this appointment's change emails after the response, so the customer never waits on the provider. */
-export function scheduleVisitEmails(origin:string,cita:string){
- if(!visitEmailConfigured())return;
- const work=()=>deliverVisitEmails(origin,{cita}).catch(()=>undefined);
- try{after(work);}catch{void work();}
+ return emails;
 }

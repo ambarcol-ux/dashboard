@@ -3,7 +3,6 @@ import {visitManagementLink} from '@/lib/first-visit-links';
 import {whatsappPayload} from '@/lib/first-visit-messaging';
 import {Resend} from 'resend';
 import {authorizedVisitWorker,visitWorkerConfiguration} from '@/lib/first-visit-worker-config';
-import {deliverVisitEmails} from '@/lib/first-visit-email';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 export async function GET(request:Request){
@@ -19,9 +18,7 @@ export async function GET(request:Request){
 }
 export async function POST(request:Request){
  if(!authorizedVisitWorker(request))return Response.json({error:'No autorizado'},{status:401});
- // Customer change emails only need Resend; they never wait for the WhatsApp setup below.
- const correos=await deliverVisitEmails(process.env.FIRST_VISIT_PUBLIC_ORIGIN||new URL(request.url).origin,{limit:20}).catch(()=>({enviados:0,fallidos:0}));
- if(process.env.FIRST_VISIT_MESSAGES_ENABLED!=='true')return Response.json({activo:false,motivo:'Automatización desactivada',correos});
+ if(process.env.FIRST_VISIT_MESSAGES_ENABLED!=='true')return Response.json({activo:false,motivo:'Automatización desactivada'});
  const configuration=visitWorkerConfiguration();
  if(configuration.faltantes.length)return Response.json({error:'Completa la configuración antes de enviar mensajes.',faltantes:configuration.faltantes},{status:503});
  const {META_WA_TOKEN:token,META_WA_PHONE_NUMBER_ID:phone,META_GRAPH_VERSION:version,FIRST_VISIT_PUBLIC_ORIGIN:origin,SUPABASE_SERVICE_ROLE_KEY:key}=process.env;
@@ -51,5 +48,5 @@ export async function POST(request:Request){
   if(saveError)return Response.json({error:'No se pudo registrar el resultado; requiere revisión'},{status:503});
   if(state==='enviado')sent++;else review++;
  }
- return Response.json({enviados:sent,requieren_revision:review,correos});
+ return Response.json({enviados:sent,requieren_revision:review});
 }

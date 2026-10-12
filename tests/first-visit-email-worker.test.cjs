@@ -1,0 +1,20 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+process.env.SUPABASE_SERVICE_ROLE_KEY='test-secret';process.env.NEXT_PUBLIC_SUPABASE_URL='https://test.invalid';process.env.FIRST_VISIT_WORKER_SECRET='worker';
+let queue=[],updates=[];
+const job=id=>({correo:{id,evento:'reserva',detalle:{fecha:'2026-10-20',hora:'09:00',modalidad:'presencial',sede:'Bogotá'}},cita:{id:'00000000-0000-0000-0000-000000000001',fecha:'2026-10-20',cliente_nombre:'Ana',email:'ana@example.com'}});
+const db={rpc:async name=>{assert.equal(name,'tomar_correo_primera_cita');return {data:queue.shift()??null,error:null};},from:()=>({update:v=>({eq:(k1,v1)=>({eq:async(k2,v2)=>{updates.push({v,[k1]:v1,[k2]:v2});return {error:null};}})})})};
+const api=compile('app/api/primeras-citas/correos/route.ts',{'@supabase/supabase-js':{createClient:()=>db}});
+const req=(body,auth='Bearer worker')=>new Request('https://erp.test/api/primeras-citas/correos',{method:'POST',headers:{'content-type':'application/json',...(auth?{authorization:auth}:{})},body:JSON.stringify(body)});
+(async()=>{
+ assert.equal((await api.POST(req({accion:'tomar'},null))).status,401);
+ assert.equal((await api.POST(req({accion:'tomar'},'Bearer wrong'))).status,401);
+ queue=[job('11111111-1111-1111-1111-111111111111'),{omitido:true},job('22222222-2222-2222-2222-222222222222')];
+ let r=await api.POST(req({accion:'tomar',limite:5}));assert.equal(r.status,200);const {correos}=await r.json();
+ assert.equal(correos.length,2);assert.equal(correos[0].para,'ana@example.com');assert.match(correos[0].asunto,/reservada/);assert.match(correos[0].texto,/agendar-primera-cita\/gestionar#/);
+ r=await api.POST(req({accion:'resultado',id:'11111111-1111-1111-1111-111111111111',enviado:true}));assert.equal(r.status,200);
+ r=await api.POST(req({accion:'resultado',id:'22222222-2222-2222-2222-222222222222',enviado:false,error:'Límite'}));assert.equal(r.status,200);
+ assert.deepEqual(updates.map(u=>[u.v.estado,u.estado]),[['enviado','enviando'],['error','enviando']]);
+ assert.equal((await api.POST(req({accion:'resultado',id:'x'}))).status,400);
+ assert.equal((await api.POST(req({accion:'borrar'}))).status,400);
+ console.log('PASS: Apps Script email queue requires the worker secret, renders claimed emails and records Gmail results');
+})().catch(e=>{console.error(e);process.exitCode=1});

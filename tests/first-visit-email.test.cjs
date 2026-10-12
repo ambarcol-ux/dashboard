@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict'),compile=require('./compile.cjs');
-const {visitChangeEmail}=compile('lib/first-visit-email.ts',{'next/server':{after:f=>f()},'resend':{Resend:class{}},'@supabase/supabase-js':{createClient:()=>null}});
+const {visitChangeEmail}=compile('lib/first-visit-email.ts');
 const detail={fecha:'2026-10-20',hora:'09:00',modalidad:'presencial',sede:'Bogotá',anterior:{fecha:'2026-10-19',hora:'15:00',modalidad:'virtual',sede:'Bogotá'}};
 let m=visitChangeEmail('reprogramacion',detail,'Ana <b>',"https://erp.test/agendar-primera-cita/gestionar#t");
 assert.match(m.subject,/cambió/);assert.match(m.text,/Antes: .*15:00/);assert.match(m.text,/Ahora: .*09:00 a 10:00/);assert.match(m.text,/Presencial en Bogotá/);
