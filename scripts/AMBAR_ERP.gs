@@ -102,3 +102,62 @@ function exportarHistoricoCRM() {
   console.log('Respaldo histórico privado: ' + file.getUrl());
   return {archivo: file.getUrl(), nombre: file.getName()};
 }
+
+// ── Correos al cliente por cambios en la agenda de primeras citas ──
+// El ERP deja cada cambio (reserva, confirmación, reprogramación, cancelación,
+// enlace de Meet) en cola; este script los envía desde Gmail cada minuto.
+// Independiente de WhatsApp: funciona aunque los mensajes del ERP estén desactivados.
+function ambarCorreosERP_(payload) {
+  var c = ambarConfiguracionERP_();
+  var response = UrlFetchApp.fetch(c.origin + '/api/primeras-citas/correos', {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    headers: {Authorization: 'Bearer ' + c.secret},
+    muteHttpExceptions: true,
+    followRedirects: false
+  });
+  var code = response.getResponseCode();
+  if (code === 401 || code === 403) throw new Error('ERP rechazó la clave. Revisa ERP_WORKER_SECRET y FIRST_VISIT_WORKER_SECRET.');
+  if (code < 200 || code >= 300) throw new Error('Cola de correos no disponible, HTTP ' + code + '.');
+  return JSON.parse(response.getContentText());
+}
+
+function enviarCorreosERP() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) return {omitido: true, motivo: 'Otra ejecución activa'};
+  try {
+    // Solo reclama lo que la cuota diaria de Gmail permite enviar.
+    var cupo = Math.min(10, MailApp.getRemainingDailyQuota());
+    if (cupo < 1) { console.log('Cuota diaria de Gmail agotada; los correos siguen en cola.'); return {enviados: 0}; }
+    var correos = ambarCorreosERP_({accion: 'tomar', limite: cupo}).correos || [];
+    var enviados = 0, fallidos = 0;
+    correos.forEach(function(m) {
+      var resultado = {accion: 'resultado', id: m.id, enviado: true};
+      try {
+        GmailApp.sendEmail(m.para, m.asunto, m.texto, {htmlBody: m.html, name: 'Ámbar Couture'});
+        enviados++;
+      } catch (e) {
+        resultado.enviado = false; resultado.error = String(e && e.message || e).slice(0, 300); fallidos++;
+      }
+      ambarCorreosERP_(resultado);
+    });
+    if (correos.length) console.log(JSON.stringify({enviados: enviados, fallidos: fallidos}));
+    return {enviados: enviados, fallidos: fallidos};
+  } finally { lock.releaseLock(); }
+}
+
+function activarCorreosERP() {
+  // Primera ejecución manual: valida la clave y pide el permiso de Gmail antes de programar.
+  enviarCorreosERP();
+  var existing = ScriptApp.getProjectTriggers().filter(function(t) { return t.getHandlerFunction() === 'enviarCorreosERP'; });
+  if (!existing.length) ScriptApp.newTrigger('enviarCorreosERP').timeBased().everyMinutes(1).create();
+  existing.slice(1).forEach(function(t) { ScriptApp.deleteTrigger(t); });
+  console.log('Envío de correos activo: cada minuto desde ' + Session.getEffectiveUser().getEmail() + '.');
+  return {activo: true};
+}
+
+function pausarCorreosERP() {
+  ScriptApp.getProjectTriggers().filter(function(t) { return t.getHandlerFunction() === 'enviarCorreosERP'; }).forEach(function(t) { ScriptApp.deleteTrigger(t); });
+  return {correosPausados: true};
+}

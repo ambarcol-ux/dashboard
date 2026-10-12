@@ -24,7 +24,7 @@ export function validateVisitInput(b:Record<string,unknown>){
  if(!/^(09|1[0-8]):00$/.test(String(b.hora)))throw Error('Selecciona una hora disponible para tu cita.');
  if(name.length<2||name.length>120)throw Error('Escribe tu nombre completo, entre 2 y 120 caracteres.');
  if(!/^\d{10,15}$/.test(phone))throw Error('Revisa el teléfono: escribe entre 10 y 15 números, incluyendo el indicativo si corresponde. Ejemplo: 3001234567.');
- if(email.length>160||(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))throw Error('Revisa el correo electrónico o déjalo vacío si no deseas registrarlo.');
+ if(email.length>160||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw Error('Escribe un correo electrónico válido. Te enviaremos ahí la confirmación y cualquier cambio de tu cita.');
  if(b.consentimiento!==true)throw Error('Marca la casilla de autorización de uso de datos para reservar.');
  if(b.website)throw Error('No se pudo validar el formulario. Recarga la página y completa los campos visibles manualmente.');
  const documento=String(b.documento||'').replace(/[.\s-]/g,'');

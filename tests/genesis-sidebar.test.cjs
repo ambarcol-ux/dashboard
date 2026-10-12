@@ -6,4 +6,4 @@ const html=renderToStaticMarkup(React.createElement(modExports.default,{user:{id
 const links=[...html.matchAll(/<a[^>]*href="([^"]+)"/g)].map(x=>x[1]);
 assert.deepEqual(links,[...deps['@/lib/role-access'].operationsPanels,...deps['@/lib/role-access'].operationsPanels]);
 assert(!html.includes('MI PERFIL'));assert(html.includes('GESTIÓN DE INVENTARIO'));
-console.log('PASS: Villavicencio advisor sidebar renders exactly the six requested panels');
+console.log('PASS: Villavicencio advisor sidebar renders exactly the seven requested panels');

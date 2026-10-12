@@ -52,3 +52,13 @@ Webhook: /api/primeras-citas/whatsapp. La suscripción de Meta debe coordinarse 
 - Estados de WhatsApp implementados: enviado, entregado, leído y fallido, con firma de Meta y protección contra eventos fuera de orden. Su validación real requiere conectar el webhook.
 
 La migración de automatizaciones requiere esos datos y la coordinación del WhatsApp existente. Ninguna configuración faltante se ha sustituido con valores inventados.
+
+## Correos al cliente por cambios de agenda (Apps Script)
+
+Cada reserva, confirmación, reprogramación, cancelación o enlace de Meet de una primera cita deja un correo en `primeras_citas_correos`. Apps Script los envía desde Gmail:
+
+1. Copia las funciones nuevas de `scripts/AMBAR_ERP.gs` al proyecto de Apps Script del ERP (usa las mismas propiedades `ERP_ORIGIN` y `ERP_WORKER_SECRET`).
+2. Ejecuta `activarCorreosERP` una vez: pide el permiso de Gmail, envía lo pendiente y programa `enviarCorreosERP` cada minuto.
+3. `pausarCorreosERP` detiene el envío; los correos quedan en cola.
+
+Es independiente de WhatsApp y de `FIRST_VISIT_MESSAGES_ENABLED`. Los correos salen desde la cuenta dueña del script; Gmail limita los envíos diarios (100 en cuentas personales, 1.500 en Google Workspace) y el script no reclama más de lo que la cuota permite. Los correos de más de 3 días sin enviar se omiten.

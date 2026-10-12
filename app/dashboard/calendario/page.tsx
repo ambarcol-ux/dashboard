@@ -11,7 +11,6 @@ import { bogotaDay, calendarColumns, contractEvents, dayKey, calendarEventTypes,
 import styles from './calendar.module.css';
 import { hasPrexv, prexvSummary } from '@/lib/prexv';
 import ContractPanel from './ContractPanel';
-import FirstVisits from '@/components/FirstVisits';
 
 type Profile={id:string;nombre:string;email:string;rol:string;sede_id:string|null};
 type View='month'|'week'|'agenda';
@@ -19,7 +18,6 @@ const dateLabel=(value:string)=>new Date(value+'T12:00:00').toLocaleDateString('
 export default function ContractCalendar(){
   const readAccess = useVerifiedAccess();
   const router=useRouter();
-  const [visitsRefresh,setVisitsRefresh]=useState(0);
   const [profile,setProfile]=useState<Profile|null>(null);
   const [availableSites,setAvailableSites]=useState<{id:string;nombre:string}[]>([]);
   const [contracts,setContracts]=useState<CalendarContract[]>([]);
@@ -36,7 +34,7 @@ export default function ContractCalendar(){
   const [loadedAt,setLoadedAt]=useState<Date|null>(null);
   const [showCancelled,setShowCancelled]=useState(false);
   const load=useCallback(async()=>{
-    setLoading(true);setError('');setVisitsRefresh(value=>value+1);
+    setLoading(true);setError('');
     try{
       const {profile: p} = await readAccess();
       p.rol=String(p.rol).toLowerCase();
@@ -102,7 +100,6 @@ export default function ContractCalendar(){
   return <div className={styles.shell}><Sidebar user={profile} handleLogout={logout} activePage="calendario"/><main className={styles.main}>
     <header className={styles.header}><div><Link href="/dashboard" className={styles.back}>Contratos / Calendario</Link><h1><CalendarDays/> Calendario de contratos</h1><p>Pruebas, entregas y fechas de cada cliente de Ámbar.</p></div><button onClick={()=>void load()} disabled={loading} className={styles.refresh}><RefreshCw size={16} className={loading?styles.spinning:''}/> {loading?'Actualizando…':'Actualizar'}</button></header>
     <div className={styles.stats}><div><span>Contratos en este periodo</span><strong>{new Set(visible.map(e=>e.contract.id)).size}</strong></div><div><span>Pruebas de medidas</span><strong>{visible.filter(e=>e.field==='fecha_cita_medidas').length}</strong></div><div><span>Pruebas finales</span><strong>{visible.filter(e=>e.field==='fecha_prueba_final').length}</strong></div><div><span>Fechas programadas</span><strong>{visible.length}</strong></div></div>
-    <FirstVisits from={dayKey(start)} to={dayKey(end)} refreshKey={visitsRefresh}/>
     <section className={styles.calendar} aria-label="Calendario de contratos">
       <div className={styles.toolbar}><div className={styles.period}><button onClick={()=>change(-1)} aria-label="Periodo anterior"><ChevronLeft size={18}/></button><button onClick={()=>change(1)} aria-label="Periodo siguiente"><ChevronRight size={18}/></button><h2>{view!=='month'?`${dateLabel(dayKey(start))} – ${dateLabel(dayKey(end))}`:cursor.toLocaleDateString('es-CO',{month:'long',year:'numeric'})}</h2><button onClick={()=>setCursor(new Date(today+'T12:00:00'))}>Hoy</button></div><div className={styles.tabs}>{([['month','Mes'],['week','Semana'],['agenda','Día a día']] as const).map(([key,label])=><button key={key} aria-pressed={view===key} onClick={()=>setView(key)}>{label}</button>)}</div></div>
       <div className={styles.filters}><label className={styles.search}><Search size={17}/><input aria-label="Buscar cliente, contrato, factura o referencia" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Cliente, contrato, factura o referencia"/></label><select aria-label="Sede" value={sede} onChange={e=>setSede(e.target.value)}><option value="">Todas las sedes disponibles</option>{availableSites.map(s=><option key={s.id} value={s.nombre}>{s.nombre}</option>)}</select><label className={styles.check}><input type="checkbox" checked={showCancelled} onChange={e=>setShowCancelled(e.target.checked)}/> Incluir cancelados</label></div>
