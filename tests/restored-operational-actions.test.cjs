@@ -8,8 +8,9 @@ for(const id of ['bd8f61a5-8ecf-4b78-9282-5c7812b4f277','e6507392-c94a-4b9b-85df
  assert(!canAccessAccountPath(id,'/admin/users'));
  assert(!canAccessAccountPath(id,'/admin/reports'));
 }
-assert.equal(operationsPanels.length,6);
+assert.equal(operationsPanels.length,7);
+assert(operationsPanels.includes('/dashboard/primeras-citas'));
 assert(!canEditSavedRecords({id:'other',rol:'asesora'}));
 assert(!canEditSavedRecords({rol:'asesora',app_metadata:{rol:'admin'}}));
 assert(canEditSavedRecords({rol:'admin'}));
-console.log('PASS: scoped operational permissions, inactive denial, six modules and unchanged other advisors');
+console.log('PASS: scoped operational permissions, inactive denial, seven modules and unchanged other advisors');

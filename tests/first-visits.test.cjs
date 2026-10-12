@@ -1,8 +1,8 @@
 const assert=require('node:assert/strict');const compile=require('./compile.cjs');
 const {validateVisitInput,visitMetrics,visitOutcome}=compile('lib/first-visits.ts');
-const valid={id:'12345678-1234-1234-1234-123456789000',sede:'12345678-1234-1234-1234-123456789001',fecha:'2026-10-20',hora:'18:00',modalidad:'presencial',nombre:'Test Client',telefono:'+57 3001234567',email:'',consentimiento:true,tipoVestido:'Gala',documento:'9908886655'};
+const valid={id:'12345678-1234-1234-1234-123456789000',sede:'12345678-1234-1234-1234-123456789001',fecha:'2026-10-20',hora:'18:00',modalidad:'presencial',nombre:'Test Client',telefono:'+57 3001234567',email:'cliente@example.com',consentimiento:true,tipoVestido:'Gala',documento:'9908886655'};
 assert.equal(validateVisitInput(valid).telefono,'573001234567');
-for(const invalid of [{documento:''},{documento:'abc'},{documento:'1234'},{hora:'19:00'},{hora:'08:00'},{hora:'09:30'},{consentimiento:false},{website:'spam'},{telefono:'hi'},{nombre:' '},{email:'wrong'},{modalidad:'otra'},{tipoVestido:''},{tipoVestido:'Otro'}])assert.throws(()=>validateVisitInput({...valid,...invalid}));
+for(const invalid of [{documento:''},{documento:'abc'},{documento:'1234'},{hora:'19:00'},{hora:'08:00'},{hora:'09:30'},{consentimiento:false},{website:'spam'},{telefono:'hi'},{nombre:' '},{email:'wrong'},{email:''},{email:'   '},{modalidad:'otra'},{tipoVestido:''},{tipoVestido:'Otro'}])assert.throws(()=>validateVisitInput({...valid,...invalid}));
 const base={estado:'asistio',contrato_id:null,contrato_estado:null};
 assert.equal(visitOutcome({...base,contrato_id:'1',contrato_estado:'borrador'}),'contrato_pendiente');
 assert.equal(visitOutcome({...base,contrato_id:'1',contrato_estado:'cancelado'}),'asistio');
@@ -16,3 +16,6 @@ assert.throws(()=>validateVisitInput({...valid,telefono:'123'}),/Revisa el telé
 assert.throws(()=>validateVisitInput({...valid,consentimiento:false}),/casilla de autorización/);
 assert.throws(()=>validateVisitInput({...valid,hora:''}),/hora disponible/);
 assert.throws(()=>validateVisitInput({...valid,website:'autofill'}),/campos visibles/);
+assert.throws(()=>validateVisitInput({...valid,email:''}),/correo electrónico válido/);
+assert.equal(validateVisitInput({...valid,email:' Cliente@Example.com '}).email,'cliente@example.com');
+console.log('PASS: email is required for first-visit bookings');

@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+const {visitChangeEmail}=compile('lib/first-visit-email.ts',{'next/server':{after:f=>f()},'resend':{Resend:class{}},'@supabase/supabase-js':{createClient:()=>null}});
+const detail={fecha:'2026-10-20',hora:'09:00',modalidad:'presencial',sede:'Bogotá',anterior:{fecha:'2026-10-19',hora:'15:00',modalidad:'virtual',sede:'Bogotá'}};
+let m=visitChangeEmail('reprogramacion',detail,'Ana <b>',"https://erp.test/agendar-primera-cita/gestionar#t");
+assert.match(m.subject,/cambió/);assert.match(m.text,/Antes: .*15:00/);assert.match(m.text,/Ahora: .*09:00 a 10:00/);assert.match(m.text,/Presencial en Bogotá/);
+assert(!m.html.includes('<b>'));assert(m.html.includes('Ana &lt;b&gt;'));
+m=visitChangeEmail('cancelacion',{...detail,anterior:null,motivo:'Viaje'},'Ana','https://erp.test/agendar-primera-cita');
+assert.match(m.text,/cancelada/);assert.match(m.text,/Motivo: Viaje/);assert.match(m.text,/Reservar una nueva cita/);
+m=visitChangeEmail('enlace_virtual',{...detail,modalidad:'virtual',enlace_virtual:'https://meet.google.com/abc-defg-hij'},'Ana','x');
+assert.match(m.text,/meet\.google\.com/);
+for(const e of ['reserva','confirmacion'])assert(visitChangeEmail(e,detail,'Ana','x').subject.includes('Ámbar Couture'));
+console.log('PASS: customer change emails for booking, reschedule, cancellation, confirmation and Meet link; escaped HTML');

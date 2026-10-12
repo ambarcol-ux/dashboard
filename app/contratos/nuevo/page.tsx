@@ -1585,7 +1585,7 @@ export default function NuevoContratoPage() {
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center py-8 font-sans px-2 sm:px-4 pb-24">
       <Toaster position="top-right" richColors />
-      {(firstVisit||firstVisitLoading||firstVisitError)&&<div className="mx-auto max-w-6xl rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm" role={firstVisitError?'alert':'status'}>{firstVisitError|| (firstVisitLoading?'Cargando primera cita…':`Contrato originado en primera visita: ${firstVisit.cliente_nombre}. Al guardarlo quedará vinculado a su seguimiento.`)} <a className="font-bold underline" href="/dashboard/calendario#primeras-visitas">Volver al Calendario</a></div>}
+      {(firstVisit||firstVisitLoading||firstVisitError)&&<div className="mx-auto max-w-6xl rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm" role={firstVisitError?'alert':'status'}>{firstVisitError|| (firstVisitLoading?'Cargando primera cita…':`Contrato originado en primera visita: ${firstVisit.cliente_nombre}. Al guardarlo quedará vinculado a su seguimiento.`)} <a className="font-bold underline" href="/dashboard/primeras-citas">Volver al Calendario</a></div>}
 
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-200">
 

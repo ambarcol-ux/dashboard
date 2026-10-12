@@ -3,6 +3,7 @@ import {visitManagementLink} from '@/lib/first-visit-links';
 import {whatsappPayload} from '@/lib/first-visit-messaging';
 import {Resend} from 'resend';
 import {authorizedVisitWorker,visitWorkerConfiguration} from '@/lib/first-visit-worker-config';
+import {deliverVisitEmails} from '@/lib/first-visit-email';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 export async function GET(request:Request){
@@ -18,7 +19,9 @@ export async function GET(request:Request){
 }
 export async function POST(request:Request){
  if(!authorizedVisitWorker(request))return Response.json({error:'No autorizado'},{status:401});
- if(process.env.FIRST_VISIT_MESSAGES_ENABLED!=='true')return Response.json({activo:false,motivo:'Automatización desactivada'});
+ // Customer change emails only need Resend; they never wait for the WhatsApp setup below.
+ const correos=await deliverVisitEmails(process.env.FIRST_VISIT_PUBLIC_ORIGIN||new URL(request.url).origin,{limit:20}).catch(()=>({enviados:0,fallidos:0}));
+ if(process.env.FIRST_VISIT_MESSAGES_ENABLED!=='true')return Response.json({activo:false,motivo:'Automatización desactivada',correos});
  const configuration=visitWorkerConfiguration();
  if(configuration.faltantes.length)return Response.json({error:'Completa la configuración antes de enviar mensajes.',faltantes:configuration.faltantes},{status:503});
  const {META_WA_TOKEN:token,META_WA_PHONE_NUMBER_ID:phone,META_GRAPH_VERSION:version,FIRST_VISIT_PUBLIC_ORIGIN:origin,SUPABASE_SERVICE_ROLE_KEY:key}=process.env;
@@ -35,7 +38,7 @@ export async function POST(request:Request){
     const to=recipients[c.sede_id],from=process.env.FIRST_VISIT_EMAIL_FROM;
     if(!to?.length||!from||!process.env.RESEND_API_KEY){state='error';issue='Correo interno sin configurar';}
     else{
-     const r=await new Resend(process.env.RESEND_API_KEY).emails.send({from,to,subject:`Primera cita · ${sede} · ${c.fecha}`,text:`${c.cliente_nombre}\n${c.fecha} ${c.hora} · ${c.modalidad}\nGestionar en ${origin}/dashboard/calendario`},{idempotencyKey:m.id});
+     const r=await new Resend(process.env.RESEND_API_KEY).emails.send({from,to,subject:`Primera cita · ${sede} · ${c.fecha}`,text:`${c.cliente_nombre}\n${c.fecha} ${c.hora} · ${c.modalidad}\nGestionar en ${origin}/dashboard/primeras-citas`},{idempotencyKey:m.id});
      if(r.error){state='error';issue='Proveedor de correo rechazó el envío';}else{state='enviado';providerId=r.data!.id;}
     }
    }else{
@@ -48,5 +51,5 @@ export async function POST(request:Request){
   if(saveError)return Response.json({error:'No se pudo registrar el resultado; requiere revisión'},{status:503});
   if(state==='enviado')sent++;else review++;
  }
- return Response.json({enviados:sent,requieren_revision:review});
+ return Response.json({enviados:sent,requieren_revision:review,correos});
 }

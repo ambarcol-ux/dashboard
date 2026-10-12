@@ -1,5 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {verifyVisitLink,verifyRescheduleLink,visitManagementLink} from '@/lib/first-visit-links';
+import {scheduleVisitEmails} from '@/lib/first-visit-email';
 export const dynamic='force-dynamic';
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
 function key(){return process.env.FIRST_VISIT_LINK_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY||'';}
@@ -31,6 +32,7 @@ export async function POST(request:Request){
    // Only controlled PL/pgSQL business errors, never provider/internal diagnostics.
    return reply({error:error.code==='P0001'?error.message:'No se pudo actualizar. Revisa la fecha y el horario.'},400);
   }
+  if(body.accion!=='consultar')scheduleVisitEmails(new URL(request.url).origin,token.id);
   if(limited&&body.accion==='consultar')return reply({fecha:data.fecha,hora:data.hora,modalidad:data.modalidad,sede_id:data.sede_id,sede:data.sede,estado:data.estado,version:data.version,solo_reprogramar:true});
   return reply(data);
  }catch{return reply({error:'No pudimos procesar la solicitud. Intenta nuevamente.'},503);}
