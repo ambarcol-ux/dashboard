@@ -49,9 +49,14 @@ function enlaceGestionERP_(payload) {
   return esReservaERP_(payload) ? String(payload.erp.enlaceGestion || '') : '';
 }
 
-/** Sede explícita del ERP en mayúsculas sin tildes (BOGOTA, PEREIRA...), o '' si no viene del ERP. */
+/** Sede explícita del ERP con el mismo nombre que usa CITAS (Bogotá, Pereira...), o '' si no viene del ERP. */
 function sedeReservaERP_(payload) {
-  return esReservaERP_(payload) ? ambarNormalizarSede_(payload.sede) : '';
+  return esReservaERP_(payload) ? String(payload.sede || '').trim() : '';
+}
+
+/** true si el enlace es del ERP (nunca de Cal.com). */
+function esEnlaceERP_(url) {
+  return String(url || '').indexOf('https://erp.ambarcouture.com/') === 0;
 }
 
 /** Duración de la cita en minutos según el ERP (60). Reemplaza CAL_EVENT_DURATION_MIN para reservas ERP. */

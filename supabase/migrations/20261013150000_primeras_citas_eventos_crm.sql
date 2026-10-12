@@ -36,7 +36,8 @@ begin
  insert into public.primeras_citas_eventos_crm(cita_id,evento,revision,datos) values(new.id,kind,new.revision,jsonb_build_object(
   'fecha',new.fecha,'hora',to_char(new.hora,'HH24:MI'),'modalidad',new.modalidad,'sede_id',new.sede_id,'sede',(select nombre from public.sedes where id=new.sede_id),
   'nombre',new.cliente_nombre,'email',new.email,'telefono',new.telefono,'documento',new.cliente_documento,'tipo_vestido',new.tipo_vestido,'fecha_evento',new.fecha_evento,
-  'motivo',new.motivo,'enlace_virtual',new.enlace_virtual,'creada',new.created_at));
+  'motivo',new.motivo,'enlace_virtual',new.enlace_virtual,'creada',new.created_at,
+  'anterior',case when kind='BOOKING_RESCHEDULED' then jsonb_build_object('fecha',old.fecha,'hora',to_char(old.hora,'HH24:MI')) end));
  return new;
 end; $$;
 revoke all on function private.encolar_evento_crm_primera_cita() from public,anon,authenticated;

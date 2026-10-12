@@ -11,7 +11,8 @@ assert.match(e.payload.erp.enlaceReprogramacion,/^https:\/\/erp\.test\/agendar-p
 assert.match(e.payload.erp.enlaceGestion,/^https:\/\/erp\.test\/agendar-primera-cita\/gestionar#/);
 assert.equal(e.payload.erp.enlaceAgenda,'https://erp.test/agendar-primera-cita?sede=c5162e37-6ffa-4cf5-8f25-6104e7f10725');
 assert(!JSON.stringify(e).includes('cal.com'));
-e=crmBookingEvent({id:'x',cita_id:id,evento:'BOOKING_RESCHEDULED',revision:3,datos:{...datos,modalidad:'virtual',hora:'18:00'}},'https://erp.test','secret');
+e=crmBookingEvent({id:'x',cita_id:id,evento:'BOOKING_RESCHEDULED',revision:3,datos:{...datos,modalidad:'virtual',hora:'18:00',motivo:'Viaje',anterior:{fecha:'2026-10-19',hora:'10:00'}}},'https://erp.test','secret');
+assert.equal(e.payload.rescheduleStartTime,'2026-10-19T10:00:00-05:00');assert.equal(e.payload.responses.rescheduleReason,'Viaje');
 assert.equal(e.payload.uid,id+'-r3');assert.equal(e.payload.rescheduleUid,id);assert.equal(e.payload.responses.modalidad,'VIRTUAL');assert.equal(e.payload.endTime,'2026-10-20T19:00:00-05:00');
 e=crmBookingEvent({id:'x',cita_id:id,evento:'BOOKING_CANCELLED',revision:3,datos:{...datos,motivo:'Viaje'}},'https://erp.test','secret');
 assert.equal(e.payload.uid,id);assert.equal(e.payload.cancellationReason,'Viaje');

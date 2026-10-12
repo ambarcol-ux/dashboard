@@ -2,7 +2,7 @@ import {visitManagementLink,whatsappPhone} from './first-visit-links';
 
 export type CrmEventRow={id:string;cita_id:string;evento:'BOOKING_CREATED'|'BOOKING_RESCHEDULED'|'BOOKING_CANCELLED';revision:number;datos:{
  fecha:string;hora:string;modalidad:string;sede_id:string;sede:string|null;nombre:string;email:string;telefono:string;documento?:string|null;
- tipo_vestido?:string;fecha_evento?:string|null;motivo?:string;enlace_virtual?:string;
+ tipo_vestido?:string;fecha_evento?:string|null;motivo?:string;enlace_virtual?:string;anterior?:{fecha:string;hora:string}|null;
 }};
 
 /** ERP links the CRM must use instead of Cal.com: booking page per site, private management/reschedule link per visit. */
@@ -35,7 +35,12 @@ export function crmBookingEvent(row:CrmEventRow,origin:string,secret:string){
   // Fields the CRM must read instead of building Cal.com URLs.
   erp:{origen:'ERP',citaId:row.cita_id,revision:row.revision,duracionMin:60,enlaceVirtual:d.enlace_virtual||'',...links},
  };
- if(row.evento==='BOOKING_RESCHEDULED')payload.rescheduleUid=row.cita_id;
+ if(row.evento==='BOOKING_RESCHEDULED'){
+  payload.rescheduleUid=row.cita_id;
+  // Lets the CRM's fallback match the previous slot instead of any row of the same customer.
+  if(d.anterior)payload.rescheduleStartTime=`${d.anterior.fecha}T${d.anterior.hora.slice(0,5)}:00-05:00`;
+  (payload.responses as Record<string,unknown>).rescheduleReason=d.motivo||'';
+ }
  if(row.evento==='BOOKING_CANCELLED')payload.cancellationReason=d.motivo||'';
  return {triggerEvent:row.evento,createdAt:new Date().toISOString(),payload};
 }

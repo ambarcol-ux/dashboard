@@ -46,33 +46,28 @@ En vez de que el ERP haga POST al `/exec` público, **el CRM las pide al ERP cad
 
 ## Cambios en el CRM
 
-Las funciones de ayuda están en `AMBAR_CRM_AGENDA_ERP.gs`. Los cambios en las funciones existentes son de una o dos líneas y no alteran el flujo de Cal.com: solo actúan si `esReservaERP_(payload)` es verdadero.
+Ya verificados contra el código del CRM (12/10/2026):
 
-1. **Enlace de reprogramación** (`construirEnlaceReprogramacion_`): al inicio,
-   ```js
-   var enlaceERP = enlaceReprogramacionERP_(payload);
-   if (enlaceERP) return enlaceERP;
-   ```
-   Y en `extraerDatosReserva`, guarda ese valor en la columna de enlace de reprogramación que usan los recordatorios. Nunca construir `https://cal.com/reschedule/...` para una reserva del ERP. Es un enlace privado por cita (vence 30 días después de la cita): no compartirlo entre clientes.
+1. Pegar `scripts/AMBAR_CRM_AGENDA_ERP.gs` como archivo nuevo (funciones de ayuda + `sincronizarAgendaERP`).
+2. En el archivo actual, **reemplazar** (borrar la versión vieja y pegar la nueva) las 13 funciones de `scripts/AMBAR_CRM_CAMBIOS_ERP.gs`, y agregar `enlaceReprogramacionGuardado_`. Cada cambio está marcado con `// ERP:`; las reservas de Cal.com conservan su comportamiento.
 
-2. **Enlaces de agenda** (`CAL_LINK_*` en mensajes y correos): reemplazar por `enlaceAgendaERP_(sede)`; para "reprogramar sin enlace privado" usar `enlaceReprogramarPorCedulaERP_()`. Las citas de Cal.com que siguen abiertas conservan sus enlaces actuales.
+| Función | Cambio |
+| - | - |
+| `extraerDatosReserva` | Usa el enlace de reprogramación del ERP (nunca `cal.com/reschedule`) y marca `origen: 'ERP'`. |
+| `obtenerSedeReserva_` | Toma la sede explícita del ERP; no cae en Villavicencio. |
+| `obtenerModalidadReserva_` | `Presencial en <sede>` / `Asesoría virtual por Google Meet` desde el campo explícito. |
+| `procesarReprogramacion`, `procesarCancelacion` | Observación "desde el ERP"; el respaldo usa la hora anterior exacta (`rescheduleStartTime`). |
+| `registrarTrazabilidadNuevaCita_`, `registrarTrazabilidadReprogramacion_` | ORIGEN `ERP` / `REPROGRAMACIÓN ERP`. |
+| `recuperarEnlaceReprogramacionDesdeLog_`, `obtenerLinkReagendamiento_` | Recordatorios, WhatsApp "reprogramar" y POSCITA "no asistí" usan el enlace del ERP. |
+| `detalleCitaCorreoInterno_` | La agenda del ERP de la sede reemplaza `CAL_LINK_<SEDE>`. |
+| `notificarReprogramacion_` | No envía el correo de reprogramación a reservas del ERP (el ERP ya lo envía). |
+| `asegurarMeetVirtual_` | Se salta para reservas del ERP: sin evento en Calendar tomaría `eventos[0]`, la cita de otra persona, y la modificaría con aviso a todos. |
+| `procesarPostCita_` | Incluye Pereira. |
 
-3. **Sede** (`obtenerSedeReserva_`): al inicio,
-   ```js
-   var sedeERP = sedeReservaERP_(payload);
-   if (sedeERP) return sedeERP;
-   ```
-   Así una reserva del ERP nunca cae por defecto en Villavicencio. Ajusta el formato del valor devuelto (BOGOTA, PEREIRA…) al que usa la hoja.
-
-4. **Modalidad**: usar `payload.responses.modalidad` (`PRESENCIAL`/`VIRTUAL`) en lugar de las inferencias de Cal.com.
-
-5. **Duración** (POSCITA): si `duracionReservaERP_(payload)` > 0, usarla en vez de `CAL_EVENT_DURATION_MIN` o la API de Cal.com.
-
-6. **Meet** (`asegurarMeetVirtual_`): para reservas del ERP no buscar eventos por coincidencia; la asesora registra el enlace de Meet en el ERP (`payload.erp.enlaceVirtual`). Si se prefiere que el CRM cree el Meet, decidirlo antes del corte para no duplicar.
-
-7. **Trazabilidad**: donde hoy se escribe `CAL.COM` / `REPROGRAMACIÓN CAL.COM`, usar `origenReserva_(payload)` (`ERP` para las nuevas). No cambiar etiquetas ni IDs de filas anteriores.
-
-8. **Pereira en POSCITA**: `procesarPostCita_` solo admite Villavicencio, Bogotá y Barranquilla. Agregar Pereira, porque el ERP ya agenda en Pereira.
+Notas del código revisado:
+- El código pegado venía **duplicado** (todo el archivo dos veces). Si en el proyecto está así, las `const` repetidas impiden que el script corra: dejar una sola copia.
+- `enviarEventoScheduleMeta_` y `ambarMetaFinalizeStable_` se usan pero están en otro archivo; revisar que ahí no haya enlaces `cal.com` o `CAL_LINK_`.
+- `asegurarMeetVirtual_` interpreta la hora con `'dd/MM/yyyy HH:mm'`, pero CITAS guarda `hh:mm a` (ej. `03:00 PM`); conviene revisarlo también para Cal.com.
 
 ## Duplicados a evitar
 
