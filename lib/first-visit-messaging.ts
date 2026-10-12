@@ -21,3 +21,12 @@ export function whatsappPayload(type:string,c:NotificationVisit,site:string,link
  else throw Error('Tipo de notificación desconocido');
  return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),...content};
 }
+type EventDb={rpc:(name:string,args:Record<string,unknown>)=>PromiseLike<{error:unknown}>};
+/** Applies Meta delivery statuses and button/list replies. Returns false when the caller should ask Meta to retry. */
+export async function applyWhatsappEvents(db:EventDb,data:{entry?:{changes?:{value?:Record<string,any>}[]}[]},phoneNumberId?:string|null){ // eslint-disable-line @typescript-eslint/no-explicit-any
+ for(const entry of data.entry||[])for(const change of entry.changes||[]){const v=change.value;if(!v||(phoneNumberId&&v.metadata?.phone_number_id!==phoneNumberId))continue;
+  for(const status of v.statuses||[]){if(!['sent','delivered','read','failed'].includes(status.status)||!/^\d+$/.test(String(status.timestamp)))continue;const date=new Date(Number(status.timestamp)*1000);if(!Number.isFinite(date.getTime()))continue;const {error}=await db.rpc('estado_whatsapp_primera_cita',{p_provider_id:status.id,p_telefono:status.recipient_id,p_estado:status.status,p_fecha:date.toISOString()});if(error)return false;}
+  for(const message of v.messages||[]){const action=message.button?.payload||message.interactive?.button_reply?.id||message.interactive?.list_reply?.id;if(!action||!message.context?.id)continue;const {error}=await db.rpc('respuesta_whatsapp_primera_cita',{p_message_id:message.id,p_context_id:message.context.id,p_telefono:message.from,p_accion:action});if(error)return false;}
+ }
+ return true;
+}
