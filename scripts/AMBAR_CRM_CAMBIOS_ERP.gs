@@ -573,11 +573,14 @@ function asegurarMeetVirtual_(datos) {
     }) || eventos[0];
 
     if (!evento) throw new Error('No se encontró el evento de Calendar para la cita virtual');
+    // Dirección oficial de la sede: CONFIG_AUTOMATIZACION (DIRECCION_<SEDE>) y, si falta, la de respaldo.
     const direccionPorSede = {
-      'bogota': 'Cra 15 #106-76, Bogotá, Colombia',
-      'villavicencio': 'Ámbar Couture Villavicencio',
-      'barranquilla': 'Ámbar Couture Barranquilla'
+      'bogota': 'Carrera 15 #106-76, segundo piso, Molinos Norte, Bogotá',
+      'villavicencio': 'Calle 15 #42-21, casa 7, Villavicencio',
+      'barranquilla': 'Carrera 54 #84-95, Riomar, Barranquilla',
+      'pereira': 'Carrera 17 #9-70, local 101, Pinares, Pereira'
     };
+    direccionPorSede[sede] = obtenerConfig_('DIRECCION_' + claveSedeCorreoInterno_(datos.sede || ''), '') || direccionPorSede[sede];
     const cuerpo = esVirtual
       ? {
           location: 'Asesoría virtual por Google Meet',
