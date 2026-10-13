@@ -12,7 +12,7 @@ export function useDepositCount(provided: number | null | undefined, userId?: st
   let active=true,inFlight=false,lastLoaded=0;
   setCount(null);
   async function refresh(force=false){
-   if(document.visibilityState!=='visible'||inFlight||(!force&&Date.now()-lastLoaded<30000))return;
+   if(document.visibilityState!=='visible'||inFlight||(!force&&Date.now()-lastLoaded<120000))return;
    inFlight=true;
    try{
     const {count,error}=await supabase.from('solicitudes_depositos').select('id',{count:'exact',head:true}).in('estado',['pendiente','en_proceso','pagado']);
@@ -21,7 +21,7 @@ export function useDepositCount(provided: number | null | undefined, userId?: st
   }
   const refreshIfStale=()=>{void refresh();};
   const refreshAfterChange=()=>{void refresh(true);};
-  refreshIfStale();const timer=setInterval(refreshIfStale,30000);
+  void refresh(true);const timer=setInterval(refreshIfStale,60000);
   window.addEventListener('focus',refreshIfStale);window.addEventListener('depositos-actualizados',refreshAfterChange);
   return()=>{active=false;clearInterval(timer);window.removeEventListener('focus',refreshIfStale);window.removeEventListener('depositos-actualizados',refreshAfterChange);};
  },[provided,userId]);
