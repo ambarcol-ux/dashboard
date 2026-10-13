@@ -49,3 +49,16 @@ export async function claimVisitEmails(db:SupabaseClient,origin:string,linkSecre
  }
  return emails;
 }
+
+/** Sends claimed emails and records each result; a failure is retried by the queue later. */
+export async function deliverVisitEmails(db:SupabaseClient,emails:ClaimedVisitEmail[],send:(email:ClaimedVisitEmail)=>Promise<{ok:boolean;error?:string}>){
+ let sent=0,failed=0;
+ for(const email of emails){
+  let result:{ok:boolean;error?:string};
+  try{result=await send(email);}catch{result={ok:false,error:'El proveedor de correo no respondió.'};}
+  const {error}=await db.from('primeras_citas_correos').update({estado:result.ok?'enviado':'error',error:result.ok?null:String(result.error||'No se pudo enviar el correo.').slice(0,300),updated_at:new Date().toISOString()}).eq('id',email.id).eq('estado','enviando');
+  if(error)throw Error('No se pudo registrar el resultado del correo.');
+  if(result.ok)sent++;else failed++;
+ }
+ return {sent,failed};
+}
