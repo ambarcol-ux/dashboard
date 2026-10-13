@@ -1,6 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {visitManagementLink} from '@/lib/first-visit-links';
 import {whatsappPayload} from '@/lib/first-visit-messaging';
+import {claimVisitEmails,deliverVisitEmails} from '@/lib/first-visit-email';
 import {Resend} from 'resend';
 import {authorizedVisitWorker,visitWorkerConfiguration} from '@/lib/first-visit-worker-config';
 export const dynamic='force-dynamic';
@@ -48,5 +49,12 @@ export async function POST(request:Request){
   if(saveError)return Response.json({error:'No se pudo registrar el resultado; requiere revisión'},{status:503});
   if(state==='enviado')sent++;else review++;
  }
- return Response.json({enviados:sent,requieren_revision:review});
+ // Customer change emails (reserva, reprogramación, cancelación…) go out through Resend from the ERP.
+ let emails={sent:0,failed:0};
+ try{
+  const resend=new Resend(process.env.RESEND_API_KEY),from=process.env.FIRST_VISIT_EMAIL_FROM!;
+  const claimed=await claimVisitEmails(db,origin,process.env.FIRST_VISIT_LINK_SECRET||key,10);
+  emails=await deliverVisitEmails(db,claimed,async e=>{const r=await resend.emails.send({from,to:[e.para],subject:e.asunto,text:e.texto,html:e.html},{idempotencyKey:e.id});return r.error?{ok:false,error:'Resend rechazó el envío'}:{ok:true};});
+ }catch{return Response.json({enviados:sent,requieren_revision:review,error:'No se pudieron procesar los correos a clientes'},{status:503});}
+ return Response.json({enviados:sent,requieren_revision:review,correos_enviados:emails.sent,correos_con_error:emails.failed});
 }
