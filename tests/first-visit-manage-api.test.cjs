@@ -8,7 +8,7 @@ const req=(b,h={})=>new Request('https://erp.test/api/primeras-citas/gestionar',
  assert.equal((await api.POST(req({accion:'consultar',token:'bad'}))).status,403);assert.equal(calls,0);
  const token=signVisitLink('00000000-0000-0000-0000-000000000001',Date.now()+10000,'test-secret');
  assert.equal((await api.POST(req({accion:'consultar',token},{origin:'https://evil.invalid'}))).status,403);
- assert.equal((await api.POST(req({accion:'eliminar',token}))).status,400);
+ assert.equal((await api.POST(req({accion:'eliminar',token}))).status,401);// a customer link can never delete
  assert.equal((await api.POST(req({accion:'consultar',token}))).status,200);assert.equal(calls,1);
  assert.equal((await api.POST(req({accion:'enlace',id:'other'}))).status,401);
  assert.equal((await api.POST(req({accion:'enlace',id:'other'},{authorization:'Bearer user'}))).status,403);

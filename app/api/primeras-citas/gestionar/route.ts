@@ -21,6 +21,19 @@ export async function POST(request:Request){
    const expires=Math.max(Date.now()+30*86400000,Date.parse(data.fecha+'T23:59:59-05:00')+30*86400000);
    return reply({enlace:visitManagementLink(new URL(request.url).origin,data.id,expires,key())});
   }
+  if(body.accion==='eliminar'){
+   // Permission, version, contract check and audit run as the user in the database; only then are the rows removed.
+   const bearer=request.headers.get('authorization')||'',id=String(body.id||'');
+   if(!bearer.startsWith('Bearer '))return reply({error:'Inicia sesión.'},401);
+   if(!/^[0-9a-f-]{36}$/i.test(id))return reply({error:'Cita no válida.'},400);
+   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
+   const {error}=await userDb.rpc('preparar_eliminacion_primera_cita',{p_id:id,p_motivo:String(body.motivo||''),p_version:body.version||null});
+   if(error)return reply({error:['P0001','42501'].includes(error.code)?error.message:'No se pudo eliminar la cita.'},400);
+   const db=server();
+   for(const table of ['primeras_citas_mensajes','primeras_citas_correos','primeras_citas_seguimientos','primeras_citas_historial']){const {error}=await db.from(table).delete().eq('cita_id',id);if(error)throw error;}
+   const {error:deleteError}=await db.from('primeras_citas').delete().eq('id',id);if(deleteError)throw deleteError;
+   return reply({ok:true});
+  }
   const limited=verifyRescheduleLink(String(body.token||''),key());
   const token=limited||verifyVisitLink(String(body.token||''),key());
   if(limited&&!['consultar','reprogramar'].includes(body.accion))return reply({error:'Esta consulta solo permite reprogramar la cita.'},403);
