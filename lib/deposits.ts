@@ -10,7 +10,7 @@ export function depositSummary(contract:DepositContract,returns:DepositReturn[])
 }
 export function movementHistory(contract:DepositContract,returns:DepositReturn[],movements:DepositMovement[]){
  const own=movements.filter(m=>m.contrato_id===contract.id);const linked=new Set(own.map(m=>m.devolucion_id));
- return [...own.map(m=>({id:m.id,type:m.tipo==='ingreso'?'Ingreso':'Devolución',date:m.fecha,amount:m.monto,deduction:m.descuento,method:m.metodo,note:[m.motivo,m.observaciones].filter(Boolean).join(' · '),path:m.comprobante_path,url:null as string|null})),...returns.filter(r=>r.contrato_id===contract.id&&!linked.has(r.id)).map(r=>({id:r.id,type:`Devolución · ${r.estado||'completado'}`,date:r.fecha_devolucion,amount:r.monto_devuelto,deduction:r.monto_descuento||0,method:'Registro anterior',note:[r.motivo_descuento,r.observaciones].filter(Boolean).join(' · '),path:r.comprobante_path,url:r.comprobante_url}))].sort((a,b)=>b.date.localeCompare(a.date));
+ return [...own.map(m=>({id:m.id,type:m.tipo==='ingreso'?'Ingreso':'Devolución',date:m.fecha,amount:m.monto,deduction:m.descuento,method:m.metodo,note:[m.motivo,m.observaciones].filter(Boolean).join(' · '),path:m.comprobante_path,url:null as string|null,source:'movimiento' as string})),...returns.filter(r=>r.contrato_id===contract.id&&!linked.has(r.id)).map(r=>({id:r.id,type:`Devolución · ${r.estado||'completado'}`,date:r.fecha_devolucion,amount:r.monto_devuelto,deduction:r.monto_descuento||0,method:'Registro anterior',note:[r.motivo_descuento,r.observaciones].filter(Boolean).join(' · '),path:r.comprobante_path,url:r.comprobante_url,source:'anterior' as string}))].sort((a,b)=>b.date.localeCompare(a.date));
 }
 
 
