@@ -69,9 +69,15 @@ export default function ContractCalendar(){
     return()=>{window.removeEventListener('focus',syncDay);document.removeEventListener('visibilitychange',syncDay);window.clearInterval(timer);};
   },[]);
   useEffect(()=>{
-    const refresh=()=>{if(document.visibilityState==='visible')void load();};
+    // Automatic refreshes share one cap: at most one full reload every 2 minutes and never two at once,
+    // so tabs switching focus cannot pile up contract reloads on the database. The buttons still reload at once.
+    let running=false,last=Date.now();
+    const refresh=()=>{
+      if(document.visibilityState!=='visible'||running||Date.now()-last<120000)return;
+      running=true;last=Date.now();void load().finally(()=>{running=false;last=Date.now();});
+    };
     window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);
-    const timer=window.setInterval(refresh,60000);
+    const timer=window.setInterval(refresh,30000);
     return()=>{window.removeEventListener('focus',refresh);document.removeEventListener('visibilitychange',refresh);window.clearInterval(timer);};
   },[load]);
   const allEvents=useMemo(()=>contractEvents(contracts),[contracts]);
