@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import FirstVisits from '@/components/FirstVisits';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 import {supabase} from '@/lib/supabase';
+import {isAdminProfile} from '@/lib/role-access';
 import styles from '../calendario/calendar.module.css';
 
 export default function FirstVisitsPage(){
@@ -16,6 +17,6 @@ export default function FirstVisitsPage(){
  const logout=async()=>{await supabase.auth.signOut();document.cookie='sb-access-token=; path=/; max-age=0';router.replace('/login');};
  return <div className={styles.shell}><Sidebar user={profile} handleLogout={logout} activePage="primeras-citas"/><main className={styles.main}>
   <header className={styles.header}><div><Link href="/dashboard" className={styles.back}>Operaciones / Citas primera vez</Link><h1><CalendarCheck/> Citas primera vez</h1><p>Reservas de clientes sin contrato, su seguimiento y la conversión comercial.</p></div></header>
-  {error?<p role="alert" className={styles.error}>{error}</p>:profile?<FirstVisits/>:<p role="status" className={styles.empty}>Validando acceso…</p>}
+  {error?<p role="alert" className={styles.error}>{error}</p>:profile?<FirstVisits isAdmin={isAdminProfile(profile)}/>:<p role="status" className={styles.empty}>Validando acceso…</p>}
  </main></div>;
 }

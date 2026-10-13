@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
-import { isAccounting, isScopedOperationsAccount, operationsPanels } from '@/lib/role-access';
+import { isAccounting, isAdminProfile, isScopedOperationsAccount, operationsPanels } from '@/lib/role-access';
 import {
   FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins, KeyRound, CalendarCheck
 } from 'lucide-react';
@@ -21,7 +21,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
   const normalizedRole = String(user?.rol || '').toLowerCase();
   const operationsOnly = isScopedOperationsAccount(user?.id);
   const accountingOnly = isAccounting(normalizedRole);
-  const isAdmin = !operationsOnly && !accountingOnly && (normalizedRole === 'admin' || user?.email === 'dubian.h88@gmail.com');
+  const isAdmin = isAdminProfile(user);
 
   type SidebarItem = {
     id: string;
