@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+const {filterDaily,dailyTotals,receiptPath,receiptKind}=compile('lib/deposit-daily.ts');
+const row=(o)=>({id:'x',tipo:'ingreso',monto:0,descuento:0,metodo:'Efectivo',comprobante_path:'c/p.jpg',sede_id:'bog',...o});
+const rows=[row({monto:500000.1}),row({monto:0.2,metodo:'Transferencia'}),row({tipo:'devolucion',monto:300000,descuento:50000,sede_id:'baq'}),row({tipo:'devolucion',monto:100000,metodo:'Transferencia',comprobante_path:null})];
+const t=dailyTotals(rows);
+assert.equal(t.ingresos,500000.3);assert.equal(t.salidas,400000);assert.equal(t.neto,100000.3);assert.equal(t.descuentos,50000);assert.equal(t.movimientos,4);assert.equal(t.sinComprobante,1);
+assert.equal(filterDaily(rows,{sede:'bog',tipo:'',metodo:''}).length,3);
+assert.equal(filterDaily(rows,{sede:'',tipo:'devolucion',metodo:'Transferencia'}).length,1);
+assert.equal(filterDaily(rows,{sede:'baq',tipo:'ingreso',metodo:''}).length,0);
+assert.equal(dailyTotals([]).neto,0);
+assert.equal(receiptPath('c1','op','application/pdf'),'c1/op/comprobante.pdf');
+assert.throws(()=>receiptPath('c1','op','text/plain'));
+assert.equal(receiptKind('a/b/c.PDF'),'pdf');assert.equal(receiptKind('a/b/c.jpg'),'image');
+console.log('PASS daily deposits: totals in cents (in, out, net, discounts apart), filters by site/type/method, receipt paths under the contract');
