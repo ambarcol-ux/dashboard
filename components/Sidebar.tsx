@@ -5,14 +5,16 @@ import Link from 'next/link';
 import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
 import { isAccounting, isAdminProfile, isScopedOperationsAccount, operationsPanels } from '@/lib/role-access';
 import {
-  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins, KeyRound, CalendarCheck
+  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins, KeyRound, CalendarCheck, Wallet
 } from 'lucide-react';
+
+const ACCOUNTING_ITEMS = ['depositos', 'caja'];
 
 interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'depositos';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'depositos' | 'caja';
 }
 
 export default function Sidebar({ user, handleLogout, activePage, pendingDeposits }: SidebarProps) {
@@ -53,6 +55,13 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
         { id: 'depositos', label: 'DEPÓSITOS Y DEVOLUCIONES', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
         { id: 'inventory', label: 'GESTIÓN DE INVENTARIO', icon: Package, href: '/admin/inventory', color: 'amber', adminOnly: true },
         { id: 'reports', label: 'REPORTES Y ESTADÍSTICAS', icon: TrendingUp, href: '/admin/reports', color: 'rose', adminOnly: true },
+      ]
+    },
+    {
+      title: 'FINANZAS',
+      adminOnly: false,
+      items: [
+        { id: 'caja', label: 'CIERRES DE CAJA', icon: Wallet, href: '/dashboard/caja', color: 'emerald' },
       ]
     },
     {
@@ -117,9 +126,9 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       <nav className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar pb-10">
         <DepositAlert count={depositCount}/>
         {sidebarBlocks.map((block, blockIndex) => {
-          if (operationsOnly && block.title !== 'OPERACIONES') return null;
+          if (operationsOnly && block.title !== 'OPERACIONES' && block.title !== 'FINANZAS') return null;
           if (block.adminOnly && !isAdmin) return null;
-          if (accountingOnly && !block.items.some(item => item.id === 'depositos')) return null;
+          if (accountingOnly && !block.items.some(item => ACCOUNTING_ITEMS.includes(item.id))) return null;
 
           return (
             <div key={blockIndex} className="space-y-1">
@@ -128,7 +137,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
               {block.items.map((item) => {
                 if (operationsOnly && !operationsPanels.includes(item.href)) return null;
                 if (item.adminOnly && !isAdmin && !(operationsOnly && item.id === 'inventory')) return null;
-                if (accountingOnly && item.id !== 'depositos') return null;
+                if (accountingOnly && !ACCOUNTING_ITEMS.includes(item.id)) return null;
                 const Icon = item.icon;
                 const isActive = activePage === item.id;
                 const isDisabled = item.disabled;

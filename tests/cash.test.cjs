@@ -1,0 +1,15 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+const {expectedCash,cashDifference,parseCashAmount,cashReceiptPath,siteTotals,CASH_CATEGORIES}=compile('lib/cash.ts');
+assert.equal(expectedCash(70000,100000.1,20000.2),149999.9);
+assert.equal(cashDifference(70000,80000),-10000);
+assert.equal(parseCashAmount('150.000'),150000);
+assert.equal(parseCashAmount('$ 1.250.000'),1250000);
+assert.equal(parseCashAmount('150000,50'),150000.5);
+assert.equal(parseCashAmount('99.5'),99.5);
+for(const bad of ['','0','-5','abc','1e5','12.345,678'])assert.equal(parseCashAmount(bad),null,bad);
+assert.equal(cashReceiptPath('s','2026-10-14','i','image/jpeg'),'s/2026-10-14/i.jpg');
+assert.throws(()=>cashReceiptPath('s','d','i','text/html'));
+const t=siteTotals([{ingresos:100.1,egresos:20,diferencia:-5,dias_con_movimientos_sin_cierre:1},{ingresos:0.2,egresos:0,diferencia:0,dias_con_movimientos_sin_cierre:2}]);
+assert.equal(t.ingresos,100.3);assert.equal(t.pendientes,3);assert.equal(t.diferencia,-5);
+assert(CASH_CATEGORIES.egreso.includes('Consignación a banco'));
+console.log('PASS cash: expected cash and differences in cents, amount parsing (COP formats), receipt paths, site totals');
