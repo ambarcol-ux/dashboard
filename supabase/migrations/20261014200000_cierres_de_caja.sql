@@ -1,6 +1,6 @@
 -- Cierres de caja: a separate module where each site records its daily income and expenses and closes
 -- the day by counting the cash. Admin and Contabilidad see every site; other users only their own site.
--- All writes go through the functions below (no direct table access), movements are never deleted
+-- All writes go through the functions below (no direct table access), movements are never removed
 -- (only annulled with a reason) and a closed day is locked.
 
 create table public.caja_movimientos (
