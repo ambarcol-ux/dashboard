@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
+import { legacyApiAllowed } from '@/lib/legacy-api-key';
 import { createClient } from '@supabase/supabase-js';
 
 export async function POST(request: Request) {
+  if (!legacyApiAllowed(request)) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   try {
     if (!process.env.SUPABASE_SERVICE_ROLE_KEY) return NextResponse.json({error:'El servicio de agenda no está configurado.'},{status:503});
     const supabaseAdmin = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY);

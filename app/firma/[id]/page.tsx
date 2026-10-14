@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 import { requireInvoice, INVOICE_REQUIRED_MESSAGE } from '@/lib/invoice-validation';
 import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
 import SignatureCanvas from 'react-signature-canvas';
@@ -27,31 +26,9 @@ export default function FirmaPage() {
 
   const fetchContract = async () => {
     try {
-      console.log('--- DEBUG FIRMA PAGE ---');
-      console.log('ID buscado (URL params):', id);
-      
-      const { data, error } = await supabase
-        .from('contratos')
-        .select(`
-          *,
-          quinceanera_name,
-          arreglos(*),
-          vestidos:contrato_items_vestidos(
-            *,
-            vestido:vestidos(*)
-          )
-        `)
-        .eq('id', id)
-        .single();
-      
-      console.log('Resultado DB (data):', data);
-      
-      if (error) {
-        console.error('Error DB (Status 400?):', error.message);
-        console.error('Error Hint:', error.hint);
-        console.error('Error Details:', error.details);
-        throw error;
-      }
+      const response = await fetch(`/api/firma/${encodeURIComponent(id)}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Contrato no encontrado');
 
       if (data) {
         setContract(data);
@@ -128,23 +105,13 @@ export default function FirmaPage() {
       // Obtener la firma en base64
       const firmaBase64 = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
       
-      const { error } = await supabase
-        .from('contratos')
-        .update({
-          estado: 'firmado',
-          firma_base64: firmaBase64,
-          fecha_firma_cliente: new Date().toISOString()
-        })
-        .eq('id', contract.id);
-
-      if (error) throw error;
-
-      // 2. Registrar en Bitácora Automática (Módulo de Retorno y Mantenimiento)
-      await supabase.from('bitacora_contratos').insert([{
-        contrato_id: contract.id,
-        accion: 'Bloqueo de Inventario',
-        detalle: `Bloqueo de inventario programado hasta el ${contract.fecha_disponibilidad_real || 'N/A'} por mantenimiento (Post-Firma).`
-      }]);
+      const response = await fetch(`/api/firma/${encodeURIComponent(contract.id)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firma: firmaBase64 })
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'No se pudo guardar la firma.');
 
       toast.success('¡Contrato firmado exitosamente!');
       setIsSigned(true);

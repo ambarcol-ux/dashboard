@@ -2,7 +2,6 @@
 
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { Sparkles, Copy, CheckCircle2, Gift, AlertCircle, Loader2 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 
@@ -37,25 +36,8 @@ export default function RecomendarPage() {
       }
       
       try {
-        console.log('-> El slug que Next.js está capturando de la URL es:', slug);
-        console.log('-> Ejecutando consulta en Supabase para el slug_unico:', slug);
-        
-        const { data, error } = await supabase
-          .from('referidores')
-          .select('id, nombre_aliado, slug_unico, estado')
-          .eq('slug_unico', slug)
-          .maybeSingle();
-
-        if (error) {
-          console.error('--- ERROR DE SUPABASE EN /recomendar/[slug] ---');
-          console.error('Código de error:', error.code);
-          console.error('Mensaje exacto:', error.message);
-          console.error('Detalles adicionales:', error.details);
-          console.error('Hint:', error.hint);
-          setReferidor(null);
-        } else {
-          setReferidor(data);
-        }
+        const response = await fetch(`/api/aliados/${encodeURIComponent(String(slug))}`, { cache: 'no-store' });
+        setReferidor(response.ok ? await response.json() : null);
       } catch (err) {
         console.error('Unexpected error:', err);
         setReferidor(null);
@@ -67,14 +49,6 @@ export default function RecomendarPage() {
     checkReferidor();
   }, [slug]);
 
-  const generarCodigoAleatorio = () => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = '';
-    for (let i = 0; i < 4; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return `AMBAR-${result}`;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,42 +61,17 @@ export default function RecomendarPage() {
     setIsSubmitting(true);
 
     try {
-      const nuevoCodigo = generarCodigoAleatorio();
-      
-      const { error } = await supabase.from('codigos_descuento').insert([{
-        codigo_seguridad: nuevoCodigo,
-        referidor_id: referidor.id,
-        nombre_quinceanera: nombre.trim(),
-        telefono_quinceanera: telefono.trim(),
-        correo_quinceanera: correo.trim(),
-        fecha_evento: fechaEvento,
-        usado: false
-      }]);
-
-      if (error) {
-        if (error.code === '23505') { // Unique violation, rare but possible
-          toast.error('Hubo un problema de colisión, intenta de nuevo.');
-        } else {
-          throw error;
-        }
+      const response = await fetch(`/api/aliados/${encodeURIComponent(String(slug))}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre: nombre.trim(), telefono: telefono.trim(), correo: correo.trim(), fechaEvento })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        toast.error(result.error || 'Ocurrió un error inesperado al procesar tu invitación. Intenta nuevamente.');
         return;
       }
-
-      // Disparar el correo en segundo plano (sin await) para no bloquear la UI
-      try {
-        fetch('/api/send-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            emailQuinceanera: correo.trim(),
-            nombreQuinceanera: nombre.trim(),
-            codigoVip: nuevoCodigo,
-            nombreAliado: referidor.nombre_aliado
-          }),
-        }).catch(err => console.error('Fallo asíncrono en Resend:', err));
-      } catch (emailErr) {
-        console.error('Error de red al intentar enviar el correo:', emailErr);
-      }
+      const nuevoCodigo: string = result.codigo;
 
       setCodigoGenerado(nuevoCodigo);
     } catch (err) {

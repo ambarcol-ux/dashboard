@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { legacyApiAllowed } from '@/lib/legacy-api-key';
 import { supabase } from '@/lib/supabase';
 
 // Horario comercial estándar de la tienda (bloques de 1 hora)
@@ -8,6 +9,7 @@ const HORARIO_COMERCIAL = [
 ];
 
 export async function GET(request: Request) {
+  if (!legacyApiAllowed(request)) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
