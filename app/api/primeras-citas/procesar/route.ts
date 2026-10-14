@@ -3,6 +3,7 @@ import {visitManagementLink} from '@/lib/first-visit-links';
 import {whatsappPayload} from '@/lib/first-visit-messaging';
 import {claimVisitEmails,deliverVisitEmails} from '@/lib/first-visit-email';
 import {Resend} from 'resend';
+import {capiEvent,DEFAULT_CAPI_DATASET,type CapiJob} from '@/lib/meta-capi';
 import {authorizedVisitWorker,visitWorkerConfiguration} from '@/lib/first-visit-worker-config';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -14,7 +15,7 @@ export async function GET(request:Request){
   const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:(input,init)=>fetch(input,{...init,signal:AbortSignal.timeout(10000)})}});
   const {count,error}=await db.from('primeras_citas_mensajes').select('id',{count:'exact',head:true}).in('estado',['pendiente','error']).lte('programado_at',new Date().toISOString()).lt('intentos',3);
   if(error)return Response.json({...config,listo:false,error:'No se pudo consultar la cola'},{status:503,headers:{'Cache-Control':'no-store'}});
-  return Response.json({...config,listo:config.activo&&config.faltantes.length===0,pendientes:count||0},{headers:{'Cache-Control':'no-store'}});
+  return Response.json({...config,listo:config.activo&&config.faltantes.length===0,pendientes:count||0,meta_capi:Boolean(process.env.META_CAPI_ACCESS_TOKEN)},{headers:{'Cache-Control':'no-store'}});
  }catch{return Response.json({...config,listo:false,error:'La base de datos no respondió'},{status:503,headers:{'Cache-Control':'no-store'}});}
 }
 export async function POST(request:Request){
@@ -56,5 +57,21 @@ export async function POST(request:Request){
   const claimed=await claimVisitEmails(db,origin,process.env.FIRST_VISIT_LINK_SECRET||key,10);
   emails=await deliverVisitEmails(db,claimed,async e=>{const r=await resend.emails.send({from,to:[e.para],subject:e.asunto,text:e.texto,html:e.html},{idempotencyKey:e.id});return r.error?{ok:false,error:'Resend rechazó el envío'}:{ok:true};});
  }catch{return Response.json({enviados:sent,requieren_revision:review,error:'No se pudieron procesar los correos a clientes'},{status:503});}
- return Response.json({enviados:sent,requieren_revision:review,correos_enviados:emails.sent,correos_con_error:emails.failed});
+ // Meta Conversions API (Schedule, AppointmentAttended, Purchase) — replaces the CRM Apps Script.
+ const capi={enviados:0,errores:0};
+ const capiToken=process.env.META_CAPI_ACCESS_TOKEN,dataset=process.env.META_CAPI_DATASET_ID||DEFAULT_CAPI_DATASET;
+ if(capiToken&&/^\d+$/.test(dataset)){
+  for(let i=0;i<10;i++){
+   const {data:job,error}=await db.rpc('tomar_capi_primera_cita');if(error||!job)break;if(job.omitido)continue;
+   let estado='error',respuesta='';
+   try{
+    const r=await fetch(`https://graph.facebook.com/${version}/${dataset}/events`,{method:'POST',headers:{Authorization:`Bearer ${capiToken}`,'Content-Type':'application/json'},body:JSON.stringify({data:[capiEvent(job as CapiJob)]}),signal:AbortSignal.timeout(8000)});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok&&d.events_received>=1)estado='enviado';else respuesta=`Meta rechazó el evento (${r.status}) ${String(d.error?.message||'').slice(0,200)}`;
+   }catch{respuesta='Sin respuesta de Meta; se reintentará';}
+   await db.from('primeras_citas_capi').update({estado,respuesta:respuesta||null,updated_at:new Date().toISOString()}).eq('id',(job as CapiJob).evento.id).eq('estado','enviando');
+   if(estado==='enviado')capi.enviados++;else capi.errores++;
+  }
+ }
+ return Response.json({enviados:sent,requieren_revision:review,correos_enviados:emails.sent,correos_con_error:emails.failed,capi_enviados:capi.enviados,capi_errores:capi.errores});
 }
