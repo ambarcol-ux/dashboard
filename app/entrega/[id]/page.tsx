@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
 import { 
   ShieldCheck, 
   Camera, 
@@ -41,40 +40,17 @@ export default function EntregaPublicPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      // Schema Refresh - Sync with confirmed Supabase columns
-      const { data: bit, error: bitErr } = await supabase
-        .from('entregas_bitacora')
-        .select(`
-          id, 
-          contrato_id, 
-          usuario_id, 
-          fotos_uris, 
-          firma_cliente, 
-          finalizado,
-          tipo_entrega
-        `)
-        .eq('id', id)
-        .single();
-      
-      if (bitErr || !bit) {
-        console.error('Fetch Error Detail:', bitErr);
+      const response = await fetch(`/api/entrega/${encodeURIComponent(String(id))}`, { cache: 'no-store' });
+      const data = await response.json();
+      if (!response.ok) {
         setBitacora(null);
-        toast.error(`Error de Conexión (400): ${bitErr?.message || 'Registro no encontrado'}`);
+        toast.error(data.error || 'Registro no encontrado');
         throw new Error('No se encontró el registro de entrega.');
       }
+      const bit = data.bitacora;
       setBitacora(bit);
+      setContrato(data.contrato);
 
-      // 2. Obtener contrato usando el contrato_id de la bitácora vinculada
-      // Nota: La columna en 'vestidos' se renombró de codigo_referencia a codigo
-      const { data: conv, error: convErr } = await supabase
-        .from('contratos')
-        .select(`*, vestidos:contrato_items_vestidos(id, vestido_id, vestido:vestidos(id, codigo))`)
-        .eq('id', bit.contrato_id)
-        .single();
-      
-      if (convErr) throw convErr;
-      setContrato(conv);
-      
       // Auto-identificación si existen en el objeto bit (pero no están en el select limitado)
       // Nota: Si el usuario confirma que existen, los volveremos a añadir al select.
       if (success || bit.firma_cliente) {
@@ -110,48 +86,15 @@ export default function EntregaPublicPage() {
 
       const signatureBase64 = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
 
-      // 1. Actualizar bitácora con firma y marcar finalizado
-      const { error: bitUpdateErr } = await supabase
-        .from('entregas_bitacora')
-        .update({ 
-          firma_cliente: signatureBase64,
-          finalizado: true 
-        })
-        .eq('id', id);
-      
-      if (bitUpdateErr) throw bitUpdateErr;
-
-      // 2. Actualizar estado del contrato según el tipo de entrega
-      const isPreXv = bitacora.tipo_entrega === 'PREXV' || bitacora.tipo_entrega === 'AMBOS';
-      const isEvento = bitacora.tipo_entrega === 'EVENTO' || bitacora.tipo_entrega === 'AMBOS' || !bitacora.tipo_entrega;
-      
-      const payload: any = { estado: 'entregado' };
-      if (isPreXv) {
-        payload.entregado_prexv = true;
-        payload.fecha_entrega_prexv = new Date().toISOString();
-      }
-      if (isEvento) {
-        payload.entregado_evento = true;
-        payload.fecha_entrega_evento = new Date().toISOString();
-      }
-
-      const { error: contrUpdateErr } = await supabase
-        .from('contratos')
-        .update(payload)
-        .eq('id', contrato.id);
-      
-      if (contrUpdateErr) throw contrUpdateErr;
-
-      // 3. Asegurar que el inventario sepa que el vestido está "Fuera de tienda" (Alquilado)
-      if (contrato.vestidos && contrato.vestidos.length > 0) {
-         // Some structures might return item.vestido as an object
-         const vIds = contrato.vestidos.map((item: any) => item.vestido_id || (item.vestido && item.vestido.id) || item.id).filter(Boolean);
-         if (vIds.length > 0) {
-            await supabase
-              .from('vestidos')
-              .update({ estado: 'Alquilado' })
-              .in('id', vIds);
-         }
+      const response = await fetch(`/api/entrega/${encodeURIComponent(String(id))}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ firma: signatureBase64, nombre: nombreRecibe.trim(), documento: documentoRecibe.trim() })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        setSigning(false);
+        return toast.error(result.error || 'Hubo un error al guardar la firma.');
       }
 
       setSuccess(true);

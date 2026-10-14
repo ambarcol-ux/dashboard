@@ -2,7 +2,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { Sparkles, CheckCircle2, Building2, User, Phone, MapPin, Mail, ArrowRight, Instagram, X } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
@@ -30,16 +29,6 @@ export default function UnetePage() {
     isEmailValid(formData.correo) &&
     aceptaTerminos === true;
 
-  const generateSlug = (name: string) => {
-    return name
-      .toLowerCase()
-      .trim()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-");
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,64 +39,17 @@ export default function UnetePage() {
     setErrorMessage('');
     
     try {
-      // Verificación de Correo (Anti-Duplicados)
-      const { data: existingAllied } = await supabase
-        .from('referidores')
-        .select('correo')
-        .eq('correo', formData.correo.trim().toLowerCase())
-        .maybeSingle();
-
-      if (existingAllied) {
-        setErrorMessage('Este correo electrónico ya se encuentra vinculado a una cuenta de Aliado Activa. Por favor, ingresa un correo diferente o contacta a soporte.');
+      const response = await fetch('/api/aliados/registro', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...formData, aceptaTerminos })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        if (result.campo === 'correo') setErrorMessage(result.error);
+        else toast.error(result.error || 'Ocurrió un error al procesar tu solicitud. Intenta nuevamente.');
         setIsSubmitting(false);
         return;
-      }
-
-      const slug = generateSlug(formData.marca);
-
-      // Verify if slug already exists
-      const { data: existing } = await supabase
-        .from('referidores')
-        .select('id')
-        .eq('slug_unico', slug)
-        .single();
-        
-      if (existing) {
-        toast.error('Ya existe una marca registrada con un nombre similar. Por favor añade un identificador extra a tu marca (ej. "Maquillaje Pro BQ").');
-        setIsSubmitting(false);
-        return;
-      }
-
-      const payload = {
-        nombre_aliado: formData.marca,
-        contacto_nombre: formData.contacto,
-        telefono: formData.telefono,
-        correo: formData.correo,
-        porcentaje_comision: 0,
-        estado: 'Activo',
-        vitrina_sede: 'Ámbar Couture',
-        slug_unico: slug,
-        acepto_terminos: aceptaTerminos
-      };
-
-      const { error } = await supabase.from('referidores').insert([payload]);
-
-      if (error) throw error;
-
-      // Failsafe Welcome Email
-      try {
-        const link = `${window.location.origin}/recomendar/${slug}`;
-        await fetch('/api/send-welcome', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            correo: formData.correo,
-            contacto: formData.contacto,
-            link: link
-          })
-        });
-      } catch (emailError) {
-        console.error('Error enviando correo de bienvenida (silenciado):', emailError);
       }
 
       setIsSuccess(true);
