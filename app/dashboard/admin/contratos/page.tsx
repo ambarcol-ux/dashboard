@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { useVerifiedAccess } from '@/components/VerifiedAccessProvider';
+import { isAdminProfile } from '@/lib/role-access';
 import { FileText, Save, Loader2, Edit3, CheckCircle, XCircle } from 'lucide-react';
 
 interface PlantillaContrato {
@@ -19,11 +21,11 @@ export default function ContratosAdminPage() {
   const [saving, setSaving] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  useEffect(() => {
-    fetchPlantillas();
-  }, []);
+  const readAccess = useVerifiedAccess();
+  const [allowed, setAllowed] = useState(false);
 
-  const fetchPlantillas = async () => {
+
+  async function fetchPlantillas() {
     setLoading(true);
     const { data, error } = await supabase
       .from('plantillas_contratos')
@@ -36,15 +38,24 @@ export default function ContratosAdminPage() {
       setPlantillas(data);
     }
     setLoading(false);
-  };
+  }
+
 
   const showToast = (message: string, type: 'success' | 'error') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
+  // Contract clauses bind every new contract: only administrators edit them (also enforced in the database).
+  useEffect(() => {
+    void readAccess().then(({ user, profile }) => {
+      if (!isAdminProfile({ ...profile, email: user?.email })) { router.replace('/dashboard'); return; }
+      setAllowed(true);
+      void fetchPlantillas();
+    }).catch(() => router.replace('/login'));
+  }, [readAccess, router]);
+
   const handleUpdate = async (id: string, nuevoContenido: string) => {
-    console.log("Intentando guardar id:", id, "Contenido:", nuevoContenido);
     setSaving(id);
     const { data, error } = await supabase
       .from('plantillas_contratos')
@@ -52,10 +63,9 @@ export default function ContratosAdminPage() {
       .eq('id', id)
       .select();
 
-    console.log("Resultado:", data, "Error:", error);
 
-    if (error) {
-      showToast('Error al guardar', 'error');
+    if (error || !data?.length) {
+      showToast('No se pudo guardar. Solo un administrador puede editar las cláusulas.', 'error');
     } else {
       showToast('Guardado exitosamente', 'success');
       // Update local state
@@ -68,6 +78,8 @@ export default function ContratosAdminPage() {
   const handleChange = (id: string, value: string) => {
     setPlantillas(plantillas.map(p => p.id === id ? { ...p, contenido: value } : p));
   };
+
+  if (!allowed) return <div className="p-8 text-center text-gray-500">Verificando acceso…</div>;
 
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto min-h-screen">

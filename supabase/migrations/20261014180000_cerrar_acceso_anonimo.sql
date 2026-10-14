@@ -20,3 +20,6 @@ grant execute on function public.validar_y_quemar_codigo(text,text),public.valid
 alter policy "Permitir subir fotos" on storage.objects to authenticated;
 alter policy "Permitir editar fotos" on storage.objects to authenticated;
 alter policy "Permitir ver fotos" on storage.objects to authenticated;
+
+-- Contract clauses: everyone signed in still reads them, only administrators change them.
+alter policy "Permitir cambios totales" on public.plantillas_contratos to authenticated using (public.es_admin()) with check (public.es_admin());

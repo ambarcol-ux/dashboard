@@ -78,6 +78,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
         { id: 'users', label: 'GESTIÓN DE EQUIPO', icon: Users, href: '/admin/users', color: 'indigo' },
         { id: 'horarios', label: 'CONTROL DE ASISTENCIA', icon: Clock, href: '/dashboard/horarios', color: 'rose' },
         { id: 'config', label: 'CONFIGURACIÓN BASE', icon: Settings, href: '/admin/config', color: 'gray' },
+        { id: 'clausulas', label: 'CLÁUSULAS DEL CONTRATO', icon: FileText, href: '/dashboard/admin/contratos', color: 'rose' },
         { id: 'siigo', label: 'FACTURACIÓN POR SEDE', icon: KeyRound, href: '/admin/config/siigo', color: 'emerald' },
       ]
     },

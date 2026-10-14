@@ -152,7 +152,7 @@ export default function FirmaPage() {
       <Toaster position="top-center" richColors />
       
       {/* Visualización del Contrato */}
-      <ContractTemplate data={mapToContractData(contract)} />
+      <ContractTemplate data={mapToContractData(contract)} plantillas={contract.plantillas} />
 
       {/* Sección Interactiva de Firma */}
       <div className="max-w-4xl mx-auto px-4 sm:px-8 mt-4 md:mt-[-2rem] mb-12 relative z-10">
