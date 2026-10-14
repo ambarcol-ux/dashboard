@@ -8,10 +8,15 @@ export async function GET(_request:Request,{params}:{params:Promise<{id:string}>
  const {id}=await params;
  if(!UUID_RE.test(id))return publicReply({error:'Enlace inválido.'},400);
  try{
-  const {data,error}=await publicServerClient().from('contratos').select(CONTRACT).eq('id',id).maybeSingle();
-  if(error)return publicReply({error:'No se pudo consultar el contrato.'},503);
+  const db=publicServerClient();
+  const [{data,error},{data:plantillas,error:templateError}]=await Promise.all([
+   db.from('contratos').select(CONTRACT).eq('id',id).maybeSingle(),
+   // The clauses are rendered with the contract, so they travel with it.
+   db.from('plantillas_contratos').select('*').order('numero_orden',{ascending:true}),
+  ]);
+  if(error||templateError)return publicReply({error:'No se pudo consultar el contrato.'},503);
   if(!data)return publicReply({error:'Contrato no encontrado.'},404);
-  return publicReply(data);
+  return publicReply({...data,plantillas:plantillas||[]});
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
 }
 
