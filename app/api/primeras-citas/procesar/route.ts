@@ -15,7 +15,7 @@ export async function GET(request:Request){
   const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false},global:{fetch:(input,init)=>fetch(input,{...init,signal:AbortSignal.timeout(10000)})}});
   const {count,error}=await db.from('primeras_citas_mensajes').select('id',{count:'exact',head:true}).in('estado',['pendiente','error']).lte('programado_at',new Date().toISOString()).lt('intentos',3);
   if(error)return Response.json({...config,listo:false,error:'No se pudo consultar la cola'},{status:503,headers:{'Cache-Control':'no-store'}});
-  return Response.json({...config,listo:config.activo&&config.faltantes.length===0,pendientes:count||0,meta_capi:Boolean(process.env.META_CAPI_ACCESS_TOKEN)},{headers:{'Cache-Control':'no-store'}});
+  return Response.json({...config,listo:config.activo&&config.faltantes.length===0,pendientes:count||0,meta_capi:process.env.META_CAPI_ACCESS_TOKEN?'token_capi':process.env.META_WA_TOKEN?'token_whatsapp':false},{headers:{'Cache-Control':'no-store'}});
  }catch{return Response.json({...config,listo:false,error:'La base de datos no respondió'},{status:503,headers:{'Cache-Control':'no-store'}});}
 }
 export async function POST(request:Request){
@@ -59,7 +59,7 @@ export async function POST(request:Request){
  }catch{return Response.json({enviados:sent,requieren_revision:review,error:'No se pudieron procesar los correos a clientes'},{status:503});}
  // Meta Conversions API (Schedule, AppointmentAttended, Purchase) — replaces the CRM Apps Script.
  const capi={enviados:0,errores:0};
- const capiToken=process.env.META_CAPI_ACCESS_TOKEN,dataset=process.env.META_CAPI_DATASET_ID||DEFAULT_CAPI_DATASET;
+ const capiToken=process.env.META_CAPI_ACCESS_TOKEN||process.env.META_WA_TOKEN,dataset=process.env.META_CAPI_DATASET_ID||DEFAULT_CAPI_DATASET;
  if(capiToken&&/^\d+$/.test(dataset)){
   for(let i=0;i<10;i++){
    const {data:job,error}=await db.rpc('tomar_capi_primera_cita');if(error||!job)break;if(job.omitido)continue;
