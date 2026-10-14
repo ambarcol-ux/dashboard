@@ -3,7 +3,7 @@ const mod={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('li
 const {canAccessPath,homeForRole,DEPOSITS_PATH}=mod.exports;
 for(const role of ['contabilidad','CONTABILIDAD']) {
  assert.equal(homeForRole(role),DEPOSITS_PATH);
- for(const path of [DEPOSITS_PATH,DEPOSITS_PATH+'/', '/login']) assert.equal(canAccessPath(role,path),true);
+ for(const path of [DEPOSITS_PATH,DEPOSITS_PATH+'/', '/login','/dashboard/caja']) assert.equal(canAccessPath(role,path),true);
  for(const path of ['/dashboard','/admin/users','/admin/reports','/contratos/nuevo','/perfil','/disponibilidad','/api/send-email',DEPOSITS_PATH+'/otro']) assert.equal(canAccessPath(role,path),false);
 }
 for(const role of ['admin','ADMIN','asesora']) {
