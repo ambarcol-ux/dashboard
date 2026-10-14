@@ -126,7 +126,7 @@ function Suggestions({day,onDone,onError}:{day:CashDay;onDone:(m:string)=>void;o
  };
  return <section className={styles.card}><h2>Registrados hoy en el ERP</h2><p>Pagos y depósitos de contratos de esta sede que aún no están en la caja. Agrégalos sin volver a digitarlos; cada uno entra una sola vez.</p>
   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Hora</th><th>Movimiento</th><th>Contrato</th><th>Valor</th><th>Medio</th><th></th></tr></thead>
-   <tbody>{day.sugerencias.map(s=><tr key={s.origen+s.origen_id}><td>{time(s.hora)}</td><td><span className={`${styles.badge} ${s.tipo==='ingreso'?styles.badgeIn:styles.badgeOut}`}>{s.categoria}</span></td><td>{s.numero_contrato}<small>{s.cliente}</small></td>
+   <tbody>{day.sugerencias.map(s=><tr key={s.origen+s.origen_id}><td>{s.origen==='pago'?'—':time(s.hora)}</td><td><span className={`${styles.badge} ${s.tipo==='ingreso'?styles.badgeIn:styles.badgeOut}`}>{s.categoria}</span></td><td>{s.numero_contrato}<small>{s.cliente}</small></td>
     <td className={s.tipo==='ingreso'?styles.in:styles.out}>{money(s.valor)}</td>
     <td>{s.medio||<select value={methods[s.origen_id]||''} onChange={e=>setMethods({...methods,[s.origen_id]:e.target.value})}><option value="">¿Medio?</option>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select>}</td>
     <td><button className={styles.button} disabled={busy===s.origen_id} onClick={()=>void add(s)}>{busy===s.origen_id?'Agregando…':'Agregar a la caja'}</button></td></tr>)}</tbody></table></div>
