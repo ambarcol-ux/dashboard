@@ -64,6 +64,7 @@ import {
 import Link from 'next/link';
 import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
 import Sidebar from '@/components/Sidebar';
+import ContractSuppliers from '@/components/suppliers/ContractSuppliers';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -3460,6 +3461,11 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </section>
+
+                  {/* Proveedores del contrato */}
+                  {!['contabilidad'].includes(String(user?.rol || '').toLowerCase()) && (
+                    <ContractSuppliers key={selectedContract.id} contract={{ id: selectedContract.id, sede_id: selectedContract.sede_id ?? null, fecha_evento: selectedContract.fecha_evento ?? null }} />
+                  )}
 
                   {/* Financial Status Section */}
                   <section>

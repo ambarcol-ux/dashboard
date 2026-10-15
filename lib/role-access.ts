@@ -1,10 +1,13 @@
 export const DEPOSITS_PATH = '/dashboard/devoluciones-depositos';
 export const normalizeRole = (role: unknown) => String(role ?? '').trim().toLowerCase();
 export const isAccounting = (role: unknown) => normalizeRole(role) === 'contabilidad';
+export const SUPPLIER_PORTAL_PATH = '/proveedor';
+export const isSupplier = (role: unknown) => normalizeRole(role) === 'proveedor';
 export const CASH_PATH = '/dashboard/caja';
-export const canAccessPath = (role: unknown, path: string) =>
-  !isAccounting(role) || [DEPOSITS_PATH, CASH_PATH, '/login'].includes(path.replace(/(.)\/$/, '$1'));
-export const homeForRole = (role: unknown) => isAccounting(role) ? DEPOSITS_PATH : '/dashboard';
+export const canAccessPath = (role: unknown, path: string) => isSupplier(role)
+  ? [SUPPLIER_PORTAL_PATH, '/login'].includes(path.replace(/(.)\/$/, '$1'))
+  : !isAccounting(role) || [DEPOSITS_PATH, CASH_PATH, '/login'].includes(path.replace(/(.)\/$/, '$1'));
+export const homeForRole = (role: unknown) => isSupplier(role) ? SUPPLIER_PORTAL_PATH : isAccounting(role) ? DEPOSITS_PATH : '/dashboard';
 
 // Verified account IDs (Bogotá, Villavicencio, Barranquilla, Pereira x3): restrictions persist even if a login email changes.
 export const isScopedOperationsAccount = (id: unknown) => id === 'bd8f61a5-8ecf-4b78-9282-5c7812b4f277' || id === 'e6507392-c94a-4b9b-85df-b0050b184b09' || id === 'f5e07ef5-2daf-467e-a56a-2caeaf093c4f' || id === '6fa678ad-dbe1-486a-a3e8-5f818fb06f34' || id === 'be72d188-db7a-4719-bfdf-230010501cb8' || id === '2af2dd92-f559-4858-ac5a-5354e6f93b5e';

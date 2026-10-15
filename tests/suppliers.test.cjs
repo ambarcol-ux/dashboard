@@ -1,0 +1,14 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+const {tariffMargin,isLossTariff,normalizePhone,nextCode,defaultVisibility,serviceActions,bogotaInstant,daysUntil,sumMoney}=compile('lib/suppliers.ts');
+assert.equal(tariffMargin({valor_cliente:450000,valor_empresa:300000,adicional_valor:50000.1}),99999.9);
+assert(isLossTariff({valor_cliente:100,valor_empresa:120}));assert(!isLossTariff({valor_cliente:120,valor_empresa:120}));
+assert.equal(normalizePhone('300 123 4567'),'3001234567');assert.equal(normalizePhone('+57 300-123-4567'),'3001234567');
+assert.equal(normalizePhone(''),null);assert.equal(normalizePhone('12345'),undefined);assert.equal(normalizePhone(3.001234567e9),'3001234567');
+assert.equal(nextCode('P',['P001','P044','T999','PX']),'P045');assert.equal(nextCode('K',[]),'K001');
+assert.equal(defaultVisibility('RUT'),'Interno');assert.equal(defaultVisibility('Condiciones'),'Asesora');
+assert.equal(JSON.stringify(serviceActions('Asignado','No aplica')),JSON.stringify(['Confirmado','Realizado','Cancelado']));
+assert.equal(JSON.stringify(serviceActions('Realizado','Pendiente')),JSON.stringify(['Cancelado']));
+assert.equal(JSON.stringify(serviceActions('Realizado','Pagado')),JSON.stringify([]));
+assert.equal(bogotaInstant('2026-12-01','15:30'),'2026-12-01T20:30:00.000Z');assert.equal(bogotaInstant('2026-12-01',''),null);
+assert.equal(daysUntil('2026-11-14','2026-10-15'),30);assert.equal(sumMoney([0.1,0.2,'5']),5.3);
+console.log('PASS suppliers: margin and loss alert, phones as text, sequential codes, document visibility, service actions, Bogotá times, totals');

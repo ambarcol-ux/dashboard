@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { canAccessPath, canAccessAccountPath, DEPOSITS_PATH } from '@/lib/role-access';
+import { canAccessPath, canAccessAccountPath, homeForRole, isSupplier } from '@/lib/role-access';
 import { DEPOSIT_PROFILE_HEADER, type DepositProfile } from '@/lib/deposit-profile';
 
 export async function middleware(req: NextRequest) {
@@ -16,7 +16,7 @@ export async function middleware(req: NextRequest) {
   if (path === '/login' || path === '/agendar-primera-cita' || path === '/api/primeras-citas' || path === '/api/primeras-citas/gestionar' || path === '/api/primeras-citas/recuperar' || path === '/reprogramar-primera-cita' || path === '/api/primeras-citas/procesar' || path === '/api/primeras-citas/correos' || path === '/api/primeras-citas/whatsapp-script' || path === '/api/primeras-citas/eventos-crm' || path === '/api/primeras-citas/whatsapp' || path === '/agendar-primera-cita/gestionar') return next();
   const bearer = req.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
   const token = bearer || req.cookies.get('sb-access-token')?.value;
-  const protectedPath = /^\/(dashboard|contratos|admin|perfil|disponibilidad)(\/|$)/.test(path) || path === '/api/dashboard/contracts';
+  const protectedPath = /^\/(dashboard|contratos|admin|perfil|disponibilidad|proveedor)(\/|$)/.test(path) || path === '/api/dashboard/contracts';
   const deny = () => path === '/api/dashboard/contracts' ? NextResponse.json({error: 'Inicia sesión para continuar.'}, {status: 401}) : path === '/login' ? next() : req.method === 'GET' || req.method === 'HEAD'
     ? NextResponse.redirect(new URL('/login', req.url))
     : NextResponse.json({ error: 'Inicia sesión para continuar.' }, { status: 401 });
@@ -60,8 +60,8 @@ export async function middleware(req: NextRequest) {
     }
     if (!canAccessPath(profile.rol, path)) {
       return req.method === 'GET' || req.method === 'HEAD'
-      ? NextResponse.redirect(new URL(DEPOSITS_PATH, req.url))
-      : NextResponse.json({ error: 'Contabilidad solo tiene acceso a depósitos y devoluciones.' }, { status: 403 });
+      ? NextResponse.redirect(new URL(homeForRole(profile.rol), req.url))
+      : NextResponse.json({ error: isSupplier(profile.rol) ? 'Los proveedores solo tienen acceso a su portal.' : 'Contabilidad solo tiene acceso a depósitos y cierres de caja.' }, { status: 403 });
     }
     requestHeaders.set(DEPOSIT_PROFILE_HEADER, encodeURIComponent(JSON.stringify({...profile, authEmail: user.email ?? null})));
     requestHeaders.set('x-ambar-profile-verified-at', String(Date.now()));
