@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+const {statusGroup,statusLabel,isRetiredDress,suggestClassification,referenceTotal,referenceChips,statusCrossTab,toExcelCsv}=compile('lib/inventory.ts');
+assert.equal(statusGroup('EN MANTENIMIENTO'),'mantenimiento');assert.equal(statusGroup('De Baja'),'baja');assert.equal(statusGroup('Dañado/Baja'),'baja');
+assert.equal(statusGroup('EN EVENTO'),'evento');assert.equal(statusGroup(null),'disponible');assert.equal(statusGroup('Raro'),'otro');
+assert.equal(statusLabel('EN MANTENIMIENTO'),'En mantenimiento');assert(isRetiredDress('De Baja'));assert(!isRetiredDress('Vendido'));
+assert.equal(suggestClassification('Vestido paje blanco','1'),'Pajecita');assert.equal(suggestClassification('x','PAJE-01'),'Pajecita');
+assert.equal(suggestClassification('XV Vinotinto','1407'),'XV Años');assert.equal(suggestClassification('Quinceañera rosa',''),'XV Años');
+assert.equal(suggestClassification('Novia sirena',''),'Novia');assert.equal(suggestClassification('Gala azul',''),'Gala');
+assert.equal(suggestClassification('Vestido dorado','1968'),null);assert.equal(suggestClassification('XVIII siglo',''),null);
+assert.equal(referenceTotal({contratos:1,traslados:1,prestamos:0}),2);assert.equal(referenceTotal(null),0);
+assert.equal(JSON.stringify(referenceChips({contratos:1,traslados:2,prestamos:0})),JSON.stringify(['1 contrato','2 traslados']));
+const t=statusCrossTab([{sede_actual_id:'a',estado:'Disponible'},{sede_actual_id:'a',estado:'EN MANTENIMIENTO'},{sede_actual_id:null,estado:'Vendido'},{sede_actual_id:'zz',estado:'De Baja'}],[{id:'a',nombre:'Bogotá'},{id:'b',nombre:'Pereira'}]);
+assert.equal(t.totals.total,4);assert.equal(t.lines.length,3);assert.equal(t.lines[2].nombre,'Sin sede asignada');assert.equal(t.lines[2].total,2);assert.equal(t.lines[0].counts.mantenimiento,1);assert.equal(t.showOther,false);
+const csv=toExcelCsv(['a','b'],[['x;y','=SUM(1)'],['"q"',null]]);
+assert.equal(csv,'﻿a;b\r\n"x;y";\'=SUM(1)\r\n"""q""";');
+console.log('PASS inventory: status groups, retired states, classification suggestions, references, site x status table, Excel CSV');
