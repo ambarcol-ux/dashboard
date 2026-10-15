@@ -1,5 +1,7 @@
 'use client';
 import { isRetiredDress } from '@/lib/inventory';
+import PaymentSupportUpload from '@/components/PaymentSupportUpload';
+import type { UploadedSupport } from '@/lib/payment-support';
 import {canEditSavedRecords} from '@/lib/saved-record-editing';
 
 import PreXvFields from '@/components/PreXvFields';
@@ -138,6 +140,8 @@ export default function NuevoContratoPage() {
   const opcionesAccesorios = ["Tiara", "Corbatín", "Corbata", "Pañuelo", "Velo/Mantilla", "Aro/Gitana"];
 
   const [metodosPago, setMetodosPago] = useState<string[]>([]);
+  const [anticipoSoportes, setAnticipoSoportes] = useState<UploadedSupport[]>([]);
+  const [subiendoSoporte, setSubiendoSoporte] = useState(false);
   const opcionesPago = ["Efectivo", "Transferencia", "Tarjeta", "Link de Pago"];
 
   // Arreglos dinámicos
@@ -1267,6 +1271,13 @@ export default function NuevoContratoPage() {
       return;
     }
 
+    // Soporte obligatorio del anticipo (también se valida en la base de datos)
+    const abonoConSoporte = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
+    if (!isEditMode && abonoConSoporte > 0) {
+      if (subiendoSoporte) { toast.error('Espera a que termine de subir el soporte del anticipo.'); return; }
+      if (!anticipoSoportes.length) { toast.error('Falta el soporte de ingreso. Adjunta el comprobante del anticipo para poder guardar el contrato.'); return; }
+    }
+
     setLoading(true);
 
     // 0. Resetear Advertencias previas
@@ -1431,20 +1442,18 @@ export default function NuevoContratoPage() {
 
       // REGISTRO DE RECAUDO REAL: Si hay abono inicial, insertarlo inmediatamente en la tabla 'pagos'
       if (abonoInicial > 0 && insertedContract) {
-        const metodosString = metodosPago && metodosPago.length > 0 
-            ? metodosPago.map((m: any) => m.metodo).join(', ') 
-            : 'Múltiple/Otro';
-            
-        const { error: pagoError } = await supabase.from('pagos').insert([{
-          contrato_id: insertedContract.id,
-          valor_pagado: abonoInicial,
-          fecha_pago: new Date().toISOString().split('T')[0],
-          medio_pago: metodosString,
-          numero_recibo: '', // Opcional al crear
-          observaciones: 'Abono inicial automático al firmar contrato'
-        }]);
+        const metodosString = metodosPago && metodosPago.length > 0 ? metodosPago.join(', ') : 'Múltiple/Otro';
+        const { error: pagoError } = await supabase.rpc('registrar_pago_con_soporte', {
+          p_contrato: insertedContract.id,
+          p_valor: abonoInicial,
+          p_medio: metodosString,
+          p_recibo: '',
+          p_observaciones: 'Abono inicial al firmar contrato',
+          p_soportes: anticipoSoportes,
+        });
         if (pagoError) {
           console.error("Error al registrar el anticipo en pagos:", pagoError);
+          toast.error(`El contrato se creó, pero el anticipo no quedó registrado: ${pagoError.message} Avisa a administración para registrarlo sin duplicar el valor.`);
         }
       }
 
@@ -2129,6 +2138,17 @@ export default function NuevoContratoPage() {
                   </div>
                 </div>
 
+                {!isEditMode && (parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0) > 0 && (
+                  <PaymentSupportUpload
+                    sedeId={formData.sede_id}
+                    value={anticipoSoportes}
+                    onChange={setAnticipoSoportes}
+                    onBusyChange={setSubiendoSoporte}
+                    help="Comprobante de la transferencia o del pago. Obligatorio para guardar el contrato."
+                    missingMessage="Falta el soporte de ingreso. Adjunta el comprobante del anticipo para poder guardar el contrato."
+                  />
+                )}
+
                 <div className="pt-2 border-t border-emerald-200/50">
                   <h3 className="font-bold text-gray-700 mb-2 text-sm">Métodos de Pago Utilizados (Abono)</h3>
                   <div className="flex flex-wrap gap-2">
@@ -2245,6 +2265,8 @@ export default function NuevoContratoPage() {
                 onClick={handleSubmit}
                 disabled={
                   loading ||
+                  subiendoSoporte ||
+                  (!isEditMode && (parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0) > 0 && !anticipoSoportes.length) ||
                   vestidos.some(v => !v.vestido_id || busyVestidoIds.has(v.vestido_id || '')) ||
                   (crossBranchWarning.active && !adminAuthorizedTransfer && userRole !== 'admin')
                 }

@@ -4,13 +4,43 @@ import {RefreshCw,Lock,Unlock,Paperclip} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 import {bogotaDay} from '@/lib/contract-calendar';
 import {money} from '@/lib/deposits';
-import {CASH_CATEGORIES,CASH_METHODS,cashDifference,cashReceiptPath,expectedCash,parseCashAmount,siteTotals,type CashDay,type CashMovement,type CashSiteSummary,type CashSuggestion} from '@/lib/cash';
+import {CASH_CATEGORIES,CASH_METHODS,cashDifference,cashReceiptPath,expectedCash,parseCashAmount,siteTotals,type CashDay,type CashMissingSupport,type CashMovement,type CashSiteSummary,type CashSuggestion,type CashSupport} from '@/lib/cash';
+import {SUPPORT_ACCEPT,SUPPORT_BUCKET,supportFileError,supportPath,supportType} from '@/lib/payment-support';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
 type Profile={id:string;rol:string;sede_id:string|null};
 const ALL='todas';
 const time=(iso:string)=>new Date(iso).toLocaleTimeString('es-CO',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit'});
 const errorText=(e:unknown,fallback:string)=>e&&typeof e==='object'&&'message' in e&&typeof (e as {message:unknown}).message==='string'?(e as {message:string}).message:fallback;
+
+const openSupport=async(path:string,onError:(m:string)=>void)=>{const {data,error}=await supabase.storage.from(SUPPORT_BUCKET).createSignedUrl(path,300);if(error||!data)onError('No se pudo abrir el soporte.');else window.open(data.signedUrl,'_blank','noopener,noreferrer');};
+
+/** Payment support cell: links to each file, "Histórico" for payments from before supports were required, or a warning. */
+function SupportCell({soportes,historico,onError}:{soportes?:CashSupport[]|null;historico?:boolean|null;onError:(m:string)=>void}){
+ if(soportes?.length)return <>{soportes.map(s=><button key={s.id} className={styles.button} title={`${s.nombre}${s.subido_por?` · subido por ${s.subido_por}`:''}`} onClick={()=>void openSupport(s.path,onError)}><Paperclip size={12} style={{display:'inline'}}/> Ver soporte</button>)}</>;
+ if(historico)return <span className={styles.help}>Histórico</span>;
+ return <span className={`${styles.badge} ${styles.badgeWarn}`}>Sin soporte</span>;
+}
+
+/** Uploads a support for a payment that has none (only possible while the day is open). */
+function AttachSupport({sedeId,pagoId,onDone,onError}:{sedeId:string;pagoId:string;onDone:(m:string)=>void;onError:(m:string)=>void}){
+ const input=useRef<HTMLInputElement>(null),[busy,setBusy]=useState(false);
+ const upload=async(file:File|undefined)=>{
+  if(!file)return;
+  const bad=supportFileError(file);if(bad){onError(bad);return;}
+  setBusy(true);
+  try{
+   const path=supportPath(sedeId,file);
+   const {error:ue}=await supabase.storage.from(SUPPORT_BUCKET).upload(path,file,{contentType:supportType(file),upsert:false});
+   if(ue)throw Error('No se pudo subir el soporte.');
+   const {error}=await supabase.rpc('agregar_soporte_pago',{p_pago:pagoId,p_soportes:[{path,nombre:file.name,tipo:supportType(file),tamano:file.size}],p_motivo:'Adjuntado desde el cierre de caja'});
+   if(error)throw Error(error.message);
+   onDone('Soporte adjuntado.');
+  }catch(e){onError(errorText(e,'No se pudo adjuntar el soporte.'));}finally{setBusy(false);}
+ };
+ return <><button className={styles.button} disabled={busy} onClick={()=>input.current?.click()}>{busy?'Subiendo…':'+ Adjuntar'}</button>
+  <input ref={input} type="file" accept={SUPPORT_ACCEPT} hidden onChange={e=>{void upload(e.target.files?.[0]);e.target.value='';}}/></>;
+}
 
 /** Cash closings: daily income and expenses per site, the closing count, and a view of every site. */
 export default function CashRegister({profile}:{profile:Profile}){
@@ -83,6 +113,7 @@ function SiteDay({day,siteName,isAdmin,onDone,onError}:{day:CashDay;siteName:str
  const open=!day.cierre,canWork=open&&day.puede_operar;
  const ie=Number(day.totales.ingresos_efectivo||0),ee=Number(day.totales.egresos_efectivo||0),esperado=expectedCash(day.saldo_inicial,ie,ee);
  const active=day.movimientos.filter(m=>!m.anulado_at);
+ const missing=day.pagos_sin_soporte||[];
  const openReceipt=async(path:string)=>{const {data,error}=await supabase.storage.from('comprobantes_caja').createSignedUrl(path,300);if(error||!data)onError('No se pudo abrir el comprobante.');else window.open(data.signedUrl,'_blank','noopener,noreferrer');};
  const annul=async(m:CashMovement)=>{const motivo=window.prompt(`Motivo para anular "${m.categoria} ${money(m.valor)}" (mínimo 5 caracteres)`);if(motivo===null)return;const {error}=await supabase.rpc('anular_movimiento_caja',{p_id:m.id,p_motivo:motivo});if(error)onError(error.message);else onDone('Movimiento anulado. Queda visible tachado con su motivo.');};
  return <>
@@ -97,23 +128,34 @@ function SiteDay({day,siteName,isAdmin,onDone,onError}:{day:CashDay;siteName:str
    <div><span>Efectivo esperado en caja</span><strong>{money(open?esperado:day.cierre!.esperado)}</strong></div>
    <div><span>Ingresos (todos los medios)</span><strong className={styles.in}>{money(day.totales.ingresos)}</strong></div>
    <div><span>Egresos (todos los medios)</span><strong className={styles.out}>{money(day.totales.egresos)}</strong></div>
+   {day.soportes&&day.soportes.pagos>0&&<div><span>Soportes de pagos</span><strong className={missing.length?styles.out:styles.in}>{day.soportes.con_soporte} de {day.soportes.pagos}</strong>{missing.length>0&&<span>{missing.length} pendiente{missing.length===1?'':'s'}</span>}</div>}
   </div>
+  {missing.length>0&&<MissingSupports day={day} missing={missing} canAttach={open&&(day.puede_operar||isAdmin)} onDone={onDone} onError={onError}/>}
   <section className={styles.card}><h2>Movimientos del día</h2><p>{active.length} movimiento{active.length===1?'':'s'} · Por medio: {Object.entries(day.totales.por_medio||{}).map(([m,v])=>`${m} +${money(Number(v.ingresos||0))} / −${money(Number(v.egresos||0))}`).join(' · ')||'sin movimientos'}</p>
-   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Hora</th><th>Tipo</th><th>Categoría / detalle</th><th>Medio</th><th>Valor</th><th>Registró</th><th>Comprobante</th>{canWork&&<th></th>}</tr></thead>
+   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Hora</th><th>Tipo</th><th>Categoría / detalle</th><th>Medio</th><th>Valor</th><th>Registró</th><th>Comprobante / soporte</th>{canWork&&<th></th>}</tr></thead>
     <tbody>{day.movimientos.map(m=><tr key={m.id} className={m.anulado_at?styles.annulled:''}>
      <td>{time(m.created_at)}</td>
      <td><span className={`${styles.badge} ${m.tipo==='ingreso'?styles.badgeIn:styles.badgeOut}`}>{m.tipo==='ingreso'?'Ingreso':'Egreso'}</span></td>
      <td><strong>{m.categoria}</strong>{m.numero_contrato&&<small>{m.numero_contrato} · {m.cliente}</small>}{m.descripcion&&<small>{m.descripcion}</small>}{m.anulado_at&&<small>Anulado por {m.anulado_por}: {m.motivo_anulacion}</small>}</td>
      <td>{m.medio}</td><td className={m.tipo==='ingreso'?styles.in:styles.out}>{m.tipo==='ingreso'?'+':'−'}{money(m.valor)}</td><td>{m.usuario}</td>
-     <td>{m.comprobante_path?<button className={styles.button} onClick={()=>void openReceipt(m.comprobante_path!)}><Paperclip size={12} style={{display:'inline'}}/> Ver</button>:'—'}</td>
+     <td>{m.origen==='pago'?<SupportCell soportes={m.soportes} historico={m.soporte_historico} onError={onError}/>:m.comprobante_path?<button className={styles.button} onClick={()=>void openReceipt(m.comprobante_path!)}><Paperclip size={12} style={{display:'inline'}}/> Ver</button>:'—'}</td>
      {canWork&&<td>{!m.anulado_at&&<button className={`${styles.button} ${styles.danger}`} onClick={()=>void annul(m)}>Anular</button>}</td>}
     </tr>)}</tbody></table></div>
    {!day.movimientos.length&&<p className={styles.empty}>No hay movimientos registrados este día.</p>}
   </section>
   {canWork&&day.sugerencias.length>0&&<Suggestions day={day} onDone={onDone} onError={onError}/>}
-  {canWork&&<div className={styles.grid2}><NewMovement day={day} onDone={onDone}/><CloseForm day={day} esperado={esperado} onDone={onDone}/></div>}
+  {canWork&&<div className={styles.grid2}><NewMovement day={day} onDone={onDone}/><CloseForm day={day} esperado={esperado} pendingSupports={missing.length} onDone={onDone}/></div>}
   {!open&&isAdmin&&<Reopen day={day} onDone={onDone}/>}
  </>;
+}
+
+function MissingSupports({day,missing,canAttach,onDone,onError}:{day:CashDay;missing:CashMissingSupport[];canAttach:boolean;onDone:(m:string)=>void;onError:(m:string)=>void}){
+ return <section className={styles.card}>
+  <div className={`${styles.banner} ${styles.open}`} style={{marginBottom:12}}><strong>{missing.length} ingreso{missing.length===1?'':'s'} sin soporte.</strong> Adjunta el soporte para poder confirmar el cierre.</div>
+  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Recibo</th><th>Contrato</th><th>Medio</th><th>Valor</th><th>Soporte</th></tr></thead>
+   <tbody>{missing.map(p=><tr key={p.pago_id}><td>{p.recibo||'—'}</td><td>{p.numero_contrato}<small>{p.cliente}</small></td><td>{p.medio}</td><td className={styles.in}>{money(p.valor)}</td>
+    <td>{canAttach?<AttachSupport sedeId={day.sede_id} pagoId={p.pago_id} onDone={onDone} onError={onError}/>:<span className={`${styles.badge} ${styles.badgeWarn}`}>Sin soporte</span>}</td></tr>)}</tbody></table></div>
+ </section>;
 }
 
 function Suggestions({day,onDone,onError}:{day:CashDay;onDone:(m:string)=>void;onError:(m:string)=>void}){
@@ -125,10 +167,11 @@ function Suggestions({day,onDone,onError}:{day:CashDay;onDone:(m:string)=>void;o
   setBusy('');if(error)onError(error.message);else onDone('Movimiento del ERP agregado a la caja.');
  };
  return <section className={styles.card}><h2>Registrados hoy en el ERP</h2><p>Pagos y depósitos de contratos de esta sede que aún no están en la caja. Agrégalos sin volver a digitarlos; cada uno entra una sola vez.</p>
-  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Hora</th><th>Movimiento</th><th>Contrato</th><th>Valor</th><th>Medio</th><th></th></tr></thead>
+  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Hora</th><th>Movimiento</th><th>Contrato</th><th>Valor</th><th>Medio</th><th>Soporte</th><th></th></tr></thead>
    <tbody>{day.sugerencias.map(s=><tr key={s.origen+s.origen_id}><td>{s.origen==='pago'?'—':time(s.hora)}</td><td><span className={`${styles.badge} ${s.tipo==='ingreso'?styles.badgeIn:styles.badgeOut}`}>{s.categoria}</span></td><td>{s.numero_contrato}<small>{s.cliente}</small></td>
     <td className={s.tipo==='ingreso'?styles.in:styles.out}>{money(s.valor)}</td>
     <td>{s.medio||<select value={methods[s.origen_id]||''} onChange={e=>setMethods({...methods,[s.origen_id]:e.target.value})}><option value="">¿Medio?</option>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select>}</td>
+    <td>{s.origen==='pago'?<SupportCell soportes={s.soportes} historico={s.soporte_historico} onError={onError}/>:'—'}</td>
     <td><button className={styles.button} disabled={busy===s.origen_id} onClick={()=>void add(s)}>{busy===s.origen_id?'Agregando…':'Agregar a la caja'}</button></td></tr>)}</tbody></table></div>
  </section>;
 }
@@ -172,11 +215,12 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
  </section>;
 }
 
-function CloseForm({day,esperado,onDone}:{day:CashDay;esperado:number;onDone:(m:string)=>void}){
+function CloseForm({day,esperado,pendingSupports,onDone}:{day:CashDay;esperado:number;pendingSupports:number;onDone:(m:string)=>void}){
  const [contado,setContado]=useState(''),[obs,setObs]=useState(''),[saving,setSaving]=useState(false),[error,setError]=useState('');
  const counted=contado.trim()==='0'?0:parseCashAmount(contado),diff=counted===null?null:cashDifference(counted,esperado);
  const submit=async(e:React.FormEvent)=>{
   e.preventDefault();if(saving)return;setError('');
+  if(pendingSupports>0){setError(`Hay ${pendingSupports} ingreso(s) del día sin soporte. Adjunta el soporte para poder confirmar el cierre.`);return;}
   if(counted===null){setError('Escribe el efectivo contado.');return;}
   if(diff!==0&&obs.trim().length<5){setError('Hay diferencia: explica el motivo en observaciones.');return;}
   if(!window.confirm(`¿Cerrar la caja del ${day.fecha} con ${money(counted)} contados? Después no se podrán registrar ni anular movimientos de ese día.`))return;
@@ -190,8 +234,9 @@ function CloseForm({day,esperado,onDone}:{day:CashDay;esperado:number;onDone:(m:
    <label>Efectivo contado (COP)<input inputMode="decimal" placeholder="0" value={contado} onChange={e=>setContado(e.target.value)}/></label>
    {diff!==null&&<p className={styles.help}>Diferencia: <span className={`${styles.diff} ${diff<0?styles.out:diff>0?styles.in:''}`}>{money(diff)}</span>{diff===0?' · Cuadra':diff<0?' · Falta dinero':' · Sobra dinero'}</p>}
    <label>Observaciones{diff!==null&&diff!==0?' (obligatorias)':''}<textarea maxLength={1000} value={obs} onChange={e=>setObs(e.target.value)}/></label>
+   {pendingSupports>0&&<p className={styles.error}>{pendingSupports} ingreso{pendingSupports===1?'':'s'} sin soporte. Adjunta el soporte para poder confirmar el cierre.</p>}
    {error&&<p role="alert" className={styles.error}>{error}</p>}
-   <button className={`${styles.button} ${styles.primary}`} type="submit">{saving?'Cerrando…':'Cerrar caja del día'}</button>
+   <button className={`${styles.button} ${styles.primary}`} type="submit" disabled={pendingSupports>0}>{saving?'Cerrando…':'Cerrar caja del día'}</button>
   </fieldset></form>
  </section>;
 }
