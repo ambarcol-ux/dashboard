@@ -5,7 +5,7 @@ import Link from 'next/link';
 import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
 import { isAccounting, isAdminProfile, isScopedOperationsAccount, operationsPanels } from '@/lib/role-access';
 import {
-  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins, KeyRound, CalendarCheck, Wallet
+  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins, KeyRound, CalendarCheck, Wallet, Truck
 } from 'lucide-react';
 
 const ACCOUNTING_ITEMS = ['depositos', 'caja'];
@@ -14,7 +14,7 @@ interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'depositos' | 'caja';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo';
 }
 
 export default function Sidebar({ user, handleLogout, activePage, pendingDeposits }: SidebarProps) {
@@ -62,6 +62,15 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       adminOnly: false,
       items: [
         { id: 'caja', label: 'CIERRES DE CAJA', icon: Wallet, href: '/dashboard/caja', color: 'emerald' },
+      ]
+    },
+    {
+      title: 'PROVEEDORES',
+      adminOnly: false,
+      items: [
+        { id: 'proveedores-catalogo', label: 'CATÁLOGO DE PROVEEDORES', icon: BookOpen, href: '/dashboard/proveedores/catalogo', color: 'violet' },
+        { id: 'proveedores', label: 'GESTIÓN DE PROVEEDORES', icon: Truck, href: '/dashboard/proveedores', color: 'violet', adminOnly: true },
+        { id: 'proveedores-pagos', label: 'PAGOS A PROVEEDORES', icon: Banknote, href: '/dashboard/proveedores/pagos', color: 'violet', adminOnly: true },
       ]
     },
     {
