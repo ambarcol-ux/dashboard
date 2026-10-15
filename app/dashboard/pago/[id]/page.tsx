@@ -15,6 +15,10 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import Link from 'next/link';
+import PaymentSupportUpload from '@/components/PaymentSupportUpload';
+import { SUPPORT_BUCKET, type UploadedSupport } from '@/lib/payment-support';
+
+type PagoSoporte = { id: string; archivo_path: string; nombre: string; activo: boolean };
 
 export default function RegistrarPagoPage() {
   const params = useParams();
@@ -25,6 +29,8 @@ export default function RegistrarPagoPage() {
   const [submitting, setSubmitting] = useState(false);
   const [contrato, setContrato] = useState<any>(null);
   const [pagos, setPagos] = useState<any[]>([]);
+  const [soportes, setSoportes] = useState<UploadedSupport[]>([]);
+  const [subiendoSoporte, setSubiendoSoporte] = useState(false);
 
   const [formData, setFormData] = useState({
     valor_pagado: '',
@@ -48,7 +54,7 @@ export default function RegistrarPagoPage() {
 
       const { data: pData, error: pError } = await supabase
         .from('pagos')
-        .select('*')
+        .select('*, soportes_pago(id, archivo_path, nombre, activo)')
         .eq('contrato_id', id)
         .order('created_at', { ascending: false });
 
@@ -82,7 +88,9 @@ export default function RegistrarPagoPage() {
     submitting ||
     formData.valor_pagado === '' ||
     montoIngresado <= 0 ||
-    excedeBalance;
+    excedeBalance ||
+    subiendoSoporte ||
+    soportes.length === 0;
   // ─────────────────────────────────────────────────────────────────────────
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -94,6 +102,10 @@ export default function RegistrarPagoPage() {
     // ── BACKEND SECURITY GUARD (Front-to-back double-check) ──────────────
     if (montoAbono <= 0) {
       toast.error('El monto debe ser mayor a $0.');
+      return;
+    }
+    if (subiendoSoporte || soportes.length === 0) {
+      toast.error('Adjunta el soporte para generar el recibo.');
       return;
     }
 
@@ -110,19 +122,15 @@ export default function RegistrarPagoPage() {
 
     setSubmitting(true);
     try {
-      // 1. Insertar el abono en la tabla pagos
-      const nuevoPago = {
-        contrato_id: id,
-        fecha_pago: new Date().toISOString().split('T')[0], // YYYY-MM-DD
-        medio_pago: formData.medio_pago,
-        valor_pagado: montoAbono,
-        numero_recibo: formData.numero_recibo,
-        observaciones: formData.observaciones
-      };
-
-      const { error: insertError } = await supabase
-        .from('pagos')
-        .insert([nuevoPago]);
+      // 1. Registrar el abono con su soporte (pago + archivos en una sola operación)
+      const { error: insertError } = await supabase.rpc('registrar_pago_con_soporte', {
+        p_contrato: id,
+        p_valor: montoAbono,
+        p_medio: formData.medio_pago,
+        p_recibo: formData.numero_recibo,
+        p_observaciones: formData.observaciones,
+        p_soportes: soportes,
+      });
 
       if (insertError) throw insertError;
 
@@ -130,7 +138,7 @@ export default function RegistrarPagoPage() {
       await supabase.from('bitacora_contratos').insert({
         contrato_id: id,
         accion: 'Abono Registrado',
-        detalle: `Se registró un abono de $${montoAbono.toLocaleString('es-CO')} con el recibo #${formData.numero_recibo}.`,
+        detalle: `Se registró un abono de $${montoAbono.toLocaleString('es-CO')} con el recibo #${formData.numero_recibo}. Soporte adjunto (${soportes.length} archivo${soportes.length === 1 ? '' : 's'}).`,
         usuario: contrato.asesora || 'Administrador'
       });
 
@@ -157,14 +165,21 @@ export default function RegistrarPagoPage() {
       
       // Limpiar y recargar
       setFormData({ valor_pagado: '', medio_pago: 'Transferencia', numero_recibo: '', observaciones: '' });
+      setSoportes([]);
       fetchData();
       
     } catch (err: any) {
       console.error(err);
-      toast.error('Ocurrió un error al registrar el pago.');
+      toast.error(err?.code === 'P0001' && err?.message ? err.message : 'Ocurrió un error al registrar el pago.');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const openSupport = async (path: string) => {
+    const { data, error } = await supabase.storage.from(SUPPORT_BUCKET).createSignedUrl(path, 300);
+    if (error || !data?.signedUrl) { toast.error('No se pudo abrir el soporte.'); return; }
+    window.open(data.signedUrl, '_blank', 'noopener');
   };
 
   const formatCurrency = (amount: number) => {
@@ -334,6 +349,16 @@ export default function RegistrarPagoPage() {
                       </div>
                     </div>
 
+                    <PaymentSupportUpload
+                      sedeId={contrato.sede_id}
+                      value={soportes}
+                      onChange={setSoportes}
+                      onBusyChange={setSubiendoSoporte}
+                      title="Documento soporte"
+                      help="Pantallazo de Nequi, comprobante del banco o voucher del datáfono. Foto o PDF."
+                      missingMessage="Adjunta el soporte para generar el recibo."
+                    />
+
                     {/* ── BOTÓN DESHABILITADO si el monto supera el saldo ── */}
                     <button
                       type="submit"
@@ -400,6 +425,16 @@ export default function RegistrarPagoPage() {
                           {pago.observaciones}
                         </p>
                       )}
+                      {((pago.soportes_pago || []) as PagoSoporte[]).filter(s => s.activo).map(s => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => void openSupport(s.archivo_path)}
+                          className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-emerald-600 hover:text-emerald-700"
+                        >
+                          <FileText className="w-3.5 h-3.5" /> Ver soporte · {s.nombre}
+                        </button>
+                      ))}
                     </div>
                   ))
                 )}
