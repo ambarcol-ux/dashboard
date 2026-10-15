@@ -1,4 +1,5 @@
 'use client';
+import { isRetiredDress } from '@/lib/inventory';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
 import React, { useState, useEffect } from 'react';
@@ -85,7 +86,8 @@ export default function AvailabilityPage() {
         const { data: results, error: dressError } = await supabase
           .from('vestidos')
           .select('id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sedes(nombre)')
-          .or(`codigo.ilike.%${searchQuery.trim()}%,nombre.ilike.%${searchQuery.trim()}%,categoria.ilike.%${searchQuery.trim()}%`);
+          .or(`codigo.ilike.%${searchQuery.trim()}%,nombre.ilike.%${searchQuery.trim()}%,categoria.ilike.%${searchQuery.trim()}%`)
+          .eq('archivado', false);
 
         if (dressError) throw dressError;
 
@@ -242,7 +244,7 @@ export default function AvailabilityPage() {
     try {
       const { error: updateError } = await supabase
         .from('vestidos')
-        .update({ estado: 'De Baja' })
+        .update({ estado: 'Dañado/Baja' })
         .eq('id', dress.id);
 
       if (updateError) throw updateError;
@@ -542,7 +544,7 @@ export default function AvailabilityPage() {
 
               <section className="rounded-2xl border border-gray-200 bg-white p-6 text-gray-900"><h3 className="font-black">Todos los bloqueos del vestido ({blocks.length})</h3><p className="mb-3 text-sm text-gray-500">Incluye fechas anteriores y futuras. Selecciona un bloqueo para verlo en el calendario.</p><div className="grid gap-2">{blocks.map(block => <button type="button" key={block.id} onClick={() => {setCalendarMonth(block.eventDate);setSelectedDate(block.eventDate);setSelectedBlock(block);}} className="rounded-xl border border-rose-100 p-3 text-left text-sm"><strong>{block.contractNumber} · {block.type}</strong><p>{format(block.start,'d MMM yyyy',{locale:es})} – {format(block.end,'d MMM yyyy',{locale:es})}</p></button>)}</div>{!blocks.length && <p>No hay bloqueos registrados para este vestido.</p>}</section>
               {/* Botón Dar de baja (Admin) */}
-              {userProfile?.rol === 'admin' && dress.estado !== 'De Baja' && (
+              {userProfile?.rol === 'admin' && !isRetiredDress(dress.estado) && (
                 <div className="flex justify-end">
                   <button 
                     onClick={() => setIsDeactivateModalOpen(true)}

@@ -1,4 +1,5 @@
 'use client';
+import { isRetiredDress } from '@/lib/inventory';
 import {canEditSavedRecords} from '@/lib/saved-record-editing';
 
 import PreXvFields from '@/components/PreXvFields';
@@ -406,7 +407,8 @@ export default function NuevoContratoPage() {
         const { data, error } = await supabase
           .from('vestidos')
           .select('*, sedes(nombre), stock_total, precio_sugerido')
-          .in('estado', ['Disponible', 'Mantenimiento', 'disponible', 'mantenimiento']);
+          .in('estado', ['Disponible', 'Mantenimiento', 'disponible', 'mantenimiento'])
+          .eq('archivado', false);
 
         if (error) {
           console.error('[DATABASE ERROR] Vestidos:', error.message, error.details);
@@ -801,7 +803,8 @@ export default function NuevoContratoPage() {
 
       let query = supabase
         .from('vestidos')
-        .select('id, codigo, nombre, estado, sede_actual_id, stock_total, precio_sugerido, sedes(nombre)');
+        .select('id, codigo, nombre, estado, sede_actual_id, stock_total, precio_sugerido, sedes(nombre)')
+        .eq('archivado', false);
 
       if (v.vestido_id) {
         query = query.eq('id', v.vestido_id);
@@ -818,8 +821,8 @@ export default function NuevoContratoPage() {
       const existing = existingList && existingList.length > 0 ? existingList[0] : null;
 
       if (existing && existing.id) {
-        if (existing.estado === 'De Baja') {
-          throw new Error(`❌ El vestido ${codigoUpper} no está disponible (Estado: De Baja)`);
+        if (isRetiredDress(existing.estado)) {
+          throw new Error(`❌ El vestido ${codigoUpper} no está disponible (Estado: ${existing.estado})`);
         }
 
         // TRASLADO DE INVENTARIO: Actualizar sede si es diferente
@@ -858,7 +861,8 @@ export default function NuevoContratoPage() {
 
     let query = supabase
       .from('vestidos')
-      .select('id, codigo, nombre, estado, sede_actual_id, stock_total, sedes(nombre)');
+      .select('id, codigo, nombre, estado, sede_actual_id, stock_total, sedes(nombre)')
+      .eq('archivado', false);
 
     if (bloqueoEspecial.vestido_id) {
       query = query.eq('id', bloqueoEspecial.vestido_id);
@@ -874,7 +878,7 @@ export default function NuevoContratoPage() {
       throw new Error(`❌ La referencia '${referencia}' del bloqueo especial no existe en el inventario.`);
     }
 
-    if (vestido.estado === 'De Baja') {
+    if (isRetiredDress(vestido.estado)) {
       throw new Error(`❌ La referencia ${vestido.codigo} está dada de baja y no puede bloquearse.`);
     }
 

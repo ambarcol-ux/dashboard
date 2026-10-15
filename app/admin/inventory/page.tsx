@@ -7,11 +7,14 @@ import { supabase } from '@/lib/supabase';
 import { 
   Search, Package, MapPin, ArrowLeftRight, Loader2, 
   Trash2, Plus, Filter, LayoutGrid, List as ListIcon, CheckCircle2, ChevronLeft, ShieldAlert, ChevronDown,
-  X, FileText, TrendingUp, Clock, DollarSign, List, RotateCcw
+  X, FileText, TrendingUp, Clock, DollarSign, List, RotateCcw, Archive, ArchiveRestore
 } from 'lucide-react';
 import { toast, Toaster } from 'sonner';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
+import InventoryByStatus from '@/components/InventoryByStatus';
+import DressRemovalDialog from '@/components/DressRemovalDialog';
+import {CLASSIFICATION_STYLES, UNCLASSIFIED_STYLE, type DressClassification} from '@/lib/inventory';
 
 export default function InventoryPage() {
   const readAccess = useVerifiedAccess();
@@ -26,11 +29,16 @@ export default function InventoryPage() {
   const [newDress, setNewDress] = useState({
     codigo: '',
     nombre: '',
-    categoria: 'XV',
+    clasificacion_id: '',
     talla: '',
     color: '',
     sede_actual_id: ''
   });
+  const [clasificaciones, setClasificaciones] = useState<DressClassification[]>([]);
+  const [clasificacionFilter, setClasificacionFilter] = useState<string>(''); // '' todas, 'none' sin clasificar, o id
+  const [showArchived, setShowArchived] = useState(false);
+  const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado'>('bandeja');
+  const [removalTarget, setRemovalTarget] = useState<{id: string; codigo: string} | null>(null);
   const [user, setUser] = useState<any>(null);
   const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal
   const [editState, setEditState] = useState<Record<number, any>>({}); // Estado local de edición por vestidoid
@@ -78,8 +86,8 @@ export default function InventoryPage() {
   };
 
   const handleAddDress = async () => {
-    if (!newDress.codigo || !newDress.sede_actual_id) {
-       toast.error('Código y Sede Base son obligatorios');
+    if (!newDress.codigo || !newDress.sede_actual_id || !newDress.clasificacion_id) {
+       toast.error('Código, Clasificación y Sede Base son obligatorios');
        return;
     }
     setSaving(true);
@@ -90,6 +98,8 @@ export default function InventoryPage() {
         .select('id')
         .eq('codigo', newDress.codigo)
         .eq('sede_actual_id', newDress.sede_actual_id)
+        .eq('archivado', false)
+        .limit(1)
         .maybeSingle();
 
       if (duplicate) {
@@ -102,6 +112,7 @@ export default function InventoryPage() {
         nombre: newDress.nombre,
         talla: newDress.talla,
         color: newDress.color,
+        clasificacion_id: Number(newDress.clasificacion_id),
         sede_principal_id: newDress.sede_actual_id,
         sede_actual_id: newDress.sede_actual_id,
         estado: 'Disponible'
@@ -118,7 +129,7 @@ export default function InventoryPage() {
       setNewDress({ 
         codigo: '', 
         nombre: '', 
-        categoria: 'XV', 
+        clasificacion_id: '', 
         talla: '', 
         color: '', 
         sede_actual_id: '' 
@@ -179,7 +190,7 @@ export default function InventoryPage() {
     try {
       const { data, error } = await supabase
         .from('vestidos')
-        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, stock_total')
+        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, stock_total, clasificacion_id, archivado, archivado_at, motivo_archivo')
         .order('codigo', { ascending: true });
       
       if (error) {
@@ -189,6 +200,18 @@ export default function InventoryPage() {
       }
     } catch (err) {
       console.error('Crash Vestidos:', JSON.stringify(err, null, 2));
+    }
+
+    // 2.2 FETCH CLASIFICACIONES
+    try {
+      const { data, error } = await supabase
+        .from('clasificaciones_vestido')
+        .select('id, nombre, orden, activo')
+        .order('orden');
+      if (error) throw error;
+      setClasificaciones(data || []);
+    } catch (err) {
+      console.error('Error cargando clasificaciones:', err);
     }
 
     // 2.5 FETCH PROFILES FOR TRANSFERS
@@ -306,26 +329,31 @@ export default function InventoryPage() {
     }
   };
 
-  const handleDeleteVestido = async (id: number, codigo: string) => {
-    if (!confirm(`¿Estás seguro de eliminar el vestido ${codigo}? Esta acción no se puede deshacer.`)) return;
-    
+  const handleDeleteVestido = (id: string, codigo: string) => setRemovalTarget({ id, codigo });
+
+  const handleRestoreVestido = async (id: string, codigo: string) => {
     setUpdatingId(id);
-    try {
-      const { error } = await supabase
-        .from('vestidos')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
-      toast.success('Vestido eliminado del inventario 🔥');
-      loadData();
-    } catch (err: any) {
-      console.error(err);
-      toast.error('Error al borrar: ' + err.message);
-    } finally {
-      setUpdatingId(null);
-    }
+    const { error } = await supabase.rpc('restaurar_vestido', { p_id: id });
+    setUpdatingId(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Código ${codigo} restaurado en la bandeja`);
+    loadData();
   };
+
+  const handleClasificacion = async (id: string, value: string) => {
+    setUpdatingId(id);
+    const { data, error } = await supabase
+      .from('vestidos')
+      .update({ clasificacion_id: value ? Number(value) : null })
+      .eq('id', id)
+      .select('id');
+    setUpdatingId(null);
+    if (error) { toast.error('No se pudo guardar la clasificación: ' + error.message); return; }
+    if (!data?.length) { toast.error('No tienes permiso sobre códigos de esta sede.'); return; }
+    setVestidos(prev => prev.map(v => v.id === id ? { ...v, clasificacion_id: value ? Number(value) : null } : v));
+  };
+
+  const clasificacionNombre = (id: number | null | undefined) => clasificaciones.find(c => c.id === id)?.nombre;
 
   const confirmRollback = async () => {
     if (!rollbackDress) return;
@@ -410,12 +438,14 @@ export default function InventoryPage() {
   const filtered = vestidos.filter(v => {
     const searchMatch = 
       (v.codigo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (v.categoria && v.categoria.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (clasificacionNombre(v.clasificacion_id) || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (v.nombre && v.nombre.toLowerCase().includes(searchTerm.toLowerCase()));
     
     const sedeMatch = sedeFilter === '' || v.sede_actual_id === sedeFilter;
+    const clasificacionMatch = clasificacionFilter === '' ||
+      (clasificacionFilter === 'none' ? !v.clasificacion_id : String(v.clasificacion_id) === clasificacionFilter);
     
-    return searchMatch && sedeMatch;
+    return searchMatch && sedeMatch && clasificacionMatch && Boolean(v.archivado) === showArchived;
   });
 
   if (loading && vestidos.length === 0) {
@@ -473,13 +503,29 @@ export default function InventoryPage() {
           </div>
         </div>
 
+        {/* Vista: bandeja o por estado */}
+        <div className="flex items-center gap-1 bg-white p-1 rounded-2xl shadow-sm border border-gray-100 w-fit">
+          {([['bandeja', 'Por sede'], ['estado', 'Por estado']] as const).map(([id, label]) => (
+            <button
+              key={id}
+              onClick={() => setInventoryTab(id)}
+              className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${inventoryTab === id ? 'bg-rose-500 text-white shadow-lg shadow-rose-100' : 'text-gray-400 hover:bg-gray-50'}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {inventoryTab === 'estado' ? (
+          <InventoryByStatus vestidos={vestidos.filter(v => !v.archivado)} sedes={sedes} clasificaciones={clasificaciones} />
+        ) : (<>
         {/* Filters & Actions */}
         <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-4">
           <div className="relative flex-1 w-full">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input 
               type="text" 
-              placeholder="Buscar por código, nombre o categoría..."
+              placeholder="Buscar por código, nombre o clasificación..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-12 pr-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 transition-all"
@@ -496,9 +542,27 @@ export default function InventoryPage() {
               {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
             </select>
           </div>
+          <div className="w-full md:w-56">
+            <select 
+              className="w-full px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
+              value={clasificacionFilter}
+              onChange={(e) => setClasificacionFilter(e.target.value)}
+            >
+              <option value="">👗 Todas las clasificaciones</option>
+              {clasificaciones.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              <option value="none">Sin clasificar</option>
+            </select>
+          </div>
+          <button
+            onClick={() => setShowArchived(a => !a)}
+            className={`w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 ${showArchived ? 'bg-gray-900 text-white border-gray-900' : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100'}`}
+            title="Ver los códigos archivados para restaurarlos"
+          >
+            <Archive className="w-4 h-4" /> Archivados
+          </button>
           <div className="flex items-center gap-3 w-full md:w-auto">
              <div className="px-6 py-4 bg-gray-50 rounded-2xl text-gray-400 font-black text-[10px] uppercase tracking-widest border border-gray-100 italic">
-               TOTAL STOCK: {filtered.length}
+               {showArchived ? 'ARCHIVADOS' : 'TOTAL STOCK'}: {filtered.length}
              </div>
              <button 
                onClick={() => {
@@ -537,16 +601,14 @@ export default function InventoryPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Clasificación</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Clasificación *</label>
                     <select 
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none"
-                      value={newDress.categoria}
-                      onChange={(e) => setNewDress({...newDress, categoria: e.target.value})}
+                      className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none ${newDress.clasificacion_id ? 'border-gray-100' : 'border-rose-200'}`}
+                      value={newDress.clasificacion_id}
+                      onChange={(e) => setNewDress({...newDress, clasificacion_id: e.target.value})}
                     >
-                      <option value="XV">XV Años</option>
-                      <option value="Gala">Gala</option>
-                      <option value="Novia">Novia</option>
-                      <option value="Cambio">Vestido de Cambio</option>
+                      <option value="">Selecciona...</option>
+                      {clasificaciones.filter(c => c.activo).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                     </select>
                   </div>
                 </div>
@@ -598,7 +660,7 @@ export default function InventoryPage() {
 
                 <button 
                   onClick={handleAddDress}
-                  disabled={saving || !newDress.codigo || !newDress.sede_actual_id}
+                  disabled={saving || !newDress.codigo || !newDress.sede_actual_id || !newDress.clasificacion_id}
                   className="w-full py-5 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-rose-100 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 mt-4"
                 >
                   {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
@@ -617,6 +679,7 @@ export default function InventoryPage() {
                 <thead>
                   <tr className="bg-gray-50/50 border-b border-gray-100">
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Prenda</th>
+                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Clasificación</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Atributos</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Precio Sugerido</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Stock</th>
@@ -653,11 +716,20 @@ export default function InventoryPage() {
                           </div>
                         </div>
                       </td>
+                      <td className="px-6 py-6" onClick={(e) => e.stopPropagation()}>
+                        <select
+                          value={v.clasificacion_id || ''}
+                          disabled={updatingId === v.id || v.archivado}
+                          onChange={(e) => handleClasificacion(v.id, e.target.value)}
+                          className={`px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-wide outline-none cursor-pointer ${CLASSIFICATION_STYLES[clasificacionNombre(v.clasificacion_id) || ''] || UNCLASSIFIED_STYLE}`}
+                          title="Cambiar clasificación"
+                        >
+                          <option value="">Sin clasificar</option>
+                          {clasificaciones.filter(c => c.activo || c.id === v.clasificacion_id).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                        </select>
+                      </td>
                       <td className="px-8 py-6">
                          <div className="flex flex-wrap gap-1.5 items-center">
-                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-[9px] font-black uppercase tracking-tighter border border-gray-200">
-                              {v.categoria || 'N/A'}
-                            </span>
                             <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase tracking-tighter border border-indigo-100">
                               {v.talla || 'ÚNICA'}
                             </span>
@@ -738,6 +810,19 @@ export default function InventoryPage() {
                           >
                             {updatingId === v.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
                           </button>
+                          {v.archivado ? (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRestoreVestido(v.id, v.codigo);
+                              }}
+                              disabled={updatingId === v.id}
+                              className="p-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-all active:scale-95 group"
+                              title={`Restaurar código${v.motivo_archivo ? ` (archivado: ${v.motivo_archivo})` : ''}`}
+                            >
+                              <ArchiveRestore className="w-4 h-4" />
+                            </button>
+                          ) : (
                           <button 
                             onClick={(e) => {
                               e.stopPropagation();
@@ -745,11 +830,12 @@ export default function InventoryPage() {
                             }}
                             disabled={updatingId === v.id}
                             className="p-3 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl transition-all active:scale-95 group"
-                            title="Eliminar del Sistema"
+                            title="Eliminar o archivar código"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                          {canEditSavedRecords(user) && (
+                          )}
+                          {canEditSavedRecords(user) && !v.archivado && (
                             v.estado === 'Vendido' ? (
                               <button 
                                 onClick={(e) => {
@@ -783,9 +869,9 @@ export default function InventoryPage() {
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-8 py-20 text-center">
+                      <td colSpan={7} className="px-8 py-20 text-center">
                         <Package className="w-16 h-16 text-gray-100 mx-auto mb-4" />
-                        <p className="text-gray-400 font-bold">No se encontraron vestidos en el inventario.</p>
+                        <p className="text-gray-400 font-bold">{showArchived ? 'No hay códigos archivados con estos filtros.' : 'No se encontraron vestidos en el inventario.'}</p>
                       </td>
                     </tr>
                   )}
@@ -811,7 +897,7 @@ export default function InventoryPage() {
                   <span className="text-[10px] font-black tracking-widest text-gray-300 uppercase">STOCK</span>
                 </div>
                 <h3 className="text-xl font-black text-gray-900 tracking-tighter uppercase mb-1">{v.codigo}</h3>
-                <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-6 italic">{v.categoria || 'Sin Clasificar'}</p>
+                <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-6 italic">{clasificacionNombre(v.clasificacion_id) || 'Sin Clasificar'}{v.archivado ? ' · Archivado' : ''}</p>
                 
                 <div className="space-y-4 pt-4 border-t border-gray-50">
                   {v.estado === 'De Baja' && (
@@ -879,14 +965,15 @@ export default function InventoryPage() {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleDeleteVestido(v.id, v.codigo);
+                        if (v.archivado) handleRestoreVestido(v.id, v.codigo); else handleDeleteVestido(v.id, v.codigo);
                       }}
                       disabled={updatingId === v.id}
-                      className="p-3 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl transition-all"
+                      className={`p-3 rounded-xl transition-all ${v.archivado ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600' : 'bg-rose-50 hover:bg-rose-100 text-rose-500'}`}
+                      title={v.archivado ? 'Restaurar código' : 'Eliminar o archivar código'}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      {v.archivado ? <ArchiveRestore className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
                     </button>
-                    {canEditSavedRecords(user) && (
+                    {canEditSavedRecords(user) && !v.archivado && (
                       v.estado === 'Vendido' ? (
                         <button 
                           onClick={(e) => {
@@ -920,9 +1007,22 @@ export default function InventoryPage() {
             ))}
           </div>
         )}
+        </>)}
 
         </div>
       </main>
+
+      {removalTarget && (
+        <DressRemovalDialog
+          dress={removalTarget}
+          onClose={() => setRemovalTarget(null)}
+          onDone={(message) => {
+            setRemovalTarget(null);
+            toast.success(message);
+            loadData();
+          }}
+        />
+      )}
 
       {/* Modal de Traslado */}
       {showTransferModal && transferVestido && (

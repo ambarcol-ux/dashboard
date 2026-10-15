@@ -1,3 +1,4 @@
+import {isRetiredDress} from '@/lib/inventory';
 import {canEditSavedRecords} from '@/lib/saved-record-editing';
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
@@ -43,9 +44,9 @@ export async function PATCH(request:Request){
     patch.bloqueo_especial_vestido_id=null;
    }else{
     if(!ref||!date)return NextResponse.json({error:'En Bloqueo fechas especiales debes indicar la referencia y la fecha por bloquear.'},{status:400});
-    const {data:dress,error:dressError}=await db.from('vestidos').select('id,codigo,estado,sede_actual_id').ilike('codigo',ref).limit(1).maybeSingle();
+    const {data:dress,error:dressError}=await db.from('vestidos').select('id,codigo,estado,sede_actual_id').ilike('codigo',ref).eq('archivado',false).limit(1).maybeSingle();
     if(dressError||!dress)return NextResponse.json({error:'La referencia del bloqueo especial no existe en el inventario.'},{status:400});
-    if(String(dress.estado||'').toLowerCase()==='de baja')return NextResponse.json({error:'La referencia del bloqueo especial está dada de baja.'},{status:400});
+    if(isRetiredDress(dress.estado))return NextResponse.json({error:'La referencia del bloqueo especial está dada de baja.'},{status:400});
     if(current.sede_id&&dress.sede_actual_id!==current.sede_id)return NextResponse.json({error:'La referencia del bloqueo especial pertenece a otra sede. Realiza primero el traslado logístico.'},{status:409});
     patch.bloqueo_especial_referencia=dress.codigo;
     patch.bloqueo_especial_fecha=date;

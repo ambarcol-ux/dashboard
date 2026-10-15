@@ -1756,6 +1756,7 @@ export default function DashboardPage() {
       .from('vestidos')
       .select('*')
       .eq('sede_actual_id', selectedContract.sede_id)
+      .eq('archivado', false)
       .order('codigo');
     
     console.log('Vestidos disponibles encontrados:', data);
