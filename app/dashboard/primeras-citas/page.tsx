@@ -16,7 +16,7 @@ export default function FirstVisitsPage(){
  useEffect(()=>{let live=true;void readAccess().then(({profile})=>{if(live)setProfile(profile);}).catch(e=>{if(live)setError(e instanceof Error?e.message:'No pudimos validar tu acceso.');});return()=>{live=false;};},[readAccess]);
  const logout=async()=>{await supabase.auth.signOut();document.cookie='sb-access-token=; path=/; max-age=0';router.replace('/login');};
  return <div className={styles.shell}><Sidebar user={profile} handleLogout={logout} activePage="primeras-citas"/><main className={styles.main}>
-  <header className={styles.header}><div><Link href="/dashboard" className={styles.back}>Operaciones / Citas primera vez</Link><h1><CalendarCheck/> Citas primera vez</h1><p>Reservas de clientes sin contrato, su seguimiento y la conversión comercial.</p></div></header>
-  {error?<p role="alert" className={styles.error}>{error}</p>:profile?<FirstVisits isAdmin={isAdminProfile(profile)}/>:<p role="status" className={styles.empty}>Validando acceso…</p>}
+  <header className={styles.header}><div><Link href="/dashboard" className={styles.back}>Operaciones / Primeras visitas</Link><h1><CalendarCheck/> Primeras visitas</h1><p>Citas reservadas y clientas de vitrina sin contrato, su seguimiento y la conversión comercial.</p></div></header>
+  {error?<p role="alert" className={styles.error}>{error}</p>:profile?<FirstVisits isAdmin={isAdminProfile(profile)} profile={{id:String(profile.id),sede_id:(profile.sede_id as string|null)??null}}/>:<p role="status" className={styles.empty}>Validando acceso…</p>}
  </main></div>;
 }
