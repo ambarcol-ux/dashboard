@@ -3,18 +3,18 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
-import { isAccounting, isAdminProfile, isScopedOperationsAccount, operationsPanels } from '@/lib/role-access';
+import { isAccounting, isScopedOperationsAccount } from '@/lib/role-access';
+import { panelAccess } from '@/lib/panel-access';
+import { usePanelOverrides } from '@/lib/use-panel-overrides';
 import {
   FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins, KeyRound, CalendarCheck, Wallet, Truck
 } from 'lucide-react';
-
-const ACCOUNTING_ITEMS = ['depositos', 'caja'];
 
 interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos';
 }
 
 export default function Sidebar({ user, handleLogout, activePage, pendingDeposits }: SidebarProps) {
@@ -23,7 +23,9 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
   const normalizedRole = String(user?.rol || '').toLowerCase();
   const operationsOnly = isScopedOperationsAccount(user?.id);
   const accountingOnly = isAccounting(normalizedRole);
-  const isAdmin = isAdminProfile(user);
+  const overrides = usePanelOverrides(user?.id ? String(user.id) : null);
+  // Same rules as the route guard: role defaults plus the administrator's manual changes.
+  const canSee = (id: string) => panelAccess(id, user || {}, overrides);
 
   type SidebarItem = {
     id: string;
@@ -98,6 +100,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
         { id: 'config', label: 'CONFIGURACIÓN BASE', icon: Settings, href: '/admin/config', color: 'gray' },
         { id: 'clausulas', label: 'CLÁUSULAS DEL CONTRATO', icon: FileText, href: '/dashboard/admin/contratos', color: 'rose' },
         { id: 'siigo', label: 'FACTURACIÓN POR SEDE', icon: KeyRound, href: '/admin/config/siigo', color: 'emerald' },
+        { id: 'accesos', label: 'ACCESOS POR PERFIL', icon: ShieldCheck, href: '/admin/accesos', color: 'indigo' },
       ]
     },
     {
@@ -135,18 +138,14 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       <nav className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar pb-10">
         <DepositAlert count={depositCount}/>
         {sidebarBlocks.map((block, blockIndex) => {
-          if (operationsOnly && block.title !== 'OPERACIONES' && block.title !== 'FINANZAS') return null;
-          if (block.adminOnly && !isAdmin) return null;
-          if (accountingOnly && !block.items.some(item => ACCOUNTING_ITEMS.includes(item.id))) return null;
+          if (!block.items.some(item => canSee(item.id))) return null;
 
           return (
             <div key={blockIndex} className="space-y-1">
               <p className="px-4 py-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">{block.title}</p>
 
               {block.items.map((item) => {
-                if (operationsOnly && !operationsPanels.includes(item.href)) return null;
-                if (item.adminOnly && !isAdmin && !(operationsOnly && item.id === 'inventory')) return null;
-                if (accountingOnly && !ACCOUNTING_ITEMS.includes(item.id)) return null;
+                if (!canSee(item.id)) return null;
                 const Icon = item.icon;
                 const isActive = activePage === item.id;
                 const isDisabled = item.disabled;

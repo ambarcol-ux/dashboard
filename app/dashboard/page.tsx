@@ -65,6 +65,8 @@ import Link from 'next/link';
 import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
 import Sidebar from '@/components/Sidebar';
 import ContractSuppliers from '@/components/suppliers/ContractSuppliers';
+import { panelAccess } from '@/lib/panel-access';
+import { usePanelOverrides } from '@/lib/use-panel-overrides';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -134,6 +136,7 @@ export default function DashboardPage() {
   const [selectedAsesoraId, setSelectedAsesoraId] = useState<string>('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
+  const panelOverrides = usePanelOverrides(user?.id ? String(user.id) : null);
   const pendingDeposits = useDepositCount(user ? undefined : null, user?.id);
   const isDashboardAdmin = canEditSavedRecords(user);
   // -- Modals Invoice/Factura QC --
@@ -2487,7 +2490,7 @@ export default function DashboardPage() {
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-emerald-500" /> Vestidos con mayor rentabilidad
                 </h3>
-                <Link href="/admin/reports" className="text-[10px] font-black text-rose-500 hover:text-rose-600 uppercase tracking-tighter"> Ver Reporte Full → </Link>
+                {panelAccess('reports', user || {}, panelOverrides) && <Link href="/admin/reports" className="text-[10px] font-black text-rose-500 hover:text-rose-600 uppercase tracking-tighter"> Ver Reporte Full → </Link>}
              </div>
              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 {kpiVestidos.map((v, i) => (
