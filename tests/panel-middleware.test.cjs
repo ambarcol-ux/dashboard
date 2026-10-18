@@ -1,0 +1,25 @@
+const assert=require('node:assert/strict'),fs=require('fs'),vm=require('vm'),ts=require('typescript');
+const transpile=file=>ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
+const role={exports:{}},profileModule={exports:{}},panels={exports:{}};
+vm.runInNewContext(transpile('lib/role-access.ts'),{exports:role.exports});
+vm.runInNewContext(transpile('lib/deposit-profile.ts'),{exports:profileModule.exports});
+vm.runInNewContext(transpile('lib/panel-access.ts'),{exports:panels.exports,require:n=>n==='./role-access'?role.exports:require(n)});
+let rol='asesora',rows=[],accessError=null;
+const client={auth:{getUser:async()=>({data:{user:{id:'u1'}},error:null})},from:table=>({select:()=>({eq:()=>table==='accesos_paneles'?Promise.resolve({data:rows,error:accessError}):{single:async()=>({data:{id:'u1',rol,activo:true,nombre:'N',email:'n@x.co',sede_id:null},error:null})}})})};
+const mod={exports:{}};
+vm.runInNewContext(transpile('middleware.ts'),{exports:mod.exports,URL,Headers,atob,AbortSignal,fetch,console,process:{env:{}},require:name=>name==='next/server'?{NextResponse:{next:()=>({status:200}),redirect:url=>({status:307,location:url.pathname+url.search}),json:(_,o)=>o}}:name==='@/lib/role-access'?role.exports:name==='@/lib/deposit-profile'?profileModule.exports:name==='@/lib/panel-access'?panels.exports:{createClient:()=>client}});
+const token='h.'+Buffer.from(JSON.stringify({sub:'u1'})).toString('base64url')+'.s';
+const go=(path,method='GET')=>mod.exports.middleware({nextUrl:{pathname:path},url:'https://erp.test'+path,method,cookies:{get:()=>({value:token})},headers:new Headers()});
+(async()=>{
+ assert.equal((await go('/dashboard/calendario')).status,200,'default access');
+ const denied=await go('/admin/metas');assert.equal(denied.status,307);assert.equal(denied.location,'/dashboard?sin_acceso=metas');
+ rows=[{panel:'metas',estado:'permitido'}];assert.equal((await go('/admin/metas')).status,200,'granted panel');
+ rows=[{panel:'calendario',estado:'bloqueado'}];assert.equal((await go('/dashboard/calendario')).status,307,'removed panel');
+ assert.equal((await go('/dashboard/calendario','POST')).status,403);
+ rows=[{panel:'dashboard',estado:'bloqueado'}];assert.equal((await go('/dashboard')).location,'/dashboard/calendario?sin_acceso=dashboard');
+ rows=[{panel:'users',estado:'permitido'}];assert.equal((await go('/admin/users')).status,307,'admin-only panels cannot be granted');
+ rows=[];accessError={message:'down'};assert.equal((await go('/dashboard/calendario')).status,503,'fails closed');accessError=null;
+ assert.equal((await go('/perfil')).status,200,'pages outside the menu are unaffected');
+ rol='admin';rows=[{panel:'reports',estado:'bloqueado'}];assert.equal((await go('/admin/reports')).status,307);assert.equal((await go('/admin/accesos')).status,200);
+ console.log('PASS panel middleware: role defaults, grants, removals, landing redirect, admin-only rules and fail-closed');
+})().catch(e=>{console.error(e);process.exit(1);});

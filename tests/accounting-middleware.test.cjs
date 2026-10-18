@@ -3,10 +3,12 @@ const transpile=file=>ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerO
 const role={exports:{}},profileModule={exports:{}};
 vm.runInNewContext(transpile('lib/role-access.ts'),{exports:role.exports});
 vm.runInNewContext(transpile('lib/deposit-profile.ts'),{exports:profileModule.exports});
+const panels={exports:{}};
+vm.runInNewContext(transpile('lib/panel-access.ts'),{exports:panels.exports,require:n=>n==='./role-access'?role.exports:require(n)});
 const HEADER=profileModule.exports.DEPOSIT_PROFILE_HEADER;
 let currentRole='contabilidad',active=true,authError=null,profileError=null,calls=0;
 const mod={exports:{}};
-vm.runInNewContext(transpile('middleware.ts'),{exports:mod.exports,URL,Headers,atob,AbortSignal,fetch,console,process:{env:{}},require:name=>name==='next/server'?{NextResponse:{next:opts=>({status:200,headers:opts.request.headers}),redirect:url=>({status:307,location:url.pathname}),json:(_,opts)=>opts}}:name==='@/lib/role-access'?role.exports:name==='@/lib/deposit-profile'?profileModule.exports:{createClient:()=>({auth:{getUser:async()=>{calls++;return{data:{user:authError?null:{id:'accounting'}},error:authError}}},from:()=>({select:()=>({eq:()=>({single:async()=>({data:{id:'accounting',rol:currentRole,activo:active,nombre:'María Ámbar',email:'test@example.invalid',sede_id:null},error:profileError})})})})})}});
+vm.runInNewContext(transpile('middleware.ts'),{exports:mod.exports,URL,Headers,atob,AbortSignal,fetch,console,process:{env:{}},require:name=>name==='next/server'?{NextResponse:{next:opts=>({status:200,headers:opts.request.headers}),redirect:url=>({status:307,location:url.pathname}),json:(_,opts)=>opts}}:name==='@/lib/role-access'?role.exports:name==='@/lib/deposit-profile'?profileModule.exports:name==='@/lib/panel-access'?panels.exports:{createClient:()=>({auth:{getUser:async()=>{calls++;return{data:{user:authError?null:{id:'accounting'}},error:authError}}},from:()=>({select:()=>({eq:()=>({single:async()=>({data:{id:'accounting',rol:currentRole,activo:active,nombre:'María Ámbar',email:'test@example.invalid',sede_id:null},error:profileError})})})})})}});
 const token='header.'+Buffer.from(JSON.stringify({sub:'accounting'})).toString('base64url')+'.signature';
 const request=(path,method='GET',transport='cookie',value=token)=>({nextUrl:{pathname:path},url:'https://erp.test'+path,method,cookies:{get:()=>transport==='cookie'&&value?{value}:undefined},headers:new Headers({[HEADER]:encodeURIComponent(JSON.stringify({id:'attacker',rol:'admin'})),...(transport==='bearer'?{authorization:'Bearer '+value}:{})})});
 (async()=>{
