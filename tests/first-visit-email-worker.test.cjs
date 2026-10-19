@@ -10,7 +10,7 @@ const req=(body,auth='Bearer worker')=>new Request('https://erp.test/api/primera
  assert.equal((await api.POST(req({accion:'tomar'},'Bearer wrong'))).status,401);
  queue=[job('11111111-1111-1111-1111-111111111111'),{omitido:true},job('22222222-2222-2222-2222-222222222222')];
  let r=await api.POST(req({accion:'tomar',limite:5}));assert.equal(r.status,200);const {correos}=await r.json();
- assert.equal(correos.length,2);assert.equal(correos[0].para,'ana@example.com');assert.match(correos[0].asunto,/reservada/);assert.match(correos[0].texto,/agendar-primera-cita\/gestionar#/);
+ assert.equal(correos.length,2);assert.equal(correos[0].para,'ana@example.com');assert.match(correos[0].asunto,/confirmada · Bogotá/);assert.match(correos[0].texto,/Carrera 15 #106-76/);assert.match(correos[0].texto,/erp.test\/reprogramar-primera-cita/);
  r=await api.POST(req({accion:'resultado',id:'11111111-1111-1111-1111-111111111111',enviado:true}));assert.equal(r.status,200);
  r=await api.POST(req({accion:'resultado',id:'22222222-2222-2222-2222-222222222222',enviado:false,error:'Límite'}));assert.equal(r.status,200);
  assert.deepEqual(updates.map(u=>[u.v.estado,u.estado]),[['enviado','enviando'],['error','enviando']]);
