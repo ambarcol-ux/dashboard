@@ -1,5 +1,6 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {visitManagementLink} from './first-visit-links';
+import {visitSite} from './first-visit-sites';
 
 export type VisitEmailEvent='reserva'|'reprogramacion'|'cancelacion'|'confirmacion'|'enlace_virtual';
 type Slot={fecha:string;hora:string;modalidad:string;sede:string|null};
@@ -16,6 +17,37 @@ const headings:Record<VisitEmailEvent,[string,string]>={
  confirmacion:['Tu primera cita está confirmada','Gracias por confirmar tu asistencia.'],
  enlace_virtual:['Enlace para tu cita virtual','Ya está disponible el enlace de tu cita virtual.'],
 };
+
+const plainDate=(day:string)=>new Date(day+'T12:00:00Z').toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
+/** "15:00" → "3:00 p. m." */
+export function visitTime(hour:string){
+ const [h,m]=hour.split(':').map(Number);
+ return `${h%12||12}:${String(m||0).padStart(2,'0')} ${h<12?'a. m.':'p. m.'}`;
+}
+type Block={icon:string;label:string;value?:string;href?:string;note?:string};
+
+/** Booking, confirmation and reschedule email with the store's address, map, phone, WhatsApp and the reschedule page. */
+export function appointmentEmail(event:'reserva'|'confirmacion'|'reprogramacion',detail:VisitEmailDetail,name:string,rescheduleUrl:string){
+ const virtual=detail.modalidad==='virtual',site=visitSite(detail.sede),siteName=site?.nombre||detail.sede||'';
+ const where=virtual?'virtual con Ámbar Couture':`presencial en Ámbar Couture${siteName?' '+siteName:''}`;
+ const moved=event==='reprogramacion';
+ const intro=moved?`Tu cita ${where} fue reprogramada. ✨`:`Tu cita ${where} está confirmada. ✨`;
+ const blocks:Block[]=[{icon:'📅',label:'Fecha',value:plainDate(detail.fecha)},{icon:'🕒',label:'Hora',value:visitTime(detail.hora)}];
+ if(moved&&detail.anterior)blocks.push({icon:'↩️',label:'Antes',value:`${plainDate(detail.anterior.fecha)}, ${visitTime(detail.anterior.hora)}`});
+ if(virtual)blocks.push(detail.enlace_virtual?{icon:'💻',label:'Enlace de la videollamada',href:detail.enlace_virtual}:{icon:'💻',label:'Videollamada',note:'Te enviaremos el enlace antes de tu cita.'});
+ else if(site)blocks.push({icon:'📍',label:'Dirección',value:site.direccion},{icon:'🗺️',label:site.mapaEtiqueta,href:site.mapa});
+ else if(siteName)blocks.push({icon:'📍',label:'Sede',value:siteName});
+ if(site)blocks.push({icon:'📲',label:'¿Tienes alguna pregunta?',note:`Contacta a nuestra sede ${site.nombre}: ${site.telefono}`},{icon:'',label:'Escribir por WhatsApp',href:`https://wa.me/${site.whatsapp}`});
+ blocks.push({icon:'🔄',label:'¿Necesitas cambiar la fecha o la hora de tu cita?',note:'Puedes reprogramarla fácilmente aquí:',href:rescheduleUrl});
+ const closing='¡Te esperamos para ayudarte a encontrar el vestido ideal! 👗✨';
+ const head=(b:Block)=>`${b.icon?b.icon+' ':''}${b.label}${b.label.endsWith('?')?'':':'}`;
+ const text=[`Hola, ${name} 👋`,intro,...blocks.map(b=>b.value?`${head(b)} ${b.value}`:[head(b),b.note,b.href].filter(Boolean).join('\n')),closing].join('\n\n');
+ const p='font-size:15px;line-height:1.6;margin:0 0 14px',a='color:#b45309;word-break:break-all';
+ const row=(b:Block)=>b.value?`<p style="${p}">${escape(b.icon)} <strong>${escape(b.label)}:</strong> ${escape(b.value)}</p>`:`<p style="${p}">${b.icon?escape(b.icon)+' ':''}<strong>${escape(b.label)}${(b.note||b.href)&&!b.label.endsWith('?')?':':''}</strong>${b.note?'<br>'+escape(b.note):''}${b.href?`<br><a href="${escape(b.href)}" style="${a}">${escape(b.href)}</a>`:''}</p>`;
+ const html=`<div style="background:#faf8f5;padding:32px 16px;font-family:Helvetica,Arial,sans-serif;color:#18181b"><div style="max-width:560px;margin:0 auto;background:#fff;border:1px solid #f4e4ea;border-radius:16px;padding:32px"><p style="margin:0 0 8px;font-size:11px;letter-spacing:.2em;color:#b45309;font-weight:bold">ÁMBAR COUTURE</p><p style="${p}">Hola, ${escape(name)} 👋</p><p style="${p}">Tu cita <strong>${escape(where)}</strong> ${moved?'fue reprogramada':'está confirmada'}. ✨</p>${blocks.map(row).join('')}<p style="${p};margin-top:22px">${escape(closing)}</p></div></div>`;
+ const subject=`${moved?'Tu cita fue reprogramada':'Tu cita está confirmada'} · ${virtual?'Virtual':siteName||'Ámbar Couture'} · ${plainDate(detail.fecha)}, ${visitTime(detail.hora)}`;
+ return {subject,text,html};
+}
 
 /** Customer email for one agenda change. `link` is the private management link, or the public booking page after a cancellation. */
 export function visitChangeEmail(event:VisitEmailEvent,detail:VisitEmailDetail,name:string,link:string){
@@ -44,7 +76,9 @@ export async function claimVisitEmails(db:SupabaseClient,origin:string,linkSecre
   const job=data as Job;if(job.omitido)continue;
   const {correo,cita}=job;
   const link=correo.evento==='cancelacion'?`${origin}/agendar-primera-cita`:visitManagementLink(origin,cita.id,Date.parse(cita.fecha+'T23:59:59-05:00')+30*86400000,linkSecret);
-  const message=visitChangeEmail(correo.evento,correo.detalle,cita.cliente_nombre,link);
+  const message=correo.evento==='reserva'||correo.evento==='confirmacion'||correo.evento==='reprogramacion'
+   ?appointmentEmail(correo.evento,correo.detalle,cita.cliente_nombre,`${origin}/reprogramar-primera-cita`)
+   :visitChangeEmail(correo.evento,correo.detalle,cita.cliente_nombre,link);
   emails.push({id:correo.id,para:cita.email,asunto:message.subject,texto:message.text,html:message.html});
  }
  return emails;

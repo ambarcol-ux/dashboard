@@ -1,0 +1,14 @@
+/** Contact details each store shows in customer messages (address, map, phone and WhatsApp). */
+export type VisitSite={nombre:string;direccion:string;mapa:string;mapaEtiqueta:string;telefono:string;whatsapp:string};
+
+const SITES:VisitSite[]=[
+ {nombre:'Bogotá',direccion:'Carrera 15 #106-76, segundo piso, Molinos Norte, Bogotá. Cerca de Unicentro.',mapa:'https://maps.app.goo.gl/bfZE7XW9rxfcV8vt7',mapaEtiqueta:'Cómo llegar en Google Maps',telefono:'305 807 3210',whatsapp:'573058073210'},
+ {nombre:'Pereira',direccion:'Carrera 17 #9-70, local 101, barrio Pinares, Pereira, Risaralda.',mapa:'https://www.google.com/maps/search/?api=1&query=Carrera%2017%20%239-70%20Local%20101%20Pinares%20Pereira',mapaEtiqueta:'Cómo llegar en Google Maps',telefono:'321 347 3757',whatsapp:'573213473757'},
+ {nombre:'Villavicencio',direccion:'Calle 15 #42-21, casa 7, Villavicencio, Meta. Una cuadra arriba del Centro Comercial Primavera Urbana.',mapa:'https://share.google/V1tpS2sfzzhFMq8bS',mapaEtiqueta:'Cómo llegar en Google',telefono:'321 489 3891',whatsapp:'573214893891'},
+ {nombre:'Barranquilla',direccion:'Carrera 54 #84-95, Riomar, Barranquilla. Cerca del Centro Comercial Viva, frente al colegio Biffi La Salle.',mapa:'https://share.google/emQJr5NJI0YECOWzN',mapaEtiqueta:'Cómo llegar en Google',telefono:'310 211 9906',whatsapp:'573102119906'},
+];
+
+const key=(value:string)=>value.normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase();
+
+/** Store details by name ("Bogota", "bogotá" and "Bogotá" match), or null for an unknown store. */
+export const visitSite=(name:string|null|undefined)=>name?SITES.find(s=>key(s.nombre)===key(name))||null:null;
