@@ -12,7 +12,7 @@ const time=(iso:string)=>new Date(iso).toLocaleTimeString('es-CO',{timeZone:'Ame
 const dayLabel=(day:string)=>new Date(day+'T12:00:00Z').toLocaleDateString('es-CO',{timeZone:'UTC',day:'2-digit',month:'2-digit',year:'numeric'});
 
 /** Statement of every deposit movement registered on a day, read-only, with the receipt one click away. */
-export default function DepositDailyMovements({canChangeReceipts,onChanged}:{canChangeReceipts:boolean;onChanged:()=>void}){
+export default function DepositDailyMovements({canChangeReceipts,canRemoveReceipts=false,onChanged}:{canChangeReceipts:boolean;canRemoveReceipts?:boolean;onChanged:()=>void}){
  const today=bogotaDay(new Date().toISOString())!;
  const [day,setDay]=useState(today),[rows,setRows]=useState<DailyMovement[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [filters,setFilters]=useState<DailyFilters>({sede:'',tipo:'',metodo:''}),[viewer,setViewer]=useState<ReceiptTarget|null>(null);
@@ -60,6 +60,6 @@ export default function DepositDailyMovements({canChangeReceipts,onChanged}:{can
    </tr>)}
   </tbody></table></div>
   {!shown.length&&<p className={styles.empty}>{loading?'Cargando movimientos…':'No hay movimientos registrados ese día con estos filtros.'}</p>}
-  {viewer&&<DepositReceiptViewer key={viewer.id+String(viewer.path)} target={viewer} canChange={canChangeReceipts} onClose={()=>setViewer(null)} onChanged={message=>{setViewer(null);setNotice(message);void load();onChanged();}}/>}
+  {viewer&&<DepositReceiptViewer key={viewer.id+String(viewer.path)} target={viewer} canChange={canChangeReceipts} canRemove={canRemoveReceipts} onClose={()=>setViewer(null)} onChanged={message=>{setViewer(null);setNotice(message);void load();onChanged();}}/>}
  </section>;
 }

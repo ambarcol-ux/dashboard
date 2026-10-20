@@ -22,4 +22,9 @@ assert(!panelAccess('caja',conta,{caja:'bloqueado'}));
 assert(panelAccess('accesos',admin,{accesos:'bloqueado'}),'admins never lose the access panel');assert(!panelAccess('accesos',asesora,{}));
 assert.equal(firstAllowedPanel(asesora,{dashboard:'bloqueado'}),'/dashboard/calendario');
 assert.equal(JSON.stringify(overridesFromRows([{panel:'a',estado:'permitido'},{panel:'b',estado:'defecto'},{panel:'c',estado:'bloqueado'}])),JSON.stringify({a:'permitido',c:'bloqueado'}));
+// Roles: the user's permissions (sum of roles) decide; manual "Quitar" still wins; admin-only panels are never granted by a role
+assert(panelAccess('dashboard',asesora,{},['panel.dashboard']));assert(!panelAccess('calendario',asesora,{},['panel.dashboard']),'role without the permission loses the panel');
+assert(panelAccess('metas',conta,{},['panel.depositos','panel.metas']));assert(!panelAccess('metas',conta,{metas:'bloqueado'},['panel.metas']));
+assert(!panelAccess('users',asesora,{},['panel.users']));assert(panelAccess('users',admin,{},[]));
+assert(!panelAccess('metas',scoped,{},['panel.metas']),'scoped operations accounts keep their fixed panels');
 console.log('PASS panel access: path mapping, role defaults equal the old menu, grants/removals and safety rules');

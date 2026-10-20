@@ -19,6 +19,7 @@ const flush=async()=>{for(let i=0;i<25;i++)await Promise.resolve();};
   if(n==='next/navigation')return{useRouter:()=>({replace(){}})};
   if(n==='@/lib/supabase')return{supabase:{auth:{getSession:async()=>({data:{session:{user:{id:sessionId}}}}),getUser(){throw Error('Redundant Auth call')}},from:query,rpc:query}};
   if(n==='@/lib/collect-pages')return{collectPages};
+  if(n==='@/lib/use-permissions')return{usePermissions:()=>null,can:()=>false};
   if(n.startsWith('@/lib/'))return compile(n.slice(2)+'.ts');
   if(n==='lucide-react')return new Proxy({},{get:()=>()=>null});return{default:()=>null};
  }});

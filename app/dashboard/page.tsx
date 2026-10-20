@@ -1,4 +1,5 @@
 'use client';
+import ContractDateEditor from '@/components/ContractDateEditor';
 import {loadContractSignature} from '@/lib/load-dashboard-contracts';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 import {CONTRACT_PAGE_SIZE, type DashboardSummary} from '@/lib/dashboard-summary';
@@ -3466,6 +3467,8 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </section>
+
+                  <ContractDateEditor key={`fechas-${selectedContract.id}-${selectedContract.fecha_evento}-${selectedContract.fecha_prueba_final}`} contract={selectedContract} userId={user?.id ? String(user.id) : null} onSaved={message => { toast.success(message); void fetchContratos(); }} />
 
                   {/* Proveedores del contrato */}
                   {!['contabilidad'].includes(String(user?.rol || '').toLowerCase()) && (

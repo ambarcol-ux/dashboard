@@ -8,7 +8,7 @@ import styles from '@/app/dashboard/devoluciones-depositos/deposits.module.css';
 export type ReceiptTarget={tipo:'movimiento'|'soporte';id:string;contratoId:string;titulo:string;path:string|null};
 
 /** Shows a deposit receipt inside the module; admin/contabilidad can replace or remove it (audited, amounts untouched). */
-export default function DepositReceiptViewer({target,canChange,onClose,onChanged}:{target:ReceiptTarget;canChange:boolean;onClose:()=>void;onChanged:(notice:string)=>void}){
+export default function DepositReceiptViewer({target,canChange,canRemove=false,onClose,onChanged}:{target:ReceiptTarget;canChange:boolean;canRemove?:boolean;onClose:()=>void;onChanged:(notice:string)=>void}){
  const ref=useRef<HTMLDialogElement>(null),busy=useRef(false),operation=useRef(crypto.randomUUID());
  const [url,setUrl]=useState(''),[error,setError]=useState(''),[mode,setMode]=useState<''|'reemplazar'|'quitar'>(target.path?'':'reemplazar'),[file,setFile]=useState<File|null>(null),[reason,setReason]=useState(''),[saving,setSaving]=useState(false);
  useEffect(()=>{const dialog=ref.current;dialog?.showModal();return()=>dialog?.close();},[]);
@@ -36,7 +36,7 @@ export default function DepositReceiptViewer({target,canChange,onClose,onChanged
   <div className={styles.modalHeader}><div><p>{target.titulo}</p><h2 id="receipt-title">Comprobante</h2></div><button aria-label="Cerrar comprobante" disabled={saving} onClick={onClose}><X size={20}/></button></div>
   {target.path?(url?<div className={styles.receiptPreview}>{receiptKind(target.path)==='pdf'?<iframe src={url} title="Comprobante en PDF"/>:<img src={url} alt="Comprobante del movimiento"/>}<a href={url} target="_blank" rel="noopener noreferrer">Abrir en otra pestaña <ArrowUpRight size={14}/></a></div>:!error&&<p className={styles.empty}>Cargando comprobante…</p>):<p className={styles.empty}>Este movimiento no tiene comprobante.</p>}
   {canChange&&<form onSubmit={save} className={styles.receiptForm}><fieldset disabled={saving}>
-   <div className={styles.rowActions}>{target.path&&<button type="button" className={mode==='reemplazar'?styles.selected:''} onClick={()=>{setMode('reemplazar');setError('');}}>Reemplazar comprobante</button>}{target.path&&target.tipo==='movimiento'&&<button type="button" className={mode==='quitar'?styles.selected:''} onClick={()=>{setMode('quitar');setError('');}}>Quitar comprobante</button>}</div>
+   <div className={styles.rowActions}>{target.path&&<button type="button" className={mode==='reemplazar'?styles.selected:''} onClick={()=>{setMode('reemplazar');setError('');}}>Reemplazar comprobante</button>}{canRemove&&target.path&&target.tipo==='movimiento'&&<button type="button" className={mode==='quitar'?styles.selected:''} onClick={()=>{setMode('quitar');setError('');}}>Quitar comprobante</button>}</div>
    {mode&&<>{mode==='reemplazar'&&<label>{target.path?'Comprobante correcto':'Adjuntar comprobante'}<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0]||null)}/><small>PDF o imagen · Máximo 10 MB · Acceso privado</small></label>}
     <label>Motivo del cambio<textarea maxLength={500} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Ej.: se cargó el comprobante de otro cliente"/></label>
     <p className={styles.help}>El valor, la fecha y el método del movimiento no cambian. El archivo anterior se conserva y el cambio queda en la bitácora del contrato con tu usuario.</p>

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { canAccessPath, canAccessAccountPath, homeForRole, isSupplier } from '@/lib/role-access';
-import { canReceiveGrants, firstAllowedPanel, overridesFromRows, panelAccess, panelForPath } from '@/lib/panel-access';
+import { canReceiveGrants, firstAllowedPanel, overridesFromRows, panelAccess, panelForPath, rolePanelAccess } from '@/lib/panel-access';
 import { DEPOSIT_PROFILE_HEADER, type DepositProfile } from '@/lib/deposit-profile';
 
 export async function middleware(req: NextRequest) {
@@ -44,11 +44,13 @@ export async function middleware(req: NextRequest) {
   try {
     // Auth and the RLS-protected profile lookup are independent network calls.
     const panel = panelForPath(path);
-    const [authResult, profileResult, accessResult] = await Promise.all([
+    const [authResult, profileResult, accessResult, permissionsResult] = await Promise.all([
       client.auth.getUser(token),
       client.from('profiles').select('id,nombre,email,rol,sede_id,activo').eq('id', subject).single<DepositProfile>(),
       // Manual panel changes are only needed for menu pages.
       panel ? client.from('accesos_paneles').select('panel,estado').eq('usuario_id', subject) : Promise.resolve({ data: [], error: null }),
+      // Permissions of all the user's roles decide which menu pages they can open.
+      panel ? client.rpc('mis_permisos') : Promise.resolve({ data: null, error: null }),
     ]);
     const user = authResult.data.user;
     const profile = profileResult.data;
@@ -57,19 +59,21 @@ export async function middleware(req: NextRequest) {
     }
     if (authResult.error || !user || user.id !== subject ||
         profileResult.error || !profile || profile.id !== user.id || profile.activo === false) return deny();
-    if (panel && accessResult.error) {
+    if (panel && (accessResult.error || permissionsResult.error)) {
       return NextResponse.json({ error: 'No fue posible validar tus accesos. Intenta recargar la página.' }, { status: 503 });
     }
     const overrides = overridesFromRows(accessResult.data);
+    const permissions = Array.isArray(permissionsResult.data) ? permissionsResult.data as string[] : null;
     // An administrator's manual change decides menu pages; everything else keeps the role rules below.
     if (panel && !isSupplier(profile.rol)) {
-      if (!panelAccess(panel.id, profile, overrides)) {
-        const home = firstAllowedPanel(profile, overrides) || '/perfil';
+      if (!panelAccess(panel.id, profile, overrides, permissions)) {
+        const home = firstAllowedPanel(profile, overrides, permissions) || '/perfil';
         return path.startsWith('/api/') || !['GET','HEAD'].includes(req.method)
           ? NextResponse.json({ error: 'No tienes acceso a este panel. Pide al administrador que te lo habilite.' }, { status: 403 })
           : NextResponse.redirect(new URL(home === path ? '/perfil' : `${home}?sin_acceso=${encodeURIComponent(panel.id)}`, req.url));
       }
-      if (overrides[panel.id] === 'permitido' && panel.grantable && canReceiveGrants(profile)) {
+      // Allowed by a manual grant or by the user's roles: the role permission is the rule for menu pages.
+      if ((overrides[panel.id] === 'permitido' && panel.grantable && canReceiveGrants(profile)) || (permissions && rolePanelAccess(panel.id, profile, permissions))) {
         requestHeaders.set(DEPOSIT_PROFILE_HEADER, encodeURIComponent(JSON.stringify({...profile, authEmail: user.email ?? null})));
         requestHeaders.set('x-ambar-profile-verified-at', String(Date.now()));
         return next();
