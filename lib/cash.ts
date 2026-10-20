@@ -13,7 +13,7 @@ export type CashSiteSummary={sede_id:string;sede:string;ingresos:number;egresos:
 export const CASH_METHODS=['Efectivo','Transferencia','Tarjeta','Otro'] as const;
 export const CASH_CATEGORIES={
  ingreso:['Pago de contrato','Depósito en garantía','Venta de accesorios','Arreglos','Otro ingreso'],
- egreso:['Gasto operativo','Transporte','Compras e insumos','Nómina / anticipos','Consignación a banco','Devolución de depósito','Otro egreso'],
+ egreso:['Gasto operativo','Transporte','Compras e insumos','Nómina / anticipos','Consignación a banco','Devolución de depósito','Comisiones aliados','Otro egreso'],
 } as const;
 export const CASH_RECEIPT_TYPES:Record<string,string>={'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'};
 

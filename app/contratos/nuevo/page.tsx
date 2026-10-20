@@ -7,8 +7,9 @@ import {canEditSavedRecords} from '@/lib/saved-record-editing';
 import PreXvFields from '@/components/PreXvFields';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { initialDepositAmount } from '@/lib/initial-deposit';
+import { contractSuggestedDeposit } from '@/lib/deposit-rules';
 import { type PrexvData } from '@/lib/prexv';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { requireInvoice, INVOICE_REQUIRED_MESSAGE } from '@/lib/invoice-validation';
 import { Toaster, toast } from 'sonner';
@@ -153,6 +154,10 @@ export default function NuevoContratoPage() {
 
   // Catálogo Global
   const [vestidosMaestro, setVestidosMaestro] = useState<any[]>([]);
+  const [clasificaciones, setClasificaciones] = useState<{ id: number; nombre: string }[]>([]);
+  useEffect(() => {
+    void supabase.from('clasificaciones_vestido').select('id, nombre').then(({ data }) => setClasificaciones(data || []));
+  }, []);
   const [loadingVestidos, setLoadingVestidos] = useState(false);
   const [asesorasList, setAsesorasList] = useState<any[]>([]);
   const [asesorasFiltradas, setAsesorasFiltradas] = useState<any[]>([]);
@@ -769,6 +774,10 @@ export default function NuevoContratoPage() {
     setArreglos(updated);
   };
 
+  const depositoSugerido = useMemo(() => contractSuggestedDeposit(vestidos.filter(v => v.vestido_id).map(v => {
+    const row = vestidosMaestro.find(m => m.id === v.vestido_id);
+    return { categoria: clasificaciones.find(c => c.id === row?.clasificacion_id)?.nombre ?? null, precio: row?.precio_sugerido };
+  })), [vestidos, vestidosMaestro, clasificaciones]);
   const addVestido = () => setVestidos([...vestidos, { vestido_id: null, referencia: '', tipo: 'XV', observaciones: '' }]);
   const removeVestido = (idx: number) => setVestidos(vestidos.filter((_, i) => i !== idx));
   const updateVestido = (idx: number, field: string, value: any) => {
@@ -2171,6 +2180,12 @@ export default function NuevoContratoPage() {
                   <div className="col-span-2 space-y-1">
                     <label htmlFor="valor_deposito" className="text-sm font-semibold text-gray-700">Valor del depósito de garantía</label>
                     <input id="valor_deposito" name="valor_deposito" type="number" min="0" step="0.01" value={formData.valor_deposito} onChange={handleChange} disabled={isEditMode} title={isEditMode ? 'El depósito de un contrato pactado se gestiona desde Depósitos y devoluciones.' : undefined} placeholder="0" className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 disabled:opacity-60 disabled:cursor-not-allowed" />
+                    {depositoSugerido !== null && !isEditMode && (
+                      <div className="flex flex-wrap items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2 text-sm text-emerald-800">
+                        <span>Depósito sugerido según la tabla: <b>{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(depositoSugerido)}</b></span>
+                        {Number(formData.valor_deposito) !== depositoSugerido && <button type="button" onClick={() => setFormData(prev => ({ ...prev, valor_deposito: String(depositoSugerido) }))} className="px-3 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs">Usar este valor</button>}
+                      </div>
+                    )}
                     <p className="text-sm text-emerald-700">Registra el depósito recibido. No se suma al alquiler ni al abono. Adjunta su comprobante en Depósitos y devoluciones, sin registrar nuevamente el ingreso.</p>
                   </div>
                   {renderTextInput("Banco", "deposito_banco", null, "text", false, "bg-white")}

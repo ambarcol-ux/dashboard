@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { toast, Toaster } from 'sonner';
 import { Banknote, CheckCircle2, ChevronRight, X, Calendar, Wallet, Building2, Search, ArrowLeft } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { CASH_METHODS, CASH_RECEIPT_TYPES, cashReceiptPath } from '@/lib/cash';
 
 export default function LiquidacionesPage() {
   const router = useRouter();
@@ -16,6 +17,12 @@ export default function LiquidacionesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedAliado, setSelectedAliado] = useState<any>(null);
   const [comprobante, setComprobante] = useState('');
+  const [archivo, setArchivo] = useState<File | null>(null);
+  const [sedePago, setSedePago] = useState('');
+  const [medio, setMedio] = useState<string>('Transferencia');
+  const [sedes, setSedes] = useState<{ id: string; nombre: string }[]>([]);
+  const [historial, setHistorial] = useState<any[]>([]);
+  const [soloPendientes, setSoloPendientes] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -56,10 +63,12 @@ export default function LiquidacionesPage() {
       const { data: escalas } = await supabase.from('config_escalas').select('*').order('minimo', { ascending: true });
 
       // 5. Traer Liquidaciones previas
-      const { data: liquidaciones } = await supabase
-        .from('cierres_mensuales_aliados')
-        .select('*')
-        .eq('estado', 'PAGADO');
+      const [{ data: liquidaciones }, { data: sedesData }] = await Promise.all([
+        supabase.from('cierres_mensuales_aliados').select('*').eq('estado_pago', 'PAGADO').order('fecha_desembolso', { ascending: false }).limit(50),
+        supabase.from('sedes').select('id, nombre').eq('activo', true).order('nombre'),
+      ]);
+      setHistorial(liquidaciones || []);
+      setSedes(sedesData || []);
 
       // Procesamiento de Saldos
       const aliadosConSaldos = (refData || []).map(aliado => {
@@ -119,36 +128,31 @@ export default function LiquidacionesPage() {
   const handleOpenModal = (aliado: any) => {
     setSelectedAliado(aliado);
     setComprobante('');
+    setArchivo(null);
+    setMedio('Transferencia');
+    const origen = String(aliado.sede_origen || aliado.vitrina_sede || '').toLowerCase();
+    setSedePago(sedes.find(x => origen && origen.includes(x.nombre.toLowerCase()))?.id || '');
     setIsModalOpen(true);
   };
 
   const handleProcesarPago = async () => {
-    if (!comprobante.trim()) {
-      toast.error('Debes ingresar el comprobante de transferencia');
-      return;
-    }
-
+    if (!sedePago) { toast.error('Elige la sede desde cuya caja sale el pago'); return; }
+    if (!archivo) { toast.error('Adjunta el comprobante del pago (PDF o imagen)'); return; }
+    if (!CASH_RECEIPT_TYPES[archivo.type] || archivo.size > 10 * 1024 * 1024) { toast.error('El comprobante debe ser PDF, JPG, PNG o WebP de hasta 10 MB'); return; }
     try {
       setIsSubmitting(true);
-      
-      const { error } = await supabase
-        .from('cierres_mensuales_aliados')
-        .insert([{
-          referidor_id: selectedAliado.id,
-          monto: selectedAliado.saldoPendiente,
-          estado: 'PAGADO',
-          comprobante: comprobante.trim(),
-          // fecha_pago / created_at se maneja por DB default
-        }]);
-
+      const fecha = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
+      const path = cashReceiptPath(sedePago, fecha, crypto.randomUUID(), archivo.type);
+      const { error: uploadError } = await supabase.storage.from('comprobantes_caja').upload(path, archivo, { upsert: false });
+      if (uploadError) throw uploadError;
+      const { error } = await supabase.rpc('liquidar_aliado', { p_referidor: selectedAliado.id, p_datos: { sede_id: sedePago, medio, referencia: comprobante.trim(), comprobante_path: path } });
       if (error) throw error;
-
-      toast.success(`Liquidación procesada a ${selectedAliado.nombre_aliado}`);
+      toast.success(`Liquidación registrada a ${selectedAliado.nombre_aliado} y reportada en el cierre de caja`);
       setIsModalOpen(false);
-      fetchLiquidaciones(); // Refrescar los saldos
+      fetchLiquidaciones();
     } catch (err: any) {
       console.error('Error procesando pago:', err.message || err);
-      toast.error('Ocurrió un error al registrar la liquidación');
+      toast.error(err?.message ? `No se pudo registrar la liquidación: ${err.message}` : 'Ocurrió un error al registrar la liquidación');
     } finally {
       setIsSubmitting(false);
     }
@@ -163,9 +167,14 @@ export default function LiquidacionesPage() {
   };
 
   const filteredAliados = aliados.filter(a => 
+    (!soloPendientes || a.saldoPendiente > 0) && (
     a.nombre_aliado?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    a.contacto_nombre?.toLowerCase().includes(searchTerm.toLowerCase())
+    a.contacto_nombre?.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+  const openReceipt = async (path: string) => {
+    const { data, error } = await supabase.storage.from('comprobantes_caja').createSignedUrl(path, 300);
+    if (error || !data) toast.error('No se pudo abrir el comprobante'); else window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
 
   const mesActual = new Date().toLocaleDateString('es-CO', { month: 'long', year: 'numeric' }).toUpperCase();
 
@@ -220,6 +229,10 @@ export default function LiquidacionesPage() {
             className="w-full bg-white border border-zinc-200 rounded-2xl pl-12 pr-4 py-4 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 shadow-sm transition-all"
           />
         </div>
+        <label className="flex items-center gap-2 text-sm font-bold text-zinc-600 -mt-4 ml-2">
+          <input type="checkbox" checked={soloPendientes} onChange={e => setSoloPendientes(e.target.checked)} />
+          Mostrar solo aliados con saldo pendiente de pago
+        </label>
 
         {/* Tabla de Liquidación */}
         <div className="bg-white rounded-[2rem] shadow-sm border border-zinc-200 overflow-hidden">
@@ -243,7 +256,7 @@ export default function LiquidacionesPage() {
                 <tbody className="divide-y divide-zinc-100">
                   {filteredAliados?.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-zinc-400 font-medium">No hay comisiones acumuladas en este periodo.</td>
+                      <td colSpan={5} className="py-12 text-center text-zinc-400 font-medium">{soloPendientes ? 'No hay aliados con saldo pendiente de pago.' : 'No hay aliados para mostrar.'}</td>
                     </tr>
                   ) : (
                     filteredAliados?.map((aliado) => (
@@ -295,6 +308,19 @@ export default function LiquidacionesPage() {
             </div>
           )}
         </div>
+        <div className="bg-white rounded-[2rem] shadow-sm border border-zinc-200 overflow-hidden">
+          <div className="px-6 pt-6"><h2 className="text-lg font-black text-zinc-900">Historial de liquidaciones</h2><p className="text-xs text-zinc-500">Últimos 50 pagos registrados</p></div>
+          <div className="overflow-x-auto"><table className="w-full text-left text-sm mt-4">
+            <thead><tr className="bg-zinc-50/80 border-y border-zinc-100 text-[10px] uppercase tracking-widest text-zinc-500 font-bold"><th className="py-3 px-6">Fecha</th><th className="py-3 px-6">Aliado</th><th className="py-3 px-6">Sede / medio</th><th className="py-3 px-6">Referencia</th><th className="py-3 px-6 text-right">Valor</th><th className="py-3 px-6 text-right">Soporte</th></tr></thead>
+            <tbody className="divide-y divide-zinc-100">{historial.length === 0 ? <tr><td colSpan={6} className="py-8 text-center text-zinc-400">Aún no hay liquidaciones registradas.</td></tr> : historial.map(h => (
+              <tr key={h.id}><td className="py-3 px-6">{h.fecha_desembolso ? new Date(h.fecha_desembolso).toLocaleDateString('es-CO') : h.mes_liquidado}</td>
+                <td className="py-3 px-6 font-bold">{aliados.find(a => a.id === h.referidor_id)?.nombre_aliado || '—'}</td>
+                <td className="py-3 px-6">{sedes.find(x => x.id === h.sede_id)?.nombre || '—'}{h.medio ? ` · ${h.medio}` : ''}</td>
+                <td className="py-3 px-6">{h.comprobante_bancario || '—'}</td>
+                <td className="py-3 px-6 text-right font-black">{formatMoney(Number(h.monto_pagado))}</td>
+                <td className="py-3 px-6 text-right">{h.comprobante_path ? <button className="text-xs font-bold underline" onClick={() => void openReceipt(h.comprobante_path)}>Ver</button> : '—'}</td></tr>))}</tbody>
+          </table></div>
+        </div>
       </div>
 
       {/* Modal de Desembolso */}
@@ -329,22 +355,23 @@ export default function LiquidacionesPage() {
                 </div>
               </div>
 
-              <div className="space-y-2 mb-8">
-                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-widest">
-                  Comprobante de Transferencia <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="ID de transacción Nequi / Bancolombia..."
-                  value={comprobante}
-                  onChange={(e) => setComprobante(e.target.value)}
-                  className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 transition-all"
-                />
+              <div className="space-y-4 mb-8">
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block"><span className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Caja de la sede <span className="text-rose-500">*</span></span>
+                    <select value={sedePago} onChange={e => setSedePago(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"><option value="">Selecciona…</option>{sedes.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select></label>
+                  <label className="block"><span className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Medio</span>
+                    <select value={medio} onChange={e => setMedio(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500">{CASH_METHODS.map(m => <option key={m}>{m}</option>)}</select></label>
+                </div>
+                <label className="block"><span className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Referencia de la transacción</span>
+                  <input type="text" maxLength={120} placeholder="ID de transacción Nequi / Bancolombia..." value={comprobante} onChange={(e) => setComprobante(e.target.value)} className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500" /></label>
+                <label className="block"><span className="block text-xs font-bold text-zinc-500 uppercase tracking-widest mb-1">Comprobante de pago <span className="text-rose-500">*</span></span>
+                  <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e => setArchivo(e.target.files?.[0] || null)} className="w-full bg-white border border-zinc-200 rounded-xl px-4 py-3 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500" /></label>
+                <p className="text-xs text-zinc-500">El pago queda registrado como egreso «Comisiones aliados» en el cierre de caja de hoy de la sede elegida.</p>
               </div>
 
               <button
                 onClick={handleProcesarPago}
-                disabled={isSubmitting || !comprobante.trim()}
+                disabled={isSubmitting || !archivo || !sedePago}
                 className="w-full bg-zinc-900 hover:bg-amber-400 hover:text-amber-950 text-white font-black py-4 px-6 rounded-xl transition-all shadow-xl shadow-zinc-900/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
               >
                 {isSubmitting ? 'Procesando...' : 'Confirmar Liquidación'}
