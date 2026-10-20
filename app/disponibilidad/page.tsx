@@ -1,5 +1,6 @@
 'use client';
 import { isRetiredDress } from '@/lib/inventory';
+import { blockContractId, rentalPrice } from '@/lib/rental-price';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
 import React, { useState, useEffect } from 'react';
@@ -25,7 +26,7 @@ import { es } from 'date-fns/locale';
 import { isWithinInterval, startOfDay, endOfDay, format, subDays, parseISO } from 'date-fns';
 import { generateBlockedRanges, isCurrentlyOccupied, ContractBlock } from '@/lib/availability';
 
-const DRESS_FIELDS='id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sede_principal_id, clasificacion_id';
+const DRESS_FIELDS='id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sede_principal_id, clasificacion_id, precio_sugerido';
 
 /** Adds the store names (where the dress belongs and where it is now) and its classification, so similar references can be told apart. */
 async function withDressDetails<T extends {sede_actual_id?:string|null;sede_principal_id?:string|null;clasificacion_id?:string|null}>(rows:T[]){
@@ -60,6 +61,7 @@ export default function AvailabilityPage() {
 
   // Tooltip state for calendar
   const [selectedBlock, setSelectedBlock] = useState<ContractBlock | null>(null);
+  const [contractPrices, setContractPrices] = useState<Record<string, number | null>>({});
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
 
@@ -152,6 +154,7 @@ export default function AvailabilityPage() {
             fecha_pre_xv,
             fechas_bloqueo_especial,
             fecha_disponibilidad_real,
+            valor_total,
             created_at
           )
         `)
@@ -162,13 +165,13 @@ export default function AvailabilityPage() {
       // Algunos contratos antiguos guardan el vestido directamente en contratos.
       const { data: legacyContracts, error: legacyError } = await supabase
         .from('contratos')
-        .select('id, vestido_id, numero_contrato, cliente_nombre, tipo_evento, estado, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, bloqueo_especial_fecha, bloqueo_especial_vestido_id, created_at')
+        .select('id, vestido_id, numero_contrato, cliente_nombre, tipo_evento, estado, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, bloqueo_especial_fecha, bloqueo_especial_vestido_id, valor_total, created_at')
         .eq('vestido_id', dressId);
       if (legacyError) throw legacyError;
 
       const { data: specialLocks, error: specialLocksError } = await supabase
         .from('contratos')
-        .select('id, numero_contrato, cliente_nombre, estado, bloqueo_especial_referencia, bloqueo_especial_fecha, bloqueo_especial_vestido_id, created_at')
+        .select('id, numero_contrato, cliente_nombre, estado, bloqueo_especial_referencia, bloqueo_especial_fecha, bloqueo_especial_vestido_id, valor_total, created_at')
         .eq('bloqueo_especial_vestido_id', dressId)
         .not('estado', 'in', '("cancelado","anulado","rechazado","CANCELADO","ANULADO","RECHAZADO")')
         .not('bloqueo_especial_fecha', 'is', null);
@@ -182,6 +185,9 @@ export default function AvailabilityPage() {
         ...(specialLocks || []).map((lock: any) => ({ vestido_id: dressId, contratos: lock }))
       ]);
       setBlocks(Array.from(new Map(rawBlocks.map(block => [block.id, block])).values()));
+      // Precio pactado en cada contrato (valor del alquiler), para la tarjeta y el detalle de cada reserva.
+      setContractPrices(Object.fromEntries([...(contracts || []).map((item: any) => item.contratos), ...(legacyContracts || []), ...(specialLocks || [])]
+        .filter(Boolean).map((c: any) => [c.id, c.valor_total == null ? null : Number(c.valor_total)])));
 
       // 2. Fetch Bitácora Local
       let logs: any[] = [];
@@ -318,6 +324,8 @@ export default function AvailabilityPage() {
     }
   };
 
+  const blockPrice = (block: ContractBlock) => { const id = blockContractId(block.id); return rentalPrice(id ? contractPrices[id] : null, dress?.precio_sugerido, true); };
+  const PriceTag = ({ price }: { price: ReturnType<typeof rentalPrice> }) => <p className="text-xs font-bold text-gray-600"><span className="uppercase tracking-widest text-[10px] text-gray-400">{price.label}:</span> <span className={price.value === null ? 'text-gray-400' : 'text-emerald-700'}>{price.text}</span></p>;
   const selectedDayBlocks = selectedDate ? blocks.filter(b => isWithinInterval(startOfDay(selectedDate), {start:b.start,end:b.end})) : [];
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);
@@ -408,6 +416,7 @@ export default function AvailabilityPage() {
                         <div className="text-left min-w-0">
                           <p className="font-black text-gray-900 uppercase">Ref. {d.codigo?.trim()}</p>
                           <p className="text-sm font-bold text-gray-700 uppercase break-words">{d.nombre?.trim() || 'Sin nombre en inventario'}</p>
+                          <p className="text-xs font-bold text-emerald-700">Precio lista: {rentalPrice(null, d.precio_sugerido, false).text}</p>
                           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">
                             {d.sede_nombre ? `Sede ${d.sede_nombre}` : 'Sede sin asignar'}
                             {d.ubicacion_nombre && ` · Ahora en ${d.ubicacion_nombre}`}
@@ -439,6 +448,7 @@ export default function AvailabilityPage() {
                   <div>
                     <h2 className="text-4xl font-black tracking-tight">Ref. {dress.codigo?.trim()}</h2>
                     <p className="text-lg font-black uppercase mt-1">{dress.nombre?.trim() || 'Sin nombre en inventario'}</p>
+                    <p className="text-sm font-bold mt-1 opacity-90">Precio lista: {rentalPrice(null, dress.precio_sugerido, false).text}</p>
                     <p className="text-sm font-bold uppercase tracking-widest opacity-80 mt-1">
                       {dress.sede_nombre ? `Sede ${dress.sede_nombre}` : 'Sede sin asignar'}
                       {dress.ubicacion_nombre && ` · Ahora en ${dress.ubicacion_nombre}`}
@@ -512,7 +522,7 @@ export default function AvailabilityPage() {
 
                 {/* Info Panel */}
                 <div className="flex-1 w-full bg-gray-50 rounded-[2rem] p-6 border border-gray-100 min-h-[350px]">
-                  {selectedDayBlocks.length > 1 && <div className="mb-4 space-y-2 text-gray-900"><h4 className="font-bold">{selectedDayBlocks.length} bloqueos coinciden en esta fecha</h4>{selectedDayBlocks.map(block => <button type="button" key={block.id} onClick={() => setSelectedBlock(block)} aria-pressed={selectedBlock?.id === block.id} className="block w-full rounded-xl border border-rose-200 bg-white p-3 text-left text-sm"><strong>{block.contractNumber} · {block.type}</strong><p>{format(block.start,'d MMM yyyy',{locale:es})} – {format(block.end,'d MMM yyyy',{locale:es})}</p></button>)}</div>}
+                  {selectedDayBlocks.length > 1 && <div className="mb-4 space-y-2 text-gray-900"><h4 className="font-bold">{selectedDayBlocks.length} bloqueos coinciden en esta fecha</h4>{selectedDayBlocks.map(block => <button type="button" key={block.id} onClick={() => setSelectedBlock(block)} aria-pressed={selectedBlock?.id === block.id} className="block w-full rounded-xl border border-rose-200 bg-white p-3 text-left text-sm"><strong>{block.contractNumber} · {block.type}</strong><p>{block.clientName}</p><p>{format(block.start,'d MMM yyyy',{locale:es})} – {format(block.end,'d MMM yyyy',{locale:es})}</p><PriceTag price={blockPrice(block)} /></button>)}</div>}
                   {selectedBlock ? (
                     <div className="space-y-6 animate-in fade-in">
                       <div className="flex items-center gap-3">
@@ -527,6 +537,12 @@ export default function AvailabilityPage() {
                           <p className="text-xs font-black text-gray-400 uppercase mb-1">Contrato</p>
                           <p className="text-lg font-bold text-rose-600">#{selectedBlock.contractNumber}</p>
                           <p className="text-sm text-gray-600 mt-1">{selectedBlock.clientName}</p>
+                          <p className="text-sm text-gray-500 mt-1">{dress?.nombre?.trim()} · Ref. {dress?.codigo?.trim()}</p>
+                        </div>
+
+                        <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                          <p className="text-xs font-black text-gray-400 uppercase mb-1">{blockPrice(selectedBlock).label}</p>
+                          <p className={`text-2xl font-black ${blockPrice(selectedBlock).value === null ? 'text-gray-400' : 'text-gray-900'}`}>{blockPrice(selectedBlock).text}</p>
                         </div>
 
                         <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 grid grid-cols-2 gap-4">
@@ -570,7 +586,7 @@ export default function AvailabilityPage() {
                 </div>
               </div>
 
-              <section className="rounded-2xl border border-gray-200 bg-white p-6 text-gray-900"><h3 className="font-black">Todos los bloqueos del vestido ({blocks.length})</h3><p className="mb-3 text-sm text-gray-500">Incluye fechas anteriores y futuras. Selecciona un bloqueo para verlo en el calendario.</p><div className="grid gap-2">{blocks.map(block => <button type="button" key={block.id} onClick={() => {setCalendarMonth(block.eventDate);setSelectedDate(block.eventDate);setSelectedBlock(block);}} className="rounded-xl border border-rose-100 p-3 text-left text-sm"><strong>{block.contractNumber} · {block.type}</strong><p>{format(block.start,'d MMM yyyy',{locale:es})} – {format(block.end,'d MMM yyyy',{locale:es})}</p></button>)}</div>{!blocks.length && <p>No hay bloqueos registrados para este vestido.</p>}</section>
+              <section className="rounded-2xl border border-gray-200 bg-white p-6 text-gray-900"><h3 className="font-black">Todos los bloqueos del vestido ({blocks.length})</h3><p className="mb-3 text-sm text-gray-500">Incluye fechas anteriores y futuras. Selecciona un bloqueo para verlo en el calendario.</p><div className="grid gap-2">{blocks.map(block => <button type="button" key={block.id} onClick={() => {setCalendarMonth(block.eventDate);setSelectedDate(block.eventDate);setSelectedBlock(block);}} className="rounded-xl border border-rose-100 p-3 text-left text-sm"><strong>{block.contractNumber} · {block.type}</strong><p>{block.clientName}</p><p>{format(block.start,'d MMM yyyy',{locale:es})} – {format(block.end,'d MMM yyyy',{locale:es})}</p><PriceTag price={blockPrice(block)} /></button>)}</div>{!blocks.length && <p>No hay bloqueos registrados para este vestido.</p>}</section>
               {/* Botón Dar de baja (Admin) */}
               {userProfile?.rol === 'admin' && !isRetiredDress(dress.estado) && (
                 <div className="flex justify-end">
