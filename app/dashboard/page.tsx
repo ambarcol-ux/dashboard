@@ -504,16 +504,18 @@ export default function DashboardPage() {
 
   const deleteContract = async (id: string, numero: string) => {
     if (!confirm(`¿Estás seguro de que deseas eliminar PERMANENTEMENTE el contrato ${numero}? Esta acción es IRREVERSIBLE.`)) return;
-    if (!confirm(`CONFIRMACIÓN DOBLE: Solo se eliminará si no tiene movimientos de dinero. Las prendas del inventario se conservan. ¿Deseas proceder?`)) return;
+    const motivo = window.prompt(`Motivo de la eliminación del contrato ${numero} (obligatorio).\nSe guarda una copia en el historial de contratos eliminados, se anulan sus movimientos en caja y las prendas del inventario se conservan.`);
+    if (motivo === null) return;
+    if (motivo.trim().length < 5) { toast.error('Escribe el motivo de la eliminación (mínimo 5 caracteres).'); return; }
     
     try {
       setLoading(true);
       
-      const { error } = await supabase.rpc('operacion_contrato', {p_contrato_id:id,p_accion:'eliminar'});
+      const { error } = await supabase.rpc('eliminar_contrato', {p_contrato:id,p_motivo:motivo.trim()});
       
       if (error) throw error;
       
-      toast.success(`Contrato ${numero} eliminado permanentemente en cascada.`);
+      toast.success(`Contrato ${numero} eliminado. Quedó registrado en el historial de contratos eliminados.`);
       fetchContratos();
     } catch (err: any) {
       console.error(err);
