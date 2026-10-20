@@ -12,3 +12,11 @@ const key=(value:string)=>value.normalize('NFD').replace(/[̀-ͯ]/g,'').trim().t
 
 /** Store details by name ("Bogota", "bogotá" and "Bogotá" match), or null for an unknown store. */
 export const visitSite=(name:string|null|undefined)=>name?SITES.find(s=>key(s.nombre)===key(name))||null:null;
+
+/** "2026-10-15" → "15 de octubre de 2026" */
+export const visitDate=(day:string)=>new Date(day+'T12:00:00Z').toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
+/** "15:00" → "3:00 p. m." */
+export function visitTime(hour:string){
+ const [h,m]=hour.split(':').map(Number);
+ return `${h%12||12}:${String(m||0).padStart(2,'0')} ${h<12?'a. m.':'p. m.'}`;
+}

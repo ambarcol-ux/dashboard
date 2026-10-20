@@ -1,6 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {visitManagementLink} from '@/lib/first-visit-links';
-import {whatsappPayload} from '@/lib/first-visit-messaging';
+import {confirmationPayload,isTemplateError,whatsappPayload} from '@/lib/first-visit-messaging';
 import {claimVisitEmails,deliverVisitEmails} from '@/lib/first-visit-email';
 import {Resend} from 'resend';
 import {capiEvent,DEFAULT_CAPI_DATASET,type CapiJob} from '@/lib/meta-capi';
@@ -42,8 +42,15 @@ export async function POST(request:Request){
     }
    }else{
     const link=visitManagementLink(origin,c.id,Date.parse(c.fecha+'T23:59:59-05:00')+30*86400000,process.env.FIRST_VISIT_LINK_SECRET||key);
-    const r=await fetch(`https://graph.facebook.com/${version}/${phone}/messages`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(whatsappPayload(m.tipo,c,sede,link,process.env.META_WA_TEMPLATE_LANG||'es_CO')),signal:AbortSignal.timeout(8000)});
-    const d=await r.json();if(r.ok&&d.messages?.[0]?.id){state='enviado';providerId=d.messages[0].id;}else if(r.status>=400&&r.status<500){state='error';issue=`WhatsApp rechazó el envío (${r.status})`;}else issue='Respuesta incierta del proveedor; revisar antes de reintentar';
+    // Confirmations use the detailed per-store template; while Meta has not approved it, the short one goes out.
+    const payloads=[m.tipo==='confirmacion'?confirmationPayload(c,sede,process.env.META_WA_CONFIRMATION_LANG||'es'):null,whatsappPayload(m.tipo,c,sede,link,process.env.META_WA_TEMPLATE_LANG||'es_CO')].filter(p=>p!==null);
+    for(const [n,payload] of payloads.entries()){
+     const r=await fetch(`https://graph.facebook.com/${version}/${phone}/messages`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
+     const d=await r.json();if(r.ok&&d.messages?.[0]?.id){state='enviado';providerId=d.messages[0].id;issue=null;break;}
+     if(r.status>=400&&r.status<500){state='error';issue=`WhatsApp rechazó el envío (${r.status})`;if(n<payloads.length-1&&isTemplateError(d.error?.code))continue;}
+     else issue='Respuesta incierta del proveedor; revisar antes de reintentar';
+     break;
+    }
    }
   }catch{issue='Resultado incierto; revisar proveedor antes de reintentar';}
   const {error:saveError}=await db.from('primeras_citas_mensajes').update({estado:state,provider_id:providerId,error:issue,updated_at:new Date().toISOString(),...(state==='error'?{programado_at:new Date(Date.now()+10*60000).toISOString()}: {})}).eq('id',m.id).eq('estado','enviando');
