@@ -6,11 +6,13 @@ import { Users, Link as LinkIcon, Copy, Plus, ArrowLeft, CheckCircle2, ExternalL
 import { toast, Toaster } from 'sonner';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { AllyContractButton, AllyContractConfigCard } from '@/components/AllyContractAdmin';
 
 export default function AdminAliadosPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [aliados, setAliados] = useState<any[]>([]);
+  const [firmas, setFirmas] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // CRM States
@@ -108,6 +110,8 @@ export default function AdminAliadosPage() {
       }
 
       setAliados(referidoresData);
+      const { data: firmados } = await supabase.from('aliados_contratos_firmados').select('referidor_id, firmado_at');
+      setFirmas(Object.fromEntries((firmados || []).map(f => [f.referidor_id, f.firmado_at])));
     } catch (err: any) {
       console.error('Error detallado de Supabase:', err);
       toast.error('Error cargando y sincronizando aliados');
@@ -292,6 +296,7 @@ export default function AdminAliadosPage() {
       <Toaster position="top-right" richColors />
       
       <div className="max-w-[1400px] mx-auto space-y-8">
+        <AllyContractConfigCard />
         
         {/* Header Navigation */}
         <div>
@@ -527,6 +532,7 @@ export default function AdminAliadosPage() {
                             </td>
                             <td className="py-4 px-6 text-right relative">
                               <div className="flex items-center justify-end gap-2">
+                                <AllyContractButton aliado={aliado} firmadoAt={firmas[aliado.id]} />
                                 <Link
                                   href={`/dashboard/aliados/${aliado.slug_unico}`}
                                   className="p-2 hover:bg-zinc-100 text-zinc-500 rounded-xl transition-colors"
