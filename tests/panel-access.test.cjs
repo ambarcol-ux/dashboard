@@ -17,7 +17,7 @@ assert(!PANELS.some(p=>defaultPanelAccess(p.id,prov)));
 // Manual changes
 assert(panelAccess('metas',asesora,{metas:'permitido'}));assert(!panelAccess('calendario',asesora,{calendario:'bloqueado'}));
 assert(!panelAccess('users',asesora,{users:'permitido'}),'admin-only panels cannot be granted');
-assert(!panelAccess('calendario',conta,{calendario:'permitido'}),'accounting cannot receive panels');
+assert(panelAccess('calendario',conta,{calendario:'permitido'}),'accounting receives the panels the admin allows');assert(!panelAccess('calendario',conta,{}),'accounting keeps only deposits and cash by default');assert(!panelAccess('users',conta,{users:'permitido'}),'admin-only panels are never granted');
 assert(!panelAccess('caja',conta,{caja:'bloqueado'}));
 assert(panelAccess('accesos',admin,{accesos:'bloqueado'}),'admins never lose the access panel');assert(!panelAccess('accesos',asesora,{}));
 assert.equal(firstAllowedPanel(asesora,{dashboard:'bloqueado'}),'/dashboard/calendario');
