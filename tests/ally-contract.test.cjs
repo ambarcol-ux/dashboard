@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+const c=compile('lib/ally-contract.ts');
+const key='k'.repeat(32),id='11111111-1111-1111-1111-111111111111';
+const t=c.allyContractToken(id,Date.now()+60000,key);
+assert.equal(c.verifyAllyContractToken(t,key).id,id);
+assert.equal(c.verifyAllyContractToken(t,'otra'),null);
+assert.equal(c.verifyAllyContractToken(t.replace(/.$/,'x'),key),null);
+assert.equal(c.verifyAllyContractToken(c.allyContractToken(id,Date.now()-1,key),key),null);
+const config={representante:'Lina Polo',representante_cedula:'123',representante_ciudad_cedula:'Bogotá',nit:'900',direccion:'Cra 15',ciudad:'Bogotá',correo:'a@b.co',telefono:'300',deposito_por_vestido:300000,mora_por_dia:50000,clausula_penal:1000000,cuenta_redes:'@ambarcouture'};
+assert.equal(c.missingConfig(config).length,0);assert(c.missingConfig({...config,nit:' '}).includes('NIT / RUT de AMBAR'));assert.equal(c.missingConfig(null).length,12);
+const p=c.allyProfile({nombre:'Christian Aldana',cedula:'1.020.304',celular:'3208649001',correo:'C@X.CO',direccion:'Calle 1 # 2-3',ciudad:'Bogotá',banco:'Nequi',tipo_cuenta:'Ahorros',numero_cuenta:'3208649001'});
+assert.equal(p.correo,'c@x.co');
+assert.throws(()=>c.allyProfile({...p,cedula:'abc'}),/cédula/);assert.throws(()=>c.allyProfile({...p,tipo_cuenta:'X'}),/cuenta/);
+const text=JSON.stringify(c.allyContractText(config,p,new Date('2026-10-20T15:00:00Z'))).replace(/\u00a0|\s/g,' ');
+for(const s of ['Lina Polo','Christian Aldana','1.020.304','$ 300.000','$ 50.000','$ 1.000.000','@ambarcouture','20 de octubre de 2026'])assert(text.includes(s),s);
+assert(!text.includes('@@'));assert(!/\[[A-ZÁÉÍÓÚ ]+\]/.test(text));
+console.log('PASS: ally contract link, AMBAR data check, ally profile validation and filled contract text');
