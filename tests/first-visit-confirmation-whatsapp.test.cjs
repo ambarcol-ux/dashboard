@@ -1,0 +1,12 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+const {confirmationPayload,isTemplateError}=compile('lib/first-visit-messaging.ts');
+const c={id:'t',fecha:'2026-10-15',hora:'15:00:00',cliente_nombre:'Andrés',telefono:'3001234567',sede_id:'s',modalidad:'presencial'};
+let p=confirmationPayload(c,'Pereira');
+assert.equal(p.template.name,'ambar_cita_confirmada_sede');assert.equal(p.to,'573001234567');
+assert.equal(JSON.stringify(p.template.components[0].parameters.map(x=>x.text)),JSON.stringify(['Andrés','Pereira','15 de octubre de 2026','3:00 p. m.','Carrera 17 #9-70, local 101, barrio Pinares, Pereira, Risaralda.','https://www.google.com/maps/search/?api=1&query=Carrera%2017%20%239-70%20Local%20101%20Pinares%20Pereira','Pereira','321 347 3757','https://wa.me/573213473757']));
+for(const x of p.template.components[0].parameters)assert(!/[\n\t]| {4}/.test(x.text));
+p=confirmationPayload({...c,modalidad:'virtual'},'Bogotá');
+assert.equal(p.template.name,'ambar_cita_confirmada_virtual');assert.equal(p.template.components[0].parameters.length,6);assert.equal(p.template.components[0].parameters[4].text,'305 807 3210');
+assert.equal(confirmationPayload(c,'Medellín'),null);
+assert(isTemplateError(132001));assert(isTemplateError(132000));assert(!isTemplateError(131026));assert(!isTemplateError(undefined));
+console.log('PASS: detailed WhatsApp confirmation per store and virtual; template errors fall back');

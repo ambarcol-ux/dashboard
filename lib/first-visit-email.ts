@@ -1,6 +1,7 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {visitManagementLink} from './first-visit-links';
-import {visitSite} from './first-visit-sites';
+import {visitDate as plainDate,visitSite,visitTime} from './first-visit-sites';
+export {visitTime} from './first-visit-sites';
 
 export type VisitEmailEvent='reserva'|'reprogramacion'|'cancelacion'|'confirmacion'|'enlace_virtual';
 type Slot={fecha:string;hora:string;modalidad:string;sede:string|null};
@@ -18,12 +19,6 @@ const headings:Record<VisitEmailEvent,[string,string]>={
  enlace_virtual:['Enlace para tu cita virtual','Ya está disponible el enlace de tu cita virtual.'],
 };
 
-const plainDate=(day:string)=>new Date(day+'T12:00:00Z').toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
-/** "15:00" → "3:00 p. m." */
-export function visitTime(hour:string){
- const [h,m]=hour.split(':').map(Number);
- return `${h%12||12}:${String(m||0).padStart(2,'0')} ${h<12?'a. m.':'p. m.'}`;
-}
 type Block={icon:string;label:string;value?:string;href?:string;note?:string};
 
 /** Booking, confirmation and reschedule email with the store's address, map, phone, WhatsApp and the reschedule page. */

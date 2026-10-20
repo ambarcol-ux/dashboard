@@ -1,6 +1,7 @@
 import {createHmac,timingSafeEqual} from 'node:crypto';
 import {Buffer} from 'node:buffer';
 import {whatsappPhone} from './first-visit-links';
+import {visitDate,visitSite,visitTime} from './first-visit-sites';
 export function validMetaSignature(raw:string,signature:string,secret:string){
  if(!secret||!/^sha256=[a-f0-9]{64}$/.test(signature))return false;
  const expected='sha256='+createHmac('sha256',secret).update(raw).digest('hex');
@@ -21,6 +22,20 @@ export function whatsappPayload(type:string,c:NotificationVisit,site:string,link
  else throw Error('Tipo de notificación desconocido');
  return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),...content};
 }
+/** Detailed confirmation templates (address, map, phone, WhatsApp and reschedule page). Created in WhatsApp Manager; see docs/plantillas-whatsapp.md. */
+export const CONFIRMATION_TEMPLATES={presencial:'ambar_cita_confirmada_sede',virtual:'ambar_cita_confirmada_virtual'};
+/** Detailed confirmation for one visit, or null when the store has no contact details (the short template is used then). */
+export function confirmationPayload(c:NotificationVisit,siteName:string,lang='es'){
+ const site=visitSite(siteName);
+ if(!site)return null;
+ const values=c.modalidad==='virtual'
+  ?[c.cliente_nombre,visitDate(c.fecha),visitTime(c.hora),site.nombre,site.telefono,`https://wa.me/${site.whatsapp}`]
+  :[c.cliente_nombre,site.nombre,visitDate(c.fecha),visitTime(c.hora),site.direccion,site.mapa,site.nombre,site.telefono,`https://wa.me/${site.whatsapp}`];
+ const name=c.modalidad==='virtual'?CONFIRMATION_TEMPLATES.virtual:CONFIRMATION_TEMPLATES.presencial;
+ return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name,language:{code:lang},components:[{type:'body',parameters:values.map(text=>({type:'text',text}))}]}};
+}
+/** Meta template errors (missing, paused, not approved, wrong parameters): try the next payload instead of failing. */
+export const isTemplateError=(code:unknown)=>typeof code==='number'&&code>=132000&&code<133000;
 type EventDb={rpc:(name:string,args:Record<string,unknown>)=>PromiseLike<{error:unknown}>};
 /** Applies Meta delivery statuses and button/list replies. Returns false when the caller should ask Meta to retry. */
 export async function applyWhatsappEvents(db:EventDb,data:{entry?:{changes?:{value?:Record<string,any>}[]}[]},phoneNumberId?:string|null){ // eslint-disable-line @typescript-eslint/no-explicit-any
