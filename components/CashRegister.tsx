@@ -4,7 +4,8 @@ import {RefreshCw,Lock,Unlock,Paperclip} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 import {bogotaDay} from '@/lib/contract-calendar';
 import {money} from '@/lib/deposits';
-import {CASH_CATEGORIES,CASH_METHODS,cashDifference,cashReceiptPath,expectedCash,parseCashAmount,siteTotals,type CashDay,type CashMissingSupport,type CashMovement,type CashSiteSummary,type CashSuggestion,type CashSupport} from '@/lib/cash';
+import {AccountSelect,AccountsAdmin,EditMovement,WhereIsMoneyView} from '@/components/CashAccounts';
+import {CASH_CATEGORIES,CASH_METHODS,accountsFor,cashDifference,cashReceiptPath,editSummary,expectedCash,needsAccount,parseCashAmount,siteTotals,type CashDay,type CashMissingSupport,type CashMovement,type CashSiteSummary,type CashSuggestion,type CashSupport} from '@/lib/cash';
 import {SUPPORT_ACCEPT,SUPPORT_BUCKET,supportFileError,supportPath,supportType} from '@/lib/payment-support';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
@@ -48,7 +49,7 @@ export default function CashRegister({profile}:{profile:Profile}){
  const role=profile.rol.toLowerCase(),seesAll=role==='admin'||role==='contabilidad',isAdmin=role==='admin';
  const [sites,setSites]=useState<CashSiteSummary[]>([]),[sede,setSede]=useState(seesAll?ALL:(profile.sede_id||'')),[fecha,setFecha]=useState(today),[desde,setDesde]=useState(today);
  const [day,setDay]=useState<CashDay|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const request=useRef(0);
+ const request=useRef(0),[view,setView]=useState<'caja'|'plata'|'cuentas'>('caja');
 
  const load=useCallback(async()=>{
   const id=++request.current;
@@ -74,7 +75,12 @@ export default function CashRegister({profile}:{profile:Profile}){
  const done=(message:string)=>{setNotice(message);refresh();};
 
  const siteName=sites.find(s=>s.sede_id===sede)?.sede||'';
+ const tabs=<div className={styles.tabs} role="tablist">{([['caja','Caja del día'],['plata','¿Dónde está la plata?'],...(seesAll?[['cuentas','Cuentas y caja menor']]:[])] as [typeof view,string][]).map(([k,label])=>
+  <button key={k} role="tab" aria-selected={view===k} className={`${styles.tab} ${view===k?styles.tabActive:''}`} onClick={()=>setView(k)}>{label}</button>)}</div>;
+ if(view==='plata')return <>{tabs}<WhereIsMoneyView today={today}/></>;
+ if(view==='cuentas')return <>{tabs}<AccountsAdmin sites={sites} isAdmin={isAdmin}/></>;
  return <>
+  {tabs}
   <div className={styles.toolbar} style={{marginBottom:18}}>
    <label>Sede<select value={sede} onChange={e=>{setLoading(true);setNotice('');setSede(e.target.value);}}>{seesAll&&<option value={ALL}>Todas las sedes</option>}{sites.map(s=><option key={s.sede_id} value={s.sede_id}>{s.sede}</option>)}</select></label>
    {sede===ALL&&<label>Desde<input type="date" max={fecha} value={desde} onChange={e=>{if(e.target.value){setLoading(true);setDesde(e.target.value);}}}/></label>}
@@ -114,6 +120,8 @@ function SiteDay({day,siteName,isAdmin,onDone,onError}:{day:CashDay;siteName:str
  const ie=Number(day.totales.ingresos_efectivo||0),ee=Number(day.totales.egresos_efectivo||0),esperado=expectedCash(day.saldo_inicial,ie,ee);
  const active=day.movimientos.filter(m=>!m.anulado_at);
  const missing=day.pagos_sin_soporte||[];
+ const [editing,setEditing]=useState<CashMovement|null>(null),canEdit=open&&isAdmin;
+ const porCuenta=day.totales.por_cuenta||[];
  const openReceipt=async(path:string)=>{const {data,error}=await supabase.storage.from('comprobantes_caja').createSignedUrl(path,300);if(error||!data)onError('No se pudo abrir el comprobante.');else window.open(data.signedUrl,'_blank','noopener,noreferrer');};
  const annul=async(m:CashMovement)=>{const motivo=window.prompt(`Motivo para anular "${m.categoria} ${money(m.valor)}" (mínimo 5 caracteres)`);if(motivo===null)return;const {error}=await supabase.rpc('anular_movimiento_caja',{p_id:m.id,p_motivo:motivo});if(error)onError(error.message);else onDone('Movimiento anulado. Queda visible tachado con su motivo.');};
  return <>
@@ -128,24 +136,32 @@ function SiteDay({day,siteName,isAdmin,onDone,onError}:{day:CashDay;siteName:str
    <div><span>Efectivo esperado en caja</span><strong>{money(open?esperado:day.cierre!.esperado)}</strong></div>
    <div><span>Ingresos (todos los medios)</span><strong className={styles.in}>{money(day.totales.ingresos)}</strong></div>
    <div><span>Egresos (todos los medios)</span><strong className={styles.out}>{money(day.totales.egresos)}</strong></div>
+   {(Number(day.totales.depositos_recibidos||0)>0||Number(day.totales.depositos_devueltos||0)>0)&&<div><span>Depósitos en garantía recibidos / devueltos</span><strong>{money(Number(day.totales.depositos_recibidos||0))} / {money(Number(day.totales.depositos_devueltos||0))}</strong><span>Dinero que se debe a las clientas</span></div>}
    {day.soportes&&day.soportes.pagos>0&&<div><span>Soportes de pagos</span><strong className={missing.length?styles.out:styles.in}>{day.soportes.con_soporte} de {day.soportes.pagos}</strong>{missing.length>0&&<span>{missing.length} pendiente{missing.length===1?'':'s'}</span>}</div>}
   </div>
+  {porCuenta.length>0&&<section className={styles.card}><h2>¿Dónde quedó el dinero de este día?</h2>
+   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Cuenta</th><th>Entró</th><th>Salió</th><th>Neto</th></tr></thead>
+    <tbody>{porCuenta.map(c=><tr key={c.cuenta_id||'sin'}><td><strong>{c.tipo==='efectivo'?'💵':c.tipo?'🏦':'❔'} {c.cuenta}</strong>{!c.cuenta_id&&<small>{isAdmin?'Usa “Editar” para indicar a qué cuenta llegó.':'Pide a un administrador que indique la cuenta.'}</small>}</td>
+     <td className={styles.in}>{money(c.ingresos)}</td><td className={styles.out}>{money(c.egresos)}</td><td><strong>{money(Number(c.ingresos)-Number(c.egresos))}</strong></td></tr>)}</tbody></table></div>
+  </section>}
   {missing.length>0&&<MissingSupports day={day} missing={missing} canAttach={open&&(day.puede_operar||isAdmin)} onDone={onDone} onError={onError}/>}
   <section className={styles.card}><h2>Movimientos del día</h2><p>{active.length} movimiento{active.length===1?'':'s'} · Por medio: {Object.entries(day.totales.por_medio||{}).map(([m,v])=>`${m} +${money(Number(v.ingresos||0))} / −${money(Number(v.egresos||0))}`).join(' · ')||'sin movimientos'}</p>
-   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Hora</th><th>Tipo</th><th>Categoría / detalle</th><th>Medio</th><th>Valor</th><th>Registró</th><th>Comprobante / soporte</th>{canWork&&<th></th>}</tr></thead>
+   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Hora</th><th>Tipo</th><th>Categoría / detalle</th><th>Medio</th><th>Cuenta</th><th>Valor</th><th>Registró</th><th>Comprobante / soporte</th>{(canWork||canEdit)&&<th></th>}</tr></thead>
     <tbody>{day.movimientos.map(m=><tr key={m.id} className={m.anulado_at?styles.annulled:''}>
      <td>{time(m.created_at)}</td>
      <td><span className={`${styles.badge} ${m.tipo==='ingreso'?styles.badgeIn:styles.badgeOut}`}>{m.tipo==='ingreso'?'Ingreso':'Egreso'}</span></td>
-     <td><strong>{m.categoria}</strong>{m.numero_contrato&&<small>{m.numero_contrato} · {m.cliente}</small>}{m.descripcion&&<small>{m.descripcion}</small>}{m.anulado_at&&<small>Anulado por {m.anulado_por}: {m.motivo_anulacion}</small>}</td>
-     <td>{m.medio}</td><td className={m.tipo==='ingreso'?styles.in:styles.out}>{m.tipo==='ingreso'?'+':'−'}{money(m.valor)}</td><td>{m.usuario}</td>
+     <td><strong>{m.categoria}</strong>{m.numero_contrato&&<small>{m.numero_contrato} · {m.cliente}</small>}{m.descripcion&&<small>{m.descripcion}</small>}{m.anulado_at&&<small>Anulado por {m.anulado_por}: {m.motivo_anulacion}</small>}{(m.ediciones||[]).map((e,i)=><small key={i} title={editSummary(e,money).join('\n')}>✎ Editado por {e.usuario} el {new Date(e.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'})}: {editSummary(e,money).join(' · ')} — {e.motivo}</small>)}</td>
+     <td>{m.medio}</td><td>{m.cuenta||<span className={`${styles.badge} ${styles.badgeWarn}`}>Sin cuenta</span>}</td><td className={m.tipo==='ingreso'?styles.in:styles.out}>{m.tipo==='ingreso'?'+':'−'}{money(m.valor)}</td><td>{m.usuario}</td>
      <td>{m.origen==='pago'?<SupportCell soportes={m.soportes} historico={m.soporte_historico} onError={onError}/>:m.comprobante_path?<button className={styles.button} onClick={()=>void openReceipt(m.comprobante_path!)}><Paperclip size={12} style={{display:'inline'}}/> Ver</button>:'—'}</td>
-     {canWork&&<td>{!m.anulado_at&&<button className={`${styles.button} ${styles.danger}`} onClick={()=>void annul(m)}>Anular</button>}</td>}
+     {(canWork||canEdit)&&<td>{!m.anulado_at&&<div style={{display:'flex',gap:6}}>{canEdit&&<button className={styles.button} onClick={()=>setEditing(m)}>Editar</button>}{canWork&&<button className={`${styles.button} ${styles.danger}`} onClick={()=>void annul(m)}>Anular</button>}</div>}</td>}
     </tr>)}</tbody></table></div>
    {!day.movimientos.length&&<p className={styles.empty}>No hay movimientos registrados este día.</p>}
   </section>
   {canWork&&day.sugerencias.length>0&&<Suggestions day={day} onDone={onDone} onError={onError}/>}
   {canWork&&<div className={styles.grid2}><NewMovement day={day} onDone={onDone}/><CloseForm day={day} esperado={esperado} pendingSupports={missing.length} onDone={onDone}/></div>}
   {!open&&isAdmin&&<Reopen day={day} onDone={onDone}/>}
+  {!open&&isAdmin&&<p className={styles.help}>Para editar un movimiento de un día cerrado, primero reabre la caja de ese día.</p>}
+  {editing&&<EditMovement day={day} movement={editing} onClose={()=>setEditing(null)} onDone={m=>{setEditing(null);onDone(m);}}/>}
  </>;
 }
 
@@ -159,18 +175,21 @@ function MissingSupports({day,missing,canAttach,onDone,onError}:{day:CashDay;mis
 }
 
 function Suggestions({day,onDone,onError}:{day:CashDay;onDone:(m:string)=>void;onError:(m:string)=>void}){
- const [methods,setMethods]=useState<Record<string,string>>({}),[busy,setBusy]=useState('');
+ const [methods,setMethods]=useState<Record<string,string>>({}),[accounts,setAccounts]=useState<Record<string,string>>({}),[busy,setBusy]=useState('');
  const add=async(s:CashSuggestion)=>{
   const medio=s.medio||methods[s.origen_id];if(!medio){onError('Elige el medio de pago de ese movimiento.');return;}
+  const cuenta=medio==='Efectivo'?null:(accounts[s.origen_id]||null);
+  if(!cuenta&&needsAccount(medio,accountsFor(medio,day.cuentas,day.sede_id))){onError(`Elige a qué cuenta llegó el dinero de ${s.numero_contrato}.`);return;}
   setBusy(s.origen_id);
-  const {error}=await supabase.rpc('registrar_movimiento_caja',{p_datos:{sede_id:day.sede_id,fecha:day.fecha,tipo:s.tipo,categoria:s.categoria,medio,valor:s.valor,origen:s.origen,origen_id:s.origen_id,contrato_id:s.contrato_id,descripcion:`${s.numero_contrato} · ${s.cliente}`}});
+  const {error}=await supabase.rpc('registrar_movimiento_caja',{p_datos:{sede_id:day.sede_id,fecha:day.fecha,tipo:s.tipo,categoria:s.categoria,medio,valor:s.valor,origen:s.origen,origen_id:s.origen_id,contrato_id:s.contrato_id,cuenta_id:cuenta,descripcion:`${s.numero_contrato} · ${s.cliente}`}});
   setBusy('');if(error)onError(error.message);else onDone('Movimiento del ERP agregado a la caja.');
  };
  return <section className={styles.card}><h2>Registrados hoy en el ERP</h2><p>Pagos y depósitos de contratos de esta sede que aún no están en la caja. Agrégalos sin volver a digitarlos; cada uno entra una sola vez.</p>
-  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Hora</th><th>Movimiento</th><th>Contrato</th><th>Valor</th><th>Medio</th><th>Soporte</th><th></th></tr></thead>
+  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Hora</th><th>Movimiento</th><th>Contrato</th><th>Valor</th><th>Medio</th><th>Cuenta</th><th>Soporte</th><th></th></tr></thead>
    <tbody>{day.sugerencias.map(s=><tr key={s.origen+s.origen_id}><td>{s.origen==='pago'?'—':time(s.hora)}</td><td><span className={`${styles.badge} ${s.tipo==='ingreso'?styles.badgeIn:styles.badgeOut}`}>{s.categoria}</span></td><td>{s.numero_contrato}<small>{s.cliente}</small></td>
     <td className={s.tipo==='ingreso'?styles.in:styles.out}>{money(s.valor)}</td>
     <td>{s.medio||<select value={methods[s.origen_id]||''} onChange={e=>setMethods({...methods,[s.origen_id]:e.target.value})}><option value="">¿Medio?</option>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select>}</td>
+    <td>{(s.medio||methods[s.origen_id])?<AccountSelect medio={s.medio||methods[s.origen_id]} cuentas={day.cuentas} sedeId={day.sede_id} value={accounts[s.origen_id]||''} onChange={id=>setAccounts({...accounts,[s.origen_id]:id})}/>:'—'}</td>
     <td>{s.origen==='pago'?<SupportCell soportes={s.soportes} historico={s.soporte_historico} onError={onError}/>:'—'}</td>
     <td><button className={styles.button} disabled={busy===s.origen_id} onClick={()=>void add(s)}>{busy===s.origen_id?'Agregando…':'Agregar a la caja'}</button></td></tr>)}</tbody></table></div>
  </section>;
@@ -178,7 +197,7 @@ function Suggestions({day,onDone,onError}:{day:CashDay;onDone:(m:string)=>void;o
 
 function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
  const [tipo,setTipo]=useState<'ingreso'|'egreso'>('ingreso'),[categoria,setCategoria]=useState<string>(CASH_CATEGORIES.ingreso[0]),[medio,setMedio]=useState('Efectivo'),[valor,setValor]=useState(''),[descripcion,setDescripcion]=useState('');
- const [file,setFile]=useState<File|null>(null),[saving,setSaving]=useState(false),[error,setError]=useState('');
+ const [file,setFile]=useState<File|null>(null),[saving,setSaving]=useState(false),[error,setError]=useState(''),[cuenta,setCuenta]=useState('');
  const operation=useRef(crypto.randomUUID()),fileInput=useRef<HTMLInputElement>(null);
  const categories=useMemo(()=>CASH_CATEGORIES[tipo],[tipo]);
  const submit=async(e:React.FormEvent)=>{
@@ -186,6 +205,7 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
   const amount=parseCashAmount(valor);if(!amount){setError('Escribe un valor válido.');return;}
   if(tipo==='egreso'&&!file){setError('Adjunta el comprobante del egreso.');return;}
   if(tipo==='egreso'&&descripcion.trim().length<3){setError('Describe el egreso.');return;}
+  if(medio!=='Efectivo'&&!cuenta&&needsAccount(medio,accountsFor(medio,day.cuentas,day.sede_id))){setError('Elige la cuenta o banco donde llegó (o de donde salió) el dinero.');return;}
   setSaving(true);
   try{
    let path:string|null=null;
@@ -195,7 +215,7 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
     const {error:ue}=await supabase.storage.from('comprobantes_caja').upload(path,file,{upsert:false});
     if(ue&&!/exists|duplicate/i.test(ue.message))throw Error('No se pudo subir el comprobante.');
    }
-   const {error:re}=await supabase.rpc('registrar_movimiento_caja',{p_datos:{sede_id:day.sede_id,fecha:day.fecha,tipo,categoria,medio,valor:amount,descripcion:descripcion.trim(),comprobante_path:path}});
+   const {error:re}=await supabase.rpc('registrar_movimiento_caja',{p_datos:{sede_id:day.sede_id,fecha:day.fecha,tipo,categoria,medio,valor:amount,descripcion:descripcion.trim(),comprobante_path:path,cuenta_id:medio==='Efectivo'?null:(cuenta||null)}});
    if(re)throw Error(re.message);
    operation.current=crypto.randomUUID();setValor('');setDescripcion('');setFile(null);if(fileInput.current)fileInput.current.value='';
    onDone(`${tipo==='ingreso'?'Ingreso':'Egreso'} registrado.`);
@@ -205,8 +225,9 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
   <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
    <div className={styles.row}><label>Tipo<select value={tipo} onChange={e=>{const t=e.target.value as 'ingreso'|'egreso';setTipo(t);setCategoria(CASH_CATEGORIES[t][0]);}}><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></label>
     <label>Categoría<select value={categoria} onChange={e=>setCategoria(e.target.value)}>{categories.map(c=><option key={c}>{c}</option>)}</select></label></div>
-   <div className={styles.row}><label>Medio<select value={medio} onChange={e=>setMedio(e.target.value)}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
-    <label>Valor (COP)<input inputMode="decimal" placeholder="150.000" value={valor} onChange={e=>setValor(e.target.value)}/></label></div>
+   <div className={styles.row}><label>Medio<select value={medio} onChange={e=>{setMedio(e.target.value);setCuenta('');}}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
+    <label>{tipo==='ingreso'?'Cuenta donde llegó':'Cuenta de donde salió'}<AccountSelect medio={medio} cuentas={day.cuentas} sedeId={day.sede_id} value={cuenta} onChange={setCuenta}/></label></div>
+   <div className={styles.row}><label>Valor (COP)<input inputMode="decimal" placeholder="150.000" value={valor} onChange={e=>setValor(e.target.value)}/></label></div>
    <label>Descripción{tipo==='egreso'?' (obligatoria)':''}<input maxLength={500} value={descripcion} onChange={e=>setDescripcion(e.target.value)} placeholder={tipo==='egreso'?'Ej.: taxi para entrega de vestido':'Opcional'}/></label>
    <label>Comprobante{tipo==='egreso'?' (obligatorio)':' (opcional)'}<input ref={fileInput} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0]||null)}/><span className={styles.help}>PDF o imagen · Máximo 10 MB · Acceso privado</span></label>
    {error&&<p role="alert" className={styles.error}>{error}</p>}
