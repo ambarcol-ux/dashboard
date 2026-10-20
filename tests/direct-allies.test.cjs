@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict'),compile=require('./compile.cjs');
+const d=compile('lib/direct-allies.ts');
+assert.equal(d.lineCommission({tipo_comision:'porcentaje',valor_comision:10},2800000),280000);
+assert.equal(d.lineCommission({tipo_comision:'valor',valor_comision:150000},2800000),150000);
+assert.equal(d.lineCommission(null,100),0);
+assert.equal(d.allySectionError({tiene:false,tipo:null,aliado:null,linea:null}),null);
+assert.match(d.allySectionError({tiene:true,tipo:null,aliado:'x',linea:1}),/tipo/);
+assert.match(d.allySectionError({tiene:true,tipo:1,aliado:null,linea:1}),/aliado/);
+assert.match(d.allySectionError({tiene:true,tipo:1,aliado:'x',linea:null}),/línea/);
+assert.equal(d.allyRowStatus({estado:'pendiente_firma',por_pagar:0}).label,'Pendiente de firma');
+assert.equal(d.allyRowStatus({estado:'activo',por_pagar:560000}).label,'Por pagar');
+assert.equal(d.allyRowStatus({estado:'activo',por_pagar:0}).label,'Al día');
+console.log('PASS: direct allies commission per line, client-contract validation and row status');

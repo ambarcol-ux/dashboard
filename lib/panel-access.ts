@@ -26,6 +26,7 @@ export const PANELS:Panel[]=[
  {id:'proveedores',label:'Gestión de proveedores',href:'/dashboard/proveedores',block:'PROVEEDORES',paths:['/dashboard/proveedores'],grantable:false},
  {id:'proveedores-pagos',label:'Pagos a proveedores',href:'/dashboard/proveedores/pagos',block:'PROVEEDORES',paths:['/dashboard/proveedores/pagos'],grantable:false},
  {id:'metas',label:'Metas y ventas',href:'/admin/metas',block:'VENTAS & CRM',paths:['/admin/metas'],staff:true,grantable:true},
+ {id:'aliados_directos',label:'Aliados directos',href:'/dashboard/aliados-directos',block:'RED DE ALIADOS',paths:['/dashboard/aliados-directos'],staff:true,grantable:true},
  {id:'aliados_admin',label:'Gestión de aliados',href:'/dashboard/admin/aliados',block:'RED DE ALIADOS',paths:['/dashboard/admin/aliados'],grantable:true},
  {id:'comisiones',label:'Config. comisiones',href:'/dashboard/admin/escalas',block:'RED DE ALIADOS',paths:['/dashboard/admin/escalas'],grantable:true},
  {id:'liquidaciones',label:'Cierre de mes (aliados)',href:'/dashboard/admin/liquidaciones',block:'RED DE ALIADOS',paths:['/dashboard/admin/liquidaciones'],grantable:true},
@@ -57,7 +58,7 @@ export function defaultPanelAccess(panelId:string,profile:Profile){
  const panel=panelById(panelId);
  if(!panel||!profile)return false;
  if(isSupplier(profile.rol))return false;
- if(isAccounting(profile.rol))return panelId==='depositos'||panelId==='caja';
+ if(isAccounting(profile.rol))return panelId==='depositos'||panelId==='caja'||panelId==='aliados_directos';
  if(isScopedOperationsAccount(profile.id))return operationsPanels.includes(panel.href);
  if(isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown}))return true;
  return !!panel.staff;

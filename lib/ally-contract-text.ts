@@ -17,8 +17,11 @@ export const missingConfig=(c:Partial<AllyContractConfig>|null)=>CONFIG_FIELDS.f
 const money=(v:number|null)=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(v||0));
 const longDate=(d:Date)=>d.toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric',timeZone:'America/Bogota'});
 
+/** Ley 1581 de 2012: data-processing authorization signed by Aliados Directos. */
+export const DATA_AUTHORIZATION:ContractSection={titulo:'Autorización de tratamiento de datos personales',parrafos:['En los términos de la Ley 1581 de 2012 y sus decretos reglamentarios, EL ALIADO autoriza a AMBAR para recolectar, almacenar, usar y actualizar sus datos personales (nombre, cédula, celular, correo, dirección y cuenta bancaria) con la finalidad de gestionar esta alianza, vincularlo a los contratos de clientes, liquidar y pagar sus comisiones y contactarlo sobre ellas. EL ALIADO puede conocer, actualizar, rectificar y suprimir sus datos y revocar esta autorización escribiendo al correo de AMBAR indicado en este contrato.']};
+
 /** Full contract text with AMBAR's data and the ally's profile filled in. */
-export function allyContractText(c:AllyContractConfig,a:AllyProfile,signedAt=new Date()):ContractSection[]{
+export function allyContractText(c:AllyContractConfig,a:AllyProfile,signedAt=new Date(),extra:ContractSection[]=[]):ContractSection[]{
  const ally=a.representante&&a.representante!==a.nombre?`, representado por ${a.representante}`:'';
  return [
   {titulo:'Partes',parrafos:['Entre los suscritos, a saber:',
@@ -48,6 +51,7 @@ export function allyContractText(c:AllyContractConfig,a:AllyProfile,signedAt=new
   {titulo:'DECIMOSÉPTIMA. Notificaciones',parrafos:['Las comunicaciones se enviarán a los correos indicados en el encabezado y se entienden recibidas el día de su envío.']},
   {titulo:'DECIMOCTAVA. Integralidad',parrafos:['Este contrato y sus actas constituyen el acuerdo total entre las partes. Cualquier modificación debe constar por escrito y firmada por ambas.']},
   {titulo:'Anexo 1. Acta de entrega y devolución',parrafos:['Se diligencia una por cada préstamo, con fotografías del vestido al entregarlo y al recibirlo: número de acta, aliado, evento (nombre, lugar y fecha), persona o modelo que usará el vestido, referencia, talla y color, accesorios entregados, estado al entregar, valor de reposición, depósito consignado, fecha y hora de entrega, fecha, hora y lugar de devolución, estado al devolver, descuentos aplicados al depósito y valor reintegrado o a cobrar.']},
+  ...extra,
   {titulo:'Firma',parrafos:[`En constancia, EL ALIADO firma digitalmente en ${a.ciudad} el ${longDate(signedAt)}. AMBAR: ${c.representante} · C.C. ${c.representante_cedula} · NIT ${c.nit}. EL ALIADO: ${a.nombre} · C.C./NIT ${a.cedula}.`]},
  ];
 }

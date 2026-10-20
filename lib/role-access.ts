@@ -4,9 +4,10 @@ export const isAccounting = (role: unknown) => normalizeRole(role) === 'contabil
 export const SUPPLIER_PORTAL_PATH = '/proveedor';
 export const isSupplier = (role: unknown) => normalizeRole(role) === 'proveedor';
 export const CASH_PATH = '/dashboard/caja';
+export const DIRECT_ALLIES_PATH = '/dashboard/aliados-directos';
 export const canAccessPath = (role: unknown, path: string) => isSupplier(role)
   ? [SUPPLIER_PORTAL_PATH, '/login'].includes(path.replace(/(.)\/$/, '$1'))
-  : !isAccounting(role) || [DEPOSITS_PATH, CASH_PATH, '/login'].includes(path.replace(/(.)\/$/, '$1'));
+  : !isAccounting(role) || [DEPOSITS_PATH, CASH_PATH, DIRECT_ALLIES_PATH, '/login'].includes(path.replace(/(.)\/$/, '$1'));
 export const homeForRole = (role: unknown) => isSupplier(role) ? SUPPLIER_PORTAL_PATH : isAccounting(role) ? DEPOSITS_PATH : '/dashboard';
 
 // Verified account IDs (Bogotá, Villavicencio, Barranquilla, Pereira x3): restrictions persist even if a login email changes.

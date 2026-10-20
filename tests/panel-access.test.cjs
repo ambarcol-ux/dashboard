@@ -10,8 +10,8 @@ assert.equal(panelForPath('/admin/config/siigo').id,'siigo');assert.equal(panelF
 assert.equal(panelForPath('/login'),null);assert.equal(panelForPath('/api/dashboard/contracts'),null);assert.equal(panelForPath('/dashboardx'),null);
 // Defaults reproduce the old menu rules
 assert(PANELS.every(p=>defaultPanelAccess(p.id,admin)));
-assert.equal(JSON.stringify(PANELS.filter(p=>defaultPanelAccess(p.id,asesora)).map(p=>p.id)),JSON.stringify(['dashboard','calendario','primeras-citas','disponibilidad','pedidos_estrene','depositos','caja','proveedores-catalogo','metas','manual']));
-assert.equal(JSON.stringify(PANELS.filter(p=>defaultPanelAccess(p.id,conta)).map(p=>p.id)),JSON.stringify(['depositos','caja']));
+assert.equal(JSON.stringify(PANELS.filter(p=>defaultPanelAccess(p.id,asesora)).map(p=>p.id)),JSON.stringify(['dashboard','calendario','primeras-citas','disponibilidad','pedidos_estrene','depositos','caja','proveedores-catalogo','metas','aliados_directos','manual']));
+assert.equal(JSON.stringify(PANELS.filter(p=>defaultPanelAccess(p.id,conta)).map(p=>p.id)),JSON.stringify(['depositos','caja','aliados_directos']));
 assert.equal(JSON.stringify(PANELS.filter(p=>defaultPanelAccess(p.id,scoped)).map(p=>p.href)),JSON.stringify(operationsPanels));
 assert(!PANELS.some(p=>defaultPanelAccess(p.id,prov)));
 // Manual changes

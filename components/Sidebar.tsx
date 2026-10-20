@@ -14,7 +14,7 @@ interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos';
 }
 
 export default function Sidebar({ user, handleLogout, activePage, pendingDeposits }: SidebarProps) {
@@ -86,6 +86,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       title: 'RED DE ALIADOS',
       adminOnly: true,
       items: [
+        { id: 'aliados_directos', label: 'ALIADOS DIRECTOS', icon: Handshake, href: '/dashboard/aliados-directos', color: 'rose' },
         { id: 'aliados_admin', label: 'GESTIÓN DE ALIADOS', icon: Handshake, href: '/dashboard/admin/aliados', color: 'amber' },
         { id: 'comisiones', label: 'CONFIG. COMISIONES', icon: Settings, href: '/dashboard/admin/escalas', color: 'gray' },
         { id: 'liquidaciones', label: 'CIERRE DE MES', icon: Banknote, href: '/dashboard/admin/liquidaciones', color: 'emerald' },
