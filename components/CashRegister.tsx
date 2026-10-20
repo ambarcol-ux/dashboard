@@ -4,8 +4,8 @@ import {RefreshCw,Lock,Unlock,Paperclip} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 import {bogotaDay} from '@/lib/contract-calendar';
 import {money} from '@/lib/deposits';
-import {AccountSelect,AccountsAdmin,EditMovement,WhereIsMoneyView} from '@/components/CashAccounts';
-import {CASH_CATEGORIES,CASH_METHODS,accountsFor,cashDifference,cashReceiptPath,editSummary,expectedCash,needsAccount,parseCashAmount,siteTotals,type CashDay,type CashMissingSupport,type CashMovement,type CashSiteSummary,type CashSuggestion,type CashSupport} from '@/lib/cash';
+import {AccountSelect,AccountsAdmin,CashStartAdmin,DepositsView,EditMovement,WhereIsMoneyView} from '@/components/CashAccounts';
+import {CASH_BASE,CASH_CATEGORIES,CASH_METHODS,accountsFor,cashDifference,cashReceiptPath,editSummary,expectedCash,needsAccount,parseCashAmount,siteTotals,type CashDay,type CashMissingSupport,type CashMovement,type CashSiteSummary,type CashSuggestion,type CashSupport} from '@/lib/cash';
 import {SUPPORT_ACCEPT,SUPPORT_BUCKET,supportFileError,supportPath,supportType} from '@/lib/payment-support';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
@@ -49,7 +49,7 @@ export default function CashRegister({profile}:{profile:Profile}){
  const role=profile.rol.toLowerCase(),seesAll=role==='admin'||role==='contabilidad',isAdmin=role==='admin';
  const [sites,setSites]=useState<CashSiteSummary[]>([]),[sede,setSede]=useState(seesAll?ALL:(profile.sede_id||'')),[fecha,setFecha]=useState(today),[desde,setDesde]=useState(today);
  const [day,setDay]=useState<CashDay|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const request=useRef(0),[view,setView]=useState<'caja'|'plata'|'cuentas'>('caja');
+ const request=useRef(0),[view,setView]=useState<'caja'|'plata'|'depositos'|'cuentas'>('caja');
 
  const load=useCallback(async()=>{
   const id=++request.current;
@@ -75,10 +75,11 @@ export default function CashRegister({profile}:{profile:Profile}){
  const done=(message:string)=>{setNotice(message);refresh();};
 
  const siteName=sites.find(s=>s.sede_id===sede)?.sede||'';
- const tabs=<div className={styles.tabs} role="tablist">{([['caja','Caja del día'],['plata','¿Dónde está la plata?'],...(seesAll?[['cuentas','Cuentas y caja menor']]:[])] as [typeof view,string][]).map(([k,label])=>
+ const tabs=<div className={styles.tabs} role="tablist">{([['caja','Caja del día'],['plata','¿Dónde está la plata?'],['depositos','Depósitos (aparte)'],...(seesAll?[['cuentas','Cuentas y caja menor']]:[])] as [typeof view,string][]).map(([k,label])=>
   <button key={k} role="tab" aria-selected={view===k} className={`${styles.tab} ${view===k?styles.tabActive:''}`} onClick={()=>setView(k)}>{label}</button>)}</div>;
  if(view==='plata')return <>{tabs}<WhereIsMoneyView today={today}/></>;
- if(view==='cuentas')return <>{tabs}<AccountsAdmin sites={sites} isAdmin={isAdmin}/></>;
+ if(view==='depositos')return <>{tabs}<DepositsView today={today}/></>;
+ if(view==='cuentas')return <>{tabs}<CashStartAdmin isAdmin={isAdmin} today={today}/><AccountsAdmin sites={sites} isAdmin={isAdmin}/></>;
  return <>
   {tabs}
   <div className={styles.toolbar} style={{marginBottom:18}}>
@@ -125,6 +126,7 @@ function SiteDay({day,siteName,isAdmin,onDone,onError}:{day:CashDay;siteName:str
  const openReceipt=async(path:string)=>{const {data,error}=await supabase.storage.from('comprobantes_caja').createSignedUrl(path,300);if(error||!data)onError('No se pudo abrir el comprobante.');else window.open(data.signedUrl,'_blank','noopener,noreferrer');};
  const annul=async(m:CashMovement)=>{const motivo=window.prompt(`Motivo para anular "${m.categoria} ${money(m.valor)}" (mínimo 5 caracteres)`);if(motivo===null)return;const {error}=await supabase.rpc('anular_movimiento_caja',{p_id:m.id,p_motivo:motivo});if(error)onError(error.message);else onDone('Movimiento anulado. Queda visible tachado con su motivo.');};
  return <>
+  {day.inicio&&day.fecha<day.inicio&&<div className={`${styles.banner} ${styles.closed}`}>La caja de {siteName} empieza el {day.inicio}: este día es anterior y no cuenta.</div>}
   <div className={`${styles.banner} ${open?styles.open:styles.closed}`}>
    {open?<><Unlock size={16}/> <strong>Caja abierta</strong> · {siteName} · {day.fecha}{!day.puede_operar&&' · Solo consulta'}</>
     :<><Lock size={16}/> <strong>Caja cerrada</strong> · {siteName} · {day.fecha} · por {day.cierre!.cerrado_por_nombre} a las {time(day.cierre!.cerrado_at)} · Contado {money(day.cierre!.contado)} · Diferencia <span className={styles.diff}>{money(day.cierre!.diferencia)}</span>{day.cierre!.observaciones&&` · ${day.cierre!.observaciones}`}</>}
@@ -136,7 +138,7 @@ function SiteDay({day,siteName,isAdmin,onDone,onError}:{day:CashDay;siteName:str
    <div><span>Efectivo esperado en caja</span><strong>{money(open?esperado:day.cierre!.esperado)}</strong></div>
    <div><span>Ingresos (todos los medios)</span><strong className={styles.in}>{money(day.totales.ingresos)}</strong></div>
    <div><span>Egresos (todos los medios)</span><strong className={styles.out}>{money(day.totales.egresos)}</strong></div>
-   {(Number(day.totales.depositos_recibidos||0)>0||Number(day.totales.depositos_devueltos||0)>0)&&<div><span>Depósitos en garantía recibidos / devueltos</span><strong>{money(Number(day.totales.depositos_recibidos||0))} / {money(Number(day.totales.depositos_devueltos||0))}</strong><span>Dinero que se debe a las clientas</span></div>}
+   {Number(day.totales.base||0)>0&&<div><span>Base agregada hoy</span><strong>{money(Number(day.totales.base))}</strong><span>Cuenta en el efectivo esperado, no como venta</span></div>}
    {day.soportes&&day.soportes.pagos>0&&<div><span>Soportes de pagos</span><strong className={missing.length?styles.out:styles.in}>{day.soportes.con_soporte} de {day.soportes.pagos}</strong>{missing.length>0&&<span>{missing.length} pendiente{missing.length===1?'':'s'}</span>}</div>}
   </div>
   {porCuenta.length>0&&<section className={styles.card}><h2>¿Dónde quedó el dinero de este día?</h2>
@@ -184,7 +186,7 @@ function Suggestions({day,onDone,onError}:{day:CashDay;onDone:(m:string)=>void;o
   const {error}=await supabase.rpc('registrar_movimiento_caja',{p_datos:{sede_id:day.sede_id,fecha:day.fecha,tipo:s.tipo,categoria:s.categoria,medio,valor:s.valor,origen:s.origen,origen_id:s.origen_id,contrato_id:s.contrato_id,cuenta_id:cuenta,descripcion:`${s.numero_contrato} · ${s.cliente}`}});
   setBusy('');if(error)onError(error.message);else onDone('Movimiento del ERP agregado a la caja.');
  };
- return <section className={styles.card}><h2>Registrados hoy en el ERP</h2><p>Pagos y depósitos de contratos de esta sede que aún no están en la caja. Agrégalos sin volver a digitarlos; cada uno entra una sola vez.</p>
+ return <section className={styles.card}><h2>Registrados hoy en el ERP</h2><p>Pagos de contratos de esta sede que aún no están en la caja. Agrégalos sin volver a digitarlos; cada uno entra una sola vez. Los depósitos en garantía no entran a la caja: se llevan aparte en la pestaña Depósitos.</p>
   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Hora</th><th>Movimiento</th><th>Contrato</th><th>Valor</th><th>Medio</th><th>Cuenta</th><th>Soporte</th><th></th></tr></thead>
    <tbody>{day.sugerencias.map(s=><tr key={s.origen+s.origen_id}><td>{s.origen==='pago'?'—':time(s.hora)}</td><td><span className={`${styles.badge} ${s.tipo==='ingreso'?styles.badgeIn:styles.badgeOut}`}>{s.categoria}</span></td><td>{s.numero_contrato}<small>{s.cliente}</small></td>
     <td className={s.tipo==='ingreso'?styles.in:styles.out}>{money(s.valor)}</td>
@@ -203,6 +205,7 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
  const submit=async(e:React.FormEvent)=>{
   e.preventDefault();if(saving)return;setError('');
   const amount=parseCashAmount(valor);if(!amount){setError('Escribe un valor válido.');return;}
+  if(categoria===CASH_BASE&&medio!=='Efectivo'){setError('La base de caja es en efectivo.');return;}
   if(tipo==='egreso'&&!file){setError('Adjunta el comprobante del egreso.');return;}
   if(tipo==='egreso'&&descripcion.trim().length<3){setError('Describe el egreso.');return;}
   if(medio!=='Efectivo'&&!cuenta&&needsAccount(medio,accountsFor(medio,day.cuentas,day.sede_id))){setError('Elige la cuenta o banco donde llegó (o de donde salió) el dinero.');return;}
@@ -222,10 +225,12 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
   }catch(err){setError(errorText(err,'No se pudo registrar.'));}finally{setSaving(false);}
  };
  return <section className={styles.card}><h2>Nuevo movimiento</h2><p>Ingresos y egresos de la sede. Los egresos requieren comprobante.</p>
+  <button type="button" className={styles.button} style={{marginBottom:12}} onClick={()=>{setTipo('ingreso');setCategoria(CASH_BASE);setMedio('Efectivo');setCuenta('');}}>+ Agregar base de caja</button>
+  {categoria===CASH_BASE&&<p className={styles.help}>Base de caja: efectivo que se pone en la caja para trabajar el día, aunque no se sepa de dónde salió. No necesita soporte y no cuenta como venta.</p>}
   <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
    <div className={styles.row}><label>Tipo<select value={tipo} onChange={e=>{const t=e.target.value as 'ingreso'|'egreso';setTipo(t);setCategoria(CASH_CATEGORIES[t][0]);}}><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></label>
-    <label>Categoría<select value={categoria} onChange={e=>setCategoria(e.target.value)}>{categories.map(c=><option key={c}>{c}</option>)}</select></label></div>
-   <div className={styles.row}><label>Medio<select value={medio} onChange={e=>{setMedio(e.target.value);setCuenta('');}}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
+    <label>Categoría<select value={categoria} onChange={e=>{setCategoria(e.target.value);if(e.target.value===CASH_BASE){setMedio('Efectivo');setCuenta('');}}}>{categories.map(c=><option key={c}>{c}</option>)}</select></label></div>
+   <div className={styles.row}><label>Medio<select value={medio} disabled={categoria===CASH_BASE} onChange={e=>{setMedio(e.target.value);setCuenta('');}}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
     <label>{tipo==='ingreso'?'Cuenta donde llegó':'Cuenta de donde salió'}<AccountSelect medio={medio} cuentas={day.cuentas} sedeId={day.sede_id} value={cuenta} onChange={setCuenta}/></label></div>
    <div className={styles.row}><label>Valor (COP)<input inputMode="decimal" placeholder="150.000" value={valor} onChange={e=>setValor(e.target.value)}/></label></div>
    <label>Descripción{tipo==='egreso'?' (obligatoria)':''}<input maxLength={500} value={descripcion} onChange={e=>setDescripcion(e.target.value)} placeholder={tipo==='egreso'?'Ej.: taxi para entrega de vestido':'Opcional'}/></label>
@@ -251,7 +256,7 @@ function CloseForm({day,esperado,pendingSupports,onDone}:{day:CashDay;esperado:n
  };
  return <section className={styles.card}><h2>Cerrar caja</h2><p>Cuenta el efectivo físico y compáralo con lo esperado.</p>
   <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
-   <p className={styles.help}>Esperado = saldo inicial {money(day.saldo_inicial)} + ingresos en efectivo − egresos en efectivo = <strong>{money(esperado)}</strong></p>
+   <p className={styles.help}>Esperado = saldo inicial {money(day.saldo_inicial)} + ingresos en efectivo (incluida la base) − egresos en efectivo = <strong>{money(esperado)}</strong>. Los depósitos en garantía no se cuentan aquí.</p>
    <label>Efectivo contado (COP)<input inputMode="decimal" placeholder="0" value={contado} onChange={e=>setContado(e.target.value)}/></label>
    {diff!==null&&<p className={styles.help}>Diferencia: <span className={`${styles.diff} ${diff<0?styles.out:diff>0?styles.in:''}`}>{money(diff)}</span>{diff===0?' · Cuadra':diff<0?' · Falta dinero':' · Sobra dinero'}</p>}
    <label>Observaciones{diff!==null&&diff!==0?' (obligatorias)':''}<textarea maxLength={1000} value={obs} onChange={e=>setObs(e.target.value)}/></label>

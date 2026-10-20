@@ -7,23 +7,28 @@ export type CashMovement={cuenta_id?:string|null;cuenta?:string|null;ediciones?:
 export type CashSuggestion={soportes?:CashSupport[];soporte_historico?:boolean;origen:'pago'|'deposito'|'devolucion';origen_id:string;tipo:'ingreso'|'egreso';categoria:string;medio:string;valor:number;contrato_id:string;numero_contrato:string;cliente:string;hora:string};
 export type CashClosing={id:string;saldo_inicial:number;ingresos_efectivo:number;egresos_efectivo:number;esperado:number;contado:number;diferencia:number;observaciones:string;cerrado_at:string;cerrado_por_nombre:string};
 export type CashDay={sede_id:string;fecha:string;saldo_inicial:number;movimientos:CashMovement[];
- totales:{ingresos:number;egresos:number;ingresos_efectivo:number;egresos_efectivo:number;depositos_recibidos?:number;depositos_devueltos?:number;por_medio:Record<string,{ingresos:number|null;egresos:number|null}>;
+ totales:{ingresos:number;egresos:number;ingresos_efectivo:number;egresos_efectivo:number;base?:number;por_medio:Record<string,{ingresos:number|null;egresos:number|null}>;
   por_cuenta?:{cuenta_id:string|null;cuenta:string;tipo:CashAccount['tipo']|null;ingresos:number;egresos:number}[]};
- cuentas?:CashAccount[];
+ cuentas?:CashAccount[];inicio?:string|null;
  cierre:CashClosing|null;sugerencias:CashSuggestion[];puede_operar:boolean;es_hoy:boolean;
  pagos_sin_soporte?:CashMissingSupport[];soportes?:{pagos:number;con_soporte:number}};
-export type CashSiteSummary={sede_id:string;sede:string;ingresos:number;egresos:number;ingresos_efectivo:number;egresos_efectivo:number;dias_cerrados:number;diferencia:number;dias_con_movimientos_sin_cierre:number;saldo_actual:number};
+export type CashSiteSummary={inicio?:string|null;base?:number;sede_id:string;sede:string;ingresos:number;egresos:number;ingresos_efectivo:number;egresos_efectivo:number;dias_cerrados:number;diferencia:number;dias_con_movimientos_sin_cierre:number;saldo_actual:number};
 
 export type MoneyAccountRow={cuenta_id:string|null;nombre:string;tipo:CashAccount['tipo']|'sin_cuenta';banco:string|null;numero:string|null;sede:string|null;activo:boolean|null;
  ingresos:number;egresos:number;neto:number;pagos:number;depositos:number;devoluciones:number;otros_ingresos:number;otros_egresos:number;movimientos:number;por_sede:Record<string,number>;efectivo_en_caja:number|null};
-export type MoneyPending={sede_id:string;sede:string;pagos:number;valor_pagos:number;depositos:number;valor_depositos:number};
-export type WhereIsMoney={desde:string;hasta:string;cuentas:MoneyAccountRow[];sin_registrar:MoneyPending[];depositos:{recibidos:number;devueltos:number}};
+export type MoneyPending={sede_id:string;sede:string;pagos:number;valor_pagos:number};
+export type DepositSummaryRow={sede_id:string;sede:string;metodo:string;recibidos:number;n_recibidos:number;devueltos:number;n_devueltos:number;retenidos:number;neto:number};
+export type DepositSummary={filas:DepositSummaryRow[];recibidos:number;devueltos:number;retenidos:number};
+export type CashStart={sede_id:string;sede:string;fecha_inicio:string|null;saldo_inicio:number;actualizado_por:string|null;updated_at:string|null};
+export type WhereIsMoney={desde:string;hasta:string;cuentas:MoneyAccountRow[];sin_registrar:MoneyPending[];depositos:DepositSummary};
 
 export const CASH_METHODS=['Efectivo','Transferencia','Tarjeta','Otro'] as const;
 export const CASH_CATEGORIES={
- ingreso:['Pago de contrato','Depósito en garantía','Venta de accesorios','Arreglos','Otro ingreso'],
- egreso:['Gasto operativo','Transporte','Compras e insumos','Nómina / anticipos','Consignación a banco','Devolución de depósito','Comisiones aliados','Otro egreso'],
+ ingreso:['Pago de contrato','Base de caja','Venta de accesorios','Arreglos','Otro ingreso'],
+ egreso:['Gasto operativo','Transporte','Compras e insumos','Nómina / anticipos','Consignación a banco','Comisiones aliados','Otro egreso'],
 } as const;
+/** Opening float added during the day: cash put in the drawer with no sale behind it; it counts for the expected cash but not as income. */
+export const CASH_BASE='Base de caja';
 export const CASH_RECEIPT_TYPES:Record<string,string>={'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'};
 
 const cents=(v:unknown)=>Math.round(Number(v||0)*100);
