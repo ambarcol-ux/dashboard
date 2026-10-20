@@ -25,6 +25,23 @@ import { es } from 'date-fns/locale';
 import { isWithinInterval, startOfDay, endOfDay, format, subDays, parseISO } from 'date-fns';
 import { generateBlockedRanges, isCurrentlyOccupied, ContractBlock } from '@/lib/availability';
 
+const DRESS_FIELDS='id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sede_principal_id, clasificacion_id';
+
+/** Adds the store names (where the dress belongs and where it is now) and its classification, so similar references can be told apart. */
+async function withDressDetails<T extends {sede_actual_id?:string|null;sede_principal_id?:string|null;clasificacion_id?:string|null}>(rows:T[]){
+  const siteIds=[...new Set(rows.flatMap(r=>[r.sede_actual_id,r.sede_principal_id]).filter((id):id is string=>!!id))];
+  const classIds=[...new Set(rows.map(r=>r.clasificacion_id).filter((id):id is string=>!!id))];
+  const [{data:sites},{data:classes}]=await Promise.all([
+    siteIds.length?supabase.from('sedes').select('id, nombre').in('id',siteIds):Promise.resolve({data:[] as {id:string;nombre:string}[]}),
+    classIds.length?supabase.from('clasificaciones_vestido').select('id, nombre').in('id',classIds):Promise.resolve({data:[] as {id:string;nombre:string}[]}),
+  ]);
+  const site=(id?:string|null)=>sites?.find(x=>x.id===id)?.nombre||null;
+  return rows.map(r=>({...r,
+    sede_nombre:site(r.sede_principal_id)||site(r.sede_actual_id),
+    ubicacion_nombre:r.sede_actual_id&&r.sede_actual_id!==r.sede_principal_id?site(r.sede_actual_id):null,
+    clasificacion:classes?.find(x=>x.id===r.clasificacion_id)?.nombre||null}));
+}
+
 export default function AvailabilityPage() {
   const readAccess = useVerifiedAccess();
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,19 +92,21 @@ export default function AvailabilityPage() {
       if (manualDressId) {
         const { data: d, error: de } = await supabase
           .from('vestidos')
-          .select('id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sedes(nombre)')
+          .select(DRESS_FIELDS)
           .eq('id', manualDressId)
           .single();
         if (de) throw de;
-        setDress(d);
+        const [detailed] = await withDressDetails([d]);
+        setDress(detailed);
         await fetchUnifiedHistory(d.id);
         setPossibleDresses([]);
       } else {
         const { data: results, error: dressError } = await supabase
           .from('vestidos')
-          .select('id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sedes(nombre)')
-          .or(`codigo.ilike.%${searchQuery.trim()}%,nombre.ilike.%${searchQuery.trim()}%,categoria.ilike.%${searchQuery.trim()}%`)
-          .eq('archivado', false);
+          .select(DRESS_FIELDS)
+          .or(`codigo.ilike.%${searchQuery.trim()}%,nombre.ilike.%${searchQuery.trim()}%,categoria.ilike.%${searchQuery.trim()}%,color.ilike.%${searchQuery.trim()}%`)
+          .eq('archivado', false)
+          .order('codigo');
 
         if (dressError) throw dressError;
 
@@ -97,11 +116,12 @@ export default function AvailabilityPage() {
           return;
         }
 
-        if (results.length === 1) {
-          setDress(results[0]);
-          await fetchUnifiedHistory(results[0].id);
+        const detailed = await withDressDetails(results);
+        if (detailed.length === 1) {
+          setDress(detailed[0]);
+          await fetchUnifiedHistory(detailed[0].id);
         } else {
-          setPossibleDresses(results);
+          setPossibleDresses(detailed);
         }
       }
     } catch (err: any) {
@@ -342,7 +362,7 @@ export default function AvailabilityPage() {
                 <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input 
                   type="text" 
-                  placeholder="Ej: 5051, 5022..."
+                  placeholder="Ej: 5051, CC6018, verde lila..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-14 pr-6 py-5 bg-gray-50 border-2 border-transparent rounded-[2rem] focus:border-rose-500 focus:bg-white focus:ring-4 focus:ring-rose-50 transition-all font-black text-xl text-gray-900 placeholder:text-gray-300 placeholder:uppercase"
@@ -383,11 +403,16 @@ export default function AvailabilityPage() {
                    >
                      <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center font-black text-gray-900 border border-gray-100 group-hover:bg-rose-500 group-hover:text-white transition-colors">
-                          {d.codigo.substring(0,2)}
+                          {d.codigo?.trim().substring(0,2)}
                         </div>
-                        <div className="text-left">
-                          <p className="font-black text-gray-900 uppercase">{d.codigo}</p>
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{d.sedes?.nombre || 'Sede Desconocida'}</p>
+                        <div className="text-left min-w-0">
+                          <p className="font-black text-gray-900 uppercase">Ref. {d.codigo?.trim()}</p>
+                          <p className="text-sm font-bold text-gray-700 uppercase break-words">{d.nombre?.trim() || 'Sin nombre en inventario'}</p>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">
+                            {d.sede_nombre ? `Sede ${d.sede_nombre}` : 'Sede sin asignar'}
+                            {d.ubicacion_nombre && ` · Ahora en ${d.ubicacion_nombre}`}
+                            {[d.clasificacion, d.talla?.trim() && `Talla ${d.talla.trim()}`, d.color?.trim()].filter(Boolean).map(x => ` · ${x}`).join('')}
+                          </p>
                         </div>
                      </div>
                      <span className="text-[10px] font-black text-rose-500 uppercase tracking-widest bg-white px-4 py-2 rounded-xl shadow-sm">Ver Calendario →</span>
@@ -409,12 +434,15 @@ export default function AvailabilityPage() {
                   <div className={`w-20 h-20 rounded-[1.5rem] flex items-center justify-center font-black text-3xl shadow-inner ${
                     unavailableNow ? 'bg-rose-700 text-rose-100' : 'bg-emerald-600 text-emerald-50'
                   }`}>
-                     {dress.codigo.substring(0, 2)}
+                     {dress.codigo?.trim().substring(0, 2)}
                   </div>
                   <div>
-                    <h2 className="text-4xl font-black tracking-tight">{dress.codigo}</h2>
+                    <h2 className="text-4xl font-black tracking-tight">Ref. {dress.codigo?.trim()}</h2>
+                    <p className="text-lg font-black uppercase mt-1">{dress.nombre?.trim() || 'Sin nombre en inventario'}</p>
                     <p className="text-sm font-bold uppercase tracking-widest opacity-80 mt-1">
-                      {dress.sedes?.nombre || 'BOGOTÁ'} • {dress.talla}
+                      {dress.sede_nombre ? `Sede ${dress.sede_nombre}` : 'Sede sin asignar'}
+                      {dress.ubicacion_nombre && ` · Ahora en ${dress.ubicacion_nombre}`}
+                      {[dress.clasificacion, dress.talla?.trim() && `Talla ${dress.talla.trim()}`].filter(Boolean).map(x => ` • ${x}`).join('')}
                     </p>
                   </div>
                 </div>
