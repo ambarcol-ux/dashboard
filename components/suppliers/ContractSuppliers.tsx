@@ -68,7 +68,8 @@ export default function ContractSuppliers({contract}:{contract:{id:string;sede_i
      <select className="w-full mt-1 p-2.5 rounded-xl border border-gray-200 bg-white font-bold" value={tarifa} onChange={e=>setTarifa(e.target.value)}><option value="">Selecciona…</option>
       {options.map(o=><option key={o.tarifa_id} value={o.tarifa_id}>{o.proveedor}{o.recurso?` · ${o.recurso}`:''} — {money(o.valor_cliente)}</option>)}</select></label>}
     {picked&&<div className="bg-white rounded-xl border border-gray-100 p-3 text-xs space-y-1">
-     <p className="font-bold text-gray-800">{picked.descripcion||'Sin descripción'}</p>
+     <p className="text-[10px] font-black uppercase text-violet-700">Condiciones del proveedor</p>
+     <p className="font-bold text-gray-800 whitespace-pre-line">{picked.descripcion||'Sin descripción'}</p>
      <p className="text-gray-500">Precio al cliente: <b>{money(picked.valor_cliente)}</b>{picked.adicional_opcional?` · Opcional: ${picked.adicional_opcional}`:''}</p>
      {picked.celular&&<p className="text-gray-500">Celular: {picked.celular}</p>}
      {picked.tiene_condiciones&&<button className="text-violet-700 font-black underline" onClick={()=>setConditions({id:picked.proveedor_id,nombre:picked.proveedor})}>Ver condiciones del proveedor</button>}

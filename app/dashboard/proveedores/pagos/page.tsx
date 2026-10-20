@@ -13,7 +13,7 @@ type Pending={id:string;proveedor_id:string;proveedor:string;servicio:string;des
 type Payment={id:string;proveedor_id:string;proveedor:string;fecha_pago:string;valor_total:number;medio_pago:string;referencia:string|null;comprobante_path:string|null;registrado_por:string|null;anulado_at:string|null;motivo_anulacion:string|null;servicios:number};
 
 export default function SupplierPaymentsPage(){
- return <SupplierShell activePage="proveedores-pagos" crumb="Proveedores / Pagos" title="Pagos a proveedores" icon={<Banknote/>} adminOnly
+ return <SupplierShell activePage="proveedores-pagos" backHref="/dashboard/proveedores" crumb="Proveedores / Pagos" title="Pagos a proveedores" icon={<Banknote/>} adminOnly
   description="Servicios realizados pendientes de pago. Marca los que vas a pagar, adjunta el comprobante y guarda: todo queda en una sola operación.">
   {()=><Suspense fallback={<p className={styles.empty}>Cargando…</p>}><Payments/></Suspense>}
  </SupplierShell>;
