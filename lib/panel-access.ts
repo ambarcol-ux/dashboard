@@ -64,19 +64,26 @@ export function defaultPanelAccess(panelId:string,profile:Profile){
  return !!panel.staff;
 }
 
-/** Final access: a manual "Quitar" always wins; "Permitir" only applies to grantable panels and users that can receive it. */
-export function panelAccess(panelId:string,profile:Profile,overrides:PanelOverrides|null|undefined){
+/** Role access: with the user's permissions (sum of their roles) the "panel.<id>" permission decides; without them, the built-in defaults. */
+export function rolePanelAccess(panelId:string,profile:Profile,permissions?:string[]|null){
+ if(!permissions||!profile||isSupplier(profile.rol)||isScopedOperationsAccount(profile.id)||isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown}))return defaultPanelAccess(panelId,profile);
+ const panel=panelById(panelId);
+ return !!panel&&(panel.grantable||isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown}))&&permissions.includes(`panel.${panelId}`);
+}
+
+/** Final access: a manual "Quitar" always wins; "Permitir" only applies to grantable panels and users that can receive it; otherwise the user's roles decide. */
+export function panelAccess(panelId:string,profile:Profile,overrides:PanelOverrides|null|undefined,permissions?:string[]|null){
  const o=overrides?.[panelId],panel=panelById(panelId);
  if(!panel)return false;
  if(panelId==='accesos')return isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown});
  if(o==='bloqueado')return false;
  if(o==='permitido'&&panel.grantable&&canReceiveGrants(profile))return true;
- return defaultPanelAccess(panelId,profile);
+ return rolePanelAccess(panelId,profile,permissions);
 }
 
 /** First panel the user can open, used as landing page when the usual one was removed. */
-export function firstAllowedPanel(profile:Profile,overrides:PanelOverrides|null|undefined){
- return PANELS.find(p=>panelAccess(p.id,profile,overrides))?.href||null;
+export function firstAllowedPanel(profile:Profile,overrides:PanelOverrides|null|undefined,permissions?:string[]|null){
+ return PANELS.find(p=>panelAccess(p.id,profile,overrides,permissions))?.href||null;
 }
 
 export function overridesFromRows(rows:{panel:string;estado:string}[]|null|undefined):PanelOverrides{

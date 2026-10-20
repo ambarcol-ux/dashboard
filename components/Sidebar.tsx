@@ -1,5 +1,6 @@
 'use client';
 
+import { usePermissions } from '@/lib/use-permissions';
 import React, { useState } from 'react';
 import Link from 'next/link';
 import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
@@ -25,7 +26,8 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
   const accountingOnly = isAccounting(normalizedRole);
   const overrides = usePanelOverrides(user?.id ? String(user.id) : null);
   // Same rules as the route guard: role defaults plus the administrator's manual changes.
-  const canSee = (id: string) => panelAccess(id, user || {}, overrides);
+  const permissions = usePermissions(user?.id ? String(user.id) : null);
+  const canSee = (id: string) => panelAccess(id, user || {}, overrides, permissions);
 
   type SidebarItem = {
     id: string;
