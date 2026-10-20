@@ -91,15 +91,17 @@ export default function HorariosPage() {
   const [saving, setSaving] = useState(false);
   const [reporteMensual, setReporteMensual] = useState<ReporteMensual>({ porAsesora: [], porSede: [] });
   const [showReporte, setShowReporte] = useState(false);
+  const [sedeFiltro, setSedeFiltro] = useState<string>('todas');
+  const [semanas, setSemanas] = useState(4);
+  const [inicio, setInicio] = useState(() => { const t = new Date(); t.setHours(0, 0, 0, 0); return formatDateISO(getStartOfWeek(t)); });
+  const [cambios, setCambios] = useState<Set<string>>(new Set());
 
-  // Determinar la semana actual (Lunes a Domingo)
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const startOfCurrentWeek = getStartOfWeek(today);
-
-  const diasSemana = useMemo(() => {
-    return Array.from({ length: 7 }).map((_, i) => addDays(startOfCurrentWeek, i));
-  }, [startOfCurrentWeek]);
+  // Rango visible: desde el lunes elegido, N semanas (hasta ~1 mes)
+  const startOfRange = useMemo(() => new Date(inicio + 'T00:00:00'), [inicio]);
+  const today = startOfRange;
+  const diasRango = useMemo(() => Array.from({ length: semanas * 7 }).map((_, i) => addDays(startOfRange, i)), [startOfRange, semanas]);
+  const semanasRango = useMemo(() => Array.from({ length: semanas }).map((_, w) => diasRango.slice(w * 7, w * 7 + 7)), [diasRango, semanas]);
+  const diasSemana = diasRango;
 
   const fetchDatos = async () => {
     setLoading(true);
@@ -130,11 +132,11 @@ export default function HorariosPage() {
       setAsesoras(listaAsesoras);
 
       // 2. Fetch horarios de la semana actual
-      const fechasStrs = diasSemana.map(d => formatDateISO(d));
       const { data: registros, error: errHorarios } = await supabase
         .from('control_horarios')
         .select('*')
-        .in('fecha', fechasStrs);
+        .gte('fecha', formatDateISO(diasRango[0]))
+        .lte('fecha', formatDateISO(diasRango[diasRango.length - 1]));
 
       if (errHorarios) throw errHorarios;
 
@@ -167,6 +169,7 @@ export default function HorariosPage() {
       });
 
       setHorarios(estadoInicial);
+      setCambios(new Set());
 
       // 3. Fetch data para reporte mensual
       const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -239,7 +242,50 @@ export default function HorariosPage() {
   useEffect(() => {
     fetchDatos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inicio, semanas]);
+
+  useEffect(() => {
+    void supabase.auth.getUser().then(async ({ data }) => {
+      if (!data.user) return;
+      const { data: perfil } = await supabase.from('profiles').select('rol, sede_id').eq('id', data.user.id).maybeSingle();
+      if (perfil?.sede_id && String(perfil.rol).toLowerCase() !== 'admin') setSedeFiltro(perfil.sede_id);
+    });
   }, []);
+
+  const puedeSalir = () => !cambios.size || window.confirm('Tienes cambios sin guardar. ¿Descartarlos?');
+  const moverSemanas = (n: number) => {
+    if (puedeSalir()) setInicio(formatDateISO(addDays(startOfRange, n * 7)));
+  };
+
+  const sedesDisponibles = useMemo(() => {
+    const m = new Map<string, string>();
+    asesoras.forEach(a => { if (a.sede_id) m.set(a.sede_id, a.sede_nombre || 'Sede'); });
+    return Array.from(m, ([id, nombre]) => ({ id, nombre })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [asesoras]);
+  const asesorasVisibles = asesoras.filter(a => sedeFiltro === 'todas' || a.sede_id === sedeFiltro);
+
+  // Copia el horario planificado de la primera semana en las demás (para cuadrar el mes rápido)
+  const repetirPrimeraSemana = () => {
+    if (semanas < 2) return;
+    setHorarios(prev => {
+      const nuevo = { ...prev };
+      const marcados = new Set(cambios);
+      asesorasVisibles.forEach(a => {
+        const dias = { ...nuevo[a.asesora_id] };
+        for (let w = 1; w < semanas; w++) for (let i = 0; i < 7; i++) {
+          const origen = dias[formatDateISO(diasRango[i])];
+          const fecha = formatDateISO(diasRango[w * 7 + i]);
+          if (!origen || !dias[fecha]) continue;
+          dias[fecha] = { ...dias[fecha], entrada_asignada: origen.entrada_asignada, salida_asignada: origen.salida_asignada };
+          marcados.add(`${a.asesora_id}|${fecha}`);
+        }
+        nuevo[a.asesora_id] = dias;
+      });
+      setCambios(marcados);
+      return nuevo;
+    });
+    toast.success('Horario planificado copiado. Recuerda guardar.');
+  };
 
   const calcularMinutos = (entrada: string, salida: string, conAlmuerzo: boolean) => {
     if (!entrada || !salida) return 0;
@@ -257,6 +303,7 @@ export default function HorariosPage() {
   };
 
   const handleChange = (asesoraId: string, fecha: string, campo: keyof HorarioDia, valor: any) => {
+    setCambios(prev => new Set(prev).add(`${asesoraId}|${fecha}`));
     setHorarios(prev => {
       const nuevo = { ...prev };
       const diaActualizado = { ...nuevo[asesoraId][fecha], [campo]: valor };
@@ -280,12 +327,13 @@ export default function HorariosPage() {
     setSaving(true);
     try {
       const payload: any[] = [];
-      Object.keys(horarios).forEach(asesoraId => {
+      if (!cambios.size) { toast('No hay cambios por guardar'); setSaving(false); return; }
+      cambios.forEach(key => {
+        const [asesoraId, fecha] = key.split('|');
         const asesora = asesoras.find(a => a.asesora_id === asesoraId);
-        if (!asesora) return;
-        
-        Object.keys(horarios[asesoraId]).forEach(fecha => {
-          const dia = horarios[asesoraId][fecha];
+        const dia = horarios[asesoraId]?.[fecha];
+        if (!asesora || !dia) return;
+        {
           payload.push({
             asesora_id: asesoraId,
             sede_id: asesora.sede_id,
@@ -298,7 +346,7 @@ export default function HorariosPage() {
             minutos_trabajados: dia.minutos_trabajados,
             estado_asistencia: dia.minutos_trabajados > 0 ? 'Presente' : 'Ausente'
           });
-        });
+        }
       });
 
       const { error } = await supabase
@@ -306,7 +354,8 @@ export default function HorariosPage() {
         .upsert(payload, { onConflict: 'asesora_id, fecha' });
 
       if (error) throw error;
-      toast.success('Horarios guardados correctamente');
+      setCambios(new Set());
+      toast.success(`Horarios guardados (${payload.length} día${payload.length === 1 ? '' : 's'})`);
     } catch (err: any) {
       console.error(err);
       toast.error('Error al guardar: ' + err.message);
@@ -340,38 +389,52 @@ export default function HorariosPage() {
         <div>
           <h1 className="text-2xl font-black text-gray-900 flex items-center gap-3">
             <Clock className="w-8 h-8 text-rose-500" />
-            Control de Asistencia Semanal
+            Control de Asistencia
           </h1>
           <p className="text-gray-500 font-medium text-sm mt-1 flex items-center gap-2">
             <CalendarDays className="w-4 h-4" />
-            Semana del {formatDateHeader(diasSemana[0])} al {formatDateHeaderLong(diasSemana[6])}
+            Del {formatDateHeader(diasRango[0])} al {formatDateHeaderLong(diasRango[diasRango.length - 1])} · {semanas} semana{semanas === 1 ? '' : 's'}
           </p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="bg-gray-900 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-gray-800 transition-all shadow-lg disabled:opacity-50"
-        >
-          {saving ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> : <Save className="w-4 h-4" />}
-          Guardar Cambios
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={() => moverSemanas(-semanas)} className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">← Anterior</button>
+          <input type="date" value={inicio} onChange={e => { if (e.target.value && puedeSalir()) setInicio(formatDateISO(getStartOfWeek(new Date(e.target.value + 'T00:00:00')))); }} className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700" title="Semana de inicio (se ajusta al lunes)" />
+          <select value={semanas} onChange={e => { if (puedeSalir()) setSemanas(Number(e.target.value)); }} className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-700">
+            {[1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} semana{n === 1 ? '' : 's'}{n === 4 ? ' (≈ 1 mes)' : ''}</option>)}
+          </select>
+          <button onClick={() => moverSemanas(semanas)} className="px-3 py-2 rounded-xl border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50">Siguiente →</button>
+          {semanas > 1 && <button onClick={repetirPrimeraSemana} className="px-3 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-sm font-bold text-indigo-700 hover:bg-indigo-100" title="Copia las horas planificadas de la primera semana a las demás">Repetir semana 1</button>}
+          <button
+            onClick={handleSave}
+            disabled={saving || !cambios.size}
+            className="bg-gray-900 text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-gray-800 transition-all shadow-lg disabled:opacity-50"
+          >
+            {saving ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div> : <Save className="w-4 h-4" />}
+            Guardar Cambios{cambios.size ? ` (${cambios.size})` : ''}
+          </button>
+        </div>
       </div>
 
-      {/* Grid de Horarios por Asesora */}
-      <div className="space-y-8">
-        {asesoras.map(asesora => {
-          const dias = diasSemana.map(d => formatDateISO(d));
-          
-          // Cálculos Lunes a Sábado
-          let totalMinutosLunesSabado = 0;
-          for (let i = 0; i < 6; i++) {
-            totalMinutosLunesSabado += horarios[asesora.asesora_id]?.[dias[i]]?.minutos_trabajados || 0;
-          }
-          const horasExtrasMins = Math.max(0, totalMinutosLunesSabado - 2640); // 44 horas = 2640 mins
-          
-          // Domingo
-          const minutosDomingo = horarios[asesora.asesora_id]?.[dias[6]]?.minutos_trabajados || 0;
+      {/* Pestañas por sede */}
+      <div className="flex flex-wrap gap-2">
+        {[{ id: 'todas', nombre: 'Todas las sedes' }, ...sedesDisponibles].map(sd => (
+          <button key={sd.id} onClick={() => setSedeFiltro(sd.id)} className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all flex items-center gap-2 ${sedeFiltro === sd.id ? 'bg-rose-500 text-white border-rose-500 shadow' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}`}>
+            <Building2 className="w-4 h-4" /> {sd.nombre}
+            <span className={`text-[10px] px-1.5 rounded ${sedeFiltro === sd.id ? 'bg-white/20' : 'bg-gray-100'}`}>{sd.id === 'todas' ? asesoras.length : asesoras.filter(a => a.sede_id === sd.id).length}</span>
+          </button>
+        ))}
+      </div>
 
+      {/* Grid de Horarios por Sede y Asesora */}
+      <div className="space-y-8">
+        {(sedeFiltro === 'todas' ? [...sedesDisponibles, ...(asesoras.some(a => !a.sede_id) ? [{ id: '', nombre: 'Sin sede' }] : [])] : sedesDisponibles.filter(sd => sd.id === sedeFiltro)).map(sd => {
+          const lista = asesoras.filter(a => (a.sede_id || '') === sd.id);
+          if (!lista.length) return null;
+          return (
+          <section key={sd.id || 'sin-sede'} className="space-y-6">
+            <h2 className="text-lg font-black text-gray-900 flex items-center gap-2 px-2"><Building2 className="w-5 h-5 text-rose-500" /> Sede {sd.nombre}</h2>
+        {lista.map(asesora => {
+          const minutosMes = diasRango.reduce((acc, d) => acc + (horarios[asesora.asesora_id]?.[formatDateISO(d)]?.minutos_trabajados || 0), 0);
           return (
             <div key={asesora.asesora_id} className="bg-white rounded-[2rem] p-6 shadow-sm border border-gray-100">
               {/* Asesora Header */}
@@ -379,7 +442,7 @@ export default function HorariosPage() {
                 <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center font-black text-xl">
                   {asesora.nombre.charAt(0).toUpperCase()}
                 </div>
-                <div>
+                <div className="flex-1">
                   <h3 className="font-black text-gray-900 text-lg flex items-center gap-2">
                     <User className="w-4 h-4 text-gray-400" />
                     {asesora.nombre}
@@ -388,12 +451,25 @@ export default function HorariosPage() {
                     Sede: {asesora.sede_nombre}
                   </span>
                 </div>
+                <div className="text-right">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Total del periodo</p>
+                  <p className="font-black text-gray-900 text-lg">{formatHours(minutosMes)}</p>
+                </div>
               </div>
 
+              {semanasRango.map((semana, w) => {
+                const dias = semana.map(d => formatDateISO(d));
+                let totalMinutosLunesSabado = 0;
+                for (let i = 0; i < 6; i++) totalMinutosLunesSabado += horarios[asesora.asesora_id]?.[dias[i]]?.minutos_trabajados || 0;
+                const horasExtrasMins = Math.max(0, totalMinutosLunesSabado - 2520); // 42 horas = 2520 mins
+                const minutosDomingo = horarios[asesora.asesora_id]?.[dias[6]]?.minutos_trabajados || 0;
+                return (
+                <div key={dias[0]} className={w > 0 ? 'mt-6 pt-6 border-t border-dashed border-gray-200' : ''}>
+                  <p className="text-xs font-black text-gray-500 uppercase tracking-widest mb-3">Semana del {formatDateHeader(semana[0])} al {formatDateHeaderLong(semana[6])}</p>
               {/* Grid 7 Días */}
               <div className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-200">
                 <div className="grid grid-cols-1 md:grid-cols-7 gap-4 md:min-w-[1200px]">
-                {diasSemana.map((dia, idx) => {
+                {semana.map((dia, idx) => {
                   const fechaStr = formatDateISO(dia);
                   const datosDia = horarios[asesora.asesora_id]?.[fechaStr] || { entrada_asignada: '', salida_asignada: '', entrada_real: '', salida_real: '', con_almuerzo: true, minutos_trabajados: 0 };
                   const esDomingo = idx === 6;
@@ -468,34 +544,38 @@ export default function HorariosPage() {
             </div>
 
               {/* Resumen Semanal */}
-              <div className="mt-6 pt-6 border-t border-gray-100 flex flex-col md:flex-row gap-4 justify-end">
+              <div className="mt-2 flex flex-col md:flex-row gap-4 justify-end">
                 <div className="bg-gray-50 px-4 py-3 rounded-xl border border-gray-200 flex items-center gap-3">
                   <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Total Lun-Sáb:</span>
                   <span className="font-black text-gray-900 text-lg">{formatHours(totalMinutosLunesSabado)}</span>
                 </div>
-                
                 {horasExtrasMins > 0 && (
                   <div className="bg-red-50 px-4 py-3 rounded-xl border border-red-200 flex items-center gap-3 animate-in zoom-in">
                     <AlertTriangle className="w-5 h-5 text-red-500" />
-                    <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Horas Extras (Lun-Sáb):</span>
+                    <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Horas Extras (más de 42 h):</span>
                     <span className="font-black text-red-600 text-lg">{formatHours(horasExtrasMins)}</span>
                   </div>
                 )}
-
                 <div className="bg-orange-50 px-4 py-3 rounded-xl border border-orange-200 flex items-center gap-3">
                   <span className="text-xs font-bold text-orange-600 uppercase tracking-widest">Total Domingo:</span>
                   <span className="font-black text-orange-600 text-lg">{formatHours(minutosDomingo)}</span>
                 </div>
               </div>
+                </div>
+                );
+              })}
             </div>
           );
         })}
+          </section>
+          );
+        })}
 
-        {asesoras.length === 0 && (
+        {asesorasVisibles.length === 0 && (
           <div className="bg-white p-12 text-center rounded-[2rem] border border-gray-100">
             <User className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-gray-500 font-bold text-lg">No hay personal activo en el registro</h3>
-            <p className="text-gray-400 text-sm mt-1">Asegúrate de que haya contratos firmados para extraer el listado de asesoras.</p>
+            <h3 className="text-gray-500 font-bold text-lg">No hay personal activo en esta sede</h3>
+            <p className="text-gray-400 text-sm mt-1">Revisa que las asesoras estén activas y tengan sede asignada.</p>
           </div>
         )}
       </div>
