@@ -12,6 +12,7 @@ assert.throws(()=>cashReceiptPath('s','d','i','text/html'));
 const t=siteTotals([{ingresos:100.1,egresos:20,diferencia:-5,dias_con_movimientos_sin_cierre:1},{ingresos:0.2,egresos:0,diferencia:0,dias_con_movimientos_sin_cierre:2}]);
 assert.equal(t.ingresos,100.3);assert.equal(t.pendientes,3);assert.equal(t.diferencia,-5);
 assert(CASH_CATEGORIES.egreso.includes('Consignación a banco'));
+assert(CASH_CATEGORIES.ingreso.includes('Base de caja')&&!CASH_CATEGORIES.ingreso.includes('Depósito en garantía')&&!CASH_CATEGORIES.egreso.includes('Devolución de depósito'));
 const acc=[{id:'c1',nombre:'Caja menor Bogotá',tipo:'efectivo',sede_id:'b',activo:true},{id:'c2',nombre:'Caja menor Pereira',tipo:'efectivo',sede_id:'p',activo:true},
  {id:'k1',nombre:'Bancolombia ahorros',tipo:'banco',banco:'Bancolombia',numero:'0012345678',sede_id:null,activo:true},{id:'k2',nombre:'Nequi Pereira',tipo:'billetera',sede_id:'p',activo:true},{id:'k3',nombre:'Viejo',tipo:'banco',sede_id:null,activo:false}];
 const ids=(r)=>JSON.stringify(r.map(a=>a.id));
