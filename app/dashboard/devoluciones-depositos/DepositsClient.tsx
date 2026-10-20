@@ -1,5 +1,6 @@
 'use client';
 import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
+import DepositTable from '@/components/DepositTable';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { HandCoins,Plus,ArrowUpRight,Search,RefreshCw,ChevronLeft,ChevronRight,X } from 'lucide-react';
@@ -82,6 +83,7 @@ export default function Deposits({initialProfile}:{initialProfile:Profile}){
  <OutsideDressAlerts />
  <div className={styles.stats}>{[['Depósitos registrados',totals.total],['Devuelto a clientes',totals.returned],['Descuentos aplicados',totals.deducted],['Saldo por devolver',totals.available]].map(([label,value])=><div key={label}><span>{label}</span><strong>{money(Number(value))}</strong></div>)}</div>
  {error&&<div role="alert" className={styles.error}>{error}<button onClick={()=>void load()}>Reintentar</button></div>}{notice&&<div role="status" className={styles.notice}>{notice}<button aria-label="Cerrar mensaje" onClick={()=>setNotice('')}><X size={16}/></button></div>}
+ <DepositTable/>
  <DepositDailyMovements canChangeReceipts={canPay(profile.rol)} onChanged={()=>void load()}/>
  <DepositRequests requests={requests} events={events} contracts={contracts} profile={profile} onChange={load} openReceipt={openReceipt}/>
  <section className={styles.card}><div className={styles.filters}><label><Search size={17}/><input aria-label="Buscar contrato" placeholder="Cliente, documento o contrato" value={search} onChange={e=>setSearch(e.target.value)}/></label><select aria-label="Sede" value={sede} onChange={e=>setSede(e.target.value)}><option value="">Todas las sedes disponibles</option>{Array.from(new Set(contracts.map(c=>c.sede))).map(s=><option key={s}>{s}</option>)}</select><select aria-label="Estado del depósito" value={status} onChange={e=>setStatus(e.target.value)}><option value="">Todos los depósitos</option>{['Sin depósito','Por devolver','Liquidado','Revisar saldo'].map(s=><option key={s}>{s}</option>)}</select><span>{filtered.length} contratos</span></div>
