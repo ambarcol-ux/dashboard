@@ -49,8 +49,8 @@ export function panelForPath(path:string){
  return best;
 }
 
-/** Can this user receive extra panels? Accounting and supplier accounts are confined by the database itself. */
-export const canReceiveGrants=(profile:Profile)=>!!profile&&!isAccounting(profile.rol)&&!isSupplier(profile.rol);
+/** Can this user receive extra panels? Suppliers only use their portal; accounting gets only the panels the admin allows (the database opens just those tables). */
+export const canReceiveGrants=(profile:Profile)=>!!profile&&!isSupplier(profile.rol);
 
 /** Access the role gives without any manual change (same rules the menu always had). */
 export function defaultPanelAccess(panelId:string,profile:Profile){

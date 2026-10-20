@@ -7,6 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 import {supabase} from '@/lib/supabase';
 import {isAdminProfile,isSupplier} from '@/lib/role-access';
+import {isAccounting} from '@/lib/role-access';
 import {PANELS,canReceiveGrants,defaultPanelAccess,panelAccess,panelById,type PanelOverride,type PanelOverrides} from '@/lib/panel-access';
 import {resetPanelOverrides} from '@/lib/use-panel-overrides';
 import styles from '@/app/dashboard/caja/caja.module.css';
@@ -103,7 +104,7 @@ function ByUser({people,sedes,saved,onSave}:{people:Person[];sedes:Record<string
   <section className={styles.card}>
    {!person?<p className={styles.empty}>Elige un usuario para ver y cambiar sus paneles.</p>
     :isSupplier(person.rol)?<p className={styles.empty}>{name(person)} es proveedor: solo entra a su portal de proveedor y no ve paneles del ERP.</p>:<>
-    <h2>{name(person)}</h2><p>{person.email} · rol {person.rol||'sin rol'}{person.sede_id?` · ${sedes[person.sede_id]||''}`:''}{!canReceiveGrants(person)&&' · A Contabilidad solo se le pueden quitar paneles.'}</p>
+    <h2>{name(person)}</h2><p>{person.email} · rol {person.rol||'sin rol'}{person.sede_id?` · ${sedes[person.sede_id]||''}`:''}{isAccounting(person.rol)&&' · Contabilidad: por defecto solo Depósitos y Caja; los paneles que le permitas los verá en solo lectura de contratos.'}</p>
     <div className={styles.tableScroll}><table className={styles.table}>
      <thead><tr><th>Panel</th><th>Por su rol</th><th>Acceso</th><th>Queda</th></tr></thead>
      <tbody>{blocks.map(b=>[<tr key={b}><td colSpan={4} style={{background:'#f8fafc',fontWeight:800,fontSize:11,letterSpacing:'.05em',color:'#64748b'}}>{b}</td></tr>,
