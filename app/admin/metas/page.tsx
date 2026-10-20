@@ -1,4 +1,5 @@
 'use client';
+import SalesGoals from '@/components/metas/SalesGoals';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
 import React, { useEffect, useState } from 'react';
@@ -44,6 +45,9 @@ export default function MetasPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
+  const isAdmin = String(user?.rol || '').toLowerCase() === 'admin';
+  const metasAsesora = metas.filter(m => String(m.tipo || '').toLowerCase() !== 'sede');
+
   const months = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
     'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
@@ -53,7 +57,7 @@ export default function MetasPage() {
     const checkUser = async () => {
       const {user, profile} = await readAccess();
       if (user) {
-        setUser({ ...user, rol: profile?.rol, nombre: profile?.nombre });
+        setUser({ ...user, rol: profile?.rol, nombre: profile?.nombre, sede_id: profile?.sede_id ?? null });
       }
       setLoading(false);
     };
@@ -334,20 +338,23 @@ export default function MetasPage() {
                  <ChevronRight className="w-5 h-5 text-gray-400" />
                </button>
 
-               <div className="h-8 w-px bg-gray-100 mx-2"></div>
+               {isAdmin && <div className="h-8 w-px bg-gray-100 mx-2"></div>}
 
-               <button 
+               {isAdmin && <button 
                  onClick={() => setIsModalOpen(true)}
                  className="flex items-center gap-2 px-5 py-2.5 bg-rose-500 hover:bg-rose-600 text-white font-black rounded-xl transition-all shadow-lg shadow-rose-100 active:scale-95 text-xs uppercase"
                >
-                 <Plus className="w-4 h-4" /> Configurar Meta
-               </button>
+                 <Plus className="w-4 h-4" /> Meta por asesora
+               </button>}
             </div>
           </div>
 
+          {user && <SalesGoals mes={selectedMonth} anio={selectedYear} profile={{ rol: user.rol, sede_id: user.sede_id }} />}
+
+          {metasAsesora.length > 0 && <h2 className="text-lg font-black text-gray-900 pt-4">Metas por asesora</h2>}
           {/* Grid de Metas */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {metas.map((meta) => (
+            {metasAsesora.map((meta) => (
               <div key={meta.id} className="bg-white rounded-[2rem] p-8 shadow-sm border border-gray-100 hover:shadow-xl hover:shadow-rose-100/30 transition-all group overflow-hidden relative">
                 
                 {/* Background Decoration */}
@@ -367,7 +374,7 @@ export default function MetasPage() {
                              <Award className="w-3 h-3" /> Superada
                           </div>
                         )}
-                        <div className="relative">
+                        {isAdmin && <div className="relative">
                           <button 
                             onClick={() => setActiveMenuId(activeMenuId === meta.id ? null : meta.id)}
                             className="p-1 hover:bg-gray-100 rounded-lg transition-colors text-gray-400"
@@ -399,7 +406,7 @@ export default function MetasPage() {
                               </button>
                             </div>
                           )}
-                        </div>
+                        </div>}
                       </div>
                    </div>
 
@@ -450,7 +457,7 @@ export default function MetasPage() {
               </div>
             ))}
 
-            {metas.length === 0 && !loading && (
+            {false && (
               <div className="col-span-full py-24 bg-white rounded-[3rem] border border-dashed border-gray-200 flex flex-col items-center justify-center gap-4 text-center">
                  <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center text-gray-300 mb-2">
                     <Target className="w-10 h-10" />
