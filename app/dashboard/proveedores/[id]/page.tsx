@@ -19,7 +19,7 @@ type Tab='datos'|'tarifas'|'servicios'|'pagos'|'documentos';
 
 export default function SupplierFilePage(){
  const {id}=useParams<{id:string}>();
- return <SupplierShell activePage="proveedores" crumb="Proveedores / Ficha" title="Ficha del proveedor" icon={<Truck/>} adminOnly
+ return <SupplierShell activePage="proveedores" backHref="/dashboard/proveedores" crumb="Proveedores / Ficha" title="Ficha del proveedor" icon={<Truck/>} adminOnly
   description="Datos, sedes, tarifas, servicios asignados, pagos y documentos del proveedor.">
   {()=><SupplierFile id={id}/>}
  </SupplierShell>;

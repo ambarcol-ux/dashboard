@@ -24,6 +24,7 @@ export const CLASSIFICATION_STYLES:Record<string,string>={
  'XV Años':'bg-pink-100 text-pink-700 border-pink-200',
  'Gala':'bg-slate-800 text-white border-slate-900',
  'Pajecita':'bg-purple-100 text-purple-700 border-purple-200',
+ 'Vestido de cambio':'bg-teal-50 text-teal-700 border-teal-200',
  'Otro':'bg-amber-50 text-amber-700 border-amber-200',
 };
 export const UNCLASSIFIED_STYLE='bg-gray-50 text-gray-400 border-gray-300 border-dashed';
@@ -32,6 +33,7 @@ export const UNCLASSIFIED_STYLE='bg-gray-50 text-gray-400 border-gray-300 border
 export function suggestClassification(nombre:unknown,codigo:unknown){
  const n=String(nombre??''),c=String(codigo??'');
  if(/paje/i.test(n)||/paje/i.test(c))return 'Pajecita';
+ if(/de\s+ca[mn][bv]io/i.test(n))return 'Vestido de cambio';
  if(/novia/i.test(n))return 'Novia';
  if(/(^|[^a-z0-9])xv([^a-z0-9]|$)|quince/i.test(n))return 'XV Años';
  if(/gala/i.test(n))return 'Gala';
