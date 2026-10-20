@@ -12,8 +12,8 @@ const token='h.'+Buffer.from(JSON.stringify({sub:'u1'})).toString('base64url')+'
 const go=(path,method='GET')=>mod.exports.middleware({nextUrl:{pathname:path},url:'https://erp.test'+path,method,cookies:{get:()=>({value:token})},headers:new Headers()});
 (async()=>{
  assert.equal((await go('/dashboard/calendario')).status,200,'default access');
- const denied=await go('/admin/metas');assert.equal(denied.status,307);assert.equal(denied.location,'/dashboard?sin_acceso=metas');
- rows=[{panel:'metas',estado:'permitido'}];assert.equal((await go('/admin/metas')).status,200,'granted panel');
+ const denied=await go('/admin/reports');assert.equal(denied.status,307);assert.equal(denied.location,'/dashboard?sin_acceso=reports');
+ rows=[{panel:'reports',estado:'permitido'}];assert.equal((await go('/admin/reports')).status,200,'granted panel');
  rows=[{panel:'calendario',estado:'bloqueado'}];assert.equal((await go('/dashboard/calendario')).status,307,'removed panel');
  assert.equal((await go('/dashboard/calendario','POST')).status,403);
  rows=[{panel:'dashboard',estado:'bloqueado'}];assert.equal((await go('/dashboard')).location,'/dashboard/calendario?sin_acceso=dashboard');
