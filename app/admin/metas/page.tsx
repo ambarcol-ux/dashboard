@@ -11,6 +11,9 @@ import {
 } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 
+const normName = (value: unknown) => String(value ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+const sameName = (a: unknown, b: unknown) => !!normName(a) && normName(a) === normName(b);
+
 export default function MetasPage() {
   const readAccess = useVerifiedAccess();
   const [user, setUser] = useState<any>(null);
@@ -72,6 +75,9 @@ export default function MetasPage() {
   const fetchMetasWithPerformance = async () => {
     setLoading(true);
     try {
+      // Every active site gets its monthly goal ($50.000.000) automatically when missing.
+      await supabase.rpc('asegurar_metas_mes', { p_mes: selectedMonth, p_anio: selectedYear });
+
       // 1. Fetch Metas, Sedes, and Asesoras in parallel
       const [metasRes, sedesRes, asesorasRes] = await Promise.all([
         supabase
@@ -126,11 +132,11 @@ export default function MetasPage() {
           
           let match = false;
           if (meta.tipo?.toLowerCase() === 'sede') {
-            const matchedSede = currentSedes.find(s => s.nombre?.toLowerCase() === meta.nombre_objetivo?.toLowerCase());
+            const matchedSede = currentSedes.find(s => s.id === meta.identificador_id) || currentSedes.find(s => sameName(s.nombre, meta.nombre_objetivo));
             if (matchedSede) {
               match = contrato.sede_id === matchedSede.id;
             } else {
-              match = contrato.sede?.toLowerCase() === meta.nombre_objetivo?.toLowerCase();
+              match = sameName(contrato.sede, meta.nombre_objetivo);
             }
           } else {
             const matchedAsesora = currentAsesoras.find(a => a.nombre_completo?.toLowerCase() === meta.nombre_objetivo?.toLowerCase());
