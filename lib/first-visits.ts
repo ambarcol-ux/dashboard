@@ -1,3 +1,4 @@
+import {commercialResults} from './first-visit-followup';
 export const firstVisitDressTypes=['Gala','Quince','Novia'] as const;
 export const visitStates:Record<string,string>={agendada:'Agendada',confirmada:'Confirmada',asistio:'Asistió',seguimiento:'En seguimiento',no_asistio:'No asistió',no_cerro:'No cerró',cancelada:'Cancelada'};
 export type FirstVisit={origen?:'cita'|'vitrina';como_se_entero?:string|null;asesora_id?:string|null;asesora_nombre?:string|null;resultado_visita?:string|null;crm_origen_id?:string|null;crm_mensajes_activos?:boolean;cliente_documento?:string|null;nueva_cita_id?:string|null;fecha_evento?:string|null;tipo_vestido?:string;enlace_virtual?:string;respuesta_asistencia?:boolean|null;respuesta_alquiler?:boolean|null;motivo_no_alquiler?:string;resultado_comercial?:string;id:string;updated_at:string;fecha:string;hora:string;modalidad:'presencial'|'virtual';sede_id:string;sede:string;cliente_nombre:string;telefono:string;email:string;estado:string;motivo:string;responsable:string|null;contrato_id:string|null;numero_contrato:string|null;contrato_estado:string|null};
@@ -32,36 +33,35 @@ export function visitMetrics(rows:FirstVisit[]){
 
 export type BreakdownItem={label:string;total:number;attended:number;closed:number;conversion:number};
 export type Breakdown={id:string;title:string;items:BreakdownItem[]};
-/** Counts per option of each dropdown filled in the visits, with how many attended and closed (contract or "Alquiló"). */
+/** Per option of each dropdown filled in the visits: totals, attended, closed (contract or "Alquiló") and conversion. Only the dropdown's own options are listed. */
 export function visitBreakdowns(rows:FirstVisit[]):Breakdown[]{
- const group=(id:string,title:string,pick:(v:FirstVisit)=>string|null|undefined,only:(v:FirstVisit)=>boolean=()=>true):Breakdown=>{
-  const map=new Map<string,BreakdownItem>();
+ const group=(id:string,title:string,options:readonly string[],pick:(v:FirstVisit)=>string|null|undefined,only:(v:FirstVisit)=>boolean=()=>true):Breakdown=>{
+  const items=new Map(options.map(label=>[label,{label,total:0,attended:0,closed:0,conversion:0}]));
   for(const v of rows){
    if(!only(v))continue;
-   const label=(pick(v)||'').trim()||'Sin dato',o=visitOutcome(v),item=map.get(label)||{label,total:0,attended:0,closed:0,conversion:0};
-   item.total++;if(ATTENDED.includes(o))item.attended++;if(CLOSED.includes(o))item.closed++;map.set(label,item);
+   const item=items.get((pick(v)||'').trim());if(!item)continue;
+   const o=visitOutcome(v);item.total++;if(ATTENDED.includes(o))item.attended++;if(CLOSED.includes(o))item.closed++;
   }
-  const items=[...map.values()].map(i=>({...i,conversion:i.attended?Math.round(i.closed/i.attended*100):0})).sort((a,b)=>(a.label==='Sin dato'?1:0)-(b.label==='Sin dato'?1:0)||b.total-a.total||a.label.localeCompare(b.label,'es'));
-  return {id,title,items};
+  return {id,title,items:[...items.values()].map(i=>({...i,conversion:i.attended?Math.round(i.closed/i.attended*100):0}))};
  };
- const yesNo=(b:boolean|null|undefined,yes:string,no:string)=>b===true?yes:b===false?no:null;
+ const cita=(v:FirstVisit)=>visitOrigin(v)==='cita',vitrina=(v:FirstVisit)=>visitOrigin(v)==='vitrina';
+ const sites=[...new Set(rows.map(v=>v.sede).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'es'));
  return [
-  group('estado','Estado de la cita',v=>visitStates[v.estado]||v.estado),
-  group('resultado','Resultado comercial',v=>visitOrigin(v)==='vitrina'?v.resultado_visita:v.resultado_comercial),
-  group('vestido','Tipo de vestido / evento',v=>v.tipo_vestido),
-  group('modalidad','Modalidad',v=>v.modalidad==='virtual'?'Virtual':'Presencial'),
-  group('sede','Sede',v=>v.sede),
-  group('origen','Origen',v=>visitOrigin(v)==='vitrina'?'Vitrina':'Cita'),
-  group('fuente','Cómo se enteró (vitrina)',v=>v.como_se_entero,v=>visitOrigin(v)==='vitrina'),
-  group('asistencia','Respuesta del cliente: asistencia',v=>yesNo(v.respuesta_asistencia,'Asistió','No asistió'),v=>v.respuesta_asistencia!=null),
-  group('alquiler','Respuesta del cliente: alquiler',v=>yesNo(v.respuesta_alquiler,'Alquiló','No alquiló'),v=>v.respuesta_alquiler!=null),
-  group('motivo','Motivo de no alquiler',v=>v.motivo_no_alquiler,v=>!!v.motivo_no_alquiler?.trim()),
- ].filter(b=>b.items.length>0);
+  group('estado','Estado de la cita',Object.values(visitStates),v=>visitStates[v.estado]),
+  group('resultado','Resultado comercial (citas)',commercialResults,v=>v.resultado_comercial,cita),
+  group('vestido','Tipo de vestido (citas)',firstVisitDressTypes,v=>v.tipo_vestido,cita),
+  group('evento','Tipo de evento (vitrinas)',walkInEventTypes,v=>v.tipo_vestido,vitrina),
+  group('fuente','Cómo se enteró (vitrinas)',walkInSources,v=>v.como_se_entero,vitrina),
+  group('modalidad','Modalidad',['Presencial','Virtual'],v=>v.modalidad==='virtual'?'Virtual':'Presencial'),
+  group('sede','Sede',sites,v=>v.sede),
+  group('motivo','Motivo de no alquiler',noRentalReasons,v=>v.motivo_no_alquiler),
+ ];
 }
 export const outcomeLabel=(v:FirstVisit)=>({cerrado:'Cerró · contrato activo',contrato_pendiente:'Contrato creado · pendiente de cierre',alquilo:'Alquiló · sin contrato vinculado',nueva_cita:'Agendó nueva cita'}[visitOutcome(v)]
  ||(visitOrigin(v)==='vitrina'?`Atendida · ${v.resultado_visita||visitStates[v.estado]||v.estado}`:'')||visitStates[v.estado]||v.estado);
 
 // Vitrina: clienta que llega a la tienda sin cita.
+export const noRentalReasons=['Precio','No encontré vestido','Visitaré otras tiendas','Debo consultarlo','Fecha del evento','Talla / diseño / ajuste','Otro'];
 export const walkInEventTypes=['XV años','Grado','Gala','Otro'] as const;
 export const walkInSources=['Instagram','Recomendación','Pasaba por la tienda','Otro'] as const;
 export const walkInResults=['Cerrado','Contrato pendiente','En seguimiento','No cerró'] as const;

@@ -21,7 +21,7 @@ export function visitManagementLink(origin:string,id:string,expires:number,key:s
 export function whatsappPhone(value:string){
  const digits=value.replace(/\D/g,'');return digits.length===10?`57${digits}`:digits;
 }
-export const noRentalReasons=['Precio','No encontré vestido','Visitaré otras tiendas','Debo consultarlo','Fecha del evento','Talla / diseño / ajuste','Otro'];
+export {noRentalReasons} from './first-visits';
 
 // Document searches issue short-lived rescheduling-only capabilities.
 export function signRescheduleLink(id:string,expires:number,key:string){
