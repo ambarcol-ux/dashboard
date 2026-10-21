@@ -29,9 +29,11 @@ assert.equal(visitOutcome({...base,estado:'cancelada',resultado_comercial:'ALQUI
 assert.equal(visitOutcome({...base,origen:'vitrina',resultado_visita:'Cerrado'}),'alquilo');
 const m2=visitMetrics([{...base,resultado_comercial:'ALQUILÓ',tipo_vestido:'Quince'},{...base,resultado_comercial:'DESISTIÓ',tipo_vestido:'Quince'},{...base,estado:'agendada',tipo_vestido:'Gala'},{...base,contrato_id:'1',contrato_estado:'firmado',tipo_vestido:'Gala'}]);
 assert.equal(m2.closed,2);assert.equal(m2.closedNoContract,1);assert.equal(m2.lost,1);assert.equal(m2.attended,3);assert.equal(m2.upcoming,1);
-const bd=visitBreakdowns([{...base,resultado_comercial:'ALQUILÓ',tipo_vestido:'Quince',modalidad:'presencial'},{...base,resultado_comercial:'DESISTIÓ',tipo_vestido:'Quince',modalidad:'virtual'},{...base,estado:'agendada',tipo_vestido:'',modalidad:'presencial'}]);
+const bd=visitBreakdowns([{...base,resultado_comercial:'ALQUILÓ',tipo_vestido:'Quince',modalidad:'presencial'},{...base,resultado_comercial:'DESISTIÓ',tipo_vestido:'Quince',modalidad:'virtual'},{...base,estado:'agendada',tipo_vestido:'',modalidad:'presencial'},{...base,tipo_vestido:'Antiguo',resultado_comercial:'VALOR VIEJO'}]);
 const vest=bd.find(b=>b.id==='vestido');
-assert.equal(JSON.stringify(vest.items.map(i=>[i.label,i.total,i.attended,i.closed,i.conversion])),JSON.stringify([['Quince',2,2,1,50],['Sin dato',1,0,0,0]]));
-assert.equal(bd.find(b=>b.id==='resultado').items.length,3);
-assert(!bd.some(b=>b.id==='fuente'));
+assert.equal(JSON.stringify(vest.items.map(i=>[i.label,i.total,i.attended,i.closed,i.conversion])),JSON.stringify([['Gala',0,0,0,0],['Quince',2,2,1,50],['Novia',0,0,0,0]]));
+const res=bd.find(b=>b.id==='resultado');
+assert.equal(res.items.length,7);assert(!res.items.some(i=>i.label==='VALOR VIEJO'||i.label==='Sin dato'));
+assert.equal(res.items.find(i=>i.label==='ALQUILÓ').closed,1);
+assert(!bd.some(b=>b.id==='origen'||b.id==='asistencia'||b.id==='alquiler'));
 console.log('PASS: dropdown results count in the statistics (Alquiló, Desistió, nueva cita) and per-dropdown breakdowns');

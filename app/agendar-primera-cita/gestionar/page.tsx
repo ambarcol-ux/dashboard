@@ -3,8 +3,9 @@ import {useCallback,useEffect,useRef,useState} from 'react';
 import VisitDatePicker from '@/components/VisitDatePicker';
 import {bogotaDay} from '@/lib/contract-calendar';
 import styles from '../visits.module.css';
+import {noRentalReasons} from '@/lib/first-visits';
 type Visit={solo_reprogramar?:boolean;fecha:string;hora:string;modalidad:string;sede_id:string;sede:string;estado:string;version:string;enlace_virtual:string;respuesta_asistencia:boolean|null;respuesta_alquiler:boolean|null;puede_responder:boolean};
-const reasons=['Precio','No encontré vestido','Visitaré otras tiendas','Debo consultarlo','Fecha del evento','Talla / diseño / ajuste','Otro'];
+const reasons=noRentalReasons;
 export default function ManageVisit(){
  const token=useRef(''),busy=useRef(false);
  const [visit,setVisit]=useState<Visit|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[saving,setSaving]=useState(false);
