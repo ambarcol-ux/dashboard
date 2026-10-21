@@ -2,7 +2,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {supabase} from '@/lib/supabase';
-import {bogotaLocalToIso,nowBogotaLocal,walkInEventTypes,walkInResults,walkInSources} from '@/lib/first-visits';
+import {bogotaLocalToIso,nowBogotaLocal,walkInEventTypes,walkInSources} from '@/lib/first-visits';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
 
 type Duplicates={visitas:{id:string;nombre:string;fecha:string;hora:string;sede:string;estado:string;origen:string;vinculable:boolean;pendiente:boolean}[];contratos:{id:string;numero_contrato:string;nombre:string;sede:string|null;fecha_evento:string|null}[]};
@@ -40,7 +40,7 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved}:Props){
   if(f.nombre.trim().length<2)return setError('Escribe el nombre completo.');
   if(!/^\d{10,15}$/.test(digits(f.telefono)))return setError('Revisa el teléfono: entre 10 y 15 números.');
   if(!sede||!f.tipo_evento||!f.resultado||!fecha_hora||!asesora)return setError('Completa los campos obligatorios (*).');
-  if(f.resultado==='No cerró'&&f.motivo.trim().length<5)return setError('«No cerró» exige registrar el motivo.');
+  if(f.resultado==='No cerró'&&f.motivo.trim().length<5)return setError('Sin posible seguimiento: escribe el motivo por el que no alquiló.');
   if(hasDups&&!link&&!asNew)return setError('El teléfono o la cédula ya existen: vincula el registro existente o elige «Continuar como vitrina nueva».');
   setSaving(true);
   const {data,error}=await supabase.rpc('registrar_vitrina',{p_datos:{...f,telefono:digits(f.telefono),documento:digits(f.documento),sede_id:sede,fecha_hora,asesora_id:asesora,vincular_id:link||null,forzar:asNew}});
@@ -78,8 +78,8 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved}:Props){
     <label>Fecha del evento<input type="date" value={f.fecha_evento} onChange={set('fecha_evento')}/></label>
    </div>
    <label>Cómo se enteró<select value={f.como_se_entero} onChange={set('como_se_entero')}><option value="">Sin dato</option>{walkInSources.map(t=><option key={t}>{t}</option>)}</select></label>
-   <div><p style={{fontWeight:650,fontSize:14,marginBottom:7}}>Resultado de la visita *</p>
-    <div className={styles.choices}>{walkInResults.map(r=><button type="button" key={r} className={f.resultado===r?styles.chosen:''} onClick={()=>setF({...f,resultado:r})}>{r}</button>)}</div></div>
+   <label>¿Alquiló? *<select required value={f.resultado==='Cerrado'?'si':f.resultado?'no':''} onChange={e=>setF({...f,resultado:e.target.value==='si'?'Cerrado':e.target.value==='no'?'En seguimiento':''})}><option value="">Elige…</option><option value="si">Alquiló</option><option value="no">No alquiló</option></select></label>
+   {f.resultado&&f.resultado!=='Cerrado'&&<label>Posible seguimiento *<select required value={f.resultado==='No cerró'?'no':'si'} onChange={e=>setF({...f,resultado:e.target.value==='no'?'No cerró':'En seguimiento'})}><option value="si">Sí</option><option value="no">No</option></select></label>}
    <label>{f.resultado==='No cerró'?'Motivo *':'Observaciones'}<textarea maxLength={1000} value={f.motivo} onChange={set('motivo')} required={f.resultado==='No cerró'} minLength={f.resultado==='No cerró'?5:undefined}/></label>
   </fieldset>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
