@@ -1,24 +1,64 @@
 export const firstVisitDressTypes=['Gala','Quince','Novia'] as const;
 export const visitStates:Record<string,string>={agendada:'Agendada',confirmada:'Confirmada',asistio:'Asistió',seguimiento:'En seguimiento',no_asistio:'No asistió',no_cerro:'No cerró',cancelada:'Cancelada'};
 export type FirstVisit={origen?:'cita'|'vitrina';como_se_entero?:string|null;asesora_id?:string|null;asesora_nombre?:string|null;resultado_visita?:string|null;crm_origen_id?:string|null;crm_mensajes_activos?:boolean;cliente_documento?:string|null;nueva_cita_id?:string|null;fecha_evento?:string|null;tipo_vestido?:string;enlace_virtual?:string;respuesta_asistencia?:boolean|null;respuesta_alquiler?:boolean|null;motivo_no_alquiler?:string;resultado_comercial?:string;id:string;updated_at:string;fecha:string;hora:string;modalidad:'presencial'|'virtual';sede_id:string;sede:string;cliente_nombre:string;telefono:string;email:string;estado:string;motivo:string;responsable:string|null;contrato_id:string|null;numero_contrato:string|null;contrato_estado:string|null};
+const LOST_RESULTS=['DESISTIÓ','CERRADO SIN RESPUESTA','NO CONTACTAR','EVENTO FINALIZADO'];
+const ATTENDED_STATES=['asistio','seguimiento','no_cerro'];
+/** Outcome of a visit: an active contract wins; otherwise the commercial result chosen in the dropdowns (cita: resultado comercial; vitrina: resultado de la visita) completes the state. */
 export function visitOutcome(v:FirstVisit){
  const state=(v.contrato_estado||'').toLowerCase();
  if(v.contrato_id&&['firmado','pagado totalmente','entregado','mantenimiento','finalizado'].includes(state))return 'cerrado';
  if(v.contrato_id&&!['cancelado','anulado','rechazado'].includes(state))return 'contrato_pendiente';
- if(v.estado==='no_cerro')return 'no_cerro';
+ if(v.estado==='cancelada')return 'cancelada';
+ const result=v.resultado_comercial||'',walkIn=v.origen==='vitrina'?v.resultado_visita||'':'';
+ if(result==='ALQUILÓ'||walkIn==='Cerrado')return 'alquilo';
+ if(walkIn==='Contrato pendiente')return 'contrato_pendiente';
+ if(v.estado==='no_asistio')return 'no_asistio';
+ if(v.estado==='no_cerro'||walkIn==='No cerró'||(LOST_RESULTS.includes(result)&&ATTENDED_STATES.includes(v.estado)))return 'no_cerro';
+ if(result==='AGENDÓ NUEVA CITA'&&ATTENDED_STATES.includes(v.estado))return 'nueva_cita';
  return v.estado;
 }
 export const visitOrigin=(v:FirstVisit)=>v.origen==='vitrina'?'vitrina':'cita';
-const ATTENDED=['asistio','seguimiento','no_cerro','cerrado','contrato_pendiente'];
-const conversionOf=(rows:FirstVisit[])=>{const attended=rows.filter(v=>ATTENDED.includes(visitOutcome(v))).length,closed=rows.filter(v=>visitOutcome(v)==='cerrado').length;return attended?Math.round(closed/attended*100):0;};
+const ATTENDED=['asistio','seguimiento','no_cerro','cerrado','contrato_pendiente','alquilo','nueva_cita'];
+const CLOSED=['cerrado','alquilo'];
+const conversionOf=(rows:FirstVisit[])=>{const attended=rows.filter(v=>ATTENDED.includes(visitOutcome(v))).length,closed=rows.filter(v=>CLOSED.includes(visitOutcome(v))).length;return attended?Math.round(closed/attended*100):0;};
 export function visitMetrics(rows:FirstVisit[]){
  const count=(s:string)=>rows.filter(v=>visitOutcome(v)===s).length;
- const closed=count('cerrado'),attended=rows.filter(v=>ATTENDED.includes(visitOutcome(v))).length;
+ const closed=count('cerrado')+count('alquilo'),attended=rows.filter(v=>ATTENDED.includes(visitOutcome(v))).length;
  const citas=rows.filter(v=>visitOrigin(v)==='cita'),vitrinas=rows.filter(v=>visitOrigin(v)==='vitrina');
- return {total:rows.length,reservas:citas.length,vitrinas:vitrinas.length,closed,attended,drafts:count('contrato_pendiente'),lost:count('no_cerro'),noShow:count('no_asistio'),pending:count('asistio')+count('seguimiento'),
+ return {total:rows.length,reservas:citas.length,vitrinas:vitrinas.length,closed,closedNoContract:count('alquilo'),attended,drafts:count('contrato_pendiente'),lost:count('no_cerro'),noShow:count('no_asistio'),
+  pending:count('asistio')+count('seguimiento')+count('nueva_cita'),newVisit:count('nueva_cita'),upcoming:count('agendada')+count('confirmada'),cancelled:count('cancelada'),
   conversion:attended?Math.round(closed/attended*100):0,conversionCitas:conversionOf(citas),conversionVitrinas:conversionOf(vitrinas)};
 }
-export const outcomeLabel=(v:FirstVisit)=>({cerrado:'Cerró · contrato activo',contrato_pendiente:'Contrato creado · pendiente de cierre'}[visitOutcome(v)]
+
+export type BreakdownItem={label:string;total:number;attended:number;closed:number;conversion:number};
+export type Breakdown={id:string;title:string;items:BreakdownItem[]};
+/** Counts per option of each dropdown filled in the visits, with how many attended and closed (contract or "Alquiló"). */
+export function visitBreakdowns(rows:FirstVisit[]):Breakdown[]{
+ const group=(id:string,title:string,pick:(v:FirstVisit)=>string|null|undefined,only:(v:FirstVisit)=>boolean=()=>true):Breakdown=>{
+  const map=new Map<string,BreakdownItem>();
+  for(const v of rows){
+   if(!only(v))continue;
+   const label=(pick(v)||'').trim()||'Sin dato',o=visitOutcome(v),item=map.get(label)||{label,total:0,attended:0,closed:0,conversion:0};
+   item.total++;if(ATTENDED.includes(o))item.attended++;if(CLOSED.includes(o))item.closed++;map.set(label,item);
+  }
+  const items=[...map.values()].map(i=>({...i,conversion:i.attended?Math.round(i.closed/i.attended*100):0})).sort((a,b)=>(a.label==='Sin dato'?1:0)-(b.label==='Sin dato'?1:0)||b.total-a.total||a.label.localeCompare(b.label,'es'));
+  return {id,title,items};
+ };
+ const yesNo=(b:boolean|null|undefined,yes:string,no:string)=>b===true?yes:b===false?no:null;
+ return [
+  group('estado','Estado de la cita',v=>visitStates[v.estado]||v.estado),
+  group('resultado','Resultado comercial',v=>visitOrigin(v)==='vitrina'?v.resultado_visita:v.resultado_comercial),
+  group('vestido','Tipo de vestido / evento',v=>v.tipo_vestido),
+  group('modalidad','Modalidad',v=>v.modalidad==='virtual'?'Virtual':'Presencial'),
+  group('sede','Sede',v=>v.sede),
+  group('origen','Origen',v=>visitOrigin(v)==='vitrina'?'Vitrina':'Cita'),
+  group('fuente','Cómo se enteró (vitrina)',v=>v.como_se_entero,v=>visitOrigin(v)==='vitrina'),
+  group('asistencia','Respuesta del cliente: asistencia',v=>yesNo(v.respuesta_asistencia,'Asistió','No asistió'),v=>v.respuesta_asistencia!=null),
+  group('alquiler','Respuesta del cliente: alquiler',v=>yesNo(v.respuesta_alquiler,'Alquiló','No alquiló'),v=>v.respuesta_alquiler!=null),
+  group('motivo','Motivo de no alquiler',v=>v.motivo_no_alquiler,v=>!!v.motivo_no_alquiler?.trim()),
+ ].filter(b=>b.items.length>0);
+}
+export const outcomeLabel=(v:FirstVisit)=>({cerrado:'Cerró · contrato activo',contrato_pendiente:'Contrato creado · pendiente de cierre',alquilo:'Alquiló · sin contrato vinculado',nueva_cita:'Agendó nueva cita'}[visitOutcome(v)]
  ||(visitOrigin(v)==='vitrina'?`Atendida · ${v.resultado_visita||visitStates[v.estado]||v.estado}`:'')||visitStates[v.estado]||v.estado);
 
 // Vitrina: clienta que llega a la tienda sin cita.
