@@ -2,6 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {createHmac} from 'node:crypto';
 import {visitManagementLink} from '@/lib/first-visit-links';
 import {validateVisitInput} from '@/lib/first-visits';
+import {publicClosedLabel} from '@/lib/agenda';
 export const dynamic='force-dynamic';
 const reply=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
 function client(){
@@ -12,6 +13,14 @@ function client(){
 export async function GET(request:Request){
  try{
   const db=client(),q=new URL(request.url).searchParams;
+  // Días que se pueden reservar (calendario público) y modalidades abiertas.
+  if(q.has('desde')){
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(q.get('desde')||'')||!/^\d{4}-\d{2}-\d{2}$/.test(q.get('hasta')||'')||!['presencial','virtual'].includes(q.get('modalidad')||'')||!/^[0-9a-f-]{36}$/i.test(q.get('sede')||''))return reply({error:'Consulta inválida.'},400);
+   const {data,error}=await db.rpc('dias_primera_cita',{p_modalidad:q.get('modalidad'),p_sede:q.get('sede'),p_desde:q.get('desde'),p_hasta:q.get('hasta')});
+   if(error)return reply({error:'No pudimos consultar la agenda.'},400);
+   const d=data as {modalidades:Record<string,boolean>;dias:{fecha:string;disponible:boolean;motivo:string|null}[]};
+   return reply({modalidades:d.modalidades,cerrados:Object.fromEntries(d.dias.filter(x=>!x.disponible).map(x=>[x.fecha,publicClosedLabel(x.motivo)]))});
+  }
   if(!q.has('fecha')){
    const {data,error}=await db.from('sedes').select('id,nombre').eq('activo',true).order('nombre');
    if(error)throw error;return reply({sedes:data});
