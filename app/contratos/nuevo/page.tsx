@@ -9,6 +9,7 @@ import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { initialDepositAmount } from '@/lib/initial-deposit';
 import { contractSuggestedDeposit } from '@/lib/deposit-rules';
 import ContractAllySection, { EMPTY_CONTRACT_ALLY, type ContractAllyValue } from '@/components/ContractAllySection';
+import ContractRetabloSection, { EMPTY_CONTRACT_RETABLO, retabloError, saveContractRetablo, type ContractRetabloValue } from '@/components/retablos/ContractRetabloSection';
 import { allySectionError } from '@/lib/direct-allies';
 import { type PrexvData } from '@/lib/prexv';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -108,6 +109,12 @@ export default function NuevoContratoPage() {
 
   const [prexv, setPrexv] = useState<PrexvData>({ prexv_componentes: [] });
   const [aliadoContrato, setAliadoContrato] = useState<ContractAllyValue>(EMPTY_CONTRACT_ALLY);
+  const [retablo, setRetablo] = useState<ContractRetabloValue>(EMPTY_CONTRACT_RETABLO);
+  const [hadRetablo, setHadRetablo] = useState(false);
+  const syncRetablo = async (contractId: string) => {
+    const err = await saveContractRetablo(contractId, retablo, hadRetablo);
+    if (err) toast.error(`El contrato se guardó, pero el retablo no se registró: ${err}`);
+  };
   const aliadoPayload = () => ({ tiene_aliado: aliadoContrato.tiene, aliado_id: aliadoContrato.tiene ? aliadoContrato.aliado?.id ?? null : null, linea_id: aliadoContrato.tiene ? aliadoContrato.linea : null });
   const aliadoError = () => allySectionError({ tiene: aliadoContrato.tiene, tipo: aliadoContrato.tipo, aliado: aliadoContrato.aliado?.id ?? null, linea: aliadoContrato.linea });
   const prexvPayload = () => ({
@@ -997,6 +1004,8 @@ export default function NuevoContratoPage() {
       document.getElementById('numero_factura')?.focus();
       return;
     }
+    const errorRetabloSolicitud = retabloError(retablo);
+    if (errorRetabloSolicitud) { toast.error(errorRetabloSolicitud); return; }
     const errorAliadoSolicitud = aliadoError();
     if (errorAliadoSolicitud) { toast.error(errorAliadoSolicitud); return; }
     setIsSubmittingException(true);
@@ -1116,6 +1125,7 @@ export default function NuevoContratoPage() {
         .single();
 
       if (errC) throw errC;
+      if (newDoc?.id) await syncRetablo(newDoc.id);
 
       // Quema del código VIP (si fue usado)
       if (vipCodeInput.trim() && newDoc && vipDiscount > 0) {
@@ -1267,6 +1277,7 @@ export default function NuevoContratoPage() {
     });
 
     if (error) throw error;
+    await syncRetablo(editingContractId);
 
     toast.success(`✅ Contrato ${editingContractNumber || data?.numero_contrato || ''} actualizado correctamente`);
     router.push(`/dashboard?contratoId=${encodeURIComponent(editingContractId)}`);
@@ -1288,6 +1299,8 @@ export default function NuevoContratoPage() {
       return;
     }
 
+    const errorRetablo = retabloError(retablo);
+    if (errorRetablo) { toast.error(errorRetablo); return; }
     const errorAliado = aliadoError();
     if (errorAliado) { toast.error(errorAliado); return; }
 
@@ -1467,6 +1480,7 @@ export default function NuevoContratoPage() {
       const { data: insertedContract, error: insertError } = await supabase.from('contratos').insert([payload]).select('id').single();
 
       if (insertError) throw insertError;
+      if (insertedContract?.id) await syncRetablo(insertedContract.id);
 
       // REGISTRO DE RECAUDO REAL: Si hay abono inicial, insertarlo inmediatamente en la tabla 'pagos'
       if (abonoInicial > 0 && insertedContract) {
@@ -2190,6 +2204,7 @@ export default function NuevoContratoPage() {
               </div>
 
               <div className="lg:col-span-2"><ContractAllySection value={aliadoContrato} onChange={setAliadoContrato} valorTotal={parseFloat(String(formData.valor_total).replace(/[^0-9.-]+/g, '')) || 0} disabled={isEditMode && !['borrador','pendiente_admin'].includes(String(editingContractState).toLowerCase()) && String(userRole).toLowerCase() !== 'admin'} /></div>
+              <div className="lg:col-span-2"><ContractRetabloSection contractId={editingContractId} value={retablo} onChange={setRetablo} onLoaded={setHadRetablo} /></div>
               {/* Info Garante */}
               <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">
                 <div className="flex items-center gap-2 text-gray-800 mb-2 border-b border-gray-200 pb-2">

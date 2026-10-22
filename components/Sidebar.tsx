@@ -8,14 +8,14 @@ import { isAccounting, isScopedOperationsAccount } from '@/lib/role-access';
 import { panelAccess } from '@/lib/panel-access';
 import { usePanelOverrides } from '@/lib/use-panel-overrides';
 import {
-  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, HandCoins, KeyRound, CalendarCheck, Wallet, Truck
+  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, HandCoins, KeyRound, CalendarCheck, Wallet, Truck
 } from 'lucide-react';
 
 interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos';
 }
 
 export default function Sidebar({ user, handleLogout, activePage, pendingDeposits }: SidebarProps) {
@@ -56,6 +56,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
         { id: 'primeras-citas', label: 'PRIMERAS VISITAS', icon: CalendarCheck, href: '/dashboard/primeras-citas', color: 'rose' },
         { id: 'disponibilidad', label: 'AGENDA DE VESTIDOS', icon: CalendarDays, href: '/disponibilidad', color: 'emerald' },
         { id: 'pedidos_estrene', label: 'PEDIDOS ESTRENE', icon: ShoppingBag, href: '/dashboard/pedidos-estrene', color: 'violet' },
+        { id: 'retablos', label: 'RETABLOS', icon: Frame, href: '/dashboard/retablos', color: 'amber' },
         { id: 'depositos', label: 'DEPÓSITOS Y DEVOLUCIONES', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
         { id: 'inventory', label: 'GESTIÓN DE INVENTARIO', icon: Package, href: '/admin/inventory', color: 'amber', adminOnly: true },
         { id: 'reports', label: 'REPORTES Y ESTADÍSTICAS', icon: TrendingUp, href: '/admin/reports', color: 'rose', adminOnly: true },

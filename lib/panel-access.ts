@@ -18,6 +18,7 @@ export const PANELS:Panel[]=[
  {id:'primeras-citas',label:'Primeras visitas',href:'/dashboard/primeras-citas',block:'OPERACIONES',paths:['/dashboard/primeras-citas','/dashboard/calendario/analisis'],staff:true,grantable:true},
  {id:'disponibilidad',label:'Agenda de vestidos',href:'/disponibilidad',block:'OPERACIONES',paths:['/disponibilidad'],staff:true,grantable:true},
  {id:'pedidos_estrene',label:'Pedidos estrene',href:'/dashboard/pedidos-estrene',block:'OPERACIONES',paths:['/dashboard/pedidos-estrene'],staff:true,grantable:true},
+ {id:'retablos',label:'Retablos',href:'/dashboard/retablos',block:'OPERACIONES',paths:['/dashboard/retablos'],staff:true,grantable:true},
  {id:'depositos',label:'Depósitos y devoluciones',href:'/dashboard/devoluciones-depositos',block:'OPERACIONES',paths:['/dashboard/devoluciones-depositos'],staff:true,grantable:true},
  {id:'inventory',label:'Gestión de inventario',href:'/admin/inventory',block:'OPERACIONES',paths:['/admin/inventory'],grantable:true},
  {id:'reports',label:'Reportes y estadísticas',href:'/admin/reports',block:'OPERACIONES',paths:['/admin/reports'],grantable:true},
