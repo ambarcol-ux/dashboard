@@ -8,10 +8,10 @@ const run=async replies=>{const sent=[];fake=async(url,init)=>{const body=JSON.p
  await worker.POST(new Request('https://erp.test',{method:'POST',headers:{authorization:'Bearer w'}}));return {sent,update:updates[0]};};
 (async()=>{
  let r=await run([[200,{messages:[{id:'wamid.1'}]}]]);
- assert.equal(JSON.stringify(r.sent),'["ambar_cita_confirmada_sede"]');assert.equal(r.update.estado,'enviado');
+ assert.equal(JSON.stringify(r.sent),'["ambar_cita_confirmada_sede"]');assert.equal(r.update.estado,'enviado');assert.equal(r.update.plantilla,'ambar_cita_confirmada_sede');
  r=await run([[404,{error:{code:132001}}],[200,{messages:[{id:'wamid.2'}]}]]);
- assert.equal(JSON.stringify(r.sent),'["ambar_cita_confirmada_sede","ambar_confirmacion_cita"]');assert.equal(r.update.estado,'enviado');assert.equal(r.update.provider_id,'wamid.2');assert.equal(r.update.error,null);
+ assert.equal(JSON.stringify(r.sent),'["ambar_cita_confirmada_sede","ambar_confirmacion_cita"]');assert.equal(r.update.estado,'enviado');assert.equal(r.update.provider_id,'wamid.2');assert.equal(r.update.error,null);assert.equal(r.update.plantilla,'ambar_confirmacion_cita');
  r=await run([[400,{error:{code:131026}}]]);
- assert.equal(r.sent.length,1);assert.equal(r.update.estado,'error');
+ assert.equal(r.sent.length,1);assert.equal(r.update.estado,'error');assert.equal(r.update.plantilla,undefined);
  console.log('PASS: worker sends the detailed confirmation and falls back to the short template until Meta approves it');
 })().catch(e=>{console.error(e);process.exitCode=1});

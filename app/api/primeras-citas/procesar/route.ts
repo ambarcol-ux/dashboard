@@ -30,7 +30,7 @@ export async function POST(request:Request){
  for(let i=0;i<5;i++){
   const {data:job,error}=await db.rpc('tomar_mensaje_primera_cita');if(error)return Response.json({error:'No se pudo consultar la cola'},{status:503});if(!job)break;if(job.omitido)continue;
   const {mensaje:m,cita:c,sede}=job;
-  let state='revisar',providerId:string|null=null,issue:string|null=null;
+  let state='revisar',providerId:string|null=null,issue:string|null=null,template:string|null=null;
   try{
    if(m.tipo==='correo_interno'){
     const recipients:Record<string,string[]>=JSON.parse(process.env.FIRST_VISIT_INTERNAL_RECIPIENTS||'{}');
@@ -46,14 +46,14 @@ export async function POST(request:Request){
     const payloads=[m.tipo==='confirmacion'?confirmationPayload(c,sede,process.env.META_WA_CONFIRMATION_LANG||'es'):null,whatsappPayload(m.tipo,c,sede,link,process.env.META_WA_TEMPLATE_LANG||'es_CO')].filter(p=>p!==null);
     for(const [n,payload] of payloads.entries()){
      const r=await fetch(`https://graph.facebook.com/${version}/${phone}/messages`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
-     const d=await r.json();if(r.ok&&d.messages?.[0]?.id){state='enviado';providerId=d.messages[0].id;issue=null;break;}
+     const d=await r.json();if(r.ok&&d.messages?.[0]?.id){state='enviado';providerId=d.messages[0].id;issue=null;template=(payload as {template?:{name?:string}}).template?.name||null;break;}
      if(r.status>=400&&r.status<500){state='error';issue=`WhatsApp rechazó el envío (${r.status})`;if(n<payloads.length-1&&isTemplateError(d.error?.code))continue;}
      else issue='Respuesta incierta del proveedor; revisar antes de reintentar';
      break;
     }
    }
   }catch{issue='Resultado incierto; revisar proveedor antes de reintentar';}
-  const {error:saveError}=await db.from('primeras_citas_mensajes').update({estado:state,provider_id:providerId,error:issue,updated_at:new Date().toISOString(),...(state==='error'?{programado_at:new Date(Date.now()+10*60000).toISOString()}: {})}).eq('id',m.id).eq('estado','enviando');
+  const {error:saveError}=await db.from('primeras_citas_mensajes').update({estado:state,provider_id:providerId,error:issue,...(template?{plantilla:template}:{}),updated_at:new Date().toISOString(),...(state==='error'?{programado_at:new Date(Date.now()+10*60000).toISOString()}: {})}).eq('id',m.id).eq('estado','enviando');
   if(saveError)return Response.json({error:'No se pudo registrar el resultado; requiere revisión'},{status:503});
   if(state==='enviado')sent++;else review++;
  }
