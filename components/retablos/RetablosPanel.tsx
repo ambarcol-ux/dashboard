@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import Link from 'next/link';
 import {RefreshCw} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
@@ -11,9 +11,9 @@ const fecha=(iso:string)=>new Date(iso).toLocaleDateString('es-CO',{timeZone:'Am
 const Badge=({estado}:{estado:RetabloEstado})=><span className={styles.badge} style={{background:RETABLO_ESTADOS[estado].bg,color:RETABLO_ESTADOS[estado].fg}}>{RETABLO_ESTADOS[estado].label}</span>;
 const EMPTY_FILTER:RetabloFiltro={q:'',estado:'',tipo:'',desde:'',hasta:'',asesora:''};
 
-/** Retablos: panel general (contadores, tabla, filtros, estados, historial) y catálogo de tipos. */
-export default function RetablosPanel(){
- const [tab,setTab]=useState<'panel'|'tipos'>('panel'),[data,setData]=useState<PanelData|null>(null),[tipos,setTipos]=useState<RetabloTipo[]>([]),[error,setError]=useState(''),[notice,setNotice]=useState(''),[version,setVersion]=useState(0);
+/** Retablos: panel general (contadores, tabla, filtros, estados, historial) o catálogo de tipos. */
+export default function RetablosPanel({vista}:{vista:'panel'|'tipos'}){
+ const [data,setData]=useState<PanelData|null>(null),[tipos,setTipos]=useState<RetabloTipo[]>([]),[error,setError]=useState(''),[notice,setNotice]=useState(''),[version,setVersion]=useState(0);
  useEffect(()=>{
   let live=true;
   void (async()=>{
@@ -27,13 +27,9 @@ export default function RetablosPanel(){
  const done=(m:string)=>{setNotice(m);setVersion(v=>v+1);};
  if(!data)return error?<p role="alert" className={styles.error}>{error}</p>:<p className={styles.empty}>Cargando retablos…</p>;
  return <>
-  <div className={styles.tabs} role="tablist">
-   <button role="tab" aria-selected={tab==='panel'} className={`${styles.tab} ${tab==='panel'?styles.tabActive:''}`} onClick={()=>setTab('panel')}>Panel</button>
-   <button role="tab" aria-selected={tab==='tipos'} className={`${styles.tab} ${tab==='tipos'?styles.tabActive:''}`} onClick={()=>setTab('tipos')}>Tipos de retablo</button>
-  </div>
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   {error&&<p role="alert" className={styles.error}>{error}</p>}
-  {tab==='panel'?<Panel data={data} tipos={tipos} onDone={done} onError={setError} onRefresh={()=>setVersion(v=>v+1)}/>:<Tipos tipos={tipos} canEdit={data.catalogo} showEmpresa={data.ve_empresa} onDone={done}/>}
+  {vista==='panel'?<Panel data={data} tipos={tipos} onDone={done} onError={setError} onRefresh={()=>setVersion(v=>v+1)}/>:<Tipos tipos={tipos} canEdit={data.catalogo} showEmpresa={data.ve_empresa} onDone={done}/>}
  </>;
 }
 
@@ -92,9 +88,16 @@ function Panel({data,tipos,onDone,onError,onRefresh}:{data:PanelData;tipos:Retab
 }
 
 const EMPTY_TIPO={id:'',nombre:'',ancho_cm:'',alto_cm:'',valor:'',valor_cliente:'',valor_empresa:'',activo:true};
+const cmText=(n:number)=>String(Number(n)).replace('.',',');
+const right={textAlign:'right' as const};
+/** Catálogo de tipos de retablo: tabla con estado y acciones, y formulario para crear o editar. */
 function Tipos({tipos,canEdit,showEmpresa,onDone}:{tipos:RetabloTipo[];canEdit:boolean;showEmpresa:boolean;onDone:(m:string)=>void}){
- const [form,setForm]=useState<typeof EMPTY_TIPO|null>(null),[saving,setSaving]=useState(false),[error,setError]=useState('');
- const edit=(t:RetabloTipo)=>{setError('');setForm({id:t.id,nombre:t.nombre,ancho_cm:String(t.ancho_cm),alto_cm:String(t.alto_cm),valor:String(t.valor??''),valor_cliente:String(t.valor_cliente),valor_empresa:String(t.valor_empresa??''),activo:t.activo});};
+ const [form,setForm]=useState<typeof EMPTY_TIPO>(EMPTY_TIPO),[saving,setSaving]=useState(false),[error,setError]=useState('');
+ const formRef=useRef<HTMLElement>(null),nameRef=useRef<HTMLInputElement>(null);
+ const toForm=(t:RetabloTipo)=>({id:t.id,nombre:t.nombre,ancho_cm:cmText(t.ancho_cm),alto_cm:cmText(t.alto_cm),valor:String(Number(t.valor??0)),valor_cliente:String(Number(t.valor_cliente)),valor_empresa:String(Number(t.valor_empresa??0)),activo:t.activo});
+ const focusForm=()=>{formRef.current?.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>nameRef.current?.focus(),300);};
+ const startNew=()=>{setError('');setForm(EMPTY_TIPO);focusForm();};
+ const edit=(t:RetabloTipo)=>{setError('');setForm(toForm(t));focusForm();};
  const num=(v:string)=>Number(String(v).replace(/[$\s.]/g,'').replace(',','.')),cm=(v:string)=>Number(String(v).trim().replace(',','.'));
  const save=async(f:typeof EMPTY_TIPO,activo=f.activo)=>{
   const datos={id:f.id||null,nombre:f.nombre.trim(),ancho_cm:cm(f.ancho_cm),alto_cm:cm(f.alto_cm),valor:num(f.valor),valor_cliente:num(f.valor_cliente),valor_empresa:num(f.valor_empresa),activo};
@@ -103,27 +106,31 @@ function Tipos({tipos,canEdit,showEmpresa,onDone}:{tipos:RetabloTipo[];canEdit:b
   setSaving(true);setError('');
   const {error:re}=await supabase.rpc('guardar_retablo_tipo',{p_datos:datos});
   setSaving(false);if(re){setError(re.message);return;}
-  setForm(null);onDone(f.id?(activo===f.activo?'Tipo actualizado.':activo?'Tipo activado.':'Tipo desactivado: ya no aparece en el contrato.'):'Tipo creado.');
+  setForm(EMPTY_TIPO);onDone(f.id?(activo===f.activo?`«${datos.nombre}» actualizado.`:activo?`«${datos.nombre}» activado.`:`«${datos.nombre}» desactivado: ya no aparece en el contrato.`):`«${datos.nombre}» creado.`);
  };
- const toggle=(t:RetabloTipo)=>{const f={id:t.id,nombre:t.nombre,ancho_cm:String(t.ancho_cm),alto_cm:String(t.alto_cm),valor:String(t.valor??''),valor_cliente:String(t.valor_cliente),valor_empresa:String(t.valor_empresa??''),activo:t.activo};void save(f,!t.activo);};
- const field=(k:keyof typeof EMPTY_TIPO,label:string,mode:'text'|'decimal'='decimal')=><label>{label}<input inputMode={mode} value={String(form![k])} onChange={e=>setForm(x=>({...x!,[k]:e.target.value}))}/></label>;
+ const field=(k:keyof typeof EMPTY_TIPO,label:string,placeholder:string,mode:'text'|'decimal'='decimal')=><label>{label}<input ref={k==='nombre'?nameRef:undefined} inputMode={mode} placeholder={placeholder} value={String(form[k])} onChange={e=>setForm(x=>({...x,[k]:e.target.value}))}/></label>;
  return <>
-  <section className={styles.card}><h2>Tipos de retablo</h2><p>Los tipos activos aparecen en el contrato. Un tipo ya usado no se borra: se desactiva.</p>
-   {canEdit&&!form&&<button className={`${styles.button} ${styles.primary}`} style={{marginBottom:12}} onClick={()=>{setError('');setForm(EMPTY_TIPO);}}>Nuevo tipo</button>}
-   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Tipo</th><th>Medida (cm)</th>{canEdit&&<th>Valor</th>}<th>Valor cliente</th>{showEmpresa&&<th>Valor empresa</th>}<th>Activo</th><th>Usos</th>{canEdit&&<th></th>}</tr></thead>
-    <tbody>{tipos.map(t=><tr key={t.id} className={t.activo?'':styles.annulled}><td><strong>{t.nombre}</strong></td><td>{Number(t.ancho_cm)} × {Number(t.alto_cm)}</td>{canEdit&&<td>{money(t.valor)}</td>}<td>{money(t.valor_cliente)}</td>{showEmpresa&&<td>{money(t.valor_empresa)}</td>}
-     <td>{t.activo?'Sí':'No'}</td><td>{t.usos}</td>
-     {canEdit&&<td><div style={{display:'flex',gap:6}}><button className={styles.button} onClick={()=>edit(t)}>Editar</button><button className={`${styles.button} ${t.activo?styles.danger:''}`} disabled={saving} onClick={()=>toggle(t)}>{t.activo?'Desactivar':'Activar'}</button></div></td>}</tr>)}</tbody></table></div>
+  {canEdit&&<div style={{display:'flex',justifyContent:'flex-end',marginTop:-8,marginBottom:12}}><button className={`${styles.button} ${styles.primary}`} onClick={startNew}>Nuevo tipo</button></div>}
+  <section className={styles.card}>
+   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Tipo</th><th>Medida</th>{canEdit&&<th style={right}>Valor</th>}<th style={right}>Valor cliente</th>{showEmpresa&&<th style={right}>Valor empresa</th>}<th>Estado</th>{canEdit&&<th>Acciones</th>}</tr></thead>
+    <tbody>{tipos.map(t=><tr key={t.id}>
+     <td><strong>{t.nombre}</strong>{t.usos>0&&<small>{t.usos} retablo{t.usos===1?'':'s'} vendido{t.usos===1?'':'s'}</small>}</td>
+     <td>{cmText(t.ancho_cm)} × {cmText(t.alto_cm)} cm</td>
+     {canEdit&&<td style={right}>{money(t.valor)}</td>}<td style={right}>{money(t.valor_cliente)}</td>{showEmpresa&&<td style={right}>{money(t.valor_empresa)}</td>}
+     <td><span className={`${styles.badge} ${t.activo?styles.badgeIn:''}`}>{t.activo?'Activo':'Inactivo'}</span></td>
+     {canEdit&&<td><div style={{display:'flex',gap:6}}><button className={styles.button} onClick={()=>edit(t)}>Editar</button><button className={styles.button} disabled={saving} onClick={()=>void save(toForm(t),!t.activo)}>{t.activo?'Desactivar':'Activar'}</button></div></td>}
+    </tr>)}</tbody></table></div>
    {!tipos.length&&<p className={styles.empty}>No hay tipos creados.{canEdit?' Crea el primero con «Nuevo tipo».':''}</p>}
+   <p className={styles.help}>Los tipos activos aparecen en el contrato. Un tipo ya vendido no se borra: se desactiva.</p>
   </section>
-  {form&&<section className={styles.card}><h2>{form.id?'Editar tipo':'Nuevo tipo'}</h2>
+  {canEdit&&<section ref={formRef} className={styles.card}><h2>{form.id?`Editar «${form.nombre}»`:'Nuevo tipo de retablo'}</h2>
    <div className={styles.form}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
-    {field('nombre','Nombre (ej. Retablo 10x40)','text')}
-    <div className={styles.row}>{field('ancho_cm','Ancho (cm)')}{field('alto_cm','Alto (cm)')}</div>
-    <div className={styles.row}>{field('valor','Valor (costo base, COP)')}{field('valor_cliente','Valor cliente (COP)')}</div>
-    {field('valor_empresa','Valor empresa (COP)')}
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(160px,1fr))',gap:12}}>
+     {field('nombre','Nombre','Retablo 40×70','text')}{field('ancho_cm','Ancho (cm)','40')}{field('alto_cm','Alto (cm)','70')}
+     {field('valor','Valor','150.000')}{field('valor_cliente','Valor cliente','250.000')}{field('valor_empresa','Valor empresa','100.000')}
+    </div>
     {error&&<p role="alert" className={styles.error}>{error}</p>}
-    <div style={{display:'flex',gap:8}}><button className={`${styles.button} ${styles.primary}`} onClick={()=>void save(form)}>{saving?'Guardando…':'Guardar'}</button><button className={styles.button} onClick={()=>setForm(null)}>Cancelar</button></div>
+    <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>{form.id&&<button className={styles.button} onClick={()=>{setForm(EMPTY_TIPO);setError('');}}>Cancelar edición</button>}<button className={`${styles.button} ${styles.primary}`} onClick={()=>void save(form)}>{saving?'Guardando…':'Guardar tipo'}</button></div>
    </fieldset></div>
   </section>}
  </>;
