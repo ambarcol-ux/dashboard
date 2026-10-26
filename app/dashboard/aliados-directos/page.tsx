@@ -4,6 +4,7 @@ import {Handshake} from 'lucide-react';
 import SupplierShell,{type ShellProfile} from '@/components/suppliers/SupplierShell';
 import AllyContractText from '@/components/AllyContractText';
 import {supabase} from '@/lib/supabase';
+import {can,usePermissions} from '@/lib/use-permissions';
 import {CASH_RECEIPT_TYPES} from '@/lib/cash';
 import type {ContractSection} from '@/lib/ally-contract-text';
 import {AllyMeasures,AllyShipments,AllyStats,MeasureSettings} from '@/components/allies/AllyOps';
@@ -24,7 +25,9 @@ export default function DirectAlliesPage(){
 }
 
 function DirectAllies({profile}:{profile:ShellProfile}){
- const isAdmin=profile.rol==='admin',gestion=isAdmin||profile.rol==='contabilidad';
+ // Role permissions (Accesos): admin and asesora líder start with all; data stays limited to the user's sede except for the Propietario.
+ const perms=usePermissions(profile.id),owner=profile.rol==='admin';
+ const isAdmin=owner||can(perms,'aliados.gestionar'),canApprove=owner||can(perms,'aliados.aprobar'),canConfig=owner||can(perms,'aliados.configurar'),gestion=isAdmin||profile.rol==='contabilidad';
  const [tab,setTab]=useState<Tab>('perfiles');
  const [allies,setAllies]=useState<DirectAlly[]>([]),[types,setTypes]=useState<AllyType[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[version,setVersion]=useState(0),[loaded,setLoaded]=useState(false);
@@ -50,15 +53,15 @@ function DirectAllies({profile}:{profile:ShellProfile}){
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   <div className={styles.tabs}>
-   {([['perfiles','Perfiles'],['clientas','Clientas'],['medidas','Medidas'],['envios','Envíos'],['estadisticas','Estadísticas'],...(isAdmin?[['config','Configuración']]:[])] as [Tab,string][]).map(([k,l])=><button key={k} className={`${styles.tab} ${tab===k?styles.tabActive:''}`} onClick={()=>setTab(k)}>{l}</button>)}
+   {([['perfiles','Perfiles'],['clientas','Clientas'],['medidas','Medidas'],['envios','Envíos'],['estadisticas','Estadísticas'],...(canConfig?[['config','Configuración']]:[])] as [Tab,string][]).map(([k,l])=><button key={k} className={`${styles.tab} ${tab===k?styles.tabActive:''}`} onClick={()=>setTab(k)}>{l}</button>)}
   </div>
-  {isAdmin&&allies.some(a=>a.estado==='pendiente')&&<p className={styles.banner+' '+styles.open}>{allies.filter(a=>a.estado==='pendiente').length} aliado(s) firmaron y esperan aprobación. Ábrelos para aprobar o rechazar.</p>}
+  {canApprove&&allies.some(a=>a.estado==='pendiente')&&<p className={styles.banner+' '+styles.open}>{allies.filter(a=>a.estado==='pendiente').length} aliado(s) firmaron y esperan aprobación. Ábrelos para aprobar o rechazar.</p>}
   {gestion&&(cambios>0||sinValidar>0)&&<p className={styles.banner+' '+styles.open}>{cambios>0&&`${cambios} cambio(s) de cuenta bancaria esperan aprobación de Contabilidad. `}{sinValidar>0&&`${sinValidar} cuenta(s) sin validar.`}</p>}
 
   {tab==='perfiles'&&<section className={styles.card}>
    <div className={styles.toolbar} style={{marginBottom:12}}>
     <label>Buscar<input value={q} onChange={e=>setQ(e.target.value)} placeholder="Nombre, cédula o tipo"/></label>
-    <div className={styles.actions} style={{marginLeft:'auto'}}><button className={styles.button} onClick={()=>void navigator.clipboard.writeText(allyLinks(window.location.origin,'').vincular+(!isAdmin&&profile.sede_id?`?sede=${profile.sede_id}`:'')).then(()=>setNotice('Enlace de vinculación copiado. Compártelo con los aliados.'),()=>setError('No se pudo copiar el enlace.'))}>Copiar enlace</button>{isAdmin&&<button className={`${styles.button} ${styles.primary}`} onClick={()=>setEditing('nuevo')}>Nuevo aliado</button>}</div>
+    <div className={styles.actions} style={{marginLeft:'auto'}}><button className={styles.button} onClick={()=>void navigator.clipboard.writeText(allyLinks(window.location.origin,'').vincular+(!owner&&profile.sede_id?`?sede=${profile.sede_id}`:'')).then(()=>setNotice('Enlace de vinculación copiado. Compártelo con los aliados.'),()=>setError('No se pudo copiar el enlace.'))}>Copiar enlace</button>{isAdmin&&<button className={`${styles.button} ${styles.primary}`} onClick={()=>setEditing('nuevo')}>Nuevo aliado</button>}</div>
    </div>
    <div className={styles.tableScroll}><table className={styles.table}>
     <thead><tr><th>Aliado</th><th>Tipo</th><th>Sede</th><th>Cuenta</th><th>Contrato</th><th>Estado</th></tr></thead>
@@ -75,15 +78,15 @@ function DirectAllies({profile}:{profile:ShellProfile}){
   {tab==='medidas'&&<AllyMeasures/>}
   {tab==='envios'&&<AllyShipments/>}
   {tab==='estadisticas'&&<AllyStats/>}
-  {tab==='config'&&isAdmin&&<AllySettings types={types} onSaved={reload}/>}
-  {editing&&<AllyForm ally={editing==='nuevo'?null:editing} types={types} sedes={sedes} onClose={()=>setEditing(null)} onSaved={msg=>{setEditing(null);reload(msg);}}/>}
-  {detail&&<AllyDetail ally={detail} isAdmin={isAdmin} gestion={gestion} onClose={()=>setDetailId(null)} onEdit={()=>{setEditing(detail);setDetailId(null);}} onChanged={reload}/>}
+  {tab==='config'&&canConfig&&<AllySettings types={types} onSaved={reload}/>}
+  {editing&&<AllyForm ally={editing==='nuevo'?null:editing} types={types} sedes={owner?sedes:sedes.filter(s=>s.id===profile.sede_id)} onClose={()=>setEditing(null)} onSaved={msg=>{setEditing(null);reload(msg);}}/>}
+  {detail&&<AllyDetail ally={detail} isAdmin={isAdmin} canApprove={canApprove} gestion={gestion} onClose={()=>setDetailId(null)} onEdit={()=>{setEditing(detail);setDetailId(null);}} onChanged={reload}/>}
  </>;
 }
 
 /** Create or edit a profile (Administrator). A new bank account for an existing ally waits for Contabilidad. */
 function AllyForm({ally,types,sedes,onClose,onSaved}:{ally:DirectAlly|null;types:AllyType[];sedes:{id:string;nombre:string}[];onClose:()=>void;onSaved:(msg:string)=>void}){
- const [f,setF]=useState({nombre_completo:ally?.nombre||'',cedula:ally?.cedula||'',celular:ally?.celular||'',correo:ally?.correo||'',direccion:ally?.direccion||'',tipo_aliado_id:String(ally?.tipo_aliado_id||''),sede_principal:ally?.sede_principal||'',
+ const [f,setF]=useState({nombre_completo:ally?.nombre||'',cedula:ally?.cedula||'',celular:ally?.celular||'',correo:ally?.correo||'',direccion:ally?.direccion||'',tipo_aliado_id:String(ally?.tipo_aliado_id||''),sede_principal:ally?.sede_principal||(sedes.length===1?sedes[0].id:''),
   banco:ally?.banco||'',tipo_cuenta:ally?.tipo_cuenta||'',numero_cuenta:ally?.numero_cuenta||'',titular_cuenta:ally?.titular_cuenta||'',estado:ally?.estado||'pendiente_firma'});
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[cert,setCert]=useState<File|null>(null);
  const set=(k:keyof typeof f)=>(e:{target:{value:string}})=>setF({...f,[k]:e.target.value});
@@ -136,7 +139,7 @@ async function openAllyFile(path:string){
 }
 
 /** Profile, bank account, signed contract and change history of one ally. */
-function AllyDetail({ally,isAdmin,gestion,onClose,onEdit,onChanged}:{ally:DirectAlly;isAdmin:boolean;gestion:boolean;onClose:()=>void;onEdit:()=>void;onChanged:(msg?:string)=>void}){
+function AllyDetail({ally,isAdmin,canApprove,gestion,onClose,onEdit,onChanged}:{ally:DirectAlly;isAdmin:boolean;canApprove:boolean;gestion:boolean;onClose:()=>void;onEdit:()=>void;onChanged:(msg?:string)=>void}){
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[contract,setContract]=useState<{texto:ContractSection[];firma_base64:string}|null>(null);
  const [history,setHistory]=useState<{id:number;campo:string;valor_anterior:string|null;valor_nuevo:string|null;fecha_hora:string}[]>([]),[version,setVersion]=useState(0);
  useEffect(()=>{
@@ -196,7 +199,7 @@ function AllyDetail({ally,isAdmin,gestion,onClose,onEdit,onChanged}:{ally:Direct
    <div className={styles.actions}>
     {gestion&&ally.acuerdo_pdf_path&&<button className={styles.button} onClick={()=>void openAllyFile(ally.acuerdo_pdf_path!).catch(e=>setError(errText(e,'')))}>PDF firmado</button>}
     {gestion&&ally.cambio_pendiente?.certificacion_path&&<button className={styles.button} onClick={()=>void openAllyFile(ally.cambio_pendiente!.certificacion_path!).catch(e=>setError(errText(e,'')))}>Certificación de la nueva cuenta</button>}
-    {isAdmin&&ally.estado==='pendiente'&&<><button className={`${styles.button} ${styles.primary}`} disabled={busy} onClick={()=>void decide({aprobar:true})}>Aprobar</button><button className={styles.button} disabled={busy} onClick={()=>{const motivo=window.prompt('Motivo del rechazo (se envía al aliado, opcional):');if(motivo!==null)void decide({aprobar:false,motivo});}}>Rechazar</button></>}
+    {canApprove&&ally.estado==='pendiente'&&<><button className={`${styles.button} ${styles.primary}`} disabled={busy} onClick={()=>void decide({aprobar:true})}>Aprobar</button><button className={styles.button} disabled={busy} onClick={()=>{const motivo=window.prompt('Motivo del rechazo (se envía al aliado, opcional):');if(motivo!==null)void decide({aprobar:false,motivo});}}>Rechazar</button></>}
     {isAdmin&&ally.estado==='activo'&&ally.codigo&&<button className={styles.button} disabled={busy} onClick={()=>void decide({accion:'reenviar'})}>Reenviar enlaces</button>}
     {isAdmin&&ally.estado==='activo'&&(['disponibilidad','clientas'] as const).map(k=><button key={k} className={styles.button} onClick={()=>void copyLink(k)}>Copiar enlace de {k==='clientas'?'registro de clientas':'disponibilidad'}</button>)}
    </div></div>

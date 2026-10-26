@@ -6,13 +6,13 @@ export const dynamic='force-dynamic';
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 const BUCKET='aliados_documentos';
 
-// Only administration (es_admin) can upload or download the agreement.
+// Administration or the 'aliados.configurar' permission can upload or download the agreement.
 async function admin(request:Request){
  const bearer=request.headers.get('authorization')||'';
  if(!bearer.startsWith('Bearer '))return null;
  const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
- const [{data:auth},{data:ok}]=await Promise.all([userDb.auth.getUser(bearer.slice(7)),userDb.rpc('es_admin')]);
- return auth.user&&ok===true?auth.user:null;
+ const [{data:auth},{data:ok},{data:perms}]=await Promise.all([userDb.auth.getUser(bearer.slice(7)),userDb.rpc('es_admin'),userDb.rpc('mis_permisos')]);
+ return auth.user&&(ok===true||(perms as string[]|null)?.includes('aliados.configurar'))?auth.user:null;
 }
 
 /** Upload a new version of the agreement (Word .docx) with a note. */

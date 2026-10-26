@@ -14,8 +14,9 @@ export async function POST(request:Request){
  if(!/^[0-9a-f-]{36}$/i.test(id))return reply({error:'Aliado no válido.'},400);
  try{
   const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:isAdmin}=await db.rpc('es_admin');
-  if(isAdmin!==true)return reply({error:'Solo administración aprueba aliados.'},403);
+  const [{data:isAdmin},{data:perms}]=await Promise.all([db.rpc('es_admin'),db.rpc('mis_permisos')]);
+  const need=body.accion==='reenviar'?'aliados.gestionar':'aliados.aprobar';
+  if(isAdmin!==true&&!(perms as string[]|null)?.includes(need))return reply({error:'No tienes permiso para esta acción.'},403);
   const origin=process.env.FIRST_VISIT_PUBLIC_ORIGIN?.replace(/\/$/,'')||new URL(request.url).origin;
   let a:{id:string;estado:string;codigo:string|null;token:string;nombre:string;correo:string;motivo:string|null};
   if(body.accion==='reenviar'){
