@@ -117,12 +117,11 @@ function MovementForm({action,onClose,onSuccess}:{action:{contract:DepositContra
 
 
 type EditTarget={origen:'movimiento'|'anterior'|'soporte'|'entrega';id:string;ingreso:boolean;monto:number;descuento:number;fecha:string;metodo:string;motivo:string;observaciones:string};
-/** Edit or delete one history row (movement, earlier return, earlier-deposit receipt, delivery receipt) with a required reason; the database audits before/after. */
+/** Edit one history row (movement, earlier return, earlier-deposit receipt, delivery receipt) with a required reason; the database audits before/after. */
 function EditMovement({target,onClose,onSaved}:{target:EditTarget;onClose:()=>void;onSaved:()=>Promise<void>}){
  const [f,setF]=useState({monto:String(target.monto),descuento:String(target.descuento||0),fecha:target.fecha,metodo:target.metodo,motivo_descuento:target.motivo,observaciones:target.observaciones,motivo_cambio:''}),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const set=(k:keyof typeof f)=>(e:{target:{value:string}})=>setF({...f,[k]:e.target.value});
  const dated=target.origen==='movimiento'||target.origen==='anterior',withAmount=target.origen!=='entrega';
- const remove=async()=>{if(f.motivo_cambio.trim().length<5)return setError('Escribe el motivo del cambio (mínimo 5 caracteres).');if(!window.confirm('¿Eliminar este registro? Queda en la auditoría.'))return;setBusy(true);const {error:e}=await supabase.rpc('eliminar_movimiento_deposito',{p_origen:target.origen,p_id:target.id,p_motivo:f.motivo_cambio});setBusy(false);if(e)setError(/eliminar_movimiento_deposito|schema cache|does not exist/i.test(e.message)?'La eliminación aún no está activada en la base de datos. Pide a administración correr el SQL pendiente en Supabase.':e.message);else await onSaved();};
  const save=async()=>{setError('');setBusy(true);const {error:e}=await supabase.rpc('editar_movimiento_deposito',{p_origen:target.origen,p_id:target.id,p_datos:{...f,monto:Number(f.monto),descuento:target.ingreso?0:Number(f.descuento||0)}});setBusy(false);if(e)setError(e.message);else await onSaved();};
  return <div role="dialog" aria-modal="true" style={{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',display:'grid',placeItems:'center',zIndex:50}} onClick={onClose}><div className={styles.card} style={{maxWidth:480,width:'92%',display:'grid',gap:8}} onClick={e=>e.stopPropagation()}>
   <h2>Editar {target.origen==='soporte'?'comprobante de ingreso anterior':target.origen==='entrega'?'comprobante de entrega':target.ingreso?'ingreso':'devolución'}</h2>
@@ -134,6 +133,6 @@ function EditMovement({target,onClose,onSaved}:{target:EditTarget;onClose:()=>vo
   {dated&&<label>Observaciones<input value={f.observaciones} onChange={set('observaciones')}/></label>}
   <label>Motivo del cambio (obligatorio)<input value={f.motivo_cambio} onChange={set('motivo_cambio')}/></label>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
-  <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}><button onClick={()=>void remove()} disabled={busy} style={{marginRight:'auto',color:'#be123c'}}>Eliminar</button><button onClick={onClose} disabled={busy}>Cancelar</button><button onClick={()=>void save()} disabled={busy}>{busy?'Guardando…':'Guardar'}</button></div>
+  <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}><button onClick={onClose} disabled={busy}>Cancelar</button><button onClick={()=>void save()} disabled={busy}>{busy?'Guardando…':'Guardar'}</button></div>
  </div></div>;
 }
