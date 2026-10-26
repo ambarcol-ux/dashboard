@@ -32,8 +32,4 @@ export function docxSections(xml:string):ContractSection[]{
  if(!out.length)throw Error('El Word no tiene texto.');
  return out;
 }
-/** Fills {nombre} {cédula} {tipo} {fecha} with the ally's data at signing time. */
-export function fillAgreement(sections:ContractSection[],v:{nombre:string;cedula:string;tipo:string;fecha:string}):ContractSection[]{
- const f=(s:string)=>s.replace(/\{\s*nombre\s*\}/gi,v.nombre).replace(/\{\s*c[eé]dula\s*\}/gi,v.cedula).replace(/\{\s*tipo\s*\}/gi,v.tipo).replace(/\{\s*fecha\s*\}/gi,v.fecha);
- return sections.map(s=>({titulo:f(s.titulo),parrafos:s.parrafos.map(f),...(s.lista?{lista:s.lista.map(f)}:{})}));
-}
+export {fillAgreement} from './ally-contract-text';
