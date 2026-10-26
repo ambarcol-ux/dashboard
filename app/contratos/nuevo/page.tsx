@@ -8,9 +8,7 @@ import PreXvFields from '@/components/PreXvFields';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { initialDepositAmount } from '@/lib/initial-deposit';
 import { contractSuggestedDeposit } from '@/lib/deposit-rules';
-import ContractAllySection, { EMPTY_CONTRACT_ALLY, type ContractAllyValue } from '@/components/ContractAllySection';
 import ContractRetabloSection, { EMPTY_CONTRACT_RETABLO, retabloError, saveContractRetablo, type ContractRetabloValue } from '@/components/retablos/ContractRetabloSection';
-import { allySectionError } from '@/lib/direct-allies';
 import { type PrexvData } from '@/lib/prexv';
 import React, { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -108,15 +106,12 @@ export default function NuevoContratoPage() {
   });
 
   const [prexv, setPrexv] = useState<PrexvData>({ prexv_componentes: [] });
-  const [aliadoContrato, setAliadoContrato] = useState<ContractAllyValue>(EMPTY_CONTRACT_ALLY);
   const [retablo, setRetablo] = useState<ContractRetabloValue>(EMPTY_CONTRACT_RETABLO);
   const [hadRetablo, setHadRetablo] = useState(false);
   const syncRetablo = async (contractId: string) => {
     const err = await saveContractRetablo(contractId, retablo, hadRetablo);
     if (err) toast.error(`El contrato se guardó, pero el retablo no se registró: ${err}`);
   };
-  const aliadoPayload = () => ({ tiene_aliado: aliadoContrato.tiene, aliado_id: aliadoContrato.tiene ? aliadoContrato.aliado?.id ?? null : null, linea_id: aliadoContrato.tiene ? aliadoContrato.linea : null });
-  const aliadoError = () => allySectionError({ tiene: aliadoContrato.tiene, tipo: aliadoContrato.tipo, aliado: aliadoContrato.aliado?.id ?? null, linea: aliadoContrato.linea });
   const prexvPayload = () => ({
     ...prexv,
     fecha_pre_xv: formData.fecha_fotografia || null,
@@ -344,12 +339,6 @@ export default function NuevoContratoPage() {
           deposito_titular: contract.titular_cuenta_deposito || '',
           autoriza_uso_imagen: Boolean(contract.autoriza_uso_imagen)
         });
-        if (contract.tiene_aliado && contract.aliado_id) {
-          const datos = contract.aliado_datos || {};
-          setAliadoContrato({ tiene: true, tipo: null, linea: contract.linea_id ?? null, aliado: { id: contract.aliado_id, nombre: datos.nombre || '', cedula: datos.cedula || '', celular: datos.celular || '', correo: datos.correo || '', direccion: datos.direccion || '', tipo_aliado_id: 0, tipo: datos.tipo || '' } });
-          const { data: tipoAliado } = await supabase.from('tipos_aliado').select('id').eq('nombre', datos.tipo || '').maybeSingle();
-          if (tipoAliado) setAliadoContrato(prev => ({ ...prev, tipo: tipoAliado.id }));
-        }
 
         setPrexv({
           prexv_componentes: contract.prexv_componentes || [],
@@ -1006,8 +995,6 @@ export default function NuevoContratoPage() {
     }
     const errorRetabloSolicitud = retabloError(retablo);
     if (errorRetabloSolicitud) { toast.error(errorRetabloSolicitud); return; }
-    const errorAliadoSolicitud = aliadoError();
-    if (errorAliadoSolicitud) { toast.error(errorAliadoSolicitud); return; }
     setIsSubmittingException(true);
     try {
       // 1. Resolver IDs de vestidos primero
@@ -1093,10 +1080,8 @@ export default function NuevoContratoPage() {
         anticipo: abonoInicial,
         total_arreglos: totalArreglos,
         valor_deposito: depositoInicial,
-        ...aliadoPayload(),
 
         // Garantías/Depósitos
-        ...aliadoPayload(),
       banco_deposito: formData.deposito_banco || null,
         tipo_cuenta_deposito: formData.deposito_tipo_cuenta || null,
         numero_cuenta_deposito: formData.deposito_numero || null,
@@ -1301,8 +1286,6 @@ export default function NuevoContratoPage() {
 
     const errorRetablo = retabloError(retablo);
     if (errorRetablo) { toast.error(errorRetablo); return; }
-    const errorAliado = aliadoError();
-    if (errorAliado) { toast.error(errorAliado); return; }
 
     // 0. Validación de Vestido Obligatorio
     const hasValidDress = vestidos.some(v => v.vestido_id || v.referencia.trim().length > 0);
@@ -1452,7 +1435,6 @@ export default function NuevoContratoPage() {
         anticipo: abonoInicial,
         total_arreglos: totalArreglos,
         valor_deposito: depositoInicial,
-        ...aliadoPayload(),
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
@@ -2203,7 +2185,6 @@ export default function NuevoContratoPage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2"><ContractAllySection value={aliadoContrato} onChange={setAliadoContrato} valorTotal={parseFloat(String(formData.valor_total).replace(/[^0-9.-]+/g, '')) || 0} disabled={isEditMode && !['borrador','pendiente_admin'].includes(String(editingContractState).toLowerCase()) && String(userRole).toLowerCase() !== 'admin'} /></div>
               <div className="lg:col-span-2"><ContractRetabloSection contractId={editingContractId} value={retablo} onChange={setRetablo} onLoaded={setHadRetablo} /></div>
               {/* Info Garante */}
               <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200 shadow-sm space-y-4">

@@ -4,38 +4,37 @@ import {Handshake} from 'lucide-react';
 import SupplierShell,{type ShellProfile} from '@/components/suppliers/SupplierShell';
 import AllyContractText from '@/components/AllyContractText';
 import {supabase} from '@/lib/supabase';
-import {money} from '@/lib/deposits';
 import {CASH_RECEIPT_TYPES} from '@/lib/cash';
 import type {ContractSection} from '@/lib/ally-contract-text';
-import {ALLY_STATUS,COMMISSION_STATUS,allyRowStatus,onlyDigits,type AllyCommission,type AllyLine,type AllyType,type DirectAlly} from '@/lib/direct-allies';
+import {ALLY_STATUS,onlyDigits,type AllyType,type DirectAlly} from '@/lib/direct-allies';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Tab='perfiles'|'pagos'|'config';
+type Tab='perfiles'|'config';
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
 const errText=(e:unknown,fallback:string)=>e&&typeof e==='object'&&'message' in e?String((e as {message:string}).message):fallback;
 const chip=(cls:string,label:string)=><span className={`inline-block px-3 py-1 rounded-full border text-xs font-bold ${cls}`}>{label}</span>;
 
 export default function DirectAlliesPage(){
  return <SupplierShell activePage="aliados_directos" crumb="Red de aliados" title="Aliados Directos" icon={<Handshake/>}
-  description="Perfil de cada aliado, su contrato firmado una sola vez, los contratos de clientes que trajo y sus comisiones.">
+  description="Perfil de cada aliado, su contrato firmado una sola vez y su cuenta bancaria. El aliado no recibe comisiones.">
   {profile=><DirectAllies profile={profile}/>}
  </SupplierShell>;
 }
 
 function DirectAllies({profile}:{profile:ShellProfile}){
  const isAdmin=profile.rol==='admin',gestion=isAdmin||profile.rol==='contabilidad';
- const [tab,setTab]=useState<Tab>(gestion&&!isAdmin?'pagos':'perfiles');
- const [allies,setAllies]=useState<DirectAlly[]>([]),[types,setTypes]=useState<AllyType[]>([]),[lines,setLines]=useState<AllyLine[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]);
+ const [tab,setTab]=useState<Tab>('perfiles');
+ const [allies,setAllies]=useState<DirectAlly[]>([]),[types,setTypes]=useState<AllyType[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[version,setVersion]=useState(0),[loaded,setLoaded]=useState(false);
- const [editing,setEditing]=useState<DirectAlly|'nuevo'|null>(null),[detailId,setDetailId]=useState<string|null>(null),[q,setQ]=useState(''),[soloPorPagar,setSoloPorPagar]=useState(false);
+ const [editing,setEditing]=useState<DirectAlly|'nuevo'|null>(null),[detailId,setDetailId]=useState<string|null>(null),[q,setQ]=useState('');
  useEffect(()=>{
   let live=true;
   void (async()=>{
-   const [a,t,l,s]=await Promise.all([supabase.rpc('aliados_resumen'),supabase.from('tipos_aliado').select('id,nombre,activo').order('nombre'),supabase.from('lineas_aliado').select('*').order('id'),supabase.from('sedes').select('id,nombre').eq('activo',true).order('nombre')]);
+   const [a,t,s]=await Promise.all([supabase.rpc('aliados_resumen'),supabase.from('tipos_aliado').select('id,nombre,activo').order('nombre'),supabase.from('sedes').select('id,nombre').eq('activo',true).order('nombre')]);
    if(!live)return;
    setLoaded(true);
    if(a.error){setError(a.error.message);return;}
-   setAllies((a.data||[]) as DirectAlly[]);setTypes((t.data||[]) as AllyType[]);setLines((l.data||[]) as AllyLine[]);setSedes(s.data||[]);
+   setAllies((a.data||[]) as DirectAlly[]);setTypes((t.data||[]) as AllyType[]);setSedes(s.data||[]);
   })();
   return()=>{live=false;};
  },[version]);
@@ -43,16 +42,15 @@ function DirectAllies({profile}:{profile:ShellProfile}){
  const detail=detailId?allies.find(a=>a.id===detailId)||null:null;
  const text=q.trim().toLowerCase();
  const list=allies.filter(a=>!text||`${a.nombre} ${a.cedula} ${a.tipo}`.toLowerCase().includes(text));
- const totals={activos:allies.filter(a=>a.estado==='activo').length,contratos:allies.reduce((s,a)=>s+a.contratos,0),porPagar:allies.reduce((s,a)=>s+Number(a.por_pagar||0),0),pendientes:allies.filter(a=>a.estado==='pendiente_firma').length};
  const cambios=allies.filter(a=>a.cambio_pendiente).length,sinValidar=allies.filter(a=>a.numero_cuenta&&!a.cuenta_validada).length;
 
  return <>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   <div className={styles.tabs}>
-   {([['perfiles','Perfiles'],['pagos','Contratos y pagos'],...(isAdmin?[['config','Configuración']]:[])] as [Tab,string][]).map(([k,l])=><button key={k} className={`${styles.tab} ${tab===k?styles.tabActive:''}`} onClick={()=>setTab(k)}>{l}</button>)}
+   {([['perfiles','Perfiles'],...(isAdmin?[['config','Configuración']]:[])] as [Tab,string][]).map(([k,l])=><button key={k} className={`${styles.tab} ${tab===k?styles.tabActive:''}`} onClick={()=>setTab(k)}>{l}</button>)}
   </div>
-  {gestion&&(cambios>0||sinValidar>0)&&<p className={styles.banner+' '+styles.open}>{cambios>0&&`${cambios} cambio(s) de cuenta bancaria esperan aprobación de Contabilidad. `}{sinValidar>0&&`${sinValidar} cuenta(s) sin validar: no se les puede pagar hasta validarlas.`}</p>}
+  {gestion&&(cambios>0||sinValidar>0)&&<p className={styles.banner+' '+styles.open}>{cambios>0&&`${cambios} cambio(s) de cuenta bancaria esperan aprobación de Contabilidad. `}{sinValidar>0&&`${sinValidar} cuenta(s) sin validar.`}</p>}
 
   {tab==='perfiles'&&<section className={styles.card}>
    <div className={styles.toolbar} style={{marginBottom:12}}>
@@ -70,27 +68,7 @@ function DirectAllies({profile}:{profile:ShellProfile}){
    {!list.length&&<p className={styles.empty}>{loaded?(isAdmin?'Aún no hay aliados. Crea el primero con «Nuevo aliado».':'No hay aliados para tu sede.'):'Cargando…'}</p>}
   </section>}
 
-  {tab==='pagos'&&<>
-   <div className={styles.stats} style={{marginBottom:16}}>
-    {[['Aliados activos',String(totals.activos)],['Contratos con aliados',String(totals.contratos)],['Pendiente por pagar',money(totals.porPagar)],['Pendientes de firma',String(totals.pendientes)]].map(([l,v])=><div key={l} className={styles.card}><small className={styles.help}>{l}</small><p style={{fontSize:24,fontWeight:900}}>{v}</p></div>)}
-   </div>
-   <section className={styles.card}>
-    <div className={styles.toolbar} style={{marginBottom:12}}>
-     <label className={styles.check}><input type="checkbox" checked={soloPorPagar} onChange={e=>setSoloPorPagar(e.target.checked)}/>Solo con comisiones por pagar</label>
-     <span className={styles.help}>Ordenado por ventas generadas (ranking).</span>
-    </div>
-    <div className={styles.tableScroll}><table className={styles.table}>
-     <thead><tr><th>Aliado</th><th>Tipo</th><th>Sede</th><th style={{textAlign:'right'}}>Contratos</th><th style={{textAlign:'right'}}>Ventas</th><th style={{textAlign:'right'}}>En espera</th><th style={{textAlign:'right'}}>Por pagar</th><th>Estado</th></tr></thead>
-     <tbody>{[...allies].filter(a=>!soloPorPagar||Number(a.por_pagar)>0).sort((x,y)=>Number(y.ventas)-Number(x.ventas)).map(a=>{const st=allyRowStatus(a);return <tr key={a.id} onClick={()=>setDetailId(a.id)} style={{cursor:'pointer'}}>
-      <td><b>{a.nombre}</b></td><td>{a.tipo}</td><td>{a.sede||'—'}</td><td style={{textAlign:'right'}}>{a.contratos}</td><td style={{textAlign:'right'}}>{money(Number(a.ventas))}</td>
-      <td style={{textAlign:'right'}}>{money(Number(a.en_espera))}</td><td style={{textAlign:'right'}}><b>{money(Number(a.por_pagar))}</b></td><td>{chip(st.cls,st.label)}</td></tr>;})}</tbody>
-     <tfoot><tr><td colSpan={3}><b>Totales</b></td><td style={{textAlign:'right'}}><b>{totals.contratos}</b></td><td style={{textAlign:'right'}}><b>{money(allies.reduce((s,a)=>s+Number(a.ventas||0),0))}</b></td><td style={{textAlign:'right'}}><b>{money(allies.reduce((s,a)=>s+Number(a.en_espera||0),0))}</b></td><td style={{textAlign:'right'}}><b>{money(totals.porPagar)}</b></td><td/></tr></tfoot>
-    </table></div>
-    <p className={styles.help} style={{marginTop:8}}>La comisión queda <b>En espera</b> mientras el cliente tiene saldo, pasa a <b>Por pagar</b> cuando el saldo llega a cero y a <b>Anulado</b> si el contrato se cancela. Clic en un aliado para ver cada contrato y pagar.</p>
-   </section>
-  </>}
-
-  {tab==='config'&&isAdmin&&<AllySettings key={JSON.stringify(lines)} types={types} lines={lines} onSaved={reload}/>}
+  {tab==='config'&&isAdmin&&<AllySettings types={types} onSaved={reload}/>}
   {editing&&<AllyForm ally={editing==='nuevo'?null:editing} types={types} sedes={sedes} onClose={()=>setEditing(null)} onSaved={msg=>{setEditing(null);reload(msg);}}/>}
   {detail&&<AllyDetail ally={detail} isAdmin={isAdmin} gestion={gestion} onClose={()=>setDetailId(null)} onEdit={()=>{setEditing(detail);setDetailId(null);}} onChanged={reload}/>}
  </>;
@@ -146,16 +124,15 @@ async function openAllyFile(path:string){
  window.open(data.signedUrl,'_blank','noopener,noreferrer');
 }
 
-/** Profile, bank account, signed contract, commissions and change history of one ally. */
+/** Profile, bank account, signed contract and change history of one ally. */
 function AllyDetail({ally,isAdmin,gestion,onClose,onEdit,onChanged}:{ally:DirectAlly;isAdmin:boolean;gestion:boolean;onClose:()=>void;onEdit:()=>void;onChanged:(msg?:string)=>void}){
- const [rows,setRows]=useState<AllyCommission[]|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[contract,setContract]=useState<{texto:ContractSection[];firma_base64:string}|null>(null);
+ const [busy,setBusy]=useState(false),[error,setError]=useState(''),[contract,setContract]=useState<{texto:ContractSection[];firma_base64:string}|null>(null);
  const [history,setHistory]=useState<{id:number;campo:string;valor_anterior:string|null;valor_nuevo:string|null;fecha_hora:string}[]>([]),[version,setVersion]=useState(0);
  useEffect(()=>{
   let live=true;
   void (async()=>{
-   const [c,h]=await Promise.all([supabase.rpc('aliado_contratos',{p_aliado:ally.id}),gestion?supabase.from('historial_aliado').select('id,campo,valor_anterior,valor_nuevo,fecha_hora').eq('aliado_id',ally.id).order('fecha_hora',{ascending:false}).limit(20):Promise.resolve({data:[]})]);
+   const [h]=await Promise.all([gestion?supabase.from('historial_aliado').select('id,campo,valor_anterior,valor_nuevo,fecha_hora').eq('aliado_id',ally.id).order('fecha_hora',{ascending:false}).limit(20):Promise.resolve({data:[]})]);
    if(!live)return;
-   if(c.error)setError(c.error.message);else setRows((c.data||[]) as AllyCommission[]);
    setHistory((h.data||[]) as typeof history);
   })();
   return()=>{live=false;};
@@ -171,8 +148,7 @@ function AllyDetail({ally,isAdmin,gestion,onClose,onEdit,onChanged}:{ally:Direct
   if(phone&&window.confirm(`Enlace copiado (vence en ${d.dias} días).\n\n¿Abrir WhatsApp para enviárselo?`))window.open(`https://wa.me/${phone.length===10?'57'+phone:phone}?text=${encodeURIComponent(msg)}`,'_blank','noopener,noreferrer');
  },'Enlace de firma generado y copiado.');
  const validate=(file?:File)=>run(async()=>{const path=file?await uploadAllyFile(ally.id,'certificacion',file):'';const {error:e}=await supabase.rpc('validar_cuenta_aliado',{p_aliado:ally.id,p_certificacion:path});if(e)throw e;},'Cuenta bancaria validada.');
- const resolve=(ok:boolean)=>run(async()=>{const {error:e}=await supabase.rpc('resolver_cambio_cuenta',{p_id:ally.cambio_pendiente!.id,p_aprobar:ok});if(e)throw e;},ok?'Cambio de cuenta aprobado. Valida la nueva cuenta antes de pagar.':'Cambio de cuenta rechazado.');
- const pay=(row:AllyCommission,file:File)=>run(async()=>{const path=await uploadAllyFile(ally.id,'comprobante',file);const {error:e}=await supabase.rpc('pagar_comision_aliado',{p_pago:row.pago_id,p_comprobante:path});if(e)throw e;},`Comisión de ${row.numero_contrato} marcada como pagada.`);
+ const resolve=(ok:boolean)=>run(async()=>{const {error:e}=await supabase.rpc('resolver_cambio_cuenta',{p_id:ally.cambio_pendiente!.id,p_aprobar:ok});if(e)throw e;},ok?'Cambio de cuenta aprobado. Valida la nueva cuenta.':'Cambio de cuenta rechazado.');
  const viewContract=async()=>{const {data,error:e}=await supabase.from('contratos_aliado').select('texto,firma_base64').eq('aliado_id',ally.id).maybeSingle();if(e||!data)setError('No se pudo abrir el contrato firmado.');else setContract(data as typeof contract);};
  const printContract=()=>{const w=window.open('','_blank');if(!w||!contract)return;const esc=(s:string)=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]!));
   w.document.write(`<!doctype html><meta charset="utf-8"><title>Contrato de aliado · ${esc(ally.nombre)}</title><body style="font-family:Arial;max-width:760px;margin:24px auto;font-size:13px;line-height:1.5">${contract.texto.map(s=>`<h3>${esc(s.titulo)}</h3>${s.parrafos.map(p=>`<p>${esc(p)}</p>`).join('')}${s.lista?`<ul>${s.lista.map(l=>`<li>${esc(l)}</li>`).join('')}</ul>`:''}`).join('')}<p><b>Firma de EL ALIADO</b><br><img src="${contract.firma_base64}" style="max-height:110px"></p><p style="color:#666">Firmado digitalmente el ${ally.firma?new Date(ally.firma.fecha).toLocaleString('es-CO',{timeZone:'America/Bogota'}):''} · Código de verificación ${ally.firma?.codigo||''}</p></body>`);w.document.close();w.print();};
@@ -192,16 +168,6 @@ function AllyDetail({ally,isAdmin,gestion,onClose,onEdit,onChanged}:{ally:Direct
    <div className={styles.card}><b>Contrato de aliado</b>{ally.firma?<><p>{chip('bg-emerald-50 text-emerald-700 border-emerald-300','Firmado')}</p><p className={styles.help}>Firmado el {new Date(ally.firma.fecha).toLocaleDateString('es-CO')} · versión {ally.firma.version}<br/>Código {ally.firma.codigo}</p>{gestion&&<button className={styles.button} onClick={()=>void viewContract()}>Ver contrato firmado</button>}</>
     :<><p className={styles.help}>Pendiente de firma. Mientras no firme, no aparece en los contratos de clientes.</p>{isAdmin&&<button className={`${styles.button} ${styles.primary}`} disabled={busy} onClick={()=>void sendLink()}>Enviar contrato para firma</button>}</>}</div>
   </div>
-  <h3 style={{fontWeight:900,margin:'8px 0'}}>Contratos de clientes y comisiones</h3>
-  <div className={styles.tableScroll}><table className={styles.table}>
-   <thead><tr><th>Contrato</th><th>Línea</th><th style={{textAlign:'right'}}>Valor</th><th style={{textAlign:'right'}}>Saldo cliente</th><th style={{textAlign:'right'}}>Comisión</th><th>Estado</th><th></th></tr></thead>
-   <tbody>{(rows||[]).map(r=><tr key={r.pago_id}><td><b>{r.numero_contrato}</b><small>{r.cliente} · {r.sede||''} · {r.fecha.split('-').reverse().join('/')}</small></td><td>{r.linea||'—'}</td>
-    <td style={{textAlign:'right'}}>{money(Number(r.valor_contrato))}</td><td style={{textAlign:'right'}}>{money(Number(r.saldo))}</td><td style={{textAlign:'right'}}><b>{money(Number(r.comision))}</b></td>
-    <td>{chip(COMMISSION_STATUS[r.estado].cls,COMMISSION_STATUS[r.estado].label)}{r.fecha_pago&&<small>{new Date(r.fecha_pago).toLocaleDateString('es-CO')}</small>}</td>
-    <td>{r.comprobante?<button className={styles.button} onClick={()=>void openAllyFile(r.comprobante!).catch(e=>setError(errText(e,'')))}>Comprobante</button>
-     :gestion&&r.estado==='por_pagar'?<label className={styles.button} style={{cursor:busy||!ally.cuenta_validada?'not-allowed':'pointer',opacity:busy||!ally.cuenta_validada?.5:1}} title={ally.cuenta_validada?'Adjunta el comprobante para marcar Pagado':'Valida primero la cuenta bancaria'}>Pagar…<input type="file" hidden accept="application/pdf,image/*" disabled={busy||!ally.cuenta_validada} onChange={e=>{const file=e.target.files?.[0];if(file)void pay(r,file);e.target.value='';}}/></label>:null}</td></tr>)}</tbody>
-  </table></div>
-  {rows&&!rows.length&&<p className={styles.empty}>Aún no hay contratos de clientes con este aliado.</p>}
   {gestion&&history.length>0&&<><h3 style={{fontWeight:900,margin:'14px 0 6px'}}>Historial de cambios</h3><ul className={styles.help}>{history.map(h=><li key={h.id}>{new Date(h.fecha_hora).toLocaleString('es-CO',{timeZone:'America/Bogota'})} · {h.campo}: {h.valor_anterior??'—'} → {h.valor_nuevo??'—'}</li>)}</ul></>}
   <div className={styles.actions} style={{marginTop:14}}><button className={styles.button} onClick={onClose}>Cerrar</button></div>
   {contract&&<div className={styles.overlay} onClick={()=>setContract(null)}><div className={styles.dialog} onClick={e=>e.stopPropagation()} style={{maxWidth:800,maxHeight:'90vh',overflowY:'auto'}}>
@@ -213,21 +179,12 @@ function AllyDetail({ally,isAdmin,gestion,onClose,onEdit,onChanged}:{ally:Direct
  </div></div>;
 }
 
-/** Catalog of ally types and commission per line (Administrator). */
-function AllySettings({types,lines,onSaved}:{types:AllyType[];lines:AllyLine[];onSaved:(msg?:string)=>void}){
- const [rows,setRows]=useState(lines),[nuevo,setNuevo]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const saveLines=async()=>{setBusy(true);setError('');
-  for(const l of rows){const {error:e}=await supabase.from('lineas_aliado').update({nombre:l.nombre.trim()||`Línea ${l.id}`,tipo_comision:l.tipo_comision,valor_comision:Number(l.valor_comision)||0}).eq('id',l.id);if(e){setError(e.message);setBusy(false);return;}}
-  setBusy(false);onSaved('Líneas guardadas. Las comisiones nuevas se calculan con estos valores.');};
+/** Catalog of ally types (Administrator). */
+function AllySettings({types,onSaved}:{types:AllyType[];onSaved:(msg?:string)=>void}){
+ const [nuevo,setNuevo]=useState(''),[error,setError]=useState('');
  const addType=async()=>{if(nuevo.trim().length<2)return;const {error:e}=await supabase.from('tipos_aliado').insert({nombre:nuevo.trim()});if(e)setError(e.message);else{setNuevo('');onSaved('Tipo de aliado agregado.');}};
  const toggle=async(t:AllyType)=>{const {error:e}=await supabase.from('tipos_aliado').update({activo:!t.activo}).eq('id',t.id);if(e)setError(e.message);else onSaved();};
  return <div style={{display:'grid',gap:16,gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))'}}>
-  <section className={styles.card}><h3 style={{fontWeight:900}}>Líneas y comisión</h3><p className={styles.help}>La asesora elige la línea en el contrato del cliente; la comisión se calcula sola.</p>
-   <table className={styles.table}><thead><tr><th>Línea</th><th>Tipo</th><th>Valor</th></tr></thead><tbody>{rows.map((l,i)=><tr key={l.id}>
-    <td><input value={l.nombre} onChange={e=>setRows(rows.map((x,j)=>j===i?{...x,nombre:e.target.value}:x))}/></td>
-    <td><select value={l.tipo_comision} onChange={e=>setRows(rows.map((x,j)=>j===i?{...x,tipo_comision:e.target.value as AllyLine['tipo_comision']}:x))}><option value="valor">Valor fijo</option><option value="porcentaje">Porcentaje</option></select></td>
-    <td><input inputMode="decimal" value={String(l.valor_comision)} onChange={e=>setRows(rows.map((x,j)=>j===i?{...x,valor_comision:Number(e.target.value.replace(/[^\d.]/g,''))||0}:x))}/>{l.tipo_comision==='porcentaje'?' %':''}</td></tr>)}</tbody></table>
-   <div className={styles.actions} style={{marginTop:10}}><button className={`${styles.button} ${styles.primary}`} disabled={busy} onClick={()=>void saveLines()}>Guardar líneas</button></div></section>
   <section className={styles.card}><h3 style={{fontWeight:900}}>Tipos de aliado</h3>
    <ul className={styles.alertList} style={{padding:0}}>{types.map(t=><li key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{opacity:t.activo?1:.5}}>{t.nombre}</span><button className={styles.button} onClick={()=>void toggle(t)}>{t.activo?'Desactivar':'Activar'}</button></li>)}</ul>
    <div className={styles.toolbar} style={{marginTop:10}}><label>Nuevo tipo<input value={nuevo} maxLength={60} onChange={e=>setNuevo(e.target.value)}/></label><div className={styles.actions}><button className={styles.button} onClick={()=>void addType()}>Agregar</button></div></div></section>
