@@ -15,7 +15,7 @@ export default function AllySignupPage(){
  const [info,setInfo]=useState<Info|null>(null),[datos,setDatos]=useState(EMPTY),[cert,setCert]=useState<File|null>(null);
  const [aceptaDatos,setAceptaDatos]=useState(false),[acepta,setAcepta]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[done,setDone]=useState<string|null>(null);
  const pad=useRef<SignatureCanvas>(null);
- useEffect(()=>{fetch('/api/aliados/vinculacion').then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo cargar el formulario.');setInfo(d);}).catch(e=>setError(e.message));},[]);
+ useEffect(()=>{fetch('/api/aliados/vinculacion').then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo cargar el formulario.');setInfo(d);const sede=new URLSearchParams(window.location.search).get('sede');if(sede&&d.sedes?.some((s:{id:string})=>s.id===sede))setDatos(v=>({...v,sede_principal:sede}));}).catch(e=>setError(e.message));},[]);
  const tipo=info?.tipos.find(t=>String(t.id)===datos.tipo_aliado_id)?.nombre||'{tipo}';
  const preview=useMemo(()=>{
   if(!info)return null;

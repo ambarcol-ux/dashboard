@@ -58,7 +58,7 @@ function DirectAllies({profile}:{profile:ShellProfile}){
   {tab==='perfiles'&&<section className={styles.card}>
    <div className={styles.toolbar} style={{marginBottom:12}}>
     <label>Buscar<input value={q} onChange={e=>setQ(e.target.value)} placeholder="Nombre, cédula o tipo"/></label>
-    {isAdmin&&<div className={styles.actions} style={{marginLeft:'auto'}}><button className={styles.button} onClick={()=>void navigator.clipboard.writeText(allyLinks(window.location.origin,'').vincular).then(()=>setNotice('Enlace de vinculación copiado. Compártelo con los aliados.'),()=>setError('No se pudo copiar el enlace.'))}>Copiar enlace</button><button className={`${styles.button} ${styles.primary}`} onClick={()=>setEditing('nuevo')}>Nuevo aliado</button></div>}
+    <div className={styles.actions} style={{marginLeft:'auto'}}><button className={styles.button} onClick={()=>void navigator.clipboard.writeText(allyLinks(window.location.origin,'').vincular+(!isAdmin&&profile.sede_id?`?sede=${profile.sede_id}`:'')).then(()=>setNotice('Enlace de vinculación copiado. Compártelo con los aliados.'),()=>setError('No se pudo copiar el enlace.'))}>Copiar enlace</button>{isAdmin&&<button className={`${styles.button} ${styles.primary}`} onClick={()=>setEditing('nuevo')}>Nuevo aliado</button>}</div>
    </div>
    <div className={styles.tableScroll}><table className={styles.table}>
     <thead><tr><th>Aliado</th><th>Tipo</th><th>Sede</th><th>Cuenta</th><th>Contrato</th><th>Estado</th></tr></thead>
