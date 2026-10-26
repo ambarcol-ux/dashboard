@@ -23,7 +23,8 @@ export async function POST(request:Request){
   const [{data:config},{data:ally}]=await Promise.all([userDb.from('aliados_contrato_config').select('*').eq('id',1).maybeSingle(),userDb.from(directo?'aliados':'referidores').select('id').eq('id',id).maybeSingle()]);
   if(!config)return reply({error:'Solo administración puede generar el enlace del contrato.'},403);
   if(!ally)return reply({error:'Aliado no encontrado.'},404);
-  const missing=missingConfig(config);
+  const {data:acuerdo}=directo?await userDb.from('acuerdos_aliado').select('version').limit(1).maybeSingle():{data:null};
+  const missing=acuerdo?[]:missingConfig(config);
   if(missing.length)return reply({error:`Completa primero los datos de Ámbar para el contrato: ${missing.join(', ')}.`},409);
   const origin=process.env.FIRST_VISIT_PUBLIC_ORIGIN?.replace(/\/$/,'')||new URL(request.url).origin;
   return reply({link:`${origin}/aliado-contrato#${allyContractToken(id,Date.now()+DAYS*86400000,key,directo?'directo':'vip')}`,dias:DAYS});

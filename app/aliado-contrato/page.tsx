@@ -5,7 +5,7 @@ import {CheckCircle,Eraser,Loader2,PenTool} from 'lucide-react';
 import AllyContractText from '@/components/AllyContractText';
 import {DATA_AUTHORIZATION,allyContractText,type AllyContractConfig,type AllyProfile,type ContractSection} from '@/lib/ally-contract-text';
 
-type View={firmado:true;texto:ContractSection[];firma:string;firmado_at:string;nombre:string;codigo?:string}|{firmado:false;directo?:boolean;config:AllyContractConfig;aliado:AllyProfile};
+type View={firmado:true;texto:ContractSection[];firma:string;firmado_at:string;nombre:string;codigo?:string}|{firmado:false;directo?:boolean;config:AllyContractConfig;aliado:AllyProfile;acuerdo?:ContractSection[]|null};
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
 const FIELDS:[keyof AllyProfile,string,string?][]=[['nombre','Nombre completo o razón social'],['cedula','Cédula o NIT','numeric'],['representante','Representante (si es empresa)'],['celular','Celular','tel'],['correo','Correo electrónico','email'],['direccion','Dirección'],['ciudad','Ciudad'],['banco','Banco'],['numero_cuenta','Número de cuenta']];
 
@@ -24,7 +24,7 @@ export default function AllyContractPage(){
   call({token:t,accion:'ver'}).then((d:View)=>{setView(d);if(!d.firmado)setDatos(d.aliado);}).catch(e=>setError(e.message));
  },[]);
  const directo=!!view&&!view.firmado&&!!view.directo;
- const preview=useMemo(()=>view&&!view.firmado&&datos?allyContractText(view.config,datos,new Date(),view.directo?[DATA_AUTHORIZATION]:[]):null,[view,datos]);
+ const preview=useMemo(()=>view&&!view.firmado&&datos?view.acuerdo||allyContractText(view.config,datos,new Date(),view.directo?[DATA_AUTHORIZATION]:[]):null,[view,datos]);
  const sign=async()=>{
   setError('');
   if(!datos)return;
