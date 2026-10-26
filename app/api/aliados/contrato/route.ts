@@ -41,7 +41,7 @@ export async function POST(request:Request){
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
 }
 
-const configView=(config:unknown)=>Object.fromEntries(CONFIG_FIELDS.map(([k])=>[k,(config as Record<string,unknown>)[k]]));
+const configView=(config:unknown)=>Object.fromEntries(CONFIG_FIELDS.map(([k])=>[k,(config as Record<string,unknown>|null)?.[k]]));
 
 // Aliados Directos: the profile is filled by the Administrator; the ally only reviews it, authorizes data processing and signs once.
 async function directAlly(db:ReturnType<typeof publicServerClient>,id:string,body:Record<string,unknown>,request:Request){
