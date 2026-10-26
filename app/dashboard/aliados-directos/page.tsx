@@ -286,7 +286,7 @@ function AllyClients({allies}:{allies:DirectAlly[]}){
     <td>{r.rep_nombre?<>{r.rep_nombre} ({r.rep_parentesco})<small>{r.rep_celular} · {r.rep_correo}</small></>:<>{r.clienta_celular}<small>{r.clienta_correo}</small></>}</td>
     <td>{name(r.aliado_id)}</td>
     <td><small>Datos {new Date(r.autoriza_datos_at).toLocaleString('es-CO',{timeZone:'America/Bogota'})}<br/>Imagen: {r.uso_imagen?'Sí':'No'} · Publicidad: {r.publicidad?'Sí':'No'}</small></td>
-    <td><select value={r.estado} onChange={e=>void change(r,e.target.value)}>{CLIENT_STATES.map(x=><option key={x}>{x}</option>)}</select></td></tr>)}</tbody>
+    <td><select translate="no" value={r.estado} onChange={e=>void change(r,e.target.value)}>{CLIENT_STATES.map(x=><option key={x}>{x}</option>)}</select></td></tr>)}</tbody>
   </table></div>
   {rows&&!list.length&&<p className={styles.empty}>Aún no hay clientas registradas por aliados.</p>}
  </section>;
