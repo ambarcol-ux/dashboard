@@ -99,9 +99,6 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       adminOnly: true,
       items: [
         { id: 'aliados_directos', label: 'ALIADOS DIRECTOS', icon: Handshake, href: '/dashboard/aliados-directos', color: 'rose' },
-        { id: 'aliados_admin', label: 'GESTIÓN DE ALIADOS', icon: Handshake, href: '/dashboard/admin/aliados', color: 'amber' },
-        { id: 'comisiones', label: 'CONFIG. COMISIONES', icon: Settings, href: '/dashboard/admin/escalas', color: 'gray' },
-        { id: 'liquidaciones', label: 'CIERRE DE MES', icon: Banknote, href: '/dashboard/admin/liquidaciones', color: 'emerald' },
       ]
     },
     {
