@@ -1,4 +1,4 @@
--- Depósitos: editar y eliminar las tres clases de filas del historial (movimiento, devolución anterior, comprobante de ingreso anterior, comprobante de entrega).
+-- Depósitos: editar las cuatro clases de filas del historial (movimiento, devolución anterior, comprobante de ingreso anterior, comprobante de entrega). Sin eliminar.
 -- Siempre con permiso, motivo y auditoría (antes/después).
 alter table public.depositos_ediciones alter column registro_id type text using registro_id::text;
 
@@ -43,36 +43,3 @@ begin
  insert into public.depositos_ediciones(contrato_id,origen,registro_id,antes,despues,motivo,usuario_id) values(cid,p_origen,p_id::text,antes,p_datos-'motivo_cambio',razon,auth.uid());
  insert into public.bitacora_contratos(contrato_id,accion,detalle,usuario) values(cid,'Movimiento de depósito editado',jsonb_build_object('registro',p_id,'antes',antes,'despues',p_datos)::text,(select nombre from public.profiles where id=auth.uid()));
 end $$;
-
-create or replace function private.eliminar_movimiento_deposito(p_origen text,p_id uuid,p_motivo text) returns void language plpgsql security definer set search_path='' as $$
-declare m public.movimientos_depositos; d public.devoluciones_depositos; s public.soportes_depositos_anteriores; e public.entregas_bitacora; c public.contratos; usado numeric;
- razon text:=btrim(coalesce(p_motivo,'')); cid uuid; antes jsonb;
-begin
- if not (public.es_admin() or private.tiene_permiso('depositos.modificar_valor')) then raise exception 'No tienes permiso para eliminar movimientos de depósito.' using errcode='42501'; end if;
- if length(razon)<5 then raise exception 'Escribe el motivo (mínimo 5 caracteres).'; end if;
- if p_origen='movimiento' then select * into m from public.movimientos_depositos where id=p_id for update; cid:=m.contrato_id; antes:=to_jsonb(m);
- elsif p_origen='anterior' then select * into d from public.devoluciones_depositos where id=p_id for update; cid:=d.contrato_id; antes:=to_jsonb(d);
- elsif p_origen='soporte' then select * into s from public.soportes_depositos_anteriores where contrato_id=p_id for update; cid:=s.contrato_id; antes:=to_jsonb(s);
- elsif p_origen='entrega' then select * into e from public.entregas_bitacora where id=p_id for update; cid:=e.contrato_id; antes:=jsonb_build_object('metodo',e.metodo_deposito,'comprobante',e.comprobante_deposito_path);
- else raise exception 'Movimiento no válido.'; end if;
- if cid is null then raise exception 'Registro no encontrado.'; end if;
- if not public.es_admin() and not private.acceso_deposito(cid) then raise exception 'No tienes acceso a este contrato.' using errcode='42501'; end if;
- select * into c from public.contratos where id=cid for update;
- if p_origen='movimiento' and m.tipo='ingreso' then
-  select coalesce(sum(monto_devuelto+coalesce(monto_descuento,0)),0) into usado from public.devoluciones_depositos where contrato_id=cid and coalesce(lower(estado),'completado') not in ('cancelado','anulado','rechazado');
-  if coalesce(c.valor_deposito,0)-m.monto<usado then raise exception 'No se puede eliminar: el depósito quedaría por debajo de lo ya devuelto. Elimina primero la devolución.'; end if;
-  update public.contratos set valor_deposito=coalesce(valor_deposito,0)-m.monto where id=cid;
-  delete from public.movimientos_depositos where id=m.id;
- elsif p_origen='movimiento' then
-  delete from public.movimientos_depositos where id=m.id;
-  if m.devolucion_id is not null then delete from public.devoluciones_depositos where id=m.devolucion_id; end if;
- elsif p_origen='anterior' then delete from public.devoluciones_depositos where id=d.id;
- elsif p_origen='soporte' then delete from public.soportes_depositos_anteriores where contrato_id=s.contrato_id;
- else update public.entregas_bitacora set comprobante_deposito_path=null,metodo_deposito=null where id=e.id;
- end if;
- insert into public.depositos_ediciones(contrato_id,origen,registro_id,antes,despues,motivo,usuario_id) values(cid,p_origen,p_id::text,antes,'{"eliminado":true}',razon,auth.uid());
- insert into public.bitacora_contratos(contrato_id,accion,detalle,usuario) values(cid,'Movimiento de depósito eliminado',jsonb_build_object('registro',p_id,'antes',antes,'motivo',razon)::text,(select nombre from public.profiles where id=auth.uid()));
-end $$;
-create or replace function public.eliminar_movimiento_deposito(p_origen text,p_id uuid,p_motivo text) returns void language sql security invoker set search_path='' as $$ select private.eliminar_movimiento_deposito(p_origen,p_id,p_motivo); $$;
-revoke all on function private.eliminar_movimiento_deposito(text,uuid,text),public.eliminar_movimiento_deposito(text,uuid,text) from public,anon;
-grant execute on function private.eliminar_movimiento_deposito(text,uuid,text),public.eliminar_movimiento_deposito(text,uuid,text) to authenticated;
