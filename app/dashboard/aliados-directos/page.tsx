@@ -185,9 +185,47 @@ function AllySettings({types,onSaved}:{types:AllyType[];onSaved:(msg?:string)=>v
  const addType=async()=>{if(nuevo.trim().length<2)return;const {error:e}=await supabase.from('tipos_aliado').insert({nombre:nuevo.trim()});if(e)setError(e.message);else{setNuevo('');onSaved('Tipo de aliado agregado.');}};
  const toggle=async(t:AllyType)=>{const {error:e}=await supabase.from('tipos_aliado').update({activo:!t.activo}).eq('id',t.id);if(e)setError(e.message);else onSaved();};
  return <div style={{display:'grid',gap:16,gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))'}}>
+  <AgreementVersions/>
   <section className={styles.card}><h3 style={{fontWeight:900}}>Tipos de aliado</h3>
    <ul className={styles.alertList} style={{padding:0}}>{types.map(t=><li key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{opacity:t.activo?1:.5}}>{t.nombre}</span><button className={styles.button} onClick={()=>void toggle(t)}>{t.activo?'Desactivar':'Activar'}</button></li>)}</ul>
    <div className={styles.toolbar} style={{marginTop:10}}><label>Nuevo tipo<input value={nuevo} maxLength={60} onChange={e=>setNuevo(e.target.value)}/></label><div className={styles.actions}><button className={styles.button} onClick={()=>void addType()}>Agregar</button></div></div></section>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
  </div>;
+}
+
+type Agreement={version:number;archivo_nombre:string;secciones:ContractSection[];nota:string;subido_por_nombre:string|null;subido_en:string};
+const authHeader=async()=>{const {data}=await supabase.auth.getSession();return {Authorization:`Bearer ${data.session?.access_token||''}`};};
+/** Contrato de vinculación: Word versions of the agreement (never deleted; the latest is the one allies sign). */
+function AgreementVersions(){
+ const [rows,setRows]=useState<Agreement[]|null>(null),[file,setFile]=useState<File|null>(null),[nota,setNota]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState(''),[version,setVersion]=useState(0);
+ useEffect(()=>{
+  let live=true;
+  void supabase.from('acuerdos_aliado').select('version,archivo_nombre,secciones,nota,subido_por_nombre,subido_en').order('version',{ascending:false}).then(({data,error:e})=>{if(!live)return;if(e)setError(e.message);setRows((data||[]) as Agreement[]);});
+  return()=>{live=false;};
+ },[version]);
+ const upload=async()=>{
+  if(!file)return setError('Elige el Word (.docx) del acuerdo.');
+  setBusy(true);setError('');setNotice('');
+  try{const form=new FormData();form.append('archivo',file);form.append('nota',nota);
+   const r=await fetch('/api/aliados/acuerdo',{method:'POST',headers:await authHeader(),body:form}),d=await r.json().catch(()=>({}));
+   if(!r.ok)throw Error(d.error||'No se pudo subir el acuerdo.');
+   setFile(null);setNota('');setNotice(`Versión ${d.version} guardada. Es la que firmarán los aliados desde ahora.`);setVersion(v=>v+1);
+  }catch(e){setError(errText(e,'No se pudo subir el acuerdo.'));}finally{setBusy(false);}
+ };
+ const word=async(v:number)=>{const r=await fetch(`/api/aliados/acuerdo?version=${v}`,{headers:await authHeader()}),d=await r.json().catch(()=>({}));if(!r.ok)setError(d.error||'No se pudo descargar.');else window.location.href=d.url;};
+ const pdf=(a:Agreement)=>{const w=window.open('','_blank');if(!w)return;const esc=(t:string)=>t.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]!));
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>Acuerdo de aliado v${a.version}</title><body style="font-family:Arial;max-width:760px;margin:24px auto;font-size:13px;line-height:1.5">${a.secciones.map(x=>`${x.titulo?`<h3>${esc(x.titulo)}</h3>`:''}${x.parrafos.map(p=>`<p>${esc(p)}</p>`).join('')}`).join('')}</body>`);w.document.close();w.print();};
+ return <section className={styles.card} style={{gridColumn:'1/-1'}}><h3 style={{fontWeight:900}}>Contrato de vinculación</h3>
+  <p className={styles.help}>Sube el acuerdo en Word. Escribe en el Word <b>{'{nombre}'}</b>, <b>{'{cédula}'}</b>, <b>{'{tipo}'}</b> y <b>{'{fecha}'}</b> donde van los datos del aliado: se llenan solos al firmar. Cada versión queda guardada; la más reciente es la vigente.</p>
+  {error&&<p role="alert" className={styles.error}>{error}</p>}{notice&&<p role="status" className={styles.notice}>{notice}</p>}
+  <div className={styles.toolbar} style={{margin:'10px 0'}}>
+   <label>Acuerdo (.docx)<input type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={e=>setFile(e.target.files?.[0]||null)}/></label>
+   <label style={{flex:1}}>Nota de la versión<input value={nota} maxLength={500} onChange={e=>setNota(e.target.value)} placeholder="Ej.: cambio en la cláusula de entregas"/></label>
+   <div className={styles.actions}><button className={`${styles.button} ${styles.primary}`} disabled={busy||!file} onClick={()=>void upload()}>{busy?'Subiendo…':'Subir acuerdo'}</button></div>
+  </div>
+  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Versión</th><th>Fecha</th><th>Usuario</th><th>Nota</th><th></th></tr></thead>
+   <tbody>{(rows||[]).map((a,i)=><tr key={a.version}><td><b>v{a.version}</b>{i===0&&<small>Vigente</small>}</td><td>{new Date(a.subido_en).toLocaleString('es-CO',{timeZone:'America/Bogota'})}</td><td>{a.subido_por_nombre||'—'}</td><td>{a.nota||'—'}<small>{a.archivo_nombre}</small></td>
+    <td><div className={styles.actions}><button className={styles.button} onClick={()=>void word(a.version)}>Word</button><button className={styles.button} onClick={()=>pdf(a)}>PDF</button></div></td></tr>)}</tbody></table></div>
+  {rows&&!rows.length&&<p className={styles.empty}>Aún no has subido el acuerdo. Mientras tanto se firma el texto que trae el sistema.</p>}
+ </section>;
 }
