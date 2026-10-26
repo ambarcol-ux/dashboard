@@ -25,7 +25,7 @@ export type WhereIsMoney={desde:string;hasta:string;cuentas:MoneyAccountRow[];si
 export const CASH_METHODS=['Efectivo','Transferencia','Tarjeta','Otro'] as const;
 export const CASH_CATEGORIES={
  ingreso:['Pago de contrato','Base de caja','Venta de accesorios','Arreglos','Otro ingreso'],
- egreso:['Gasto operativo','Transporte','Compras e insumos','Nómina / anticipos','Consignación a banco','Comisiones aliados','Otro egreso'],
+ egreso:['Gasto operativo','Transporte','Compras e insumos','Nómina / anticipos','Consignación a banco','Otro egreso'],
 } as const;
 /** Opening float added during the day: cash put in the drawer with no sale behind it; it counts for the expected cash but not as income. */
 export const CASH_BASE='Base de caja';
