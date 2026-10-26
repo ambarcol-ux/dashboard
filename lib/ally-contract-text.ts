@@ -72,3 +72,9 @@ export function allyProfile(input:Record<string,unknown>):AllyProfile{
  return p;
 }
 
+/** Fills {nombre} {cédula} {tipo} {fecha} of the uploaded Word agreement with the ally's data. */
+export function fillAgreement(sections:ContractSection[],v:{nombre:string;cedula:string;tipo:string;fecha:string}):ContractSection[]{
+ const f=(s:string)=>s.replace(/\{\s*nombre\s*\}/gi,v.nombre).replace(/\{\s*c[eé]dula\s*\}/gi,v.cedula).replace(/\{\s*tipo\s*\}/gi,v.tipo).replace(/\{\s*fecha\s*\}/gi,v.fecha);
+ return sections.map(s=>({titulo:f(s.titulo),parrafos:s.parrafos.map(f),...(s.lista?{lista:s.lista.map(f)}:{})}));
+}
+export const agreementDate=(d:Date)=>d.toLocaleDateString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'long',year:'numeric'});
