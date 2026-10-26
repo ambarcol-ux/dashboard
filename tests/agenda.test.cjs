@@ -22,7 +22,7 @@ assert.equal(validateRule({accion:'BLOQUEAR',fecha_inicio:'2026-11-01',motivo:'A
 assert.equal(validateRule({accion:'BLOQUEAR',fecha_inicio:'2026-11-01',motivo:'Almuerzo',alcance:'dia',hora_inicio:'14:00',hora_fin:'12:00'},T),'La hora final debe ser posterior a la inicial.');
 assert.equal(validateRule({accion:'BLOQUEAR',fecha_inicio:'2026-11-01',motivo:'Vacaciones',alcance:'rango',fecha_fin:'2026-11-10'},T),null);
 const g=monthDays(2026,10);assert.equal(g[0],null);assert.equal(g.filter(Boolean).length,30);assert.equal(g.find(Boolean),'2026-11-01');assert.equal(g.indexOf('2026-11-02')%7,0);
-const csv=auditCsv([{id:'1',usuario:'Ana',tabla:'agenda_excepcion',registro_id:'x',accion:'BLOQUEAR',valor_anterior:null,valor_nuevo:{motivo:'a;b'},motivo:'Festivo',fecha:'2026-10-22T15:00:00Z'}]);
-assert(csv.startsWith('﻿Fecha;Usuario'));assert(csv.includes('"{""motivo"":""a;b""}"'));
+const csv=auditCsv([{id:'1',sede:'Barranquilla',usuario:'Ana',tabla:'agenda_excepcion',registro_id:'x',accion:'BLOQUEAR',valor_anterior:null,valor_nuevo:{motivo:'a;b'},motivo:'Festivo',fecha:'2026-10-22T15:00:00Z'}]);
+assert(csv.startsWith('﻿Fecha;Sede;Usuario'));assert(csv.includes(';Barranquilla;Ana;'));assert(csv.includes('"{""motivo"":""a;b""}"'));
 assert.equal(publicClosedLabel('Capacitación interna'),'Cerrado');assert.equal(publicClosedLabel('Lunes festivo'),'Festivo');assert.equal(publicClosedLabel('Sin cupos'),'Lleno');
 console.log('PASS agenda: slot and day colors, rule labels and validation, month grid, history CSV, public closed labels');

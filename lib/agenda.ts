@@ -1,11 +1,12 @@
 export type AgendaMode='presencial'|'virtual';
 export type AgendaSlot={fecha:string;hora:string;habilitado:boolean;cupo:number;reservadas:number;libres:number;origen:'base'|'excepcion'|'bloqueo'|'festivo'|'modalidad'|'fuera';motivo:string;en_base:boolean;pasado:boolean;excepcion_id:string|null};
 export type AgendaModeRow={modalidad:AgendaMode;estado:'ACTIVA'|'BLOQUEADA';bloqueada:boolean;motivo_bloqueo:string;reapertura_programada:string|null;cupo_defecto:number;actualizado_por_nombre:string|null;actualizado_en:string};
-export type AgendaBase={modalidad:AgendaMode;dia_semana:number;hora_inicio:string;hora_fin:string;cupo_defecto:number;activo:boolean};
-export type AgendaException={id:string;modalidad:AgendaMode;sede_id:string|null;sede:string|null;fecha_inicio:string;fecha_fin:string|null;dias_semana:number[]|null;hora_inicio:string|null;hora_fin:string|null;accion:'HABILITAR'|'BLOQUEAR';cupo:number|null;motivo:string;creado_por_nombre:string|null;creado_en:string};
-export type AgendaConfig={puede_configurar:boolean;puede_excepciones:boolean;modalidades:AgendaModeRow[];horario:AgendaBase[];excepciones:AgendaException[];sedes:{id:string;nombre:string}[]};
+export type AgendaBase={sede_id?:string;modalidad:AgendaMode;dia_semana:number;hora_inicio:string;hora_fin:string;cupo_defecto:number;activo:boolean};
+export type AgendaException={editable?:boolean;id:string;modalidad:AgendaMode;sede_id:string|null;sede:string|null;fecha_inicio:string;fecha_fin:string|null;dias_semana:number[]|null;hora_inicio:string|null;hora_fin:string|null;accion:'HABILITAR'|'BLOQUEAR';cupo:number|null;motivo:string;creado_por_nombre:string|null;creado_en:string};
+export type AgendaSedeMode=Omit<AgendaModeRow,'modalidad'>&{sede_id:string;modalidad:AgendaMode;cerrar_lunes_festivos:boolean};
+export type AgendaConfig={propietario:boolean;sedes_editables:string[];mi_sede:string|null;sede_modalidad:AgendaSedeMode[];puede_configurar:boolean;puede_excepciones:boolean;modalidades:AgendaModeRow[];horario:AgendaBase[];excepciones:AgendaException[];sedes:{id:string;nombre:string}[]};
 export type AgendaPreview={slots_bloqueados:number;slots_habilitados:number;cupo_cambia:number;sobrecupo:number;citas:{id:string;fecha:string;hora:string;cliente:string;telefono:string;sede:string|null;estado:string}[]};
-export type AgendaAudit={id:string;usuario:string|null;tabla:string;registro_id:string|null;accion:string;valor_anterior:Record<string,unknown>|null;valor_nuevo:Record<string,unknown>|null;motivo:string;fecha:string};
+export type AgendaAudit={id:string;sede:string|null;usuario:string|null;tabla:string;registro_id:string|null;accion:string;valor_anterior:Record<string,unknown>|null;valor_nuevo:Record<string,unknown>|null;motivo:string;fecha:string};
 
 export const WEEKDAYS=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
 export const WEEKDAYS_SHORT=['L','M','X','J','V','S','D'];
@@ -77,8 +78,8 @@ export function validateRule(r:{accion:string;fecha_inicio:string;fecha_fin?:str
 const cell=(v:unknown)=>{const t=v==null?'':typeof v==='object'?JSON.stringify(v):String(v);return /[";\n]/.test(t)?`"${t.replace(/"/g,'""')}"`:t;};
 /** History as CSV (semicolon, opens in Excel). */
 export function auditCsv(rows:AgendaAudit[]){
- const head=['Fecha','Usuario','Tabla','Registro','Acción','Valor anterior','Valor nuevo','Motivo'];
- return '﻿'+[head,...rows.map(r=>[new Date(r.fecha).toLocaleString('es-CO',{timeZone:'America/Bogota'}),r.usuario,r.tabla,r.registro_id,r.accion,r.valor_anterior,r.valor_nuevo,r.motivo])].map(r=>r.map(cell).join(';')).join('\n');
+ const head=['Fecha','Sede','Usuario','Tabla','Registro','Acción','Valor anterior','Valor nuevo','Motivo'];
+ return '﻿'+[head,...rows.map(r=>[new Date(r.fecha).toLocaleString('es-CO',{timeZone:'America/Bogota'}),r.sede,r.usuario,r.tabla,r.registro_id,r.accion,r.valor_anterior,r.valor_nuevo,r.motivo])].map(r=>r.map(cell).join(';')).join('\n');
 }
 /** Public label for a closed day (internal reasons are not shown to clients). */
 export const publicClosedLabel=(motivo:string|null|undefined)=>motivo==='Lunes festivo'?'Festivo':motivo==='Sin cupos'?'Lleno':'Cerrado';
