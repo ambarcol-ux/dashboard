@@ -21,7 +21,8 @@ export async function POST(request:Request){
   if(!auth.user)return reply({error:'Inicia sesión.'},401);
   // Only administration can read the AMBAR contract data (RLS), which doubles as the permission check.
   const [{data:config},{data:ally}]=await Promise.all([userDb.from('aliados_contrato_config').select('*').eq('id',1).maybeSingle(),userDb.from(directo?'aliados':'referidores').select('id').eq('id',id).maybeSingle()]);
-  if(!config)return reply({error:'Solo administración puede generar el enlace del contrato.'},403);
+  const {data:perms}=directo?await userDb.rpc('mis_permisos'):{data:null};
+  if(!config&&!(directo&&(perms as string[]|null)?.includes('aliados.gestionar')))return reply({error:'Solo administración puede generar el enlace del contrato.'},403);
   if(!ally)return reply({error:'Aliado no encontrado.'},404);
   const {data:acuerdo}=directo?await userDb.from('acuerdos_aliado').select('version').limit(1).maybeSingle():{data:null};
   const missing=acuerdo?[]:missingConfig(config);
