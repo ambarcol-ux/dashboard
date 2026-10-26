@@ -6,10 +6,11 @@ import AllyContractText from '@/components/AllyContractText';
 import {supabase} from '@/lib/supabase';
 import {CASH_RECEIPT_TYPES} from '@/lib/cash';
 import type {ContractSection} from '@/lib/ally-contract-text';
+import {CLIENT_STATES,clientId,type AllyClient} from '@/lib/ally-clients';
 import {ALLY_STATUS,allyLinks,onlyDigits,type AllyType,type DirectAlly} from '@/lib/direct-allies';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Tab='perfiles'|'config';
+type Tab='perfiles'|'clientas'|'config';
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
 const errText=(e:unknown,fallback:string)=>e&&typeof e==='object'&&'message' in e?String((e as {message:string}).message):fallback;
 const chip=(cls:string,label:string)=><span className={`inline-block px-3 py-1 rounded-full border text-xs font-bold ${cls}`}>{label}</span>;
@@ -48,7 +49,7 @@ function DirectAllies({profile}:{profile:ShellProfile}){
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   <div className={styles.tabs}>
-   {([['perfiles','Perfiles'],...(isAdmin?[['config','Configuración']]:[])] as [Tab,string][]).map(([k,l])=><button key={k} className={`${styles.tab} ${tab===k?styles.tabActive:''}`} onClick={()=>setTab(k)}>{l}</button>)}
+   {([['perfiles','Perfiles'],['clientas','Clientas'],...(isAdmin?[['config','Configuración']]:[])] as [Tab,string][]).map(([k,l])=><button key={k} className={`${styles.tab} ${tab===k?styles.tabActive:''}`} onClick={()=>setTab(k)}>{l}</button>)}
   </div>
   {isAdmin&&allies.some(a=>a.estado==='pendiente')&&<p className={styles.banner+' '+styles.open}>{allies.filter(a=>a.estado==='pendiente').length} aliado(s) firmaron y esperan aprobación. Ábrelos para aprobar o rechazar.</p>}
   {gestion&&(cambios>0||sinValidar>0)&&<p className={styles.banner+' '+styles.open}>{cambios>0&&`${cambios} cambio(s) de cuenta bancaria esperan aprobación de Contabilidad. `}{sinValidar>0&&`${sinValidar} cuenta(s) sin validar.`}</p>}
@@ -69,6 +70,7 @@ function DirectAllies({profile}:{profile:ShellProfile}){
    {!list.length&&<p className={styles.empty}>{loaded?(isAdmin?'Aún no hay aliados. Crea el primero con «Nuevo aliado».':'No hay aliados para tu sede.'):'Cargando…'}</p>}
   </section>}
 
+  {tab==='clientas'&&<AllyClients allies={allies}/>}
   {tab==='config'&&isAdmin&&<AllySettings types={types} onSaved={reload}/>}
   {editing&&<AllyForm ally={editing==='nuevo'?null:editing} types={types} sedes={sedes} onClose={()=>setEditing(null)} onSaved={msg=>{setEditing(null);reload(msg);}}/>}
   {detail&&<AllyDetail ally={detail} isAdmin={isAdmin} gestion={gestion} onClose={()=>setDetailId(null)} onEdit={()=>{setEditing(detail);setDetailId(null);}} onChanged={reload}/>}
@@ -249,5 +251,34 @@ function AgreementVersions(){
    <tbody>{(rows||[]).map((a,i)=><tr key={a.version}><td><b>v{a.version}</b>{i===0&&<small>Vigente</small>}</td><td>{new Date(a.subido_en).toLocaleString('es-CO',{timeZone:'America/Bogota'})}</td><td>{a.subido_por_nombre||'—'}</td><td>{a.nota||'—'}<small>{a.archivo_nombre}</small></td>
     <td><div className={styles.actions}><button className={styles.button} onClick={()=>void word(a.version)}>Word</button><button className={styles.button} onClick={()=>pdf(a)}>PDF</button></div></td></tr>)}</tbody></table></div>
   {rows&&!rows.length&&<p className={styles.empty}>Aún no has subido el acuerdo. Mientras tanto se firma el texto que trae el sistema.</p>}
+ </section>;
+}
+
+/** Clients registered by each ally (public form): data, authorizations and state. */
+function AllyClients({allies}:{allies:DirectAlly[]}){
+ const [rows,setRows]=useState<AllyClient[]|null>(null),[q,setQ]=useState(''),[error,setError]=useState(''),[version,setVersion]=useState(0);
+ useEffect(()=>{
+  let live=true;
+  void supabase.from('aliado_clientas').select('*').order('creado_en',{ascending:false}).then(({data,error:e})=>{if(!live)return;if(e)setError(e.message);setRows((data||[]) as AllyClient[]);});
+  return()=>{live=false;};
+ },[version]);
+ const name=(id:string)=>allies.find(a=>a.id===id)?.nombre||'—';
+ const change=async(r:AllyClient,estado:string)=>{const {error:e}=await supabase.rpc('estado_clienta_aliado',{p_id:r.id,p_estado:estado});if(e)setError(e.message);else setVersion(v=>v+1);};
+ const text=q.trim().toLowerCase();
+ const list=(rows||[]).filter(r=>!text||`${clientId(r.numero)} ${r.clienta_nombre} ${r.clienta_documento} ${r.rep_nombre||''} ${name(r.aliado_id)}`.toLowerCase().includes(text));
+ return <section className={styles.card}>
+  {error&&<p role="alert" className={styles.error}>{error}</p>}
+  <div className={styles.toolbar} style={{marginBottom:12}}><label>Buscar<input value={q} onChange={e=>setQ(e.target.value)} placeholder="ID, nombre, documento o aliado"/></label></div>
+  <div className={styles.tableScroll}><table className={styles.table}>
+   <thead><tr><th>ID</th><th>Clienta</th><th>Evento</th><th>Contacto</th><th>Aliado</th><th>Autorizaciones</th><th>Estado</th></tr></thead>
+   <tbody>{list.map(r=><tr key={r.id}><td><b>{clientId(r.numero)}</b><small>{new Date(r.creado_en).toLocaleDateString('es-CO')}</small></td>
+    <td>{r.clienta_nombre}<small>{r.clienta_menor?'T.I.':'C.C.'} {r.clienta_documento}</small></td>
+    <td>{r.tipo_evento==='XV'?'XV años':'Gala'} · {r.categoria}<small>{r.fecha_evento.split('-').reverse().join('/')}</small></td>
+    <td>{r.rep_nombre?<>{r.rep_nombre} ({r.rep_parentesco})<small>{r.rep_celular} · {r.rep_correo}</small></>:<>{r.clienta_celular}<small>{r.clienta_correo}</small></>}</td>
+    <td>{name(r.aliado_id)}</td>
+    <td><small>Datos {new Date(r.autoriza_datos_at).toLocaleString('es-CO',{timeZone:'America/Bogota'})}<br/>Imagen: {r.uso_imagen?'Sí':'No'} · Publicidad: {r.publicidad?'Sí':'No'}</small></td>
+    <td><select value={r.estado} onChange={e=>void change(r,e.target.value)}>{CLIENT_STATES.map(x=><option key={x}>{x}</option>)}</select></td></tr>)}</tbody>
+  </table></div>
+  {rows&&!list.length&&<p className={styles.empty}>Aún no hay clientas registradas por aliados.</p>}
  </section>;
 }
