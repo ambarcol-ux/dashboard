@@ -29,3 +29,18 @@ export function allyClientSignup(input:Record<string,unknown>,today:string){
  if(d.uso_imagen===null)throw Error('Responde Sí o No al uso de imagen en redes.');
  return d as typeof d&{uso_imagen:boolean};
 }
+
+// Contract in Aliado mode (paso 5): the ally is the contract's client; 5% discount on the dress line; 50% minimum payment.
+export type ContractAlly={id:string;nombre:string;cedula:string;codigo:string|null;celular:string;correo:string;direccion:string;tipo:string};
+export type ContractAllyModeValue={tiene:boolean;aliado:ContractAlly|null;clienta:AllyClient|null;categoria:string};
+export const EMPTY_ALLY_MODE:ContractAllyModeValue={tiene:false,aliado:null,clienta:null,categoria:''};
+export const ALLY_DISCOUNT=0.05;
+/** Columns saved on the contract for the Aliado mode (Cliente directo clears them in the database). */
+export const allyModePayload=(v:ContractAllyModeValue,descuento:number)=>({tiene_aliado:v.tiene,aliado_id:v.tiene?v.aliado?.id??null:null,aliado_clienta_id:v.tiene?v.clienta?.id??null:null,categoria_aliado:v.tiene?v.categoria||null:null,descuento_aliado:v.tiene?descuento:0});
+export function allyModeError(v:ContractAllyModeValue,total:number,anticipo:number){
+ if(!v.tiene)return null;
+ if(!v.aliado)return 'En modo Aliado busca y carga el aliado.';
+ if(!v.clienta)return 'Carga la clienta del aliado (ID, tarjeta de identidad o cédula del representante).';
+ if(anticipo<Math.round(total*0.5))return `En modo Aliado el pago mínimo para crear el contrato es el 50% (${new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Math.round(total*0.5))}).`;
+ return null;
+}

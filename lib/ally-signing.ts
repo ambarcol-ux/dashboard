@@ -29,7 +29,7 @@ export async function finishAllySigning(db:Db,ally:{id:string;nombre:string;cedu
  const pdf=allyAgreementPdf(texto,firma,`Firmado digitalmente por ${ally.nombre} (C.C. ${ally.cedula}) el ${now.toLocaleString('es-CO',{timeZone:'America/Bogota'})} · Versión ${version} · Código de verificación ${codigo}`);
  const pdfPath=`${ally.id}/acuerdo/${codigo}.pdf`;
  const {error:up}=await db.storage.from('aliados_documentos').upload(pdfPath,pdf,{contentType:'application/pdf',upsert:true});
- await db.from('aliados').update({estado:'pendiente',acuerdo_version:version,datos_autorizados_at:now.toISOString(),datos_texto_version:ALLY_CONTRACT_VERSION,acuerdo_pdf_path:up?null:pdfPath}).eq('id',ally.id).in('estado',['pendiente_firma','pendiente']);
+ await db.from('aliados').update({estado:'pendiente',acuerdo_version:version,datos_autorizados_at:now.toISOString(),datos_texto_version:ALLY_CONTRACT_VERSION,acuerdo_pdf_path:up?null:pdfPath,vigente_hasta:`${Number(now.toLocaleDateString('en-CA',{timeZone:'America/Bogota'}).slice(0,4))+1}${now.toLocaleDateString('en-CA',{timeZone:'America/Bogota'}).slice(4)}`}).eq('id',ally.id).in('estado',['pendiente_firma','pendiente']);
  const origin=process.env.FIRST_VISIT_PUBLIC_ORIGIN?.replace(/\/$/,'')||new URL(request.url).origin;
  const {data:admins}=await db.from('profiles').select('email').eq('rol','admin').eq('activo',true);
  await Promise.all([

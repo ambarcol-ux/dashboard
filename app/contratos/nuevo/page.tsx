@@ -8,6 +8,7 @@ import PreXvFields from '@/components/PreXvFields';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { initialDepositAmount } from '@/lib/initial-deposit';
 import { contractSuggestedDeposit } from '@/lib/deposit-rules';
+import ContractAllyMode, { ALLY_DISCOUNT, EMPTY_ALLY_MODE, allyModeError, allyModePayload, type ContractAllyModeValue } from '@/components/ContractAllyMode';
 import ContractRetabloSection, { EMPTY_CONTRACT_RETABLO, retabloError, saveContractRetablo, type ContractRetabloValue } from '@/components/retablos/ContractRetabloSection';
 import { type PrexvData } from '@/lib/prexv';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -108,6 +109,18 @@ export default function NuevoContratoPage() {
   const [prexv, setPrexv] = useState<PrexvData>({ prexv_componentes: [] });
   const [retablo, setRetablo] = useState<ContractRetabloValue>(EMPTY_CONTRACT_RETABLO);
   const [hadRetablo, setHadRetablo] = useState(false);
+  const [aliadoModo, setAliadoModo] = useState<ContractAllyModeValue>(EMPTY_ALLY_MODE);
+  const valorAlquilerNum = parseFloat(String(formData.valor_total).replace(/[^0-9.-]+/g, '')) || 0;
+  // Aliado: 5% discount only on the dress line (rental value).
+  const descuentoAliado = aliadoModo.tiene ? Math.round(valorAlquilerNum * ALLY_DISCOUNT) : 0;
+  const aliadoModoError = () => isEditMode ? (aliadoModo.tiene && !aliadoModo.aliado ? 'En modo Aliado busca y carga el aliado.' : null)
+    : allyModeError(aliadoModo, Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0), parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, '')) || 0);
+  const sendAllyMeasures = async (contratoId: string) => {
+    if (!aliadoModo.tiene) return;
+    const { data: s } = await supabase.auth.getSession();
+    const r = await fetch('/api/aliados/medidas', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.session?.access_token || ''}` }, body: JSON.stringify({ accion: 'crear', contrato_id: contratoId }) }).catch(() => null);
+    if (!r?.ok) toast.error('El contrato se guardó, pero no se pudo enviar al aliado el enlace de medidas. Reenvíalo desde Aliados Directos › Medidas.');
+  };
   const syncRetablo = async (contractId: string) => {
     const err = await saveContractRetablo(contractId, retablo, hadRetablo);
     if (err) toast.error(`El contrato se guardó, pero el retablo no se registró: ${err}`);
@@ -339,6 +352,11 @@ export default function NuevoContratoPage() {
           deposito_titular: contract.titular_cuenta_deposito || '',
           autoriza_uso_imagen: Boolean(contract.autoriza_uso_imagen)
         });
+        if (contract.tiene_aliado && contract.aliado_id) {
+          const d = contract.aliado_datos || {};
+          const { data: cl } = contract.aliado_clienta_id ? await supabase.from('aliado_clientas').select('*').eq('id', contract.aliado_clienta_id).maybeSingle() : { data: null };
+          setAliadoModo({ tiene: true, aliado: { id: contract.aliado_id, nombre: d.nombre || '', cedula: d.cedula || '', codigo: d.codigo || null, celular: d.celular || '', correo: d.correo || '', direccion: d.direccion || '', tipo: d.tipo || '' }, clienta: cl, categoria: contract.categoria_aliado || cl?.categoria || '' });
+        }
 
         setPrexv({
           prexv_componentes: contract.prexv_componentes || [],
@@ -680,9 +698,9 @@ export default function NuevoContratoPage() {
     setTotalArreglos(sumArreglos);
 
     // Saldo Final Real = Valor Alquiler Base + Servicios Extra + Costo Arreglos - Descuento VIP - Abono Inicial
-    const nuevoSaldo = (valorAlquiler + serviciosExtra + sumArreglos) - vipDiscount - anticipo;
+    const nuevoSaldo = (valorAlquiler + serviciosExtra + sumArreglos) - vipDiscount - descuentoAliado - anticipo;
     setSaldoCalc(Math.max(0, nuevoSaldo));
-  }, [formData.valor_total, formData.servicios_adicionales, formData.anticipo, arreglos, vipDiscount]);
+  }, [formData.valor_total, formData.servicios_adicionales, formData.anticipo, arreglos, vipDiscount, descuentoAliado]);
 
 
   // -- Manejadores VIP --
@@ -995,6 +1013,8 @@ export default function NuevoContratoPage() {
     }
     const errorRetabloSolicitud = retabloError(retablo);
     if (errorRetabloSolicitud) { toast.error(errorRetabloSolicitud); return; }
+    const errorAliadoModo = aliadoModoError();
+    if (errorAliadoModo) { toast.error(errorAliadoModo); return; }
     setIsSubmittingException(true);
     try {
       // 1. Resolver IDs de vestidos primero
@@ -1042,7 +1062,7 @@ export default function NuevoContratoPage() {
       const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
       const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
       
-      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount);
+      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado);
       const verdaderoValorTotal = valorAlquilerConDescuento + serviciosAdicionales;
 
       assertFirstVisitReady();
@@ -1080,6 +1100,7 @@ export default function NuevoContratoPage() {
         anticipo: abonoInicial,
         total_arreglos: totalArreglos,
         valor_deposito: depositoInicial,
+        ...allyModePayload(aliadoModo, descuentoAliado),
 
         // Garantías/Depósitos
       banco_deposito: formData.deposito_banco || null,
@@ -1110,6 +1131,7 @@ export default function NuevoContratoPage() {
         .single();
 
       if (errC) throw errC;
+      if (newDoc?.id) await sendAllyMeasures(newDoc.id);
       if (newDoc?.id) await syncRetablo(newDoc.id);
 
       // Quema del código VIP (si fue usado)
@@ -1195,7 +1217,7 @@ export default function NuevoContratoPage() {
 
     const valorAlquilerBase = parseFloat(String(formData.valor_total).replace(/[^0-9.-]+/g, "")) || 0;
     const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
-    const verdaderoValorTotal = Math.max(0, valorAlquilerBase - vipDiscount) + serviciosAdicionales;
+    const verdaderoValorTotal = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado) + serviciosAdicionales;
     const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
 
     const datos = {
@@ -1222,6 +1244,7 @@ export default function NuevoContratoPage() {
       valor_total: verdaderoValorTotal,
       anticipo: abonoInicial,
       total_arreglos: totalArreglos,
+      ...allyModePayload(aliadoModo, descuentoAliado),
       banco_deposito: formData.deposito_banco || null,
       tipo_cuenta_deposito: formData.deposito_tipo_cuenta || null,
       numero_cuenta_deposito: formData.deposito_numero || null,
@@ -1286,6 +1309,8 @@ export default function NuevoContratoPage() {
 
     const errorRetablo = retabloError(retablo);
     if (errorRetablo) { toast.error(errorRetablo); return; }
+    const errorModo = aliadoModoError();
+    if (errorModo) { toast.error(errorModo); return; }
 
     // 0. Validación de Vestido Obligatorio
     const hasValidDress = vestidos.some(v => v.vestido_id || v.referencia.trim().length > 0);
@@ -1396,7 +1421,7 @@ export default function NuevoContratoPage() {
       const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
       const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
       
-      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount);
+      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado);
       const verdaderoValorTotal = valorAlquilerConDescuento + serviciosAdicionales;
 
       // 5. Inserción ERP: Mapeo Estricto de Columnas
@@ -1435,6 +1460,7 @@ export default function NuevoContratoPage() {
         anticipo: abonoInicial,
         total_arreglos: totalArreglos,
         valor_deposito: depositoInicial,
+        ...allyModePayload(aliadoModo, descuentoAliado),
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
@@ -1463,6 +1489,7 @@ export default function NuevoContratoPage() {
 
       if (insertError) throw insertError;
       if (insertedContract?.id) await syncRetablo(insertedContract.id);
+      if (insertedContract?.id) await sendAllyMeasures(insertedContract.id);
 
       // REGISTRO DE RECAUDO REAL: Si hay abono inicial, insertarlo inmediatamente en la tabla 'pagos'
       if (abonoInicial > 0 && insertedContract) {
@@ -1682,6 +1709,11 @@ export default function NuevoContratoPage() {
           )}
 
 
+          <ContractAllyMode value={aliadoModo} onChange={setAliadoModo} descuento={descuentoAliado} numero={editingContractNumber}
+            total={Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0)}
+            disabled={isEditMode && !['borrador','pendiente_admin'].includes(String(editingContractState).toLowerCase()) && String(userRole).toLowerCase() !== 'admin'}
+            onAlly={a => setFormData(prev => ({ ...prev, cliente_nombre: a.nombre, cliente_documento: a.cedula, cliente_email: a.correo, whatsapp: a.celular, direccion: a.direccion }))}
+            onClienta={c => setFormData(prev => ({ ...prev, quinceanera_name: c.clienta_nombre, fecha_evento: prev.fecha_evento || c.fecha_evento }))} />
           {/* SECCIÓN 1: DATOS BÁSICOS */}
           <section className="space-y-6">
             <h2 className="text-2xl font-bold border-b border-gray-200 pb-2 text-gray-800 flex items-center gap-2">

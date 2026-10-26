@@ -6,11 +6,12 @@ import AllyContractText from '@/components/AllyContractText';
 import {supabase} from '@/lib/supabase';
 import {CASH_RECEIPT_TYPES} from '@/lib/cash';
 import type {ContractSection} from '@/lib/ally-contract-text';
+import {AllyMeasures,AllyShipments,AllyStats,MeasureSettings} from '@/components/allies/AllyOps';
 import {CLIENT_STATES,clientId,type AllyClient} from '@/lib/ally-clients';
 import {ALLY_STATUS,allyLinks,onlyDigits,type AllyType,type DirectAlly} from '@/lib/direct-allies';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Tab='perfiles'|'clientas'|'config';
+type Tab='perfiles'|'clientas'|'medidas'|'envios'|'estadisticas'|'config';
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
 const errText=(e:unknown,fallback:string)=>e&&typeof e==='object'&&'message' in e?String((e as {message:string}).message):fallback;
 const chip=(cls:string,label:string)=><span className={`inline-block px-3 py-1 rounded-full border text-xs font-bold ${cls}`}>{label}</span>;
@@ -49,7 +50,7 @@ function DirectAllies({profile}:{profile:ShellProfile}){
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   <div className={styles.tabs}>
-   {([['perfiles','Perfiles'],['clientas','Clientas'],...(isAdmin?[['config','Configuración']]:[])] as [Tab,string][]).map(([k,l])=><button key={k} className={`${styles.tab} ${tab===k?styles.tabActive:''}`} onClick={()=>setTab(k)}>{l}</button>)}
+   {([['perfiles','Perfiles'],['clientas','Clientas'],['medidas','Medidas'],['envios','Envíos'],['estadisticas','Estadísticas'],...(isAdmin?[['config','Configuración']]:[])] as [Tab,string][]).map(([k,l])=><button key={k} className={`${styles.tab} ${tab===k?styles.tabActive:''}`} onClick={()=>setTab(k)}>{l}</button>)}
   </div>
   {isAdmin&&allies.some(a=>a.estado==='pendiente')&&<p className={styles.banner+' '+styles.open}>{allies.filter(a=>a.estado==='pendiente').length} aliado(s) firmaron y esperan aprobación. Ábrelos para aprobar o rechazar.</p>}
   {gestion&&(cambios>0||sinValidar>0)&&<p className={styles.banner+' '+styles.open}>{cambios>0&&`${cambios} cambio(s) de cuenta bancaria esperan aprobación de Contabilidad. `}{sinValidar>0&&`${sinValidar} cuenta(s) sin validar.`}</p>}
@@ -71,6 +72,9 @@ function DirectAllies({profile}:{profile:ShellProfile}){
   </section>}
 
   {tab==='clientas'&&<AllyClients allies={allies}/>}
+  {tab==='medidas'&&<AllyMeasures/>}
+  {tab==='envios'&&<AllyShipments/>}
+  {tab==='estadisticas'&&<AllyStats/>}
   {tab==='config'&&isAdmin&&<AllySettings types={types} onSaved={reload}/>}
   {editing&&<AllyForm ally={editing==='nuevo'?null:editing} types={types} sedes={sedes} onClose={()=>setEditing(null)} onSaved={msg=>{setEditing(null);reload(msg);}}/>}
   {detail&&<AllyDetail ally={detail} isAdmin={isAdmin} gestion={gestion} onClose={()=>setDetailId(null)} onEdit={()=>{setEditing(detail);setDetailId(null);}} onChanged={reload}/>}
@@ -210,6 +214,7 @@ function AllySettings({types,onSaved}:{types:AllyType[];onSaved:(msg?:string)=>v
  const toggle=async(t:AllyType)=>{const {error:e}=await supabase.from('tipos_aliado').update({activo:!t.activo}).eq('id',t.id);if(e)setError(e.message);else onSaved();};
  return <div style={{display:'grid',gap:16,gridTemplateColumns:'repeat(auto-fit,minmax(320px,1fr))'}}>
   <AgreementVersions/>
+  <MeasureSettings/>
   <section className={styles.card}><h3 style={{fontWeight:900}}>Tipos de aliado</h3>
    <ul className={styles.alertList} style={{padding:0}}>{types.map(t=><li key={t.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}><span style={{opacity:t.activo?1:.5}}>{t.nombre}</span><button className={styles.button} onClick={()=>void toggle(t)}>{t.activo?'Desactivar':'Activar'}</button></li>)}</ul>
    <div className={styles.toolbar} style={{marginTop:10}}><label>Nuevo tipo<input value={nuevo} maxLength={60} onChange={e=>setNuevo(e.target.value)}/></label><div className={styles.actions}><button className={styles.button} onClick={()=>void addType()}>Agregar</button></div></div></section>
