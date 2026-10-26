@@ -5,10 +5,10 @@ import {CheckCircle,Eraser,Loader2,PenTool} from 'lucide-react';
 import AllyContractText from '@/components/AllyContractText';
 import {agreementDate,allyContractText,fillAgreement,type AllyContractConfig,type ContractSection} from '@/lib/ally-contract-text';
 
-type Info={tipos:{id:number;nombre:string}[];acuerdo:ContractSection[]|null;config:AllyContractConfig|null;autorizacion:ContractSection};
+type Info={tipos:{id:number;nombre:string}[];sedes:{id:string;nombre:string}[];acuerdo:ContractSection[]|null;config:AllyContractConfig|null;autorizacion:ContractSection};
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
 const FIELDS:[string,string,string?][]=[['nombre_completo','Nombre completo'],['cedula','Cédula','numeric'],['celular','Celular','tel'],['correo','Correo electrónico','email'],['direccion','Dirección'],['banco','Banco'],['numero_cuenta','Número de cuenta','numeric'],['titular_cuenta','Titular de la cuenta']];
-const EMPTY:Record<string,string>={nombre_completo:'',cedula:'',celular:'',correo:'',direccion:'',tipo_aliado_id:'',banco:'',tipo_cuenta:'',numero_cuenta:'',titular_cuenta:''};
+const EMPTY:Record<string,string>={nombre_completo:'',cedula:'',celular:'',correo:'',direccion:'',tipo_aliado_id:'',sede_principal:'',banco:'',tipo_cuenta:'',numero_cuenta:'',titular_cuenta:''};
 
 /** Public sign-up of Aliados Directos: form, data authorization, agreement signature; the request stays Pendiente. */
 export default function AllySignupPage(){
@@ -49,6 +49,7 @@ export default function AllySignupPage(){
     <section className={card}><h2 className="font-black text-gray-900 mb-4">1. Tus datos</h2>
      <div className="grid sm:grid-cols-2 gap-3">
       <label className="text-xs font-bold text-gray-600 sm:col-span-2">Tipo de aliado<select className={input} value={datos.tipo_aliado_id} onChange={e=>setDatos({...datos,tipo_aliado_id:e.target.value})}><option value="">Selecciona…</option>{info.tipos.map(t=><option key={t.id} value={t.id}>{t.nombre}</option>)}</select></label>
+      <label className="text-xs font-bold text-gray-600 sm:col-span-2">Sede de Ámbar Couture con la que trabajas<select className={input} value={datos.sede_principal} onChange={e=>setDatos({...datos,sede_principal:e.target.value})}><option value="">Selecciona…</option>{info.sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
       {FIELDS.map(([k,label,type])=><label key={k} className="text-xs font-bold text-gray-600">{label}<input className={input} inputMode={type==='numeric'?'numeric':undefined} type={type==='email'?'email':type==='tel'?'tel':'text'} value={datos[k]} onChange={e=>setDatos({...datos,[k]:e.target.value})}/></label>)}
       <label className="text-xs font-bold text-gray-600">Tipo de cuenta<select className={input} value={datos.tipo_cuenta} onChange={e=>setDatos({...datos,tipo_cuenta:e.target.value})}><option value="">Selecciona…</option>{ACCOUNT_TYPES.map(t=><option key={t}>{t}</option>)}</select></label>
       <label className="text-xs font-bold text-gray-600 sm:col-span-2">Certificación bancaria (PDF o foto, obligatoria)<input className={input} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setCert(e.target.files?.[0]||null)}/></label>

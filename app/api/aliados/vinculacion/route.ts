@@ -5,15 +5,16 @@ import {ALLY_CONTRACT_VERSION,DATA_AUTHORIZATION,type AllyProfile} from '@/lib/a
 export const dynamic='force-dynamic';
 
 const CERT_TYPES:Record<string,string>={'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'};
+const sedesActivas=(db:ReturnType<typeof publicServerClient>)=>db.from('sedes').select('id,nombre').eq('activo',true).order('nombre');
 const tiposActivos=(db:ReturnType<typeof publicServerClient>)=>db.from('tipos_aliado').select('id,nombre').eq('activo',true).not('prefijo','is',null).order('nombre');
 
 /** Public sign-up link (/aliados/vincular): types, agreement (fields shown as placeholders) and data authorization. */
 export async function GET(){
  try{
-  const db=publicServerClient(),[{data:tipos,error},agreement]=await Promise.all([tiposActivos(db),loadAgreement(db)]);
+  const db=publicServerClient(),[{data:tipos,error},agreement,{data:sedes}]=await Promise.all([tiposActivos(db),loadAgreement(db),sedesActivas(db)]);
   if(error)throw error;
   if(!agreement.ready)return publicReply({error:'La vinculación de aliados aún no está disponible. Intenta más tarde.'},409);
-  return publicReply({tipos,acuerdo:agreement.acuerdo?.secciones||null,config:agreement.acuerdo?null:agreement.config,autorizacion:DATA_AUTHORIZATION});
+  return publicReply({tipos,sedes:sedes||[],acuerdo:agreement.acuerdo?.secciones||null,config:agreement.acuerdo?null:agreement.config,autorizacion:DATA_AUTHORIZATION});
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
 }
 
@@ -28,10 +29,10 @@ export async function POST(request:Request){
   if(form.get('acepta')!=='true')return publicReply({error:'Debes aceptar el acuerdo de vinculación.'},400);
   if(!validSignature(firma))return publicReply({error:'Dibuja tu firma en el recuadro.'},400);
   if(!(cert instanceof File)||!CERT_TYPES[cert.type]||cert.size>10*1024*1024)return publicReply({error:'Adjunta la certificación bancaria (PDF, JPG, PNG o WebP de máximo 10 MB).'},400);
-  const db=publicServerClient(),[{data:tipos},agreement]=await Promise.all([tiposActivos(db),loadAgreement(db)]);
+  const db=publicServerClient(),[{data:tipos},agreement,{data:sedes}]=await Promise.all([tiposActivos(db),loadAgreement(db),sedesActivas(db)]);
   if(!agreement.ready)return publicReply({error:'La vinculación de aliados aún no está disponible.'},409);
   let d;
-  try{d=allySignup(input,(tipos||[]).map(t=>t.id));}catch(e){return publicReply({error:e instanceof Error?e.message:'Revisa tus datos.'},400);}
+  try{d=allySignup(input,(tipos||[]).map(t=>t.id),(sedes||[]).map(s=>s.id));}catch(e){return publicReply({error:e instanceof Error?e.message:'Revisa tus datos.'},400);}
   const {data:dup}=await db.from('aliados').select('id').eq('cedula',d.cedula).limit(1);
   if(dup?.length)return publicReply({error:'Esta cédula ya está registrada como aliado. Comunícate con Ámbar Couture.'},409);
   const {data:ally,error}=await db.from('aliados').insert({...d,estado:'pendiente_firma',origen:'enlace'}).select('id').single();
