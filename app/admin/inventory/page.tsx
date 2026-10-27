@@ -55,6 +55,7 @@ export default function InventoryPage() {
   const [dossierTransfers, setDossierTransfers] = useState<any[]>([]);
   const [dossierLoading, setDossierLoading] = useState(false);
 
+  const [editingDress, setEditingDress] = useState<EditableDress | null>(null);
   // -- Modal de Traslado --
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferVestido, setTransferVestido] = useState<any>(null);
@@ -596,6 +597,7 @@ export default function InventoryPage() {
           </div>
         </div>
 
+        {editingDress && <EditDressModal dress={editingDress} clasificaciones={clasificaciones} onClose={() => setEditingDress(null)} onSaved={() => { setEditingDress(null); loadData(); }} />}
         {/* Modal Nuevo Vestido */}
         {isModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-300">
@@ -735,6 +737,7 @@ export default function InventoryPage() {
                           </div>
                           <div>
                             <div className="font-black text-gray-900 text-base tracking-tighter uppercase leading-none mb-1">{v.codigo}</div>
+                            {canEditSavedRecords(user) && !v.archivado && <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDress(v); }} className="mb-1 text-[9px] font-black uppercase tracking-widest text-rose-500 hover:underline">Editar todo</button>}
                             <input 
                               type="text"
                               value={editState[v.id]?.nombre !== undefined ? editState[v.id].nombre : (v.nombre || '')}
@@ -1419,4 +1422,50 @@ function cleanDressCode(v: string) { return v.toUpperCase().replace(/[^A-Z0-9-]/
 /** Required fields of a new dress, in the form order. */
 function dressMissing(d: { codigo: string; clasificacion_id: string; nombre: string; talla: string; color: string; precio: string; sede_actual_id: string }) {
   return ([['Código', d.codigo.length >= 2], ['Clasificación', !!d.clasificacion_id], ['Nombre', d.nombre.trim().length >= 3], ['Talla', !!d.talla.trim()], ['Color', !!d.color.trim()], ['Precio de alquiler', Number(d.precio) > 0], ['Sede base', !!d.sede_actual_id]] as [string, boolean][]).filter(([, ok]) => !ok).map(([l]) => l);
+}
+
+type EditableDress = { id: number; codigo: string; nombre: string | null; clasificacion_id: number | null; talla: string | null; color: string | null; precio_sugerido: number | null };
+/** Edit every data field of an existing dress (same rules as a new one; sede and estado keep their own flows). */
+function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: EditableDress; clasificaciones: { id: number; nombre: string; activo: boolean }[]; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState({ codigo: dress.codigo.trim(), clasificacion_id: dress.clasificacion_id ? String(dress.clasificacion_id) : '', nombre: dress.nombre || '', talla: dress.talla || '', color: dress.color || '', precio: dress.precio_sugerido ? String(dress.precio_sugerido) : '', sede_actual_id: 'x' });
+  const [saving, setSaving] = useState(false);
+  const faltan = dressMissing(f);
+  const save = async () => {
+    if (faltan.length) { toast.error(`Completa: ${faltan.join(', ')}.`); return; }
+    if (f.codigo !== dress.codigo && !window.confirm(`¿Cambiar el código ${dress.codigo} por ${f.codigo}? Cambia también la etiqueta física del vestido.`)) return;
+    setSaving(true);
+    const changes: Record<string, unknown> = {};
+    if (f.codigo !== dress.codigo) changes.codigo = f.codigo;
+    if (f.nombre.trim() !== (dress.nombre || '')) changes.nombre = f.nombre.trim();
+    if (Number(f.clasificacion_id) !== dress.clasificacion_id) changes.clasificacion_id = Number(f.clasificacion_id);
+    if (f.talla.trim().toUpperCase() !== (dress.talla || '')) changes.talla = f.talla;
+    if (f.color.trim().toUpperCase() !== (dress.color || '')) changes.color = f.color;
+    if (Number(f.precio) !== Number(dress.precio_sugerido || 0)) changes.precio_sugerido = Number(f.precio);
+    if (!Object.keys(changes).length) { setSaving(false); onClose(); return; }
+    const { error } = await supabase.from('vestidos').update(changes).eq('id', dress.id);
+    setSaving(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success('Vestido actualizado 💎');
+    onSaved();
+  };
+  const input = 'w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none';
+  const label = 'text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1';
+  return <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="bg-white rounded-3xl w-full max-w-lg p-8 space-y-4 max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+      <h2 className="text-xl font-black text-gray-900 uppercase">Editar vestido {dress.codigo}</h2>
+      <div className="grid grid-cols-2 gap-4">
+        <label className={label}>1. Código *<input className={input} value={f.codigo} onChange={(e) => setF({ ...f, codigo: cleanDressCode(e.target.value) })} /></label>
+        <label className={label}>2. Clasificación *<select className={input} value={f.clasificacion_id} onChange={(e) => setF({ ...f, clasificacion_id: e.target.value })}><option value="">Selecciona...</option>{clasificaciones.filter(c => c.activo || String(c.id) === f.clasificacion_id).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}</select></label>
+      </div>
+      <label className={label}>3. Nombre / Descripción *<input className={input} value={f.nombre} onChange={(e) => setF({ ...f, nombre: e.target.value })} /></label>
+      <div className="grid grid-cols-3 gap-4">
+        <label className={label}>4. Talla *<input className={input} value={f.talla} onChange={(e) => setF({ ...f, talla: e.target.value.toUpperCase() })} /></label>
+        <label className={label}>5. Color *<input className={input} value={f.color} onChange={(e) => setF({ ...f, color: e.target.value.toUpperCase() })} /></label>
+        <label className={label}>6. Precio de alquiler *<input type="number" min="1" className={input} value={f.precio} onChange={(e) => setF({ ...f, precio: e.target.value })} /></label>
+      </div>
+      <p className="text-[11px] text-gray-400">La sede se cambia con la lista «Sede actual» de la fila (traslado) y el estado con sus botones de siempre.</p>
+      <div className="flex gap-3 justify-end"><button onClick={onClose} disabled={saving} className="px-5 py-3 rounded-xl border font-bold text-sm">Cancelar</button>
+        <button onClick={() => void save()} disabled={saving || faltan.length > 0} className="px-5 py-3 rounded-xl bg-rose-500 text-white font-black text-sm disabled:opacity-50">{saving ? 'Guardando…' : 'Guardar'}</button></div>
+    </div>
+  </div>;
 }
