@@ -55,6 +55,9 @@ export default function NuevoContratoPage() {
 
   // -- New States for Cross-Branch & Pricing --
   const [userRole, setUserRole] = useState<string>('user');
+  const [motivoValores, setMotivoValores] = useState('');
+  // Owner/admin may correct the initial payment and deposit of a signed contract (with reason and history).
+  const canFixInitial = isEditMode && String(userRole).toLowerCase() === 'admin' && !['borrador','pendiente_admin'].includes(String(editingContractState).toLowerCase());
   const [crossBranchWarning, setCrossBranchWarning] = useState<{ active: boolean; origin: string; codigo: string }>({ active: false, origin: '', codigo: '' });
   const [adminAuthorizedTransfer, setAdminAuthorizedTransfer] = useState(false);
 
@@ -1277,6 +1280,22 @@ export default function NuevoContratoPage() {
         precio: parseFloat(a.precio) || 0
       }));
 
+    if (canFixInitial) {
+      const anticipoAnterior = Number(editingSnapshot?.anticipo || 0);
+      const depositoNuevo = parseFloat(String(formData.valor_deposito).replace(/[^0-9.-]+/g, "")) || 0;
+      const depositoAnterior = Number(editingSnapshot?.valor_deposito || 0);
+      if (abonoInicial !== anticipoAnterior || depositoNuevo !== depositoAnterior) {
+        if (motivoValores.trim().length < 10) throw new Error('Escribe el motivo de la corrección del abono inicial o del depósito (mínimo 10 caracteres).');
+        const { error: fixError } = await supabase.rpc('corregir_valores_iniciales_contrato', {
+          p_contrato: editingContractId,
+          p_anticipo: abonoInicial !== anticipoAnterior ? abonoInicial : null,
+          p_deposito: depositoNuevo !== depositoAnterior ? depositoNuevo : null,
+          p_motivo: motivoValores.trim()
+        });
+        if (fixError) throw fixError;
+      }
+    }
+
     const { data, error } = await supabase.rpc('editar_contrato_completo_admin', {
       p_contrato: editingContractId,
       p_datos: datos,
@@ -1628,8 +1647,8 @@ export default function NuevoContratoPage() {
         name={name}
         value={String(formData[name])}
         onChange={handleChange}
-        disabled={isEditMode && name === 'anticipo'}
-        title={isEditMode && name === 'anticipo' ? 'Los abonos de un contrato pactado se gestionan desde Registrar Abono / Pago.' : undefined}
+        disabled={isEditMode && name === 'anticipo' && !canFixInitial}
+        title={isEditMode && name === 'anticipo' && !canFixInitial ? 'Los abonos de un contrato pactado se gestionan desde Registrar Abono / Pago.' : undefined}
         className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-300 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
         required={req}
       />
@@ -2227,7 +2246,12 @@ export default function NuevoContratoPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2 space-y-1">
                     <label htmlFor="valor_deposito" className="text-sm font-semibold text-gray-700">Valor del depósito de garantía</label>
-                    <input id="valor_deposito" name="valor_deposito" type="number" min="0" step="0.01" value={formData.valor_deposito} onChange={handleChange} disabled={isEditMode} title={isEditMode ? 'El depósito de un contrato pactado se gestiona desde Depósitos y devoluciones.' : undefined} placeholder="0" className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 disabled:opacity-60 disabled:cursor-not-allowed" />
+                    <input id="valor_deposito" name="valor_deposito" type="number" min="0" step="0.01" value={formData.valor_deposito} onChange={handleChange} disabled={isEditMode && !canFixInitial} title={isEditMode && !canFixInitial ? 'El depósito de un contrato pactado se gestiona desde Depósitos y devoluciones.' : undefined} placeholder="0" className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 disabled:opacity-60 disabled:cursor-not-allowed" />
+                    {canFixInitial && (Number(formData.anticipo || 0) !== Number(editingSnapshot?.anticipo || 0) || Number(formData.valor_deposito || 0) !== Number(editingSnapshot?.valor_deposito || 0)) && (
+                      <label className="block text-sm font-semibold text-amber-800">Motivo de la corrección del abono inicial / depósito (obligatorio)
+                        <input value={motivoValores} onChange={e => setMotivoValores(e.target.value)} maxLength={500} placeholder="Explica por qué se corrige el valor" className="w-full mt-1 bg-white border border-amber-300 text-gray-900 rounded-xl px-4 py-3" />
+                      </label>
+                    )}
                     {depositoSugerido !== null && !isEditMode && (
                       <div className="flex flex-wrap items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2 text-sm text-emerald-800">
                         <span>Depósito sugerido según la tabla: <b>{new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(depositoSugerido)}</b></span>
