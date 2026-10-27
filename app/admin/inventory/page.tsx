@@ -726,7 +726,7 @@ export default function InventoryPage() {
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Prenda</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Clasificación</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Atributos</th>
-                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Precio Sugerido</th>
+                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Precio sugerido alquiler</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Precio de venta sugerido</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Stock</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ubicación / Logística</th>
@@ -989,7 +989,7 @@ export default function InventoryPage() {
                        />
                      </div>
                      <div>
-                       <span className="block text-[9px] text-gray-400 font-bold uppercase mb-1">Precio Sugerido</span>
+                       <span className="block text-[9px] text-gray-400 font-bold uppercase mb-1">Precio sugerido alquiler</span>
                        <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-lg px-2 overflow-hidden focus-within:ring-2 focus-within:ring-rose-200">
                           <span className="text-gray-400 text-xs font-bold">$</span>
                           <input 
