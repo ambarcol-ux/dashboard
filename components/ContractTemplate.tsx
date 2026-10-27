@@ -16,6 +16,7 @@ export interface ContractData extends PrexvData {
   anticipo: number;
   saldo: number;
   created_at: string;
+  fecha_elaboracion?: string | null;
   firma_base64?: string;
 
   tipo_evento?: string;
@@ -395,7 +396,7 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
 
         {/* Footer */}
         <div className="mt-16 text-center text-xs text-gray-500 font-sans border-t border-gray-200 pt-6">
-          <p>Documento generado el {formatDate(data.created_at)}</p>
+          <p>Documento generado el {formatDate(data.fecha_elaboracion || data.created_at)}</p>
           <p className="mt-1">Ambar Couture © {new Date().getFullYear()} - Todos los derechos reservados.</p>
         </div>
 

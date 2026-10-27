@@ -57,6 +57,7 @@ export default function FirmaPage() {
       anticipo: Number(dbData.anticipo) || 0,
       saldo: (Number(dbData.valor_total) || 0) + (Number(dbData.total_arreglos) || 0) - (Number(dbData.anticipo) || 0),
       created_at: dbData.created_at,
+      fecha_elaboracion: dbData.fecha_elaboracion,
       firma_base64: dbData.firma_base64,
       tipo_evento: dbData.tipo_evento,
       fecha_pre_xv: dbData.fecha_pre_xv,
