@@ -60,14 +60,15 @@ export default function DressRemovalDialog({dress,onClose,onDone}:{dress:{id:str
     <div className="flex flex-wrap gap-2">{referenceChips(refs).map(c=><span key={c} className="px-3 py-1 rounded-full bg-gray-100 text-gray-700 text-xs font-black">{c}</span>)}</div>
     <p className="text-sm text-gray-600 bg-amber-50 border border-amber-100 rounded-2xl p-4">En su lugar puedes <b>archivarlo</b>: deja de aparecer en la bandeja y en los contratos nuevos, pero su historial queda intacto. Se puede restaurar desde el filtro «Archivados».</p>
     <label className="block space-y-1"><span className="text-xs font-black text-gray-500 uppercase tracking-widest">Motivo</span>
-     <textarea value={motivo} onChange={e=>setMotivo(e.target.value)} rows={3} maxLength={500} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-gray-800" placeholder="Ej: Vestido vendido a cliente, se retira de la colección…"/></label>
+     <textarea value={motivo} onChange={e=>setMotivo(e.target.value)} rows={3} maxLength={500} minLength={30} className="w-full p-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-gray-800" aria-describedby="motivo-ayuda" placeholder="Ej: Vestido vendido a cliente, se retira de la colección…"/></label>
+     <p id="motivo-ayuda" className={`text-[11px] font-bold ${motivo.trim().length<30?'text-rose-500':'text-emerald-600'}`}>Explica por qué se archiva: {motivo.trim().length}/30 caracteres mínimos.</p>
    </>}
    {error&&<p className="text-sm font-bold text-rose-700 bg-rose-50 rounded-2xl p-3">{error}</p>}
    <div className="flex justify-end gap-3 pt-2">
     <button onClick={onClose} disabled={busy} className="px-5 py-3 bg-gray-100 hover:bg-gray-200 rounded-2xl text-xs font-black uppercase text-gray-700">Cancelar</button>
     {refs!==null&&!hasHistory&&<button onClick={removeForever} disabled={busy} className="px-5 py-3 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white rounded-2xl text-xs font-black uppercase flex items-center gap-2">
      {busy?<Loader2 className="w-4 h-4 animate-spin"/>:<Trash2 className="w-4 h-4"/>}Eliminar definitivamente</button>}
-    {hasHistory&&<button onClick={archive} disabled={busy||motivo.trim().length<5} className="px-5 py-3 bg-gray-900 hover:bg-black disabled:opacity-50 text-white rounded-2xl text-xs font-black uppercase flex items-center gap-2">
+    {hasHistory&&<button onClick={archive} disabled={busy||motivo.trim().length<30} className="px-5 py-3 bg-gray-900 hover:bg-black disabled:opacity-50 text-white rounded-2xl text-xs font-black uppercase flex items-center gap-2">
      {busy?<Loader2 className="w-4 h-4 animate-spin"/>:<Archive className="w-4 h-4"/>}Archivar código</button>}
    </div>
   </div>
