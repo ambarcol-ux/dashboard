@@ -33,6 +33,7 @@ export default function InventoryPage() {
     talla: '',
     color: '',
     precio: '',
+    precio_venta: '',
     sede_actual_id: ''
   });
   const [clasificaciones, setClasificaciones] = useState<DressClassification[]>([]);
@@ -115,6 +116,7 @@ export default function InventoryPage() {
         talla: newDress.talla.trim().toUpperCase(),
         color: newDress.color.trim().toUpperCase(),
         precio_sugerido: Number(newDress.precio),
+        precio_venta: newDress.precio_venta ? Number(newDress.precio_venta) : null,
         clasificacion_id: Number(newDress.clasificacion_id),
         sede_principal_id: newDress.sede_actual_id,
         sede_actual_id: newDress.sede_actual_id,
@@ -136,6 +138,7 @@ export default function InventoryPage() {
         talla: '', 
         color: '', 
         precio: '', 
+        precio_venta: '', 
         sede_actual_id: '' 
       });
       loadData();
@@ -194,7 +197,7 @@ export default function InventoryPage() {
     try {
       const { data, error } = await supabase
         .from('vestidos')
-        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, stock_total, clasificacion_id, archivado, archivado_at, motivo_archivo')
+        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, stock_total, clasificacion_id, archivado, archivado_at, motivo_archivo')
         .order('codigo', { ascending: true });
       
       if (error) {
@@ -242,7 +245,7 @@ export default function InventoryPage() {
       ...prev,
       [id]: { 
         ...(prev[id] || {}), 
-        [field]: field === 'precio_sugerido' || field === 'stock_total' ? Number(value) : value 
+        [field]: field === 'precio_venta' ? (value === '' ? null : Number(value)) : field === 'precio_sugerido' || field === 'stock_total' ? Number(value) : value 
       }
     }));
   };
@@ -678,6 +681,16 @@ export default function InventoryPage() {
                     />
                   </div>
                   <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Precio de venta sugerido</label>
+                    <input 
+                      type="number" min="1" step="1000"
+                      placeholder="Opcional"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none"
+                      value={newDress.precio_venta}
+                      onChange={(e) => setNewDress({...newDress, precio_venta: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">7. Sede Base *</label>
                     <select 
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none"
@@ -714,6 +727,7 @@ export default function InventoryPage() {
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Clasificación</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Atributos</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Precio Sugerido</th>
+                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Precio de venta sugerido</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Stock</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ubicación / Logística</th>
                     <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Acciones</th>
@@ -794,6 +808,19 @@ export default function InventoryPage() {
                             onClick={(e) => e.stopPropagation()}
                             onChange={(e) => handleEditChange(v.id, 'precio_sugerido', e.target.value)}
                             placeholder="0"
+                          />
+                        </div>
+                      </td>
+                      <td className="px-6 py-6 text-center">
+                        <div className="flex items-center justify-center gap-1 border border-gray-200 bg-white rounded-lg px-2 overflow-hidden focus-within:ring-2 focus-within:ring-rose-200 transition-all text-sm w-32 mx-auto">
+                          <span className="text-gray-400 font-bold">$</span>
+                          <input 
+                            type="number"
+                            className="bg-transparent w-full py-2 text-gray-700 font-bold text-center outline-none"
+                            value={editState[v.id]?.precio_venta !== undefined ? (editState[v.id].precio_venta ?? '') : (v.precio_venta ?? '')}
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) => handleEditChange(v.id, 'precio_venta', e.target.value)}
+                            placeholder="—"
                           />
                         </div>
                       </td>
@@ -970,6 +997,19 @@ export default function InventoryPage() {
                             className="w-full text-xs font-black text-gray-700 bg-transparent py-2 outline-none"
                             value={editState[v.id]?.precio_sugerido !== undefined ? editState[v.id].precio_sugerido : (v.precio_sugerido || 0)}
                             onChange={(e) => handleEditChange(v.id, 'precio_sugerido', e.target.value)}
+                          />
+                       </div>
+                     </div>
+                     <div>
+                       <span className="block text-[9px] text-gray-400 font-bold uppercase mb-1">Precio de venta sugerido</span>
+                       <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-lg px-2 overflow-hidden focus-within:ring-2 focus-within:ring-rose-200">
+                          <span className="text-gray-400 text-xs font-bold">$</span>
+                          <input 
+                            type="number"
+                            className="w-full text-xs font-black text-gray-700 bg-transparent py-2 outline-none"
+                            value={editState[v.id]?.precio_venta !== undefined ? (editState[v.id].precio_venta ?? '') : (v.precio_venta ?? '')}
+                            onChange={(e) => handleEditChange(v.id, 'precio_venta', e.target.value)}
+                            placeholder="—"
                           />
                        </div>
                      </div>
@@ -1425,10 +1465,10 @@ function dressMissing(d: { codigo: string; clasificacion_id: string; nombre: str
   return ([['Código', d.codigo.length >= 2], ['Clasificación', !!d.clasificacion_id], ['Nombre', d.nombre.trim().length >= 3], ['Talla', !!d.talla.trim()], ['Color', !!d.color.trim()], ['Precio de alquiler', Number(d.precio) > 0], ['Sede base', !!d.sede_actual_id]] as [string, boolean][]).filter(([, ok]) => !ok).map(([l]) => l);
 }
 
-type EditableDress = { id: number; codigo: string; nombre: string | null; clasificacion_id: number | null; talla: string | null; color: string | null; precio_sugerido: number | null };
+type EditableDress = { id: number; codigo: string; nombre: string | null; clasificacion_id: number | null; talla: string | null; color: string | null; precio_sugerido: number | null; precio_venta?: number | null };
 /** Edit every data field of an existing dress (same rules as a new one; sede and estado keep their own flows). */
 function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: EditableDress; clasificaciones: { id: number; nombre: string; activo: boolean }[]; onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({ codigo: dress.codigo.trim(), clasificacion_id: dress.clasificacion_id ? String(dress.clasificacion_id) : '', nombre: dress.nombre || '', talla: dress.talla || '', color: dress.color || '', precio: dress.precio_sugerido ? String(dress.precio_sugerido) : '', sede_actual_id: 'x' });
+  const [f, setF] = useState({ codigo: dress.codigo.trim(), clasificacion_id: dress.clasificacion_id ? String(dress.clasificacion_id) : '', nombre: dress.nombre || '', talla: dress.talla || '', color: dress.color || '', precio: dress.precio_sugerido ? String(dress.precio_sugerido) : '', precio_venta: dress.precio_venta ? String(dress.precio_venta) : '', sede_actual_id: 'x' });
   const [saving, setSaving] = useState(false);
   const faltan = dressMissing(f);
   const save = async () => {
@@ -1442,6 +1482,7 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
     if (f.talla.trim().toUpperCase() !== (dress.talla || '')) changes.talla = f.talla;
     if (f.color.trim().toUpperCase() !== (dress.color || '')) changes.color = f.color;
     if (Number(f.precio) !== Number(dress.precio_sugerido || 0)) changes.precio_sugerido = Number(f.precio);
+    if ((f.precio_venta ? Number(f.precio_venta) : null) !== (dress.precio_venta ?? null)) changes.precio_venta = f.precio_venta ? Number(f.precio_venta) : null;
     if (!Object.keys(changes).length) { setSaving(false); onClose(); return; }
     const { error } = await supabase.from('vestidos').update(changes).eq('id', dress.id);
     setSaving(false);
@@ -1463,6 +1504,7 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
         <label className={label}>4. Talla *<input className={input} value={f.talla} onChange={(e) => setF({ ...f, talla: e.target.value.toUpperCase() })} /></label>
         <label className={label}>5. Color *<input className={input} value={f.color} onChange={(e) => setF({ ...f, color: e.target.value.toUpperCase() })} /></label>
         <label className={label}>6. Precio de alquiler *<input type="number" min="1" className={input} value={f.precio} onChange={(e) => setF({ ...f, precio: e.target.value })} /></label>
+        <label className={label}>Precio de venta sugerido<input type="number" min="1" placeholder="Opcional" className={input} value={f.precio_venta} onChange={(e) => setF({ ...f, precio_venta: e.target.value })} /></label>
       </div>
       <p className="text-[11px] text-gray-400">La sede se cambia con la lista «Sede actual» de la fila (traslado) y el estado con sus botones de siempre.</p>
       <div className="flex gap-3 justify-end"><button onClick={onClose} disabled={saving} className="px-5 py-3 rounded-xl border font-bold text-sm">Cancelar</button>
