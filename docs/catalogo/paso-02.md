@@ -14,14 +14,15 @@ Campos:
 - Filtro de categoría en inventario, contrato y agenda: solo aparece con XV Años, Gala o Novia, mostrando las categorías de ese uso.
 - Configuración "Clasificaciones visibles en catálogo" (por defecto XV Años, Gala, Novia, Pajecita y Vestido de cambio; Otro oculta).
 Fotos:
-- Tabla vestido_fotos (vestido_id, toma: frente/espalda/perfil/detalle/completo, ruta_original, ruta_marca, ruta_miniatura, subido_por, subido_at). Única por vestido_id+toma.
+- Tabla vestido_fotos (vestido_id, toma: frente/espalda/detalle, ruta_original, ruta_marca, ruta_miniatura, subido_por, subido_at). Única por vestido_id+toma.
 - Buckets: vestidos-originales (privado) y vestidos-publicas (público, solo marca de agua y miniaturas).
 - Procesar EN EL NAVEGADOR con canvas (no hay sharp): comprimir a máx. 200 KB WebP, miniatura máx. 30 KB, marca de agua según configuración (logo PNG, esquina inferior derecha, 25% del ancho, 50% de opacidad, editables). Botón "Regenerar marcas de agua" con barra de progreso, desde los originales.
-- En la ficha del vestido, nueva pestaña "Fotos": 5 casillas con Subir, Reemplazar, Descargar; "Descargar todas" (zip). Solo administración. Al reemplazar, borrar archivos anteriores.
+- En la ficha del vestido, nueva pestaña "Fotos": 3 casillas (frente, espalda, detalle) con Subir, Reemplazar, Descargar; "Descargar todas" (zip). Solo administración. Al reemplazar, borrar archivos anteriores.
 - Carga masiva: primero elegir la sede, luego subir archivos CODIGO-TOMA.jpg; emparejar código sin distinguir mayúsculas ni espacios dentro de esa sede; resumen de asignadas / no encontradas / nombre inválido; no reemplazar sin confirmación.
 - imagen_url = miniatura de frente (para compatibilidad). Mostrarla en la vista de cuadrícula. Si no tiene foto, mostrar un espacio vacío con el texto "Sin foto".
-- Avance de fotos en el inventario: indicador "X de N vestidos con sus 5 fotos" y filtro "Fotos: completas / incompletas / sin fotos", por sede.
+- Avance de fotos en el inventario: indicador "X de N vestidos con sus 3 fotos" y filtro "Fotos: completas / incompletas / sin fotos", por sede.
 
 Hoja de vida:
 - En la ficha, nueva pestaña "Hoja de vida": línea de tiempo y totales consolidando lo existente (contratos, traslados, mantenimientos, cambios de contrato, bitácora). No duplicar datos: consultas o vista.
 - Trigger en vestidos que registre en bitacora_vestidos los cambios de estado, precio, sede, clasificación, categoría y archivado. Registrar también cambios de fotos.
+- Accesorios: fuera de este paso (se harán después).
