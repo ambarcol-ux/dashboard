@@ -32,6 +32,7 @@ export default function InventoryPage() {
     clasificacion_id: '',
     talla: '',
     color: '',
+    precio: '',
     sede_actual_id: ''
   });
   const [clasificaciones, setClasificaciones] = useState<DressClassification[]>([]);
@@ -86,32 +87,33 @@ export default function InventoryPage() {
   };
 
   const handleAddDress = async () => {
-    if (!newDress.codigo || !newDress.sede_actual_id || !newDress.clasificacion_id) {
-       toast.error('Código, Clasificación y Sede Base son obligatorios');
+    const faltan = dressMissing(newDress);
+    if (faltan.length) {
+       toast.error(`Completa: ${faltan.join(', ')}.`);
        return;
     }
     setSaving(true);
     try {
-      // 0. Alerta de Duplicidad en la misma Sede
+      // 0. El código es único en todo el inventario (todas las sedes, también archivados).
       const { data: duplicate } = await supabase
         .from('vestidos')
         .select('id')
-        .eq('codigo', newDress.codigo)
-        .eq('sede_actual_id', newDress.sede_actual_id)
-        .eq('archivado', false)
+        .ilike('codigo', newDress.codigo)
         .limit(1)
         .maybeSingle();
 
       if (duplicate) {
-        toast.warning(`⚠️ El código ${newDress.codigo} ya existe en esta sede. Se registrará una nueva unidad con el mismo código.`);
+        toast.error(`El código ${newDress.codigo} ya existe en el inventario. Usa un código diferente.`);
+        return;
       }
 
       // 1. Mapeo Quirúrgico: Solo enviamos lo que el usuario confirmó
       const insertData = {
         codigo: newDress.codigo,
-        nombre: newDress.nombre,
-        talla: newDress.talla,
-        color: newDress.color,
+        nombre: newDress.nombre.trim(),
+        talla: newDress.talla.trim().toUpperCase(),
+        color: newDress.color.trim().toUpperCase(),
+        precio_sugerido: Number(newDress.precio),
         clasificacion_id: Number(newDress.clasificacion_id),
         sede_principal_id: newDress.sede_actual_id,
         sede_actual_id: newDress.sede_actual_id,
@@ -132,6 +134,7 @@ export default function InventoryPage() {
         clasificacion_id: '', 
         talla: '', 
         color: '', 
+        precio: '', 
         sede_actual_id: '' 
       });
       loadData();
@@ -591,17 +594,17 @@ export default function InventoryPage() {
               <div className="p-10 space-y-6">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Código de Referencia</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">1. Código de Referencia *</label>
                     <input 
                       type="text" 
                       placeholder="Ej: BOG-2024-001"
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none uppercase"
                       value={newDress.codigo}
-                      onChange={(e) => setNewDress({...newDress, codigo: e.target.value.toUpperCase()})}
+                      onChange={(e) => setNewDress({...newDress, codigo: cleanDressCode(e.target.value)})}
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Clasificación *</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">2. Clasificación *</label>
                     <select 
                       className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none ${newDress.clasificacion_id ? 'border-gray-100' : 'border-rose-200'}`}
                       value={newDress.clasificacion_id}
@@ -614,7 +617,7 @@ export default function InventoryPage() {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Nombre / Descripción Simple</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">3. Nombre / Descripción *</label>
                   <input 
                     type="text" 
                     placeholder="Ej: Vestido Rosado con Pedrería"
@@ -624,9 +627,9 @@ export default function InventoryPage() {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Talla</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">4. Talla *</label>
                     <input 
                       type="text" 
                       placeholder="Ej: S, 8, M"
@@ -636,7 +639,7 @@ export default function InventoryPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Color</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">5. Color *</label>
                     <input 
                       type="text" 
                       placeholder="Ej: Rose Gold"
@@ -646,7 +649,17 @@ export default function InventoryPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Sede Base</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">6. Precio de alquiler *</label>
+                    <input 
+                      type="number" min="1" step="1000"
+                      placeholder="Ej: 1500000"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none"
+                      value={newDress.precio}
+                      onChange={(e) => setNewDress({...newDress, precio: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">7. Sede Base *</label>
                     <select 
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none"
                       value={newDress.sede_actual_id}
@@ -660,7 +673,7 @@ export default function InventoryPage() {
 
                 <button 
                   onClick={handleAddDress}
-                  disabled={saving || !newDress.codigo || !newDress.sede_actual_id || !newDress.clasificacion_id}
+                  disabled={saving || dressMissing(newDress).length > 0}
                   className="w-full py-5 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-rose-100 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 mt-4"
                 >
                   {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
@@ -1371,3 +1384,10 @@ export default function InventoryPage() {
   );
 }
 
+
+/** Dress code: uppercase letters, numbers and dashes only (no spaces or descriptions). */
+function cleanDressCode(v: string) { return v.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20); }
+/** Required fields of a new dress, in the form order. */
+function dressMissing(d: { codigo: string; clasificacion_id: string; nombre: string; talla: string; color: string; precio: string; sede_actual_id: string }) {
+  return ([['Código', d.codigo.length >= 2], ['Clasificación', !!d.clasificacion_id], ['Nombre', d.nombre.trim().length >= 3], ['Talla', !!d.talla.trim()], ['Color', !!d.color.trim()], ['Precio de alquiler', Number(d.precio) > 0], ['Sede base', !!d.sede_actual_id]] as [string, boolean][]).filter(([, ok]) => !ok).map(([l]) => l);
+}
