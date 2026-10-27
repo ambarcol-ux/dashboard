@@ -275,6 +275,23 @@ export default function InventoryPage() {
     }
   };
 
+  // A dress whose sede no longer exists gets its sede assigned directly (state unchanged, logged); otherwise it is a transfer.
+  const changeSede = async (v: any, newSedeId: string) => {
+    if (!newSedeId || sedes.some(s => s.id === v.sede_actual_id)) return handleTransfer(v, newSedeId);
+    setUpdatingId(v.id);
+    try {
+      const { error } = await supabase.from('vestidos').update({ sede_actual_id: newSedeId, sede_principal_id: newSedeId }).eq('id', v.id);
+      if (error) throw error;
+      await supabase.from('bitacora_vestidos').insert({ vestido_id: v.id, usuario_email: user?.email || user?.nombre || null, accion: 'Sede asignada', motivo: 'Vestido sin sede asignada', detalle: `Sede: ${sedes.find(s => s.id === newSedeId)?.nombre || newSedeId}` });
+      toast.success(`Sede asignada a ${v.codigo}. El estado no cambió.`);
+      loadData();
+    } catch (err: any) {
+      toast.error('No se pudo asignar la sede: ' + (err.message || 'Error desconocido'));
+    } finally {
+      setUpdatingId(null);
+    }
+  };
+
   const handleTransfer = (v: any, newSedeId: string) => {
     if (!newSedeId || newSedeId === v.sede_actual_id) return;
     setTransferVestido(v);
@@ -743,12 +760,24 @@ export default function InventoryPage() {
                       </td>
                       <td className="px-8 py-6">
                          <div className="flex flex-wrap gap-1.5 items-center">
-                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase tracking-tighter border border-indigo-100">
-                              {v.talla || 'ÚNICA'}
-                            </span>
-                            <span className="px-2 py-0.5 bg-rose-50 text-rose-600 rounded text-[9px] font-black uppercase tracking-tighter border border-rose-100">
-                              {v.color || 'ST'}
-                            </span>
+                            <input
+                              aria-label="Talla"
+                              placeholder="Talla"
+                              disabled={v.archivado}
+                              value={editState[v.id]?.talla !== undefined ? editState[v.id].talla : (v.talla || '')}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => handleEditChange(v.id, 'talla', e.target.value.toUpperCase())}
+                              className="w-16 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase tracking-tighter border border-indigo-100 outline-none focus:border-indigo-300"
+                            />
+                            <input
+                              aria-label="Color"
+                              placeholder="Color"
+                              disabled={v.archivado}
+                              value={editState[v.id]?.color !== undefined ? editState[v.id].color : (v.color || '')}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => handleEditChange(v.id, 'color', e.target.value.toUpperCase())}
+                              className="w-24 px-2 py-0.5 bg-rose-50 text-rose-600 rounded text-[9px] font-black uppercase tracking-tighter border border-rose-100 outline-none focus:border-rose-300"
+                            />
                          </div>
                       </td>
                       <td className="px-6 py-6 text-center">
@@ -787,7 +816,7 @@ export default function InventoryPage() {
                               disabled={updatingId === v.id}
                               onChange={(e) => {
                                 if (window.confirm(`¿Confirmar traslado de ${v.codigo} a la sede seleccionada?`)) {
-                                  handleTransfer(v, e.target.value);
+                                  changeSede(v, e.target.value);
                                 }
                               }}
                               onClick={(e) => e.stopPropagation()}
@@ -952,7 +981,7 @@ export default function InventoryPage() {
                           disabled={updatingId === v.id}
                           onChange={(e) => {
                             if (window.confirm(`¿Confirmar traslado de ${v.codigo} a la sede seleccionada?`)) {
-                              handleTransfer(v, e.target.value);
+                              changeSede(v, e.target.value);
                             }
                           }}
                         >
