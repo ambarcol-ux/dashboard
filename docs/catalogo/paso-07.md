@@ -1,0 +1,2 @@
+# Paso 7 – Referencia en el registro de clientas
+(Cambio en Aliados autorizado) En /aliados/clientas y su API: agregar vestido_id opcional en aliado_clientas. Las opciones de categoría del formulario se leen de categorias_vestido según el tipo (XV Años: 4; Gala: 2). Al elegir tipo, categoría y fecha, mostrar los vestidos de la sede del aliado con miniatura y disponibilidad para esa fecha; la clienta puede elegir uno. Incluir el código del vestido en la notificación al aliado.
