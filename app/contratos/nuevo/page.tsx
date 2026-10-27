@@ -56,8 +56,9 @@ export default function NuevoContratoPage() {
   // -- New States for Cross-Branch & Pricing --
   const [userRole, setUserRole] = useState<string>('user');
   const [motivoValores, setMotivoValores] = useState('');
-  // Owner/admin may correct the initial payment and deposit of a signed contract (with reason and history).
-  const canFixInitial = isEditMode && String(userRole).toLowerCase() === 'admin' && !['borrador','pendiente_admin'].includes(String(editingContractState).toLowerCase());
+  const [puedeCorregirValores, setPuedeCorregirValores] = useState(false);
+  // Admin or 'contratos.corregir_valores_iniciales' (asesora líder) may correct the initial payment and deposit, with reason and history, until the caja is closed.
+  const canFixInitial = isEditMode && (String(userRole).toLowerCase() === 'admin' || puedeCorregirValores);
   const [crossBranchWarning, setCrossBranchWarning] = useState<{ active: boolean; origin: string; codigo: string }>({ active: false, origin: '', codigo: '' });
   const [adminAuthorizedTransfer, setAdminAuthorizedTransfer] = useState(false);
 
@@ -250,6 +251,7 @@ export default function NuevoContratoPage() {
             .maybeSingle();
           userProfile = pData;
           if (pData?.rol) setUserRole(pData.rol);
+          void supabase.rpc('mis_permisos').then(({ data }) => setPuedeCorregirValores(Array.isArray(data) && data.includes('contratos.corregir_valores_iniciales')));
         }
 
         const { data: sedes, error } = await supabase.from('sedes').select('*').eq('activo', true).order('nombre');
