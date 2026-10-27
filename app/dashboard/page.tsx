@@ -316,6 +316,7 @@ export default function DashboardPage() {
       anticipo: Number(contrato.anticipo) || 0,
       saldo: (Number(contrato.valor_total) || 0) + (Number(contrato.total_arreglos) || 0) - (Number(contrato.anticipo) || 0),
       created_at: contrato.created_at,
+      fecha_elaboracion: contrato.fecha_elaboracion,
       firma_base64: signature,
       tipo_evento: contrato.tipo_evento,
       fecha_pre_xv: contrato.fecha_pre_xv,
