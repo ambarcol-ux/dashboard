@@ -276,7 +276,7 @@ export default function InventoryPage() {
   };
 
   // A dress whose sede no longer exists gets its sede assigned directly (state unchanged, logged); otherwise it is a transfer.
-  const changeSede = async (v: any, newSedeId: string) => {
+  const changeSede = async (v: { id: number; codigo: string; sede_actual_id: string | null }, newSedeId: string) => {
     if (!newSedeId || sedes.some(s => s.id === v.sede_actual_id)) return handleTransfer(v, newSedeId);
     setUpdatingId(v.id);
     try {
@@ -285,8 +285,8 @@ export default function InventoryPage() {
       await supabase.from('bitacora_vestidos').insert({ vestido_id: v.id, usuario_email: user?.email || user?.nombre || null, accion: 'Sede asignada', motivo: 'Vestido sin sede asignada', detalle: `Sede: ${sedes.find(s => s.id === newSedeId)?.nombre || newSedeId}` });
       toast.success(`Sede asignada a ${v.codigo}. El estado no cambió.`);
       loadData();
-    } catch (err: any) {
-      toast.error('No se pudo asignar la sede: ' + (err.message || 'Error desconocido'));
+    } catch (err) {
+      toast.error('No se pudo asignar la sede: ' + (err instanceof Error ? err.message : (err as { message?: string })?.message || 'Error desconocido'));
     } finally {
       setUpdatingId(null);
     }
@@ -815,7 +815,7 @@ export default function InventoryPage() {
                               value={v.sede_actual_id || ''}
                               disabled={updatingId === v.id}
                               onChange={(e) => {
-                                if (window.confirm(`¿Confirmar traslado de ${v.codigo} a la sede seleccionada?`)) {
+                                if (window.confirm(sedes.some(s => s.id === v.sede_actual_id) ? `¿Confirmar traslado de ${v.codigo} a la sede seleccionada?` : `¿Asignar esta sede a ${v.codigo}? El estado no cambia.`)) {
                                   changeSede(v, e.target.value);
                                 }
                               }}
@@ -980,7 +980,7 @@ export default function InventoryPage() {
                           value={v.sede_actual_id || ''}
                           disabled={updatingId === v.id}
                           onChange={(e) => {
-                            if (window.confirm(`¿Confirmar traslado de ${v.codigo} a la sede seleccionada?`)) {
+                            if (window.confirm(sedes.some(s => s.id === v.sede_actual_id) ? `¿Confirmar traslado de ${v.codigo} a la sede seleccionada?` : `¿Asignar esta sede a ${v.codigo}? El estado no cambia.`)) {
                               changeSede(v, e.target.value);
                             }
                           }}
