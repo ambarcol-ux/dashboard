@@ -737,6 +737,7 @@ export default function InventoryPage() {
                           </div>
                           <div>
                             <div className="font-black text-gray-900 text-base tracking-tighter uppercase leading-none mb-1">{v.codigo}</div>
+                            {v.archivado && <div className="mb-1 text-[10px] text-gray-500 normal-case max-w-[220px]">Archivado{v.archivado_at ? ` el ${new Date(v.archivado_at).toLocaleDateString('es-CO')}` : ''}: <b>{v.motivo_archivo || 'sin motivo'}</b></div>}
                             {canEditSavedRecords(user) && !v.archivado && <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDress(v); }} className="mb-1 text-[9px] font-black uppercase tracking-widest text-rose-500 hover:underline">Editar todo</button>}
                             <input 
                               type="text"
