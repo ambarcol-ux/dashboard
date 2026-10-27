@@ -752,7 +752,7 @@ export default function InventoryPage() {
                       <td className="px-6 py-6" onClick={(e) => e.stopPropagation()}>
                         <select
                           value={v.clasificacion_id || ''}
-                          disabled={updatingId === v.id || v.archivado}
+                          disabled={updatingId === v.id}
                           onChange={(e) => handleClasificacion(v.id, e.target.value)}
                           className={`px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-wide outline-none cursor-pointer ${CLASSIFICATION_STYLES[clasificacionNombre(v.clasificacion_id) || ''] || UNCLASSIFIED_STYLE}`}
                           title="Cambiar clasificación"
