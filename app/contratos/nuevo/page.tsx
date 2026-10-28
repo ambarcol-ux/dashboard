@@ -21,6 +21,7 @@ import {
   ChevronLeft, XCircle
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { saldoContrato } from '@/lib/saldo';
 
 export default function NuevoContratoPage() {
   const router = useRouter();
@@ -703,7 +704,7 @@ export default function NuevoContratoPage() {
     setTotalArreglos(sumArreglos);
 
     // Saldo Final Real = Valor Alquiler Base + Servicios Extra + Costo Arreglos - Descuento VIP - Abono Inicial
-    const nuevoSaldo = (valorAlquiler + serviciosExtra + sumArreglos) - vipDiscount - descuentoAliado - anticipo;
+    const nuevoSaldo = saldoContrato({ valor_total: Math.max(0, valorAlquiler - vipDiscount - descuentoAliado) + serviciosExtra, total_arreglos: sumArreglos, anticipo });
     setSaldoCalc(Math.max(0, nuevoSaldo));
   }, [formData.valor_total, formData.servicios_adicionales, formData.anticipo, arreglos, vipDiscount, descuentoAliado]);
 

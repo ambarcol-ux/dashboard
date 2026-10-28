@@ -17,6 +17,7 @@ import {
 import Link from 'next/link';
 import PaymentSupportUpload from '@/components/PaymentSupportUpload';
 import { SUPPORT_BUCKET, type UploadedSupport } from '@/lib/payment-support';
+import { saldoContrato, puedeAbonar } from '@/lib/saldo';
 
 type PagoSoporte = { id: string; archivo_path: string; nombre: string; activo: boolean };
 
@@ -79,7 +80,7 @@ export default function RegistrarPagoPage() {
   };
 
   // ── REAL-TIME VALIDATION ──────────────────────────────────────────────────
-  const saldoNumber = contrato ? Number(contrato.saldo) : 0;
+  const saldoNumber = contrato ? saldoContrato(contrato) : 0;
   const montoIngresado = parseFloat(formData.valor_pagado) || 0;
   const excedeBalance = montoIngresado > saldoNumber && formData.valor_pagado !== '';
   const montoInvalido = montoIngresado <= 0 && formData.valor_pagado !== '';
@@ -110,7 +111,7 @@ export default function RegistrarPagoPage() {
     }
 
     // Hard-stop: Operación denegada si genera saldo negativo
-    const saldoPendienteActual = Number(contrato.saldo);
+    const saldoPendienteActual = saldoContrato(contrato);
     if (montoAbono > saldoPendienteActual) {
       toast.error(
         `Operación denegada: El pago genera un saldo negativo. ` +
@@ -143,19 +144,13 @@ export default function RegistrarPagoPage() {
       });
 
       // 2. Actualizar el contrato (Incrementar el anticipo para que PostgreSQL calcule el nuevo saldo automático)
+      // El estado (Pagado Totalmente) lo recalcula la base con la misma regla de saldo (lib/saldo).
       const nuevoAnticipo = Number(contrato.anticipo) + montoAbono;
-      let nuevoEstado = contrato.estado;
-
-      // Si el nuevo anticipo cubre o supera el valor total, cambiar el estado
-      if (nuevoAnticipo >= Number(contrato.valor_total)) {
-        nuevoEstado = 'Pagado Totalmente';
-      }
 
       const { error: updateError } = await supabase
         .from('contratos')
         .update({
-          anticipo: nuevoAnticipo,
-          estado: nuevoEstado
+          anticipo: nuevoAnticipo
         })
         .eq('id', id);
 
@@ -207,7 +202,7 @@ export default function RegistrarPagoPage() {
     );
   }
 
-  const estaPagado = saldoNumber <= 0 || contrato.estado === 'Pagado Totalmente';
+  const estaPagado = !puedeAbonar(contrato);
 
   return (
     <div className="min-h-screen bg-[#fafafa] p-4 sm:p-8 font-sans pb-20">

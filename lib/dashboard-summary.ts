@@ -1,4 +1,5 @@
 import {hasPrexv, prexvPending} from './prexv';
+import {saldoContrato} from './saldo';
 type Row = Record<string, any>;
 export const CONTRACT_PAGE_SIZE = 30;
 export type DashboardFilters = {
@@ -64,7 +65,7 @@ export function filterDashboardContracts(contratos: Row[], sedes: Row[], filters
           case 'lavanderia':
             return estado === 'mantenimiento';
           case 'historial': {
-            const totalPendiente = (Number(c.saldo) || 0) + (Number(c.total_multas) || 0);
+            const totalPendiente = saldoContrato(c) + (Number(c.total_multas) || 0);
             return ['finalizado', 'cancelado', 'rechazado'].includes(estado) && totalPendiente === 0;
           }
           case 'anulados':
@@ -165,7 +166,7 @@ export function summarizeDashboard(contratos: Row[], sedes: Row[], filters: Dash
       lavanderia: branchContracts.filter(c => c.estado?.toLowerCase() === 'mantenimiento').length,
       historial: branchContracts.filter(c => {
         const est = c.estado?.toLowerCase();
-        const totalPendiente = (Number(c.saldo) || 0) + (Number(c.total_multas) || 0);
+        const totalPendiente = saldoContrato(c) + (Number(c.total_multas) || 0);
         return ['finalizado', 'cancelado', 'rechazado'].includes(est) && totalPendiente === 0;
       }).length,
     };
@@ -206,7 +207,7 @@ export function summarizeDashboard(contratos: Row[], sedes: Row[], filters: Dash
  return {filtered, summary: {
    tabCounts, alerts,
    total: filtered.length,
-   totalPendiente: filtered.reduce((sum,c) => sum + (Number(c.saldo)||0) + (Number(c.total_multas)||0), 0),
+   totalPendiente: filtered.reduce((sum,c) => sum + saldoContrato(c) + (Number(c.total_multas)||0), 0),
    monthCount: branchContracts.filter(c => {const t=Date.parse(c.created_at); return t>=filters.monthStart && t<filters.monthEnd;}).length,
    pendingInvoices: contratos.filter(c => !c.numero_factura && Date.parse(c.created_at)<filters.dayStart).length,
    prexvCount: contratos.filter(hasPrexv).length,
