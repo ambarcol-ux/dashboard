@@ -13,7 +13,10 @@ import {resetPermissions} from '@/lib/use-permissions';
 import {resetPanelOverrides} from '@/lib/use-panel-overrides';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Person={id:string;nombre:string|null;email:string|null;rol:string|null;sede_id:string|null;activo:boolean|null};
+type Person={id:string;nombre:string|null;email:string|null;rol:string|null;sede_id:string|null;activo:boolean|null;extra?:string[]};
+/** Base role plus the extra roles assigned in Roles y permisos (asesora_lider, franquiciado…). */
+const rolesOf=(p:Person)=>[...new Set([String(p.rol||'').toLowerCase(),...(p.extra||[])].filter(Boolean))];
+const rolTexto=(p:Person)=>rolesOf(p).join(' + ')||'sin rol';
 type Choice='defecto'|PanelOverride;
 type LogRow={id:number;usuario_id:string;panel:string;estado_anterior:string|null;estado_nuevo:string;cambiado_por:string|null;cambiado_at:string};
 const CHOICE_LABEL:Record<Choice,string>={defecto:'Según su rol',permitido:'Permitir',bloqueado:'Quitar'};
@@ -66,7 +69,8 @@ function AccessManager({selfId}:{selfId:string}){
    setRoleLog((rl.data||[]) as typeof roleLog);
    const map:Record<string,PanelOverrides>={};
    for(const r of a.data||[])if(r.estado==='permitido'||r.estado==='bloqueado')(map[r.usuario_id]||={})[r.panel]=r.estado;
-   setPeople((p.data||[]) as Person[]);setSedes(Object.fromEntries((s.data||[]).map(x=>[x.id,x.nombre])));setSaved(map);setLog((l.data||[]) as LogRow[]);setError('');
+   const extra=group(ur.data,'usuario_id','rol_id');
+   setPeople(((p.data||[]) as Person[]).map(x=>({...x,extra:extra[x.id]||[]})));setSedes(Object.fromEntries((s.data||[]).map(x=>[x.id,x.nombre])));setSaved(map);setLog((l.data||[]) as LogRow[]);setError('');
   }catch(e){setError(e&&typeof e==='object'&&'message' in e?String((e as {message:unknown}).message):'No se pudieron cargar los accesos.');}
   finally{setLoading(false);}
  },[]);
@@ -103,8 +107,8 @@ function Result({on}:{on:boolean}){return <span className={`${styles.badge} ${on
 
 function ByUser({people,sedes,saved,onSave,roleData,onRolesSaved,onError}:{people:Person[];sedes:Record<string,string>;saved:Record<string,PanelOverrides>;onSave:(c:{usuario:string;cambios:{panel:string;estado:Choice}[]}[])=>Promise<boolean>;roleData:RoleData;onRolesSaved:(msg:string)=>Promise<void>;onError:(m:string)=>void}){
  const [q,setQ]=useState(''),[rol,setRol]=useState(''),[selected,setSelected]=useState(''),[draft,setDraft]=useState<Record<string,Choice>>({}),[busy,setBusy]=useState(false);
- const roles=useMemo(()=>[...new Set(people.map(p=>String(p.rol||'').toLowerCase()).filter(Boolean))].sort(),[people]);
- const list=people.filter(p=>(!rol||String(p.rol||'').toLowerCase()===rol)&&`${p.nombre||''} ${p.email||''}`.toLowerCase().includes(q.trim().toLowerCase()));
+ const roles=useMemo(()=>[...new Set(people.flatMap(rolesOf))].sort(),[people]);
+ const list=people.filter(p=>(!rol||rolesOf(p).includes(rol))&&`${p.nombre||''} ${p.email||''}`.toLowerCase().includes(q.trim().toLowerCase()));
  const person=people.find(p=>p.id===selected);
  const current=(panel:string)=>draft[panel]??choiceOf(saved[selected],panel);
  const effective:PanelOverrides=Object.fromEntries(PANELS.map(p=>[p.id,current(p.id)]).filter(([,c])=>c!=='defecto')) as PanelOverrides;
@@ -120,12 +124,12 @@ function ByUser({people,sedes,saved,onSave,roleData,onRolesSaved,onError}:{peopl
    <div style={{maxHeight:560,overflowY:'auto'}}>{list.map(p=>{const n=Object.keys(saved[p.id]||{}).length;return <button key={p.id} onClick={()=>pick(p.id)} className={styles.button}
     style={{display:'block',width:'100%',textAlign:'left',marginBottom:6,background:p.id===selected?'#fff1f2':undefined,borderColor:p.id===selected?'#fda4af':undefined,opacity:p.activo===false?.6:1}}>
     <b>{name(p)}</b>{n>0&&<span className={`${styles.badge} ${styles.badgeWarn}`} style={{marginLeft:6}}>{n} cambio{n===1?'':'s'}</span>}
-    <span className={styles.help} style={{display:'block'}}>{p.rol||'sin rol'}{p.sede_id?` · ${sedes[p.sede_id]||'sede desconocida'}`:''}{p.activo===false?' · inactivo':''}</span></button>;})}</div>
+    <span className={styles.help} style={{display:'block'}}>{rolTexto(p)}{p.sede_id?` · ${sedes[p.sede_id]||'sede desconocida'}`:''}{p.activo===false?' · inactivo':''}</span></button>;})}</div>
   </section>
   <section className={styles.card}>
    {!person?<p className={styles.empty}>Elige un usuario para ver y cambiar sus paneles.</p>
     :isSupplier(person.rol)?<p className={styles.empty}>{name(person)} es proveedor: solo entra a su portal de proveedor y no ve paneles del ERP.</p>:<>
-    <h2>{name(person)}</h2><p>{person.email} · rol {person.rol||'sin rol'}{person.sede_id?` · ${sedes[person.sede_id]||''}`:''}{isAccounting(person.rol)&&' · Contabilidad: por defecto solo Depósitos y Caja; los paneles que le permitas los verá en solo lectura de contratos.'}</p>
+    <h2>{name(person)}</h2><p>{person.email} · rol {rolTexto(person)}{person.sede_id?` · ${sedes[person.sede_id]||''}`:''}{isAccounting(person.rol)&&' · Contabilidad: por defecto solo Depósitos y Caja; los paneles que le permitas los verá en solo lectura de contratos.'}</p>
     <UserRoles key={person.id} person={person} data={roleData} onSaved={onRolesSaved} onError={onError}/>
     <div className={styles.tableScroll}><table className={styles.table}>
      <thead><tr><th>Panel</th><th>Por su rol</th><th>Acceso</th><th>Queda</th></tr></thead>
@@ -161,7 +165,7 @@ function ByPanel({people,sedes,saved,onSave,roleData}:{people:Person[];sedes:Rec
   <div className={styles.tableScroll}><table className={styles.table}>
    <thead><tr><th>Usuario</th><th>Rol</th><th>Sede</th><th>Por su rol</th><th>Acceso</th><th>Queda</th></tr></thead>
    <tbody>{list.map(p=>{const choices=allowedChoices(panelId,p),c=current(p.id),ov:PanelOverrides={...saved[p.id]};if(c==='defecto')delete ov[panelId];else ov[panelId]=c;return <tr key={p.id}>
-    <td><b>{name(p)}</b><small>{p.email}</small></td><td>{p.rol||'—'}</td><td>{p.sede_id?sedes[p.sede_id]||'—':'—'}</td><td>{rolePanelAccess(panelId,p,permsOf(p,roleData))?'Sí':'No'}</td>
+    <td><b>{name(p)}</b><small>{p.email}</small></td><td>{rolTexto(p)}</td><td>{p.sede_id?sedes[p.sede_id]||'—':'—'}</td><td>{rolePanelAccess(panelId,p,permsOf(p,roleData))?'Sí':'No'}</td>
     <td><select value={c} disabled={choices.length===1} onChange={e=>setDraft({...draft,[p.id]:e.target.value as Choice})}>{choices.map(x=><option key={x} value={x}>{CHOICE_LABEL[x]}</option>)}</select></td>
     <td><Result on={panelAccess(panelId,p,ov,permsOf(p,roleData))}/></td></tr>;})}</tbody>
   </table></div>
