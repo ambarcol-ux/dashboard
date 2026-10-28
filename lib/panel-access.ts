@@ -2,7 +2,7 @@ import {isAccounting,isAdminProfile,isScopedOperationsAccount,isSupplier,operati
 
 export type PanelOverride='permitido'|'bloqueado';
 export type PanelOverrides=Record<string,PanelOverride>;
-type Profile={id?:unknown;rol?:unknown;email?:unknown}|null|undefined;
+type Profile={id?:unknown;rol?:unknown;email?:unknown;estado_ficha?:unknown}|null|undefined;
 export type Panel={id:string;label:string;href:string;block:string;
  /** Paths (prefixes) that belong to the panel; the longest match wins. */
  paths:string[];
@@ -60,21 +60,22 @@ export function defaultPanelAccess(panelId:string,profile:Profile){
  if(!panel||!profile)return false;
  if(isSupplier(profile.rol))return false;
  if(isAccounting(profile.rol))return panelId==='depositos'||panelId==='caja'||panelId==='aliados_directos';
- if(isScopedOperationsAccount(profile.id))return operationsPanels.includes(panel.href);
+ if(isScopedOperationsAccount(profile.id,profile.estado_ficha))return operationsPanels.includes(panel.href);
  if(isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown}))return true;
  return !!panel.staff;
 }
 
 /** Role access: with the user's permissions (sum of their roles) the "panel.<id>" permission decides; without them, the built-in defaults. */
 export function rolePanelAccess(panelId:string,profile:Profile,permissions?:string[]|null){
- if(!permissions||!profile||isSupplier(profile.rol)||isScopedOperationsAccount(profile.id)||isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown}))return defaultPanelAccess(panelId,profile);
+ if(!permissions||!profile||isSupplier(profile.rol)||isScopedOperationsAccount(profile.id,profile.estado_ficha)||isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown}))return defaultPanelAccess(panelId,profile);
  const panel=panelById(panelId);
  return !!panel&&(panel.grantable||isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown}))&&permissions.includes(`panel.${panelId}`);
 }
 
 /** Final access: a manual "Quitar" always wins; "Permitir" only applies to grantable panels and users that can receive it; otherwise the user's roles decide. */
 export function panelAccess(panelId:string,profile:Profile,overrides:PanelOverrides|null|undefined,permissions?:string[]|null){
- const o=overrides?.[panelId],panel=panelById(panelId);
+ // A confirmed person has no individual changes: only its role decides.
+ const o=profile?.estado_ficha==='confirmada'?undefined:overrides?.[panelId],panel=panelById(panelId);
  if(!panel)return false;
  if(panelId==='accesos')return isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown});
  if(o==='bloqueado')return false;

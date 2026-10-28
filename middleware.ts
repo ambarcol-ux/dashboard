@@ -46,7 +46,7 @@ export async function middleware(req: NextRequest) {
     const panel = panelForPath(path);
     const [authResult, profileResult, accessResult, permissionsResult] = await Promise.all([
       client.auth.getUser(token),
-      client.from('profiles').select('id,nombre,email,rol,sede_id,activo').eq('id', subject).single<DepositProfile>(),
+      client.from('profiles').select('id,nombre,email,rol,sede_id,activo,estado_ficha').eq('id', subject).single<DepositProfile>(),
       // Manual panel changes are only needed for menu pages.
       panel ? client.from('accesos_paneles').select('panel,estado').eq('usuario_id', subject) : Promise.resolve({ data: [], error: null }),
       // Permissions of all the user's roles decide which menu pages they can open.
@@ -79,7 +79,7 @@ export async function middleware(req: NextRequest) {
         return next();
       }
     }
-    if (!canAccessAccountPath(profile.id, path)) {
+    if (!canAccessAccountPath(profile.id, path, profile.estado_ficha)) {
       return path.startsWith('/api/') || !['GET','HEAD'].includes(req.method)
         ? NextResponse.json({error:'Tu cuenta solo tiene acceso a los módulos de operaciones de tu sede.'},{status:403})
         : NextResponse.redirect(new URL('/dashboard',req.url));

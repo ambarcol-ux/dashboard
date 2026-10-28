@@ -71,7 +71,7 @@ export default function MetasPage() {
 
   const fetchSupportData = async () => {
     const { data: sedesData } = await supabase.from('sedes').select('id, nombre, activo');
-    const { data: asesorasData } = await supabase.from('asesoras').select('id, nombre_completo, profile_id, activo');
+    const { data: asesorasData } = await supabase.from('asesoras').select('id, nombre_completo, profile_id, activo').eq('aparece_como_vendedora', true);
     setSedes(sedesData || []);
     setAsesoras(asesorasData || []);
   };
@@ -94,7 +94,7 @@ export default function MetasPage() {
           .select('id, nombre, activo'),
         supabase
           .from('asesoras')
-          .select('id, nombre_completo, profile_id, activo')
+          .select('id, nombre_completo, profile_id, activo').eq('aparece_como_vendedora', true)
       ]);
 
       if (metasRes.error) throw metasRes.error;

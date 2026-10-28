@@ -12,9 +12,10 @@ import {PANELS,canReceiveGrants,panelAccess,panelById,rolePanelAccess,type Panel
 import {resetPermissions} from '@/lib/use-permissions';
 import {resetPanelOverrides} from '@/lib/use-panel-overrides';
 import styles from '@/app/dashboard/caja/caja.module.css';
-import {PersonTeamCard,TeamTab} from '@/components/TeamCards';
+import {PersonTeamCard} from '@/components/TeamCards';
+import {PeopleTab,ReviewTab,UnifiedHistory} from '@/components/TeamAdmin';
 
-type Person={id:string;nombre:string|null;email:string|null;rol:string|null;sede_id:string|null;activo:boolean|null;extra?:string[]};
+type Person={id:string;nombre:string|null;email:string|null;rol:string|null;rol_id?:string|null;estado_ficha?:string|null;sede_id:string|null;activo:boolean|null;extra?:string[]};
 /** Base role plus the extra roles assigned in Roles y permisos (asesora_lider, franquiciado…). */
 const rolesOf=(p:Person)=>[...new Set([String(p.rol||'').toLowerCase(),...(p.extra||[])].filter(Boolean))];
 const rolTexto=(p:Person)=>rolesOf(p).join(' + ')||'sin rol';
@@ -23,7 +24,7 @@ type LogRow={id:number;usuario_id:string;panel:string;estado_anterior:string|nul
 const CHOICE_LABEL:Record<Choice,string>={defecto:'Según su rol',permitido:'Permitir',bloqueado:'Quitar'};
 const name=(p?:Person|null)=>p?(p.nombre||p.email||'Sin nombre'):'—';
 type Permission={codigo:string;modulo:string;accion:string;descripcion:string;solo_admin:boolean;orden:number};
-type Role={id:string;nombre:string;descripcion:string;sistema:boolean};
+type Role={id:string;nombre:string;descripcion:string;sistema:boolean;ve_todas_sedes?:boolean};
 type RoleData={permisos:Permission[];roles:Role[];rolePerms:Record<string,string[]>;userRoles:Record<string,string[]>};
 /** Same rule as private.permisos_usuario: profile role + assigned roles; administrators have everything. */
 function permsOf(person:Person,data:RoleData){
@@ -48,13 +49,14 @@ export default function AccessPage(){
 
 function AccessManager({selfId}:{selfId:string}){
  const [people,setPeople]=useState<Person[]>([]),[sedes,setSedes]=useState<Record<string,string>>({}),[saved,setSaved]=useState<Record<string,PanelOverrides>>({}),[log,setLog]=useState<LogRow[]>([]);
- const [tab,setTab]=useState<'usuario'|'equipo'|'panel'|'roles'|'historial'>('usuario');
+ const [tab,setTab]=useState<'personas'|'revision'|'usuario'|'panel'|'roles'|'historial'>('personas');
+ const [userSedes,setUserSedes]=useState<Record<string,string[]>>({}),[teamLog,setTeamLog]=useState<{id:number;usuario_id:string|null;tipo:string;detalle:Record<string,unknown>;hecho_por:string|null;fecha:string}[]>([]);
  const [roleData,setRoleData]=useState<RoleData>({permisos:[],roles:[],rolePerms:{},userRoles:{}}),[roleLog,setRoleLog]=useState<{id:number;tipo:string;objetivo:string;detalle:Record<string,unknown>;usuario:string|null;fecha_hora:string}[]>([]);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[loading,setLoading]=useState(true);
  const load=useCallback(async()=>{
   try{
-   const [p,s,a,l,pe,ro,rp,ur,rl]=await Promise.all([
-    supabase.from('profiles').select('id,nombre,email,rol,sede_id,activo').order('nombre'),
+   const [p,s,a,l,pe,ro,rp,ur,rl,us,eb]=await Promise.all([
+    supabase.from('profiles').select('id,nombre,email,rol,rol_id,estado_ficha,sede_id,activo').order('nombre'),
     supabase.from('sedes').select('id,nombre'),
     supabase.from('accesos_paneles').select('usuario_id,panel,estado'),
     supabase.from('accesos_paneles_bitacora').select('*').order('cambiado_at',{ascending:false}).limit(100),
@@ -63,11 +65,13 @@ function AccessManager({selfId}:{selfId:string}){
     supabase.from('roles_permisos').select('rol_id,permiso').eq('activo',true),
     supabase.from('usuarios_roles').select('usuario_id,rol_id').eq('activo',true),
     supabase.from('roles_bitacora').select('*').order('fecha_hora',{ascending:false}).limit(50),
+    supabase.from('usuario_sedes').select('usuario_id,sede_id').eq('activo',true),
+    supabase.from('equipo_bitacora').select('*').order('fecha',{ascending:false}).limit(100),
    ]);
-   const failed=[p,s,a,l,pe,ro,rp,ur,rl].find(r=>r.error);if(failed?.error)throw failed.error;
+   const failed=[p,s,a,l,pe,ro,rp,ur,rl,us,eb].find(r=>r.error);if(failed?.error)throw failed.error;
    const group=(rows:{[k:string]:string}[]|null,key:string,val:string)=>{const out:Record<string,string[]>={};for(const r of rows||[])(out[r[key]]||=[]).push(r[val]);return out;};
    setRoleData({permisos:(pe.data||[]) as Permission[],roles:(ro.data||[]) as Role[],rolePerms:group(rp.data,'rol_id','permiso'),userRoles:group(ur.data,'usuario_id','rol_id')});
-   setRoleLog((rl.data||[]) as typeof roleLog);
+   setRoleLog((rl.data||[]) as typeof roleLog);setUserSedes(group(us.data,'usuario_id','sede_id'));setTeamLog((eb.data||[]) as typeof teamLog);
    const map:Record<string,PanelOverrides>={};
    for(const r of a.data||[])if(r.estado==='permitido'||r.estado==='bloqueado')(map[r.usuario_id]||={})[r.panel]=r.estado;
    const extra=group(ur.data,'usuario_id','rol_id');
@@ -87,15 +91,16 @@ function AccessManager({selfId}:{selfId:string}){
  };
 
  return <>
-  <div className={styles.tabs}>{([['usuario','Por usuario'],['equipo','Alta y fichas'],['panel','Por panel'],['roles','Roles y permisos'],['historial','Historial de cambios']] as const).map(([id,l])=><button key={id} className={`${styles.tab} ${tab===id?styles.tabActive:''}`} onClick={()=>{setTab(id);setNotice('');}}>{l}</button>)}</div>
+  <div className={styles.tabs}>{([['personas','Personas'],['revision',`Revisión (${people.filter(p=>p.estado_ficha!=='confirmada'&&String(p.rol).toLowerCase()!=='proveedor').length})`],['usuario','Paneles por usuario'],['panel','Por panel'],['roles','Configuración · Roles y permisos'],['historial','Configuración · Historial']] as const).map(([id,l])=><button key={id} className={`${styles.tab} ${tab===id?styles.tabActive:''}`} onClick={()=>{setTab(id);setNotice('');}}>{l}</button>)}</div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   {loading?<p className={styles.empty}>Cargando…</p>
    :tab==='usuario'?<ByUser people={people} sedes={sedes} saved={saved} onSave={save} roleData={roleData} onRolesSaved={async msg=>{setNotice(msg);resetPermissions();await load();}} onError={setError} onTeamChanged={load}/>
-   :tab==='equipo'?<TeamTab people={people} sedes={sedes} onError={setError} onNotice={setNotice}/>
+   :tab==='personas'?<PeopleTab people={people} sedes={sedes} roles={roleData.roles} userSedes={userSedes} reload={load} onError={setError} onNotice={setNotice}/>
+   :tab==='revision'?<ReviewTab ctx={{people,sedes,roles:roleData.roles,userSedes,reload:load,onError:setError,onNotice:setNotice}} rolePerms={roleData.rolePerms} userRoles={roleData.userRoles} saved={saved} permisos={roleData.permisos}/>
    :tab==='panel'?<ByPanel people={people} sedes={sedes} saved={saved} onSave={save} roleData={roleData}/>
    :tab==='roles'?<RolesManager data={roleData} onSaved={async msg=>{setNotice(msg);resetPermissions();await load();}} onError={setError}/>
-   :<><History log={log} people={people}/><RoleHistory log={roleLog} people={people} roles={roleData.roles}/></>}
+   :<UnifiedHistory people={people} roles={roleData.roles} panelLog={log} roleLog={roleLog} teamLog={teamLog}/>}
  </>;
 }
 
@@ -217,6 +222,7 @@ function RolesManager({data,onSaved,onError}:{data:RoleData;onSaved:(msg:string)
    <label>Rol<select value={roleId} onChange={e=>{setRoleId(e.target.value);setDraft(null);}}>{data.roles.map(r=><option key={r.id} value={r.id}>{r.nombre}</option>)}</select></label>
    <label>Nuevo rol<input value={nuevo} maxLength={40} onChange={e=>setNuevo(e.target.value)} placeholder="Ej.: Coordinadora"/></label>
    <div className={styles.actions} style={{alignSelf:'end'}}><button className={styles.button} disabled={busy} onClick={()=>void create()}>Crear rol</button></div>
+   <label className={styles.check} style={{alignSelf:'end'}}><input type="checkbox" disabled={busy||isAdminRole} checked={isAdminRole||!!role?.ve_todas_sedes} onChange={async e=>{setBusy(true);const {error}=await supabase.rpc('guardar_rol_sedes',{p_rol:roleId,p_ve:e.target.checked});setBusy(false);if(error)onError(error.message);else await onSaved(`Rol ${role?.nombre}: ${e.target.checked?'ve todas las sedes':'solo sus sedes'}.`);}}/>Ve todas las sedes</label>
   </div>
   {role&&<p className={styles.help} style={{marginBottom:10}}>{role.descripcion}{isAdminRole?' El Administrador siempre tiene todos los permisos.':''}</p>}
   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Permiso</th><th>Detalle</th><th style={{width:90}}>Activo</th></tr></thead>
