@@ -251,7 +251,7 @@ export default function AdminConfigPage() {
                       </div>
                       <button 
                         onClick={() => toggleSedeStatus(s.id, s.activo)}
-                        className={`p-1.5 rounded-xl transition-colors ${s.activo ? 'text-gray-400 hover:text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                        className={`p-1.5 rounded-xl transition-colors ${s.activo ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-400 hover:text-rose-600 hover:bg-rose-50'}`}
                       >
                         {s.activo ? <ToggleRight className="w-10 h-10" /> : <ToggleLeft className="w-10 h-10" />}
                       </button>
@@ -338,7 +338,7 @@ export default function AdminConfigPage() {
                       </div>
                       <button 
                         onClick={() => toggleAsesoraStatus(a.id, a.activo)}
-                        className={`p-1.5 rounded-xl transition-colors ${a.activo ? 'text-gray-400 hover:text-rose-600 hover:bg-rose-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                        className={`p-1.5 rounded-xl transition-colors ${a.activo ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-400 hover:text-rose-600 hover:bg-rose-50'}`}
                       >
                         {a.activo ? <ToggleRight className="w-10 h-10" /> : <ToggleLeft className="w-10 h-10" />}
                       </button>
