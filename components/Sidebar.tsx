@@ -107,6 +107,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       items: [
         { id: 'users', label: 'GESTIÓN DE EQUIPO', icon: Users, href: '/admin/users', color: 'indigo' },
         { id: 'horarios', label: 'CONTROL DE ASISTENCIA', icon: Clock, href: '/dashboard/horarios', color: 'rose' },
+        { id: 'accesos', label: 'EQUIPO Y ACCESOS', icon: ShieldCheck, href: '/admin/accesos', color: 'indigo' },
       ]
     },
     {
@@ -122,7 +123,6 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       items: [
         { id: 'config', label: 'CONFIGURACIÓN BASE', icon: Settings, href: '/admin/config', color: 'gray' },
         { id: 'clausulas', label: 'CLÁUSULAS DEL CONTRATO', icon: FileText, href: '/dashboard/admin/contratos', color: 'rose' },
-        { id: 'accesos', label: 'ACCESOS POR PERFIL', icon: ShieldCheck, href: '/admin/accesos', color: 'indigo' },
       ]
     }
   ];

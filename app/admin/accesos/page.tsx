@@ -12,6 +12,7 @@ import {PANELS,canReceiveGrants,panelAccess,panelById,rolePanelAccess,type Panel
 import {resetPermissions} from '@/lib/use-permissions';
 import {resetPanelOverrides} from '@/lib/use-panel-overrides';
 import styles from '@/app/dashboard/caja/caja.module.css';
+import {PersonTeamCard,TeamTab} from '@/components/TeamCards';
 
 type Person={id:string;nombre:string|null;email:string|null;rol:string|null;sede_id:string|null;activo:boolean|null;extra?:string[]};
 /** Base role plus the extra roles assigned in Roles y permisos (asesora_lider, franquiciado…). */
@@ -38,8 +39,8 @@ export default function AccessPage(){
  useEffect(()=>{let live=true;void readAccess().then(({profile})=>{if(live)setProfile(profile);}).catch(e=>{if(live)setError(e instanceof Error?e.message:'No pudimos validar tu acceso.');});return()=>{live=false;};},[readAccess]);
  const logout=async()=>{await supabase.auth.signOut();document.cookie='sb-access-token=; path=/; max-age=0';router.replace('/login');};
  return <div className={styles.shell}><Sidebar user={profile} handleLogout={logout} activePage="accesos"/><main className={styles.main}>
-  <header className={styles.header}><div><Link href="/dashboard" className={styles.back}>Administración / Accesos por perfil</Link><h1><ShieldCheck/> Accesos por perfil</h1>
-   <p>Elige qué paneles ve cada usuario. Sin cambios, cada quien tiene el acceso de su rol; «Quitar» oculta el panel y bloquea su dirección.</p></div></header>
+  <header className={styles.header}><div><Link href="/dashboard" className={styles.back}>Recursos humanos / Equipo y accesos</Link><h1><ShieldCheck/> Equipo y accesos</h1>
+   <p>Una ficha por persona: usuario, ficha de asesora, rol, sede y paneles. Elige qué paneles ve cada usuario. Sin cambios, cada quien tiene el acceso de su rol; «Quitar» oculta el panel y bloquea su dirección.</p></div></header>
   {error?<p role="alert" className={styles.error}>{error}</p>:!profile?<p role="status" className={styles.empty}>Validando acceso…</p>
    :!isAdminProfile(profile)?<p role="alert" className={styles.error}>Esta pantalla es solo para administración.</p>:<AccessManager selfId={String(profile.id)}/>}
  </main></div>;
@@ -47,7 +48,7 @@ export default function AccessPage(){
 
 function AccessManager({selfId}:{selfId:string}){
  const [people,setPeople]=useState<Person[]>([]),[sedes,setSedes]=useState<Record<string,string>>({}),[saved,setSaved]=useState<Record<string,PanelOverrides>>({}),[log,setLog]=useState<LogRow[]>([]);
- const [tab,setTab]=useState<'usuario'|'panel'|'roles'|'historial'>('usuario');
+ const [tab,setTab]=useState<'usuario'|'equipo'|'panel'|'roles'|'historial'>('usuario');
  const [roleData,setRoleData]=useState<RoleData>({permisos:[],roles:[],rolePerms:{},userRoles:{}}),[roleLog,setRoleLog]=useState<{id:number;tipo:string;objetivo:string;detalle:Record<string,unknown>;usuario:string|null;fecha_hora:string}[]>([]);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[loading,setLoading]=useState(true);
  const load=useCallback(async()=>{
@@ -86,11 +87,12 @@ function AccessManager({selfId}:{selfId:string}){
  };
 
  return <>
-  <div className={styles.tabs}>{([['usuario','Por usuario'],['panel','Por panel'],['roles','Roles y permisos'],['historial','Historial de cambios']] as const).map(([id,l])=><button key={id} className={`${styles.tab} ${tab===id?styles.tabActive:''}`} onClick={()=>{setTab(id);setNotice('');}}>{l}</button>)}</div>
+  <div className={styles.tabs}>{([['usuario','Por usuario'],['equipo','Alta y fichas'],['panel','Por panel'],['roles','Roles y permisos'],['historial','Historial de cambios']] as const).map(([id,l])=><button key={id} className={`${styles.tab} ${tab===id?styles.tabActive:''}`} onClick={()=>{setTab(id);setNotice('');}}>{l}</button>)}</div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   {loading?<p className={styles.empty}>Cargando…</p>
-   :tab==='usuario'?<ByUser people={people} sedes={sedes} saved={saved} onSave={save} roleData={roleData} onRolesSaved={async msg=>{setNotice(msg);resetPermissions();await load();}} onError={setError}/>
+   :tab==='usuario'?<ByUser people={people} sedes={sedes} saved={saved} onSave={save} roleData={roleData} onRolesSaved={async msg=>{setNotice(msg);resetPermissions();await load();}} onError={setError} onTeamChanged={load}/>
+   :tab==='equipo'?<TeamTab people={people} sedes={sedes} onError={setError} onNotice={setNotice}/>
    :tab==='panel'?<ByPanel people={people} sedes={sedes} saved={saved} onSave={save} roleData={roleData}/>
    :tab==='roles'?<RolesManager data={roleData} onSaved={async msg=>{setNotice(msg);resetPermissions();await load();}} onError={setError}/>
    :<><History log={log} people={people}/><RoleHistory log={roleLog} people={people} roles={roleData.roles}/></>}
@@ -105,7 +107,7 @@ function allowedChoices(panelId:string,person:Person):Choice[]{
 }
 function Result({on}:{on:boolean}){return <span className={`${styles.badge} ${on?styles.badgeIn:styles.badgeOut}`}>{on?'Tiene acceso':'Sin acceso'}</span>;}
 
-function ByUser({people,sedes,saved,onSave,roleData,onRolesSaved,onError}:{people:Person[];sedes:Record<string,string>;saved:Record<string,PanelOverrides>;onSave:(c:{usuario:string;cambios:{panel:string;estado:Choice}[]}[])=>Promise<boolean>;roleData:RoleData;onRolesSaved:(msg:string)=>Promise<void>;onError:(m:string)=>void}){
+function ByUser({people,sedes,saved,onSave,roleData,onRolesSaved,onError,onTeamChanged}:{onTeamChanged:()=>Promise<void>;people:Person[];sedes:Record<string,string>;saved:Record<string,PanelOverrides>;onSave:(c:{usuario:string;cambios:{panel:string;estado:Choice}[]}[])=>Promise<boolean>;roleData:RoleData;onRolesSaved:(msg:string)=>Promise<void>;onError:(m:string)=>void}){
  const [q,setQ]=useState(''),[rol,setRol]=useState(''),[selected,setSelected]=useState(''),[draft,setDraft]=useState<Record<string,Choice>>({}),[busy,setBusy]=useState(false);
  const roles=useMemo(()=>[...new Set(people.flatMap(rolesOf))].sort(),[people]);
  const list=people.filter(p=>(!rol||rolesOf(p).includes(rol))&&`${p.nombre||''} ${p.email||''}`.toLowerCase().includes(q.trim().toLowerCase()));
@@ -124,12 +126,13 @@ function ByUser({people,sedes,saved,onSave,roleData,onRolesSaved,onError}:{peopl
    <div style={{maxHeight:560,overflowY:'auto'}}>{list.map(p=>{const n=Object.keys(saved[p.id]||{}).length;return <button key={p.id} onClick={()=>pick(p.id)} className={styles.button}
     style={{display:'block',width:'100%',textAlign:'left',marginBottom:6,background:p.id===selected?'#fff1f2':undefined,borderColor:p.id===selected?'#fda4af':undefined,opacity:p.activo===false?.6:1}}>
     <b>{name(p)}</b>{n>0&&<span className={`${styles.badge} ${styles.badgeWarn}`} style={{marginLeft:6}}>{n} cambio{n===1?'':'s'}</span>}
-    <span className={styles.help} style={{display:'block'}}>{rolTexto(p)}{p.sede_id?` · ${sedes[p.sede_id]||'sede desconocida'}`:''}{p.activo===false?' · inactivo':''}</span></button>;})}</div>
+    <span className={styles.help} style={{display:'block'}}>{rolTexto(p)}{p.sede_id?` · ${sedes[p.sede_id]||'sede desconocida'}`:String(p.rol).toLowerCase()==='admin'?' · Todas las sedes':''}{p.activo===false?' · inactivo':''}</span></button>;})}</div>
   </section>
   <section className={styles.card}>
    {!person?<p className={styles.empty}>Elige un usuario para ver y cambiar sus paneles.</p>
     :isSupplier(person.rol)?<p className={styles.empty}>{name(person)} es proveedor: solo entra a su portal de proveedor y no ve paneles del ERP.</p>:<>
     <h2>{name(person)}</h2><p>{person.email} · rol {rolTexto(person)}{person.sede_id?` · ${sedes[person.sede_id]||''}`:''}{isAccounting(person.rol)&&' · Contabilidad: por defecto solo Depósitos y Caja; los paneles que le permitas los verá en solo lectura de contratos.'}</p>
+    <PersonTeamCard key={`t-${person.id}`} person={person} sedes={sedes} onChanged={onTeamChanged} onError={onError}/>
     <UserRoles key={person.id} person={person} data={roleData} onSaved={onRolesSaved} onError={onError}/>
     <div className={styles.tableScroll}><table className={styles.table}>
      <thead><tr><th>Panel</th><th>Por su rol</th><th>Acceso</th><th>Queda</th></tr></thead>
