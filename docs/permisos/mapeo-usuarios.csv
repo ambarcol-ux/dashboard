@@ -1,0 +1,27 @@
+usuario|correo|roles actuales|rol nuevo|sedes actuales|sedes nuevas|origen de accesos|aplicar
+Andres Romero|andres@ambarcouture.com|admin||todas||profiles.rol; accesos_paneles (2)|
+Jennifer Jimenez|nomina.ambar@gmail.com|admin||todas||profiles.rol|
+Propietario|dubian.h88@gmail.com|admin||todas||profiles.rol; role-access.ts isAdminProfile por correo|
+Ruben Dario Aristizabal Varon|rubenvaron239@gmail.com|admin||todas||profiles.rol; app_metadata can_edit_saved_records (scripts/grant-ruben-saved-record-editing.sql; saved-record-editing.ts ya no lo lee)|
+Diana Alexandra Rojas Salguero|asesoravillavo@ambarcouture.com|asesora||Villavicencio||profiles.rol; accesos_paneles (1)|
+Tania Muñoz Ospina|asesorapereira@ambarcouture.com|asesora||Pereira (perfil + operativa)||profiles.rol; role-access.ts isScopedOperationsAccount; saved-record-editing.ts; migración pereira_acceso_operativo|
+Angelican Maria Lara Castaño|lidervillavo@ambarcouture.com|asesora + asesora_lider||Villavicencio||profiles.rol; usuarios_roles|
+Ileine Lasco blanco|ileine@ambarcouture.com|asesora + asesora_lider||Barranquilla (perfil + operativa)||profiles.rol; usuarios_roles; role-access.ts isScopedOperationsAccount; saved-record-editing.ts; migración ileine_barranquilla_acceso_operativo; accesos_paneles (4)|
+Ovedys Portilla Mendoza|liderbogota@ambarcouture.com|asesora + asesora_lider||Bogotá||profiles.rol; usuarios_roles|
+Viviana Patricia Franco Patiño|liderpereira@ambarcouture.com|asesora + asesora_lider||Pereira (perfil + operativa)||profiles.rol; usuarios_roles; role-access.ts isScopedOperationsAccount; saved-record-editing.ts; migración pereira_acceso_operativo|
+Chistian Camilo Lesmes Gonzalez|ambarcouturepereira@gmail.com|asesora + franquiciado||Pereira (perfil + operativa)||profiles.rol; usuarios_roles; role-access.ts isScopedOperationsAccount; saved-record-editing.ts; migración pereira_acceso_operativo; accesos_paneles (5)|
+Contabilidad|contabilidadambarc@gmail.com|contabilidad||todas||profiles.rol; role-access.ts isAccounting|
+Daniela - Virtual (inactivo)|virtual@ambarcouture.com|admin||Villavicencio||profiles.rol|
+wilson (inactivo)|wilson@ambarcouture.com|admin||todas||profiles.rol|
+Andrea (inactivo)|andrea@ambarcouture.com|asesora||sin sede||profiles.rol|
+Genesis Maldonado (inactivo)|genesis@ambarcouture.com|asesora||Villavicencio (perfil + operativa)||profiles.rol; role-access.ts isScopedOperationsAccount; saved-record-editing.ts; migración genesis_villavicencio_acceso_operativo|
+joselin (inactivo)|joselin@ambarcouture.com|asesora||sin sede||profiles.rol|
+Liliana Quintero (inactivo)|asesor1bogotaambar@gmail.com|asesora||Bogotá (perfil + operativa)||profiles.rol; role-access.ts isScopedOperationsAccount; saved-record-editing.ts; migración asesor_bogota_acceso_operativo|
+Mailin (inactivo)|mailin@ambarcouture.com|asesora||sin sede||profiles.rol|
+mailin patricia (inactivo)|patricia@ambarcouture.com|asesora||sin sede||profiles.rol|
+Maria Jose (inactivo)|mariajose@ambarcouture.com|asesora||Bogotá||profiles.rol|
+Raquel Yesenia Martínez (inactivo)|asesor2bogotaambar@gmail.com|asesora||Bogotá||profiles.rol|
+yasmin lizeth (inactivo)|lizeth@ambarcouture.com|asesora||sin sede||profiles.rol|
+YASMIN (inactivo)|yasmin@ambarcouture.com|asesora||sin sede||profiles.rol|
+Angelica Lara (inactivo)|maria@ambarcouture.com|asesora + asesora_lider||Villavicencio||profiles.rol; usuarios_roles|
+estiben alfonso (inactivo)|contabilidad@ambarcouture.com|contabilidad||todas||profiles.rol; role-access.ts isAccounting|
