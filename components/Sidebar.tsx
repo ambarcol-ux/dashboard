@@ -8,7 +8,7 @@ import { isAccounting, isScopedOperationsAccount } from '@/lib/role-access';
 import { panelAccess } from '@/lib/panel-access';
 import { usePanelOverrides } from '@/lib/use-panel-overrides';
 import {
-  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck
+  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -50,21 +50,33 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
 
   const sidebarBlocks: SidebarBlock[] = [
     {
-      title: 'OPERACIONES',
+      title: 'INICIO',
       adminOnly: false,
       items: [
         { id: 'dashboard', label: 'DASHBOARD', icon: FileText, href: '/dashboard', color: 'rose' },
-        { id: 'calendario', label: 'CALENDARIO CONTRATOS', icon: Calendar, href: '/dashboard/calendario', color: 'rose' },
-        { id: 'primeras-citas', label: 'PRIMERAS VISITAS', icon: CalendarCheck, href: '/dashboard/primeras-citas', color: 'rose' },
-        { id: 'disponibilidad', label: 'AGENDA DE VESTIDOS', icon: CalendarDays, href: '/disponibilidad', color: 'emerald' },
-        { id: 'pedidos_estrene', label: 'PEDIDOS ESTRENE', icon: ShoppingBag, href: '/dashboard/pedidos-estrene', color: 'violet' },
-        { id: 'depositos', label: 'DEPÓSITOS Y DEVOLUCIONES', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
-        { id: 'inventory', label: 'GESTIÓN DE INVENTARIO', icon: Package, href: '/admin/inventory', color: 'amber', adminOnly: true },
-        { id: 'reports', label: 'REPORTES Y ESTADÍSTICAS', icon: TrendingUp, href: '/admin/reports', color: 'rose', adminOnly: true },
       ]
     },
     {
-      title: 'RETABLOS',
+      title: 'VENTAS Y CRM',
+      adminOnly: false,
+      items: [
+        { id: 'primeras-citas', label: 'PRIMERAS VISITAS', icon: CalendarCheck, href: '/dashboard/primeras-citas', color: 'rose' },
+        { id: 'calendario', label: 'CALENDARIO CONTRATOS', icon: Calendar, href: '/dashboard/calendario', color: 'rose' },
+        { id: 'pedidos_estrene', label: 'PEDIDOS ESTRENE', icon: ShoppingBag, href: '/dashboard/pedidos-estrene', color: 'violet' },
+        { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'emerald' },
+        { id: 'aliados_directos', label: 'ALIADOS DIRECTOS', icon: Handshake, href: '/dashboard/aliados-directos', color: 'rose' },
+      ]
+    },
+    {
+      title: 'INVENTARIO',
+      adminOnly: false,
+      items: [
+        { id: 'inventory', label: 'GESTIÓN DE INVENTARIO', icon: Package, href: '/admin/inventory', color: 'amber', adminOnly: true },
+        { id: 'disponibilidad', label: 'AGENDA DE VESTIDOS', icon: CalendarDays, href: '/disponibilidad', color: 'emerald' },
+      ]
+    },
+    {
+      title: 'OPERACIONES Y LOGÍSTICA',
       adminOnly: false,
       items: [
         { id: 'retablos', label: 'PANEL GENERAL', icon: Frame, href: '/dashboard/retablos', color: 'amber' },
@@ -72,55 +84,69 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       ]
     },
     {
-      title: 'FINANZAS',
-      adminOnly: false,
-      items: [
-        { id: 'caja', label: 'CIERRES DE CAJA', icon: Wallet, href: '/dashboard/caja', color: 'emerald' },
-      ]
-    },
-    {
-      title: 'PROVEEDORES',
+      title: 'COMPRAS Y PROVEEDORES',
       adminOnly: false,
       items: [
         { id: 'proveedores-catalogo', label: 'CATÁLOGO DE PROVEEDORES', icon: BookOpen, href: '/dashboard/proveedores/catalogo', color: 'violet' },
         { id: 'proveedores', label: 'GESTIÓN DE PROVEEDORES', icon: Truck, href: '/dashboard/proveedores', color: 'violet', adminOnly: true },
+      ]
+    },
+    {
+      title: 'FINANZAS Y CONTABILIDAD',
+      adminOnly: false,
+      items: [
+        { id: 'caja', label: 'CIERRES DE CAJA', icon: Wallet, href: '/dashboard/caja', color: 'emerald' },
+        { id: 'depositos', label: 'DEPÓSITOS Y DEVOLUCIONES', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
         { id: 'proveedores-pagos', label: 'PAGOS A PROVEEDORES', icon: Banknote, href: '/dashboard/proveedores/pagos', color: 'violet', adminOnly: true },
+        { id: 'siigo', label: 'FACTURACIÓN POR SEDE', icon: KeyRound, href: '/admin/config/siigo', color: 'emerald' },
       ]
     },
     {
-      title: 'VENTAS & CRM',
-      adminOnly: true,
-      items: [
-        { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'emerald' },
-      ]
-    },
-    {
-      title: 'RED DE ALIADOS',
-      adminOnly: true,
-      items: [
-        { id: 'aliados_directos', label: 'ALIADOS DIRECTOS', icon: Handshake, href: '/dashboard/aliados-directos', color: 'rose' },
-      ]
-    },
-    {
-      title: 'ADMINISTRACIÓN',
-      adminOnly: true,
+      title: 'RECURSOS HUMANOS',
+      adminOnly: false,
       items: [
         { id: 'users', label: 'GESTIÓN DE EQUIPO', icon: Users, href: '/admin/users', color: 'indigo' },
         { id: 'horarios', label: 'CONTROL DE ASISTENCIA', icon: Clock, href: '/dashboard/horarios', color: 'rose' },
-        { id: 'config', label: 'CONFIGURACIÓN BASE', icon: Settings, href: '/admin/config', color: 'gray' },
-        { id: 'clausulas', label: 'CLÁUSULAS DEL CONTRATO', icon: FileText, href: '/dashboard/admin/contratos', color: 'rose' },
-        { id: 'siigo', label: 'FACTURACIÓN POR SEDE', icon: KeyRound, href: '/admin/config/siigo', color: 'emerald' },
-        { id: 'accesos', label: 'ACCESOS POR PERFIL', icon: ShieldCheck, href: '/admin/accesos', color: 'indigo' },
       ]
     },
     {
-      title: 'SOPORTE Y AYUDA',
+      title: 'REPORTES E INDICADORES',
       adminOnly: false,
       items: [
-        { id: 'manual', label: 'MANUAL DE USUARIO', icon: BookOpen, href: '/dashboard/manuales', color: 'indigo' },
+        { id: 'reports', label: 'REPORTES Y ESTADÍSTICAS', icon: TrendingUp, href: '/admin/reports', color: 'rose', adminOnly: true },
+      ]
+    },
+    {
+      title: 'CONFIGURACIÓN',
+      adminOnly: false,
+      items: [
+        { id: 'config', label: 'CONFIGURACIÓN BASE', icon: Settings, href: '/admin/config', color: 'gray' },
+        { id: 'clausulas', label: 'CLÁUSULAS DEL CONTRATO', icon: FileText, href: '/dashboard/admin/contratos', color: 'rose' },
+        { id: 'accesos', label: 'ACCESOS POR PERFIL', icon: ShieldCheck, href: '/admin/accesos', color: 'indigo' },
       ]
     }
   ];
+
+  // Upcoming modules: shown greyed out, without link, only to the Administrador role.
+  const comingSoon: Record<string, string[]> = {
+    'VENTAS Y CRM': ['CLIENTES', 'COTIZACIONES', 'CATÁLOGO'],
+    'INVENTARIO': ['TRASLADOS', 'MANTENIMIENTO Y ARREGLOS', 'TOMA FÍSICA'],
+    'OPERACIONES Y LOGÍSTICA': ['ENTREGAS Y DEVOLUCIONES', 'ADAPTACIONES Y CONFECCIÓN'],
+    'COMPRAS Y PROVEEDORES': ['ÓRDENES DE COMPRA'],
+    'FINANZAS Y CONTABILIDAD': ['CUENTAS POR COBRAR', 'GASTOS Y PRESUPUESTO', 'CONCILIACIÓN BANCARIA', 'CONCILIACIÓN CON SIIGO'],
+    'RECURSOS HUMANOS': ['NÓMINA', 'CONTRATOS LABORALES', 'VACACIONES E INCAPACIDADES'],
+    'REPORTES E INDICADORES': ['ESTADO DE RESULTADOS POR SEDE', 'RENTABILIDAD POR VESTIDO', 'TABLEROS POR MÓDULO'],
+    'CONFIGURACIÓN': ['INTEGRACIONES', 'LISTAS'],
+  };
+  const showComingSoon = normalizedRole === 'admin';
+  const blocksWithSoon: SidebarBlock[] = sidebarBlocks.map(block => ({
+    ...block,
+    items: [...block.items, ...(showComingSoon ? (comingSoon[block.title] || []).map(label => ({ id: `soon-${label}`, label, icon: Clock, href: '#', color: 'gray', disabled: true })) : [])]
+  }));
+  const visible = (item: SidebarItem) => item.disabled || canSee(item.panel || item.id);
+  // Collapsible sections: the one holding the current page starts open.
+  const [toggled, setToggled] = useState<Record<string, boolean>>({});
+  const isBlockOpen = (block: SidebarBlock) => toggled[block.title] ?? block.items.some(item => item.id === activePage);
 
   const renderSidebarContent = (isMobile = false) => (
     <>
@@ -147,15 +173,19 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
 
       <nav className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar pb-10">
         <DepositAlert count={depositCount}/>
-        {sidebarBlocks.map((block, blockIndex) => {
-          if (!block.items.some(item => canSee(item.panel || item.id))) return null;
+        {blocksWithSoon.map((block, blockIndex) => {
+          if (!block.items.some(item => !item.disabled && canSee(item.panel || item.id))) return null;
+          const open = isBlockOpen(block);
 
           return (
             <div key={blockIndex} className="space-y-1">
-              <p className="px-4 py-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">{block.title}</p>
+              <button type="button" onClick={() => setToggled(prev => ({ ...prev, [block.title]: !open }))} aria-expanded={open} className="w-full flex items-center justify-between px-4 py-2 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-rose-500">
+                {block.title}
+                <ChevronDown className={`w-3 h-3 transition-transform ${open ? '' : '-rotate-90'}`} />
+              </button>
 
-              {block.items.map((item) => {
-                if (!canSee(item.panel || item.id)) return null;
+              {open && block.items.map((item) => {
+                if (!visible(item)) return null;
                 const Icon = item.icon;
                 const isActive = activePage === item.id;
                 const isDisabled = item.disabled;
@@ -210,6 +240,13 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       </nav>
 
       <div className="p-4 border-t border-gray-50 flex flex-col gap-2">
+        {canSee('manual') && <Link
+          href="/dashboard/manuales"
+          onClick={() => isMobile && setIsOpen(false)}
+          className="flex items-center gap-3 px-4 py-3 rounded-xl font-black text-sm transition-all text-gray-400 hover:text-rose-500 hover:bg-rose-50"
+        >
+          <BookOpen className="w-5 h-5" /> MANUAL DE USUARIO
+        </Link>}
         {!accountingOnly && !operationsOnly && <Link
           href="/perfil"
           onClick={() => isMobile && setIsOpen(false)}
