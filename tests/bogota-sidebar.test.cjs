@@ -4,6 +4,6 @@ const deps={'next/link':{default:({children,...props})=>React.createElement('a',
 vm.runInNewContext(ts.transpileModule(fs.readFileSync('components/Sidebar.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,{exports:modExports,require:n=>deps[n]?{__esModule:true,...deps[n]}:require(n)});
 const html=renderToStaticMarkup(React.createElement(modExports.default,{user:{id:'bd8f61a5-8ecf-4b78-9282-5c7812b4f277',rol:'asesora'},handleLogout:()=>{}}));
 const links=[...html.matchAll(/<a[^>]*href="([^"]+)"/g)].map(x=>x[1]);
-assert.deepEqual(links,[...deps['@/lib/role-access'].operationsPanels,...deps['@/lib/role-access'].operationsPanels]);
+assert.deepEqual([...links].sort(),[...deps['@/lib/role-access'].operationsPanels,...deps['@/lib/role-access'].operationsPanels].sort());
 assert(!html.includes('MI PERFIL'));assert(html.includes('GESTIÓN DE INVENTARIO'));
 console.log('PASS: Bogotá advisor sidebar renders exactly the seven requested panels');

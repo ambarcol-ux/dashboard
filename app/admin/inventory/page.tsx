@@ -7,8 +7,9 @@ import { supabase } from '@/lib/supabase';
 import { 
   Search, Package, MapPin, ArrowLeftRight, Loader2, 
   Trash2, Plus, Filter, LayoutGrid, List as ListIcon, CheckCircle2, ChevronLeft, ShieldAlert, ChevronDown,
-  X, FileText, TrendingUp, Clock, DollarSign, List, RotateCcw, Archive, ArchiveRestore
+  X, FileText, TrendingUp, Clock, DollarSign, List, RotateCcw, Archive, ArchiveRestore, QrCode
 } from 'lucide-react';
+import {downloadDressQr,dressLabelsPdf} from '@/lib/dress-qr';
 import { toast, Toaster } from 'sonner';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
@@ -197,7 +198,7 @@ export default function InventoryPage() {
     try {
       const { data, error } = await supabase
         .from('vestidos')
-        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, stock_total, clasificacion_id, archivado, archivado_at, motivo_archivo')
+        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, stock_total, clasificacion_id, archivado, archivado_at, motivo_archivo, qr_token')
         .order('codigo', { ascending: true });
       
       if (error) {
@@ -583,6 +584,13 @@ export default function InventoryPage() {
             title="Ver los códigos archivados para restaurarlos"
           >
             <Archive className="w-4 h-4" /> Archivados
+          </button>
+          <button
+            onClick={() => { const t = toast.loading('Generando etiquetas…'); dressLabelsPdf(filtered).then(() => toast.success('Etiquetas listas', { id: t })).catch(e => toast.error(e.message, { id: t })); }}
+            className="w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100"
+            title="PDF con el QR de los vestidos de la lista"
+          >
+            <QrCode className="w-4 h-4" /> Etiquetas QR
           </button>
           <div className="flex items-center gap-3 w-full md:w-auto">
              <div className="px-6 py-4 bg-gray-50 rounded-2xl text-gray-400 font-black text-[10px] uppercase tracking-widest border border-gray-100 italic">
@@ -1241,6 +1249,13 @@ export default function InventoryPage() {
                        <h2 className="text-4xl font-black tracking-tighter leading-none mb-1">{selectedDressDossier.codigo}</h2>
                        <p className="text-rose-50 font-bold opacity-90 uppercase tracking-widest text-xs">{selectedDressDossier.nombre || 'VESTIDO SIN NOMBRE'}</p>
                     </div>
+                    <button
+                      onClick={() => downloadDressQr(selectedDressDossier).catch(e => toast.error(e.message))}
+                      className="absolute top-6 right-20 px-3 py-2 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all z-20 flex items-center gap-1 text-xs font-black"
+                      title="Descargar QR (PNG)"
+                    >
+                      <QrCode size={16} /> QR
+                    </button>
                     <button 
                       onClick={() => setDossierOpen(false)}
                       className="absolute top-6 right-6 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all z-20"
