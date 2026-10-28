@@ -270,81 +270,9 @@ export default function AdminConfigPage() {
                <span className="bg-rose-50 text-rose-600 text-[10px] font-black px-2 py-1 rounded-lg border border-rose-100 uppercase italic whitespace-nowrap">Recurso Humano</span>
             </div>
 
-            {/* Form Add Asesora */}
-            <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-4">
-               <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm uppercase tracking-wider">Alta de Asesora</h3>
-               <div className="grid grid-cols-1 gap-3">
-                 <input 
-                   type="text" 
-                   value={newAsesora.nombre}
-                   onChange={(e)=>setNewAsesora({...newAsesora, nombre: e.target.value})}
-                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-rose-200 font-bold text-gray-800"
-                   placeholder="Nombre Asesora"
-                 />
-                 <div className="grid grid-cols-2 gap-3">
-                   <select 
-                     value={newAsesora.sede_id}
-                     onChange={(e)=>setNewAsesora({...newAsesora, sede_id: e.target.value})}
-                     className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-rose-200 font-bold text-gray-800"
-                   >
-                     <option value="">Selecciona Sede...</option>
-                     {sedes.filter(s => s.activo).map(s => (
-                       <option key={s.id} value={s.id}>{s.nombre}</option>
-                     ))}
-                   </select>
-                   <select 
-                     value={newAsesora.profile_id}
-                     onChange={(e)=>setNewAsesora({...newAsesora, profile_id: e.target.value})}
-                     className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-rose-200 font-bold text-gray-800"
-                   >
-                     <option value="">Vincular Perfil (Opcional)...</option>
-                     {profiles.map(p => (
-                       <option key={p.id} value={p.id}>{p.nombre} ({p.rol})</option>
-                     ))}
-                   </select>
-                 </div>
-               </div>
-                <button 
-                 onClick={handleAddAsesora}
-                 disabled={saving || !newAsesora.nombre.trim() || !newAsesora.sede_id}
-                 className="w-full bg-rose-500 hover:bg-rose-600 text-white py-3 rounded-xl font-black shadow-lg shadow-rose-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-               >
-                 {saving ? <Loader2 className="w-5 h-5 animate-spin"/> : <Plus className="w-4 h-4"/>} VINCULAR ASESORA
-               </button>
-            </div>
-
-            {/* List Asesoras */}
-            <div className="space-y-4">
-               {asesoras.length === 0 ? (
-                 <div className="p-10 text-center bg-gray-50 rounded-3xl border border-dashed border-gray-300">
-                   <p className="text-gray-400 font-bold text-sm">No hay equipo registrado.</p>
-                 </div>
-               ) : (
-                  asesoras.map((a) => (
-                    <div key={a.id} className="bg-white p-4 rounded-3xl shadow-sm border border-gray-100 flex items-center justify-between hover:shadow-md transition-shadow">
-                      <div className="flex items-center gap-3">
-                         <div className={`p-2.5 rounded-2xl ${a.activo ? 'bg-rose-50 text-rose-600' : 'bg-gray-50 text-gray-400'}`}>
-                           <Users className="w-5 h-5" />
-                         </div>
-                         <div>
-                            <h4 className="font-black text-gray-900 text-sm uppercase">{a.nombre_completo}</h4>
-                            <span className="text-[8px] bg-rose-50 text-rose-500 font-black px-1.5 py-0.5 rounded tracking-widest uppercase">
-                              {a.sedes?.nombre || 'SIN SEDE'}
-                            </span>
-                            <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ml-2 ${a.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
-                              {a.activo ? 'ACTIVO' : 'INACTIVO'}
-                            </span>
-                         </div>
-                      </div>
-                      <button 
-                        onClick={() => toggleAsesoraStatus(a.id, a.activo)}
-                        className={`p-1.5 rounded-xl transition-colors ${a.activo ? 'text-emerald-600 hover:bg-emerald-50' : 'text-gray-400 hover:text-rose-600 hover:bg-rose-50'}`}
-                      >
-                        {a.activo ? <ToggleRight className="w-10 h-10" /> : <ToggleLeft className="w-10 h-10" />}
-                      </button>
-                    </div>
-                  ))
-               )}
+            <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3">
+              <p className="text-sm text-gray-600">El equipo (asesoras, usuarios, roles y sedes de cada persona) se gestiona ahora en un solo lugar.</p>
+              <Link href="/admin/accesos" className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-rose-500 text-white text-xs font-black uppercase tracking-widest hover:bg-rose-600"><Users className="w-4 h-4" /> Ir a Equipo y accesos</Link>
             </div>
           </div>
 
