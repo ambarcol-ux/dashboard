@@ -2,10 +2,12 @@
 import {useCallback,useEffect,useState} from 'react';
 import {ToggleLeft,ToggleRight} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
+import {createUserAction} from '@/app/admin/users/actions';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
 type Ficha={id:string;nombre_completo:string|null;nombre:string|null;sede_id:string|null;activo:boolean|null;profile_id:string|null};
-type Person={id:string;nombre:string|null;email:string|null;sede_id:string|null;activo:boolean|null};
+type Person={id:string;nombre:string|null;email:string|null;rol?:string|null;sede_id:string|null;activo:boolean|null};
+const BASE_ROLES=['asesora','admin','contabilidad'];
 const fichaName=(f:Ficha)=>f.nombre_completo||f.nombre||'Sin nombre';
 
 /** On = green switch to the right; off = grey switch to the left. */
@@ -28,6 +30,8 @@ export function PersonTeamCard({person,sedes,onChanged,onError}:{person:Person;s
  return <div className={styles.card} style={{margin:'12px 0',padding:12}}>
   <b>Equipo</b>
   <p style={{display:'flex',alignItems:'center',gap:8,margin:'6px 0'}}>Usuario del ERP: <Switch on={person.activo!==false} title="Activar o inactivar el usuario" onClick={()=>void run(supabase.from('profiles').update({activo:person.activo===false}).eq('id',person.id))}/>{person.activo===false?'Inactivo':'Activo'}</p>
+  <p style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',margin:'6px 0'}}>Sede: <select value={person.sede_id||''} onChange={e=>void run(supabase.from('profiles').update({sede_id:e.target.value||null}).eq('id',person.id))}><option value="">Todas / sin sede</option>{Object.entries(sedes).map(([id,n])=><option key={id} value={id}>{n}</option>)}</select>
+   Rol base: <select value={String(person.rol||'').toLowerCase()} onChange={e=>void run(supabase.from('profiles').update({rol:e.target.value}).eq('id',person.id))}>{BASE_ROLES.map(r=><option key={r}>{r}</option>)}</select></p>
   {mine.length?mine.map(f=><p key={f.id} style={{display:'flex',alignItems:'center',gap:8,margin:'6px 0'}}>Ficha de asesora: <b>{fichaName(f)}</b> · {f.sede_id?sedes[f.sede_id]||'—':'—'}
    <Switch on={f.activo!==false} title="Activar o inactivar la ficha de asesora" onClick={()=>void run(supabase.from('asesoras').update({activo:f.activo===false}).eq('id',f.id))}/>{f.activo===false?'Inactiva':'Activa'}
    <button className={styles.button} onClick={()=>void run(supabase.from('asesoras').update({profile_id:null}).eq('id',f.id))}>Separar</button></p>)
@@ -39,24 +43,32 @@ export function PersonTeamCard({person,sedes,onChanged,onError}:{person:Person;s
 
 /** Tab "Alta y fichas": new advisor record (with optional user) and records that still have no ERP user. */
 export function TeamTab({people,sedes,onError,onNotice}:{people:Person[];sedes:Record<string,string>;onError:(m:string)=>void;onNotice:(m:string)=>void}){
- const [fichas,reload]=useFichas(),[form,setForm]=useState({nombre:'',sede_id:'',profile_id:''}),[busy,setBusy]=useState(false);
+ const [fichas,reload]=useFichas(),[form,setForm]=useState({nombre:'',sede_id:'',profile_id:'',email:'',password:'',rol:'asesora'}),[busy,setBusy]=useState(false);
  const add=async()=>{
   if(!form.nombre.trim()||!form.sede_id)return onError('Escribe el nombre y elige la sede.');
-  setBusy(true);const n=form.nombre.trim();
-  const {error}=await supabase.from('asesoras').insert([{nombre:n,nombre_completo:n,sede_id:form.sede_id,profile_id:form.profile_id||null}]);
+  setBusy(true);const n=form.nombre.trim();let profileId=form.profile_id||null;
+  if(!profileId&&form.email.trim()){
+   const res=await createUserAction({email:form.email.trim(),password:form.password,nombre:n,sede_id:form.sede_id,rol:form.rol});
+   if(!res.success){setBusy(false);return onError(res.message||'No se pudo crear el usuario.');}
+   profileId=res.user?.id||null;
+  }
+  const {error}=await supabase.from('asesoras').insert([{nombre:n,nombre_completo:n,sede_id:form.sede_id,profile_id:profileId}]);
   setBusy(false);if(error)return onError(error.message);
-  setForm({nombre:'',sede_id:'',profile_id:''});onNotice('Ficha de asesora creada.');await reload();
+  setForm({nombre:'',sede_id:'',profile_id:'',email:'',password:'',rol:'asesora'});onNotice(profileId&&!form.profile_id?'Persona creada: ficha de asesora + usuario del ERP. Recarga para verla en «Por usuario».':'Ficha de asesora creada.');await reload();
  };
  const toggle=async(f:Ficha)=>{const {error}=await supabase.from('asesoras').update({activo:f.activo===false}).eq('id',f.id);if(error)onError(error.message);else await reload();};
  const free=fichas.filter(f=>!f.profile_id);
  return <section className={styles.card}>
   <h2>Alta de persona</h2>
-  <p className={styles.help}>Crea la ficha de asesora (aparece en contratos y metas). Si ya tiene usuario del ERP, únelo aquí; si no, créalo en Gestión de equipo y luego únelo desde su ficha en «Por usuario».</p>
+  <p className={styles.help}>Crea la ficha de asesora (aparece en contratos y metas) y, si escribes correo y contraseña, también su usuario del ERP. Si ya tiene usuario, elígelo en vez de crear uno.</p>
   <div style={{display:'flex',gap:8,flexWrap:'wrap',margin:'8px 0 16px'}}>
    <input placeholder="Nombre completo" value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})}/>
    <select value={form.sede_id} onChange={e=>setForm({...form,sede_id:e.target.value})}><option value="">Sede…</option>{Object.entries(sedes).map(([id,n])=><option key={id} value={id}>{n}</option>)}</select>
    <select value={form.profile_id} onChange={e=>setForm({...form,profile_id:e.target.value})}><option value="">Usuario del ERP (opcional)…</option>{people.filter(p=>p.activo!==false).map(p=><option key={p.id} value={p.id}>{p.nombre||p.email}</option>)}</select>
-   <button className={styles.button} disabled={busy} onClick={()=>void add()}>Crear ficha</button>
+   {!form.profile_id&&<><input type="email" placeholder="Correo (para crear usuario)" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>
+    <input type="password" placeholder="Contraseña (mín. 6)" value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/>
+    <select value={form.rol} onChange={e=>setForm({...form,rol:e.target.value})}>{BASE_ROLES.map(r=><option key={r}>{r}</option>)}</select></>}
+   <button className={styles.button} disabled={busy} onClick={()=>void add()}>{busy?'Creando…':'Crear persona'}</button>
   </div>
   <h2>Fichas de asesora sin usuario ({free.length})</h2>
   <table className={styles.table}><thead><tr><th>Nombre</th><th>Sede</th><th>Estado</th></tr></thead><tbody>

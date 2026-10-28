@@ -1,0 +1,31 @@
+usuario|permiso|quitado/agregado|origen|aplicar
+Andres Romero|panel aliados_directos|agregado|accesos_paneles|
+Andres Romero|panel calendario|agregado|accesos_paneles|
+Diana Alexandra Rojas Salguero|panel metas|quitado|accesos_paneles|
+Ileine Lasco blanco|panel aliados_admin|agregado|accesos_paneles|
+Ileine Lasco blanco|panel aliados_directos|agregado|accesos_paneles|
+Ileine Lasco blanco|panel comisiones|agregado|accesos_paneles|
+Ileine Lasco blanco|panel liquidaciones|agregado|accesos_paneles|
+Chistian Camilo Lesmes Gonzalez|panel aliados_admin|agregado|accesos_paneles|
+Chistian Camilo Lesmes Gonzalez|panel aliados_directos|agregado|accesos_paneles|
+Chistian Camilo Lesmes Gonzalez|panel horarios|agregado|accesos_paneles|
+Chistian Camilo Lesmes Gonzalez|panel metas|agregado|accesos_paneles|
+Chistian Camilo Lesmes Gonzalez|panel proveedores-catalogo|agregado|accesos_paneles|
+Tania Muñoz Ospina|paneles fuera de operationsPanels|quitado|role-access.ts isScopedOperationsAccount|
+Tania Muñoz Ospina|editar registros guardados|agregado|saved-record-editing.ts|
+Tania Muñoz Ospina|datos limitados a su sede (RLS)|quitado|migración pereira_acceso_operativo|
+Ileine Lasco blanco|paneles fuera de operationsPanels|quitado|role-access.ts isScopedOperationsAccount|
+Ileine Lasco blanco|editar registros guardados|agregado|saved-record-editing.ts|
+Ileine Lasco blanco|datos limitados a su sede (RLS)|quitado|migración ileine_barranquilla_acceso_operativo|
+Viviana Patricia Franco Patiño|paneles fuera de operationsPanels|quitado|role-access.ts isScopedOperationsAccount|
+Viviana Patricia Franco Patiño|editar registros guardados|agregado|saved-record-editing.ts|
+Viviana Patricia Franco Patiño|datos limitados a su sede (RLS)|quitado|migración pereira_acceso_operativo|
+Chistian Camilo Lesmes Gonzalez|paneles fuera de operationsPanels|quitado|role-access.ts isScopedOperationsAccount|
+Chistian Camilo Lesmes Gonzalez|editar registros guardados|agregado|saved-record-editing.ts|
+Chistian Camilo Lesmes Gonzalez|datos limitados a su sede (RLS)|quitado|migración pereira_acceso_operativo|
+Genesis Maldonado (inactivo)|paneles fuera de operationsPanels|quitado|role-access.ts isScopedOperationsAccount|
+Genesis Maldonado (inactivo)|editar registros guardados|agregado|saved-record-editing.ts|
+Liliana Quintero (inactivo)|paneles fuera de operationsPanels|quitado|role-access.ts isScopedOperationsAccount|
+Liliana Quintero (inactivo)|editar registros guardados|agregado|saved-record-editing.ts|
+Propietario|administrador por correo|agregado|role-access.ts isAdminProfile|
+Ruben Dario Aristizabal Varon|can_edit_saved_records|agregado|scripts/grant-ruben-saved-record-editing.sql (sin efecto hoy: ya es admin)|

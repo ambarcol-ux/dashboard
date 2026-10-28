@@ -8,7 +8,7 @@ import { isAccounting, isScopedOperationsAccount } from '@/lib/role-access';
 import { panelAccess } from '@/lib/panel-access';
 import { usePanelOverrides } from '@/lib/use-panel-overrides';
 import {
-  FileText, Users, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown
+  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -105,7 +105,6 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       title: 'RECURSOS HUMANOS',
       adminOnly: false,
       items: [
-        { id: 'users', label: 'GESTIÓN DE EQUIPO', icon: Users, href: '/admin/users', color: 'indigo' },
         { id: 'horarios', label: 'CONTROL DE ASISTENCIA', icon: Clock, href: '/dashboard/horarios', color: 'rose' },
         { id: 'accesos', label: 'EQUIPO Y ACCESOS', icon: ShieldCheck, href: '/admin/accesos', color: 'indigo' },
       ]
