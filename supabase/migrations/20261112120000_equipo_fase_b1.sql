@@ -282,3 +282,10 @@ revoke all on function public.permisos_de(uuid),public.guardar_persona(uuid,json
 grant execute on function public.permisos_de(uuid),public.guardar_persona(uuid,jsonb),public.unir_ficha(uuid,uuid),public.pasar_permiso_a_rol(text,text,boolean),public.guardar_rol_sedes(text,boolean),public.anular_pago_contrato(uuid,text) to authenticated;
 revoke all on function private.roles_usuario(uuid),private.sedes_usuario(uuid),private.puede_corregir(uuid,date),private.fecha_deposito_contrato(uuid) from public,anon;
 grant execute on function private.roles_usuario(uuid),private.sedes_usuario(uuid),private.puede_corregir(uuid,date),private.fecha_deposito_contrato(uuid) to authenticated;
+
+-- Fix: guardar_persona keeps only ids that exist in sedes (a profile could hold a removed sede id).
+do $$ declare d text:=pg_get_functiondef('public.guardar_persona(uuid,jsonb)'::regprocedure); begin
+ d:=replace(d,'sedes:=array(select (jsonb_array_elements_text(p_datos->''sedes''))::uuid);',
+  'sedes:=array(select s.id from public.sedes s where s.id::text in (select jsonb_array_elements_text(p_datos->''sedes'')));');
+ execute d;
+end $$;

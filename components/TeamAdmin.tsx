@@ -32,7 +32,7 @@ function SedesPicker({sedes,value,onChange,all}:{sedes:Record<string,string>;val
 export function PeopleTab(ctx:TeamCtx){
  const {people,sedes,roles,userSedes}=ctx;
  const [f,setF]=useState({rol:'',sede:'',activo:'activos'}),[sel,setSel]=useState<string|null>(null),[nuevo,setNuevo]=useState(false),[fichas,reloadFichas]=useFichas();
- const sedesOf=(p:TPerson)=>userSedes[p.id]?.length?userSedes[p.id]:p.sede_id?[p.sede_id]:[];
+ const sedesOf=(p:TPerson)=>(userSedes[p.id]?.length?userSedes[p.id]:p.sede_id?[p.sede_id]:[]).filter(id=>id in sedes);
  const veTodas=(r:string)=>!!roles.find(x=>x.id===r)?.ve_todas_sedes;
  const list=people.filter(p=>String(p.rol).toLowerCase()!=='proveedor'&&(!f.rol||rolActual(p)===f.rol)&&(!f.sede||sedesOf(p).includes(f.sede)||veTodas(rolActual(p)))&&(f.activo==='todos'||(f.activo==='activos')===(p.activo!==false)));
  const person=people.find(p=>p.id===sel);
@@ -51,7 +51,7 @@ export function PeopleTab(ctx:TeamCtx){
     <td><b>{nameOf(p)}</b><small>{p.email}</small></td><td>{roles.find(x=>x.id===r)?.nombre||r||'—'}</td>
     <td>{veTodas(r)?'Todas':sedesOf(p).map(s=>sedes[s]||'—').join(', ')||'—'}</td>
     <td><span className={`${styles.badge} ${p.estado_ficha==='confirmada'?styles.badgeIn:styles.badgeWarn}`}>{p.estado_ficha==='confirmada'?'Confirmada':'Pendiente'}</span></td>
-    <td>{p.activo===false?'Inactivo':'Activo'}</td></tr>;})}</tbody></table></div>
+    <td>{p.activo===false?'Inactivo':'Activo'}{(()=>{const fi=fichas.find(x=>x.profile_id===p.id);return fi&&(fi.activo!==false)!==(p.activo!==false)?<small>ficha {fi.activo===false?'inactiva':'activa'}</small>:null;})()}</td></tr>;})}</tbody></table></div>
   <FreeFichas ctx={ctx} fichas={fichas} onDone={reload}/>
  </section>;
 }
@@ -149,7 +149,7 @@ function ReviewCard({p,ctx,rolePerms,extra,overrides,permisos}:{p:TPerson;ctx:Te
  const base=String(p.rol||'').toLowerCase(),legacy=[...new Set([base,...extra])];
  const elegir=legacy.includes('bodega')||extra.filter(r=>r!==base).length>1;
  const [rol,setRol]=useState(elegir?'':(p.rol_id||extra.find(r=>r!==base)||base));
- const [sedesSel,setSedesSel]=useState<string[]>(ctx.userSedes[p.id]?.length?ctx.userSedes[p.id]:p.sede_id?[p.sede_id]:[]);
+ const [sedesSel,setSedesSel]=useState<string[]>((ctx.userSedes[p.id]?.length?ctx.userSedes[p.id]:p.sede_id?[p.sede_id]:[]).filter(id=>id in ctx.sedes));
  const [legacyPerms,setLegacyPerms]=useState<string[]>([]),[done,setDone]=useState<string[]>([]),[busy,setBusy]=useState(false);
  useEffect(()=>{let live=true;void supabase.rpc('permisos_de',{p_usuario:p.id}).then(({data})=>{if(live)setLegacyPerms((data||[]) as string[]);});return()=>{live=false;};},[p.id]);
  const all=!!ctx.roles.find(r=>r.id===rol)?.ve_todas_sedes;
