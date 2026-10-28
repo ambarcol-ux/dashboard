@@ -1,5 +1,6 @@
 'use client';
 import ContractDateEditor from '@/components/ContractDateEditor';
+import { saldoContrato, puedeEntregar } from '@/lib/saldo';
 import {loadContractSignature} from '@/lib/load-dashboard-contracts';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 import {CONTRACT_PAGE_SIZE, type DashboardSummary} from '@/lib/dashboard-summary';
@@ -314,7 +315,7 @@ export default function DashboardPage() {
       fecha_evento: contrato.fecha_evento,
       valor_total: Number(contrato.valor_total) || 0,
       anticipo: Number(contrato.anticipo) || 0,
-      saldo: (Number(contrato.valor_total) || 0) + (Number(contrato.total_arreglos) || 0) - (Number(contrato.anticipo) || 0),
+      saldo: saldoContrato(contrato),
       created_at: contrato.created_at,
       fecha_elaboracion: contrato.fecha_elaboracion,
       firma_base64: signature,
@@ -2075,9 +2076,9 @@ export default function DashboardPage() {
                     {!isLavanderia && (
                       <button 
                         onClick={() => { setOpenDropdownId(null); openDeliveryModal(c); }} 
-                        disabled={Number(c.saldo) > 0}
+                        disabled={!puedeEntregar(c)}
                         className={`w-full text-left px-4 py-3 text-sm rounded-xl flex items-center justify-between font-black transition-all ${
-                          Number(c.saldo) > 0
+                          !puedeEntregar(c)
                           ? 'text-rose-400 bg-rose-50 cursor-not-allowed'
                           : 'text-amber-700 hover:bg-amber-50'
                         }`}
@@ -3693,10 +3694,10 @@ export default function DashboardPage() {
                                       setDrawerOpen(false); 
                                       openDeliveryModal(selectedContract, 'PREXV'); 
                                     }}
-                                    disabled={selectedContract.entregado_prexv || Number(selectedContract.saldo) > 0}
+                                    disabled={selectedContract.entregado_prexv || !puedeEntregar(selectedContract)}
                                     className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
                                       selectedContract.entregado_prexv ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
-                                      Number(selectedContract.saldo) > 0 ? 'bg-rose-50 text-rose-400 cursor-not-allowed' :
+                                      !puedeEntregar(selectedContract) ? 'bg-rose-50 text-rose-400 cursor-not-allowed' :
                                       'bg-amber-500 hover:bg-amber-600 text-white shadow-md active:scale-95'
                                     }`}
                                   >
@@ -3723,10 +3724,10 @@ export default function DashboardPage() {
                                     setDrawerOpen(false); 
                                     openDeliveryModal(selectedContract, 'EVENTO'); 
                                   }}
-                                  disabled={selectedContract.entregado_evento || Number(selectedContract.saldo) > 0}
+                                  disabled={selectedContract.entregado_evento || !puedeEntregar(selectedContract)}
                                   className={`w-full py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${
                                     selectedContract.entregado_evento ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
-                                    Number(selectedContract.saldo) > 0 ? 'bg-rose-50 text-rose-400 cursor-not-allowed' :
+                                    !puedeEntregar(selectedContract) ? 'bg-rose-50 text-rose-400 cursor-not-allowed' :
                                     'bg-amber-500 hover:bg-amber-600 text-white shadow-md active:scale-95'
                                   }`}
                                 >

@@ -1,6 +1,7 @@
 /** Metas y Ventas: monthly goal per site, daily goal and receivables aging (guía 20/10/2026). */
 export type SiteGoal={sede_id:string;sede:string;meta_id:string|null;meta:number|null;automatica:boolean;dias_operativos:number;dias_calculados:number;dias_restantes:number;vendido:number;vendido_hasta_ayer:number;contratos:number;recaudado_mes:number};
 export type Receivable={id:string;numero_contrato:string;cliente:string;sede_id:string|null;sede:string|null;fecha:string;factura:string|null;recibo:string|null;valor:number;recaudado:number;saldo:number;dias:number;estado:string|null};
+import {saldoContrato} from './saldo';
 export type AgingBucket='al_dia'|'mas30'|'mas90'|'mas120'|'pagada';
 
 const n=(v:unknown)=>Number(v)||0;
@@ -15,7 +16,7 @@ export const progress=(g:Pick<SiteGoal,'meta'|'vendido'>)=>g.meta?Math.round(n(g
 
 /** 0–30 al día, 31–90 +30, 91–120 +90, >120 +120; zero balance = pagada. */
 export function agingBucket(r:Pick<Receivable,'saldo'|'dias'>):AgingBucket{
- if(n(r.saldo)<=0)return 'pagada';
+ if(saldoContrato({saldo:r.saldo})<=0)return 'pagada';
  return r.dias>120?'mas120':r.dias>90?'mas90':r.dias>30?'mas30':'al_dia';
 }
 export const AGING:Record<AgingBucket,{label:string;chip:string;cls:string}>={
@@ -25,7 +26,7 @@ export const AGING:Record<AgingBucket,{label:string;chip:string;cls:string}>={
  mas120:{label:'Vencida +120',chip:'+120 días',cls:'bg-rose-50 text-rose-700 border-rose-400 font-black'},
  pagada:{label:'Pagada',chip:'Pagadas',cls:'bg-gray-50 text-gray-500 border-gray-200'},
 };
-export const overdueBalance=(rows:Receivable[])=>rows.filter(r=>['mas30','mas90','mas120'].includes(agingBucket(r))).reduce((a,r)=>a+n(r.saldo),0);
+export const overdueBalance=(rows:Receivable[])=>rows.filter(r=>['mas30','mas90','mas120'].includes(agingBucket(r))).reduce((a,r)=>a+saldoContrato({saldo:r.saldo}),0);
 
 const csvCell=(v:unknown)=>{const s=String(v??'');return /[",;\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;};
 /** CSV (opens in Excel) of the receivables panel. */

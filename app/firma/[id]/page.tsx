@@ -7,6 +7,7 @@ import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
 import SignatureCanvas from 'react-signature-canvas';
 import { Toaster, toast } from 'sonner';
 import { Loader2, Eraser, PenTool, CheckCircle, AlertCircle } from 'lucide-react';
+import { saldoContrato } from '@/lib/saldo';
 
 export default function FirmaPage() {
   const params = useParams();
@@ -55,7 +56,7 @@ export default function FirmaPage() {
       fecha_evento: dbData.fecha_evento,
       valor_total: Number(dbData.valor_total) || 0,
       anticipo: Number(dbData.anticipo) || 0,
-      saldo: (Number(dbData.valor_total) || 0) + (Number(dbData.total_arreglos) || 0) - (Number(dbData.anticipo) || 0),
+      saldo: saldoContrato(dbData),
       created_at: dbData.created_at,
       fecha_elaboracion: dbData.fecha_elaboracion,
       firma_base64: dbData.firma_base64,

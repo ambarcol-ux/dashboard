@@ -9,6 +9,7 @@ import { dateInput, editableDateFields, timestampFields, contactFields } from '@
 import PreXvFields from '@/components/PreXvFields';
 import { prexvFields, includedPrexv, prexvSummary, hasPrexv, type PrexvData } from '@/lib/prexv';
 import styles from './calendar.module.css';
+import {saldoContrato} from '@/lib/saldo';
 
 const labels:Record<string,string>={
   cliente_nombre:'Nombre del cliente',
@@ -224,7 +225,7 @@ export default function ContractPanel({
         <p>Factura: {contract.numero_factura||'Sin asignar'}</p>
         <p>Referencias del contrato: {refsLabel}</p>
         <p>Valor: {Number(contract.valor_total||0).toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0})}</p>
-        <p>Saldo: {Number(contract.saldo||0).toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0})}</p>
+        <p>Saldo: {saldoContrato(contract).toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0})}</p>
       </div>
     </details>
 
