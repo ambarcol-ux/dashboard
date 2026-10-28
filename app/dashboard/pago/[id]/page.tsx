@@ -399,7 +399,15 @@ export default function RegistrarPagoPage() {
                   </div>
                 ) : (
                   pagos.map((pago) => (
-                    <div key={pago.id} className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                    <div key={pago.id} className={`p-4 rounded-xl border ${pago.anulado_at ? 'bg-rose-50 border-rose-100 opacity-70' : 'bg-gray-50 border-gray-100'}`}>
+                      {pago.anulado_at ? <p className="text-[11px] font-black text-rose-600 mb-1">ANULADO · {pago.motivo_anulacion}</p> : (
+                        <button type="button" className="float-right text-[11px] font-bold text-rose-600 underline" onClick={async () => {
+                          const motivo = window.prompt('Motivo de la anulación (mínimo 10 caracteres):');
+                          if (!motivo) return;
+                          const { error } = await supabase.rpc('anular_pago_contrato', { p_pago: pago.id, p_motivo: motivo });
+                          if (error) toast.error(error.message); else { toast.success('Pago anulado. El saldo se recalculó.'); fetchData(); }
+                        }}>Anular</button>
+                      )}
                       <div className="flex justify-between items-start mb-2">
                         <span className="font-bold text-emerald-600">{formatCurrency(Number(pago.valor_pagado))}</span>
                         <span className="text-xs font-semibold text-gray-500 bg-white px-2 py-0.5 rounded border border-gray-200">

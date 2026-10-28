@@ -18,7 +18,7 @@ export function createAccessReader(client: SupabaseClient, initial: VerifiedAcce
       const {data: {user}, error} = await client.auth.getUser();
       if (error || !user) throw new Error('Inicia sesión para continuar.');
       const {data: profile, error: profileError} = await client.from('profiles')
-        .select('id,nombre,email,rol,sede_id,activo').eq('id', user.id).single();
+        .select('id,nombre,email,rol,sede_id,activo,estado_ficha').eq('id', user.id).single();
       if (profileError || !profile || profile.activo === false) throw new Error('No pudimos verificar tu perfil.');
       return {user, profile};
     })().finally(() => {pending = null;});

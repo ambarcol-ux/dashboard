@@ -269,7 +269,7 @@ export default function NuevoContratoPage() {
           }
         }
 
-        const { data: catAsesoras, error: aError } = await supabase.from('asesoras').select('*, sedes(nombre)').eq('activo', true).order('nombre_completo');
+        const { data: catAsesoras, error: aError } = await supabase.from('asesoras').select('*, sedes(nombre)').eq('activo', true).eq('aparece_como_vendedora', true).order('nombre_completo');
         if (aError) {
           console.error('[DATABASE ERROR] Asesoras:', aError.message, aError.details);
         } else if (catAsesoras) {

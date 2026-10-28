@@ -22,7 +22,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
   const depositCount = useDepositCount(pendingDeposits, user?.id);
   const [isOpen, setIsOpen] = useState(false);
   const normalizedRole = String(user?.rol || '').toLowerCase();
-  const operationsOnly = isScopedOperationsAccount(user?.id);
+  const operationsOnly = isScopedOperationsAccount(user?.id, user?.estado_ficha);
   const accountingOnly = isAccounting(normalizedRole);
   const overrides = usePanelOverrides(user?.id ? String(user.id) : null);
   // Same rules as the route guard: role defaults plus the administrator's manual changes.

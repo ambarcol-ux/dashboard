@@ -100,7 +100,7 @@ export async function createUserAction(params: CreateUserParams) {
         id: userId,
         email: params.email,
         nombre: params.nombre,
-        sede_id: params.sede_id,
+        sede_id: params.sede_id || null,
         rol: finalRol
       }], { onConflict: 'id' });
 
@@ -127,4 +127,21 @@ export async function createUserAction(params: CreateUserParams) {
       message: `Fallo inesperado del servidor: ${err.message || 'Error desconocido'}`
     };
   }
+}
+
+/** Administration sets a temporary password for a team member. */
+export async function resetPasswordAction(userId: string, password: string) {
+  const token = (await cookies()).get('sb-access-token')?.value;
+  if (!token) return { success: false, message: 'Inicia sesión como administrador.' };
+  const caller = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { data: { user } } = await caller.auth.getUser(token);
+  const { data: isAdmin } = await caller.rpc('es_admin');
+  if (!user || isAdmin !== true) return { success: false, message: 'Solo el administrador puede restablecer claves.' };
+  if (!/^[0-9a-f-]{36}$/i.test(userId) || !password || password.trim().length < 6) return { success: false, message: 'La clave temporal debe tener mínimo 6 caracteres.' };
+  const admin = getAdminClient();
+  if (!admin) return { success: false, message: 'Falta la configuración del servidor.' };
+  const { error } = await admin.auth.admin.updateUserById(userId, { password });
+  return error ? { success: false, message: error.message } : { success: true, message: 'Clave restablecida.' };
 }
