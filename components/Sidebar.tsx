@@ -184,7 +184,8 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
                 <ChevronDown className={`w-3 h-3 transition-transform ${open ? '' : '-rotate-90'}`} />
               </button>
 
-              {open && block.items.map((item) => {
+              <div className={open ? 'space-y-1' : 'hidden'}>
+              {block.items.map((item) => {
                 if (!visible(item)) return null;
                 const Icon = item.icon;
                 const isActive = activePage === item.id;
@@ -234,6 +235,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
                   </Link>
                 );
               })}
+              </div>
             </div>
           );
         })}
