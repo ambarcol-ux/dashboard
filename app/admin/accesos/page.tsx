@@ -38,7 +38,7 @@ export default function AccessPage(){
  const [profile,setProfile]=useState<Record<string,unknown>|null>(null),[error,setError]=useState('');
  useEffect(()=>{let live=true;void readAccess().then(({profile})=>{if(live)setProfile(profile);}).catch(e=>{if(live)setError(e instanceof Error?e.message:'No pudimos validar tu acceso.');});return()=>{live=false;};},[readAccess]);
  const logout=async()=>{await supabase.auth.signOut();document.cookie='sb-access-token=; path=/; max-age=0';router.replace('/login');};
- return <div className={styles.shell}><Sidebar user={profile} handleLogout={logout} activePage="accesos"/><main className={styles.main}>
+ return <div className={styles.shell}><Sidebar user={profile} handleLogout={logout} activePage="accesos"/><main translate="no" className={styles.main}>
   <header className={styles.header}><div><Link href="/dashboard" className={styles.back}>Recursos humanos / Equipo y accesos</Link><h1><ShieldCheck/> Equipo y accesos</h1>
    <p>Una ficha por persona: usuario, ficha de asesora, rol, sede y paneles. Elige qué paneles ve cada usuario. Sin cambios, cada quien tiene el acceso de su rol; «Quitar» oculta el panel y bloquea su dirección.</p></div></header>
   {error?<p role="alert" className={styles.error}>{error}</p>:!profile?<p role="status" className={styles.empty}>Validando acceso…</p>

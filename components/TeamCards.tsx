@@ -56,7 +56,8 @@ export function TeamTab({people,sedes,onError,onNotice}:{people:Person[];sedes:R
   setBusy(false);if(error)return onError(error.message);
   setForm({nombre:'',sede_id:'',profile_id:'',email:'',password:'',rol:'asesora'});onNotice(profileId&&!form.profile_id?'Persona creada: ficha de asesora + usuario del ERP. Recarga para verla en «Por usuario».':'Ficha de asesora creada.');await reload();
  };
- const toggle=async(f:Ficha)=>{const {error}=await supabase.from('asesoras').update({activo:f.activo===false}).eq('id',f.id);if(error)onError(error.message);else await reload();};
+ const update=async(f:Ficha,patch:Partial<Ficha>)=>{const {error}=await supabase.from('asesoras').update(patch).eq('id',f.id);if(error)onError(error.message);else{onNotice('Ficha actualizada.');await reload();}};
+ const toggle=(f:Ficha)=>update(f,{activo:f.activo===false});
  const free=fichas.filter(f=>!f.profile_id);
  return <section className={styles.card}>
   <h2>Alta de persona</h2>
@@ -65,14 +66,16 @@ export function TeamTab({people,sedes,onError,onNotice}:{people:Person[];sedes:R
    <input placeholder="Nombre completo" value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})}/>
    <select value={form.sede_id} onChange={e=>setForm({...form,sede_id:e.target.value})}><option value="">Sede…</option>{Object.entries(sedes).map(([id,n])=><option key={id} value={id}>{n}</option>)}</select>
    <select value={form.profile_id} onChange={e=>setForm({...form,profile_id:e.target.value})}><option value="">Usuario del ERP (opcional)…</option>{people.filter(p=>p.activo!==false).map(p=><option key={p.id} value={p.id}>{p.nombre||p.email}</option>)}</select>
-   {!form.profile_id&&<><input type="email" placeholder="Correo (para crear usuario)" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>
-    <input type="password" placeholder="Contraseña (mín. 6)" value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/>
+   {!form.profile_id&&<><input type="email" autoComplete="off" placeholder="Correo (para crear usuario)" value={form.email} onChange={e=>setForm({...form,email:e.target.value})}/>
+    <input type="password" autoComplete="new-password" placeholder="Contraseña (mín. 6)" value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/>
     <select value={form.rol} onChange={e=>setForm({...form,rol:e.target.value})}>{BASE_ROLES.map(r=><option key={r}>{r}</option>)}</select></>}
    <button className={styles.button} disabled={busy} onClick={()=>void add()}>{busy?'Creando…':'Crear persona'}</button>
   </div>
   <h2>Fichas de asesora sin usuario ({free.length})</h2>
-  <table className={styles.table}><thead><tr><th>Nombre</th><th>Sede</th><th>Estado</th></tr></thead><tbody>
-   {free.map(f=><tr key={f.id}><td>{fichaName(f)}</td><td>{f.sede_id?sedes[f.sede_id]||'—':'—'}</td><td><Switch on={f.activo!==false} title="Activar o inactivar" onClick={()=>void toggle(f)}/> {f.activo===false?'Inactiva':'Activa'}</td></tr>)}
+  <table className={styles.table}><thead><tr><th>Nombre</th><th>Sede</th><th>Unir a usuario</th><th>Estado</th></tr></thead><tbody>
+   {free.map(f=><tr key={f.id}><td><input defaultValue={fichaName(f)} onBlur={e=>{const n=e.target.value.trim();if(n&&n!==fichaName(f))void update(f,{nombre:n,nombre_completo:n});}}/></td>
+    <td><select value={f.sede_id||''} onChange={e=>void update(f,{sede_id:e.target.value||null})}><option value="">—</option>{Object.entries(sedes).map(([id,n])=><option key={id} value={id}>{n}</option>)}</select></td>
+    <td><select value="" onChange={e=>{if(e.target.value)void update(f,{profile_id:e.target.value});}}><option value="">Elegir usuario…</option>{people.filter(p=>p.activo!==false).map(p=><option key={p.id} value={p.id}>{p.nombre||p.email}</option>)}</select></td><td><Switch on={f.activo!==false} title="Activar o inactivar" onClick={()=>void toggle(f)}/> {f.activo===false?'Inactiva':'Activa'}</td></tr>)}
   </tbody></table>
  </section>;
 }
