@@ -10,6 +10,7 @@ import PreXvFields from '@/components/PreXvFields';
 import { prexvFields, includedPrexv, prexvSummary, hasPrexv, type PrexvData } from '@/lib/prexv';
 import styles from './calendar.module.css';
 import {saldoContrato} from '@/lib/saldo';
+import {cop} from '@/lib/rental-price';
 
 const labels:Record<string,string>={
   cliente_nombre:'Nombre del cliente',
@@ -224,8 +225,8 @@ export default function ContractPanel({
         <hr/>
         <p>Factura: {contract.numero_factura||'Sin asignar'}</p>
         <p>Referencias del contrato: {refsLabel}</p>
-        <p>Valor: {Number(contract.valor_total||0).toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0})}</p>
-        <p>Saldo: {saldoContrato(contract).toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0})}</p>
+        <p>Valor: {cop(Number(contract.valor_total||0))}</p>
+        <p>Saldo: {cop(saldoContrato(contract))}</p>
       </div>
     </details>
 

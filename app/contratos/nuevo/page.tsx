@@ -22,6 +22,16 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { saldoContrato } from '@/lib/saldo';
+import { cop } from '@/lib/rental-price';
+
+const MONEY_FIELDS = ['valor_total', 'servicios_adicionales', 'anticipo', 'valor_deposito'];
+const TIPOS_DOC = ['CC', 'CE', 'TI', 'Pasaporte', 'PPT', 'NIT'];
+const NUMERIC_DOCS = ['CC', 'TI', 'NIT'];
+const ACCESORIOS_SI_NO = ['Cancán', 'Ganchos', 'Tiara', 'Caja de tiara', 'Cojines'];
+const onlyDigits = (v: string) => v.replace(/[^0-9]/g, '');
+/** Money typed as $500.000; the form keeps only the number. */
+const moneyShow = (v: unknown) => { const t = String(v ?? '').trim(); if (!t) return ''; const n = /^\d+(\.\d+)?$/.test(t) ? Math.round(Number(t)) : Number(onlyDigits(t)); return Number.isFinite(n) ? cop(n) : ''; };
+const moneyValue = (typed: string) => { const d = onlyDigits(typed); return d ? String(Number(d)) : ''; };
 
 export default function NuevoContratoPage() {
   const router = useRouter();
@@ -108,6 +118,9 @@ export default function NuevoContratoPage() {
     deposito_tipo_cuenta: '',
     deposito_numero: '',
     deposito_titular: '',
+    tipo_documento_cliente: 'CC',
+    tipo_documento_titular: 'CC',
+    documento_titular: '',
     autoriza_uso_imagen: false
   });
 
@@ -185,6 +198,22 @@ export default function NuevoContratoPage() {
   }, []);
   const [loadingVestidos, setLoadingVestidos] = useState(false);
   const [asesorasList, setAsesorasList] = useState<any[]>([]);
+  const [misSedes, setMisSedes] = useState<string[]>([]);
+  const [listas, setListas] = useState<{ banco: string[]; tipo_cuenta: string[] }>({ banco: [], tipo_cuenta: [] });
+  const cargarListas = async () => {
+    const { data } = await supabase.from('listas_contrato').select('lista, valor').eq('activo', true).order('orden');
+    setListas({ banco: (data || []).filter(x => x.lista === 'banco').map(x => x.valor), tipo_cuenta: (data || []).filter(x => x.lista === 'tipo_cuenta').map(x => x.valor) });
+  };
+  // Administrator edits the bank / account type lists ("-Valor" removes it).
+  const editarLista = async (lista: 'banco' | 'tipo_cuenta') => {
+    const v = window.prompt('Escribe el valor a agregar. Para quitar uno, escribe un guion y el nombre (ej.: -Movii).')?.trim();
+    if (!v) return;
+    const valor = v.replace(/^-/, '').trim();
+    const { error } = v.startsWith('-')
+      ? await supabase.from('listas_contrato').update({ activo: false }).eq('lista', lista).eq('valor', valor)
+      : await supabase.from('listas_contrato').upsert({ lista, valor, activo: true });
+    if (error) toast.error(error.message); else { toast.success('Lista actualizada'); void cargarListas(); }
+  };
   const [asesorasFiltradas, setAsesorasFiltradas] = useState<any[]>([]);
   const [busyVestidoIds, setBusyVestidoIds] = useState<Set<string>>(new Set());
 
@@ -244,7 +273,11 @@ export default function NuevoContratoPage() {
         const { data: { user } } = await supabase.auth.getUser();
 
         let userProfile = null;
+        void cargarListas();
+        let sedesPropias: string[] = [];
         if (user) {
+          const { data: us } = await supabase.from('usuario_sedes').select('sede_id').eq('usuario_id', user.id).eq('activo', true);
+          sedesPropias = (us || []).map(x => x.sede_id);
           const { data: pData } = await supabase
             .from('profiles')
             .select('id, email, rol, nombre, sede_id')
@@ -252,6 +285,9 @@ export default function NuevoContratoPage() {
             .maybeSingle();
           userProfile = pData;
           if (pData?.rol) setUserRole(pData.rol);
+          // Administración y contabilidad ven todas las sedes.
+          if (['admin', 'contabilidad'].includes(String(pData?.rol || '').toLowerCase())) sedesPropias = [];
+          setMisSedes(sedesPropias);
           void supabase.rpc('mis_permisos').then(({ data }) => setPuedeCorregirValores(Array.isArray(data) && data.includes('contratos.corregir_valores_iniciales')));
         }
 
@@ -261,8 +297,9 @@ export default function NuevoContratoPage() {
 
           // Auto-seleccionamos la sede si el perfil la tiene
           const editingFromUrl = new URLSearchParams(window.location.search).has('editar');
-          if (userProfile?.sede_id && !editingFromUrl) {
-            const mySede = sedes.find(s => s.id === userProfile.sede_id);
+          const sedePorDefecto = sedesPropias.length === 1 ? sedesPropias[0] : sedesPropias.length === 0 ? userProfile?.sede_id : null;
+          if (sedePorDefecto && !editingFromUrl) {
+            const mySede = sedes.find(s => s.id === sedePorDefecto);
             if (mySede) {
               setFormData(prev => ({ ...prev, sede_id: mySede.id, sede: mySede.nombre }));
             }
@@ -274,6 +311,9 @@ export default function NuevoContratoPage() {
           console.error('[DATABASE ERROR] Asesoras:', aError.message, aError.details);
         } else if (catAsesoras) {
           setAsesorasList(catAsesoras);
+          // The signed-in person is the advisor when they appear as a seller.
+          const mine = user ? catAsesoras.find(a => a.profile_id === user.id) : null;
+          if (mine && !new URLSearchParams(window.location.search).has('editar')) setFormData(prev => prev.asesora_id ? prev : ({ ...prev, asesora_id: mine.id, asesora: mine.nombre_completo }));
         }
 
       } catch (err: any) {
@@ -357,6 +397,9 @@ export default function NuevoContratoPage() {
           deposito_tipo_cuenta: contract.tipo_cuenta_deposito || '',
           deposito_numero: contract.numero_cuenta_deposito || '',
           deposito_titular: contract.titular_cuenta_deposito || '',
+          tipo_documento_cliente: contract.tipo_documento_cliente || 'CC',
+          tipo_documento_titular: contract.tipo_documento_titular || 'CC',
+          documento_titular: contract.documento_titular || '',
           autoriza_uso_imagen: Boolean(contract.autoriza_uso_imagen)
         });
         if (contract.tiene_aliado && contract.aliado_id) {
@@ -1118,6 +1161,9 @@ export default function NuevoContratoPage() {
         tipo_cuenta_deposito: formData.deposito_tipo_cuenta || null,
         numero_cuenta_deposito: formData.deposito_numero || null,
         titular_cuenta_deposito: formData.deposito_titular || null,
+        tipo_documento_cliente: formData.tipo_documento_cliente || null,
+        tipo_documento_titular: formData.tipo_documento_titular || null,
+        documento_titular: formData.documento_titular || null,
 
         // Extras Mantenidos
         accesorios: accesoriosSeleccionados,
@@ -1260,6 +1306,9 @@ export default function NuevoContratoPage() {
       tipo_cuenta_deposito: formData.deposito_tipo_cuenta || null,
       numero_cuenta_deposito: formData.deposito_numero || null,
       titular_cuenta_deposito: formData.deposito_titular || null,
+        tipo_documento_cliente: formData.tipo_documento_cliente || null,
+        tipo_documento_titular: formData.tipo_documento_titular || null,
+        documento_titular: formData.documento_titular || null,
       accesorios: accesoriosSeleccionados,
       metodos_pago: metodosPago,
       prexv_componentes: prexv.prexv_componentes || [],
@@ -1312,6 +1361,7 @@ export default function NuevoContratoPage() {
     });
 
     if (error) throw error;
+    await supabase.from('contratos').update({ tipo_documento_cliente: formData.tipo_documento_cliente || null, tipo_documento_titular: formData.tipo_documento_titular || null, documento_titular: formData.documento_titular || null }).eq('id', editingContractId);
     await syncRetablo(editingContractId);
 
     toast.success(`✅ Contrato ${editingContractNumber || data?.numero_contrato || ''} actualizado correctamente`);
@@ -1494,6 +1544,9 @@ export default function NuevoContratoPage() {
         tipo_cuenta_deposito: formData.deposito_tipo_cuenta || null,
         numero_cuenta_deposito: formData.deposito_numero || null,
         titular_cuenta_deposito: formData.deposito_titular || null,
+        tipo_documento_cliente: formData.tipo_documento_cliente || null,
+        tipo_documento_titular: formData.tipo_documento_titular || null,
+        documento_titular: formData.documento_titular || null,
 
         // Extras Mantenidos
         accesorios: accesoriosSeleccionados,
@@ -1645,16 +1698,19 @@ export default function NuevoContratoPage() {
   };
 
   // Auxiliares visuales
+  const numericDoc = (name: string) => (name === 'cliente_documento' && NUMERIC_DOCS.includes(formData.tipo_documento_cliente)) || (name === 'documento_titular' && NUMERIC_DOCS.includes(formData.tipo_documento_titular));
   const renderTextInput = (label: string, name: keyof typeof formData, icon: React.ReactNode, type = "text", req = false, extraClasses = "") => (
     <div className={`space-y-1 ${extraClasses}`}>
       <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
         {icon} {label} {req && <span className="text-rose-500">*</span>}
       </label>
       <input
-        type={type}
+        type={MONEY_FIELDS.includes(name) ? 'text' : type}
+        inputMode={MONEY_FIELDS.includes(name) || numericDoc(name) ? 'numeric' : undefined}
         name={name}
-        value={String(formData[name])}
-        onChange={handleChange}
+        value={MONEY_FIELDS.includes(name) ? moneyShow(formData[name]) : String(formData[name])}
+        onChange={MONEY_FIELDS.includes(name) ? (e) => setFormData(prev => ({ ...prev, [name]: moneyValue(e.target.value) }))
+          : numericDoc(name) ? (e) => setFormData(prev => ({ ...prev, [name]: onlyDigits(e.target.value) })) : handleChange}
         disabled={isEditMode && name === 'anticipo' && !canFixInitial}
         title={isEditMode && name === 'anticipo' && !canFixInitial ? 'Los abonos de un contrato pactado se gestionan desde Registrar Abono / Pago.' : undefined}
         className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-300 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
@@ -1706,22 +1762,6 @@ export default function NuevoContratoPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 sm:p-10 space-y-10">
-          <section className="space-y-3">
-            <label htmlFor="numero_factura" className="text-sm font-semibold text-gray-700">
-              Factura <span className="text-rose-500">*</span>
-            </label>
-            <input id="numero_factura" name="numero_factura" type="text" required
-              aria-required="true" aria-describedby="invoice-help"
-              value={formData.numero_factura}
-              onChange={(e) => setFormData(prev => ({ ...prev, numero_factura: e.target.value }))}
-              placeholder="Número de factura"
-              className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300" />
-            <p id="invoice-help" className="text-xs text-gray-500">
-              {isEditMode
-                ? 'Edición administrativa del contrato existente. El número de contrato, firma y estado actual se conservarán.'
-                : 'El número de factura es obligatorio para guardar y generar el contrato.'}
-            </p>
-          </section>
 
           {isEditMode && (
             <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
@@ -1762,7 +1802,7 @@ export default function NuevoContratoPage() {
                   required
                 >
                   <option value="">Selecciona Sede...</option>
-                  {sedesList.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  {sedesList.filter(s => !misSedes.length || misSedes.includes(s.id) || s.id === formData.sede_id).map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                 </select>
               </div>
 
@@ -1795,8 +1835,14 @@ export default function NuevoContratoPage() {
                   )}
                 </select>
               </div>
+              <div className="space-y-1">
+                <label className="text-sm font-semibold text-gray-700 flex items-center gap-2"><FileText className="w-4 h-4 text-rose-500" /> Tipo de documento <span className="text-rose-500">*</span></label>
+                <select value={formData.tipo_documento_cliente} onChange={e => setFormData(prev => ({ ...prev, tipo_documento_cliente: e.target.value, cliente_documento: NUMERIC_DOCS.includes(e.target.value) ? onlyDigits(prev.cliente_documento) : prev.cliente_documento }))} className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300">
+                  {TIPOS_DOC.map(t => <option key={t}>{t}</option>)}
+                </select>
+              </div>
+              {renderTextInput("Número de documento", "cliente_documento", <FileText className="w-4 h-4 text-rose-500" />, "text", true)}
               {renderTextInput("Nombre Completo", "cliente_nombre", <User className="w-4 h-4 text-rose-500" />, "text", true)}
-              {renderTextInput("Documento/CC", "cliente_documento", <FileText className="w-4 h-4 text-rose-500" />, "text", true)}
               {renderTextInput("WhatsApp", "whatsapp", <Phone className="w-4 h-4 text-rose-500" />, "tel", true)}
               {renderTextInput("Correo", "cliente_email", <Mail className="w-4 h-4 text-rose-500" />, "email", true)}
               {renderTextInput("Dirección", "direccion", <MapPin className="w-4 h-4 text-rose-500" />, "text", false, "lg:col-span-2")}
@@ -2091,6 +2137,20 @@ export default function NuevoContratoPage() {
                       {ac}
                     </label>
                   ))}
+                  {ACCESORIOS_SI_NO.map(k => {
+                    const actual = accesoriosSeleccionados.find(a => a.startsWith(k + ': '))?.slice(k.length + 2) || '';
+                    const poner = (v: string) => setAccesoriosSeleccionados(prev => [...prev.filter(a => !a.startsWith(k + ': ')), ...(v ? [`${k}: ${v}`] : [])]);
+                    const si = actual.startsWith('Sí');
+                    return (
+                      <div key={k} className="col-span-2 flex flex-wrap items-center gap-2 text-sm font-medium text-gray-700">
+                        <span className="min-w-[7rem]">{k}</span>
+                        <select value={actual ? (si ? 'Sí' : 'No') : ''} onChange={e => poner(e.target.value === 'Sí' && k === 'Ganchos' ? 'Sí (1)' : e.target.value)} className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
+                          <option value="">—</option><option>Sí</option><option>No</option>
+                        </select>
+                        {k === 'Ganchos' && si && <input type="number" min="1" aria-label="Cantidad de ganchos" value={actual.match(/\((\d+)\)/)?.[1] || '1'} onChange={e => poner(`Sí (${Math.max(1, Number(e.target.value) || 1)})`)} className="w-20 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1" />}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -2110,7 +2170,7 @@ export default function NuevoContratoPage() {
                       <div key={idx} className="flex gap-2 items-center bg-white p-2 border border-gray-200 rounded-xl shadow-sm">
                         <input type="text" placeholder="Ej. Dobladillo" value={arr.tipo} onChange={(e) => updateArreglo(idx, 'tipo', e.target.value)} className="w-1/3 p-2 bg-gray-50 rounded-lg text-sm border-gray-200 outline-none focus:ring-1 focus:ring-rose-300" />
                         <input type="text" placeholder="5 cm" value={arr.cm} onChange={(e) => updateArreglo(idx, 'cm', e.target.value)} className="w-1/4 p-2 bg-gray-50 rounded-lg text-sm border-gray-200 outline-none focus:ring-1 focus:ring-rose-300" />
-                        <input type="number" placeholder="$ Precio" value={arr.precio} onChange={(e) => updateArreglo(idx, 'precio', e.target.value)} className="w-1/3 p-2 bg-gray-50 rounded-lg text-sm border-gray-200 outline-none font-bold text-rose-700 focus:ring-1 focus:ring-rose-300" />
+                        <input type="text" inputMode="numeric" placeholder="$ Precio" value={moneyShow(arr.precio)} onChange={(e) => updateArreglo(idx, 'precio', moneyValue(e.target.value))} className="w-1/3 p-2 bg-gray-50 rounded-lg text-sm border-gray-200 outline-none font-bold text-rose-700 focus:ring-1 focus:ring-rose-300" />
                         <button type="button" onClick={() => removeArreglo(idx)} className="p-2 text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     ))}
@@ -2136,10 +2196,11 @@ export default function NuevoContratoPage() {
                       <DollarSign className="w-4 h-4 text-emerald-600" /> Servicios Adicionales (Maquillaje, Fotografía, Otros)
                     </label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       name="servicios_adicionales"
-                      value={String(formData.servicios_adicionales)}
-                      onChange={handleChange}
+                      value={moneyShow(formData.servicios_adicionales)}
+                      onChange={(e) => setFormData(prev => ({ ...prev, servicios_adicionales: moneyValue(e.target.value) }))}
                       className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-300 font-medium"
                     />
                   </div>
@@ -2154,8 +2215,8 @@ export default function NuevoContratoPage() {
                   </div>
                 </div>
 
-                {/* VIP Code Section - solo al crear */}
-                {!isEditMode && (
+                {/* VIP Code Section - oculto */}
+                {false && !isEditMode && (
                 <div className="p-4 bg-white border border-rose-100 rounded-xl shadow-sm">
                   <label className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
                     <Tag className="w-4 h-4 text-rose-500" /> Código VIP de Referido
@@ -2254,7 +2315,7 @@ export default function NuevoContratoPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2 space-y-1">
                     <label htmlFor="valor_deposito" className="text-sm font-semibold text-gray-700">Valor del depósito de garantía</label>
-                    <input id="valor_deposito" name="valor_deposito" type="number" min="0" step="0.01" value={formData.valor_deposito} onChange={handleChange} disabled={isEditMode && !canFixInitial} title={isEditMode && !canFixInitial ? 'El depósito de un contrato pactado se gestiona desde Depósitos y devoluciones.' : undefined} placeholder="0" className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 disabled:opacity-60 disabled:cursor-not-allowed" />
+                    <input id="valor_deposito" name="valor_deposito" type="text" inputMode="numeric" value={moneyShow(formData.valor_deposito)} onChange={(e) => setFormData(prev => ({ ...prev, valor_deposito: moneyValue(e.target.value) }))} disabled={isEditMode && !canFixInitial} title={isEditMode && !canFixInitial ? 'El depósito de un contrato pactado se gestiona desde Depósitos y devoluciones.' : undefined} placeholder="0" className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 disabled:opacity-60 disabled:cursor-not-allowed" />
                     {canFixInitial && (Number(formData.anticipo || 0) !== Number(editingSnapshot?.anticipo || 0) || Number(formData.valor_deposito || 0) !== Number(editingSnapshot?.valor_deposito || 0)) && (
                       <label className="block text-sm font-semibold text-amber-800">Motivo de la corrección del abono inicial / depósito (obligatorio)
                         <input value={motivoValores} onChange={e => setMotivoValores(e.target.value)} maxLength={500} placeholder="Explica por qué se corrige el valor" className="w-full mt-1 bg-white border border-amber-300 text-gray-900 rounded-xl px-4 py-3" />
@@ -2268,9 +2329,29 @@ export default function NuevoContratoPage() {
                     )}
                     <p className="text-sm text-emerald-700">Registra el depósito recibido. No se suma al alquiler ni al abono. Adjunta su comprobante en Depósitos y devoluciones, sin registrar nuevamente el ingreso.</p>
                   </div>
-                  {renderTextInput("Banco", "deposito_banco", null, "text", false, "bg-white")}
-                  {renderTextInput("Tipo Cta", "deposito_tipo_cuenta", null, "text", false, "bg-white")}
+                  {(['banco', 'tipo_cuenta'] as const).map(lista => {
+                    const field = lista === 'banco' ? 'deposito_banco' : 'deposito_tipo_cuenta';
+                    const opciones = [...listas[lista], ...(formData[field] && !listas[lista].includes(formData[field]) ? [formData[field]] : [])];
+                    return (
+                      <div key={lista} className="space-y-1">
+                        <label className="text-sm font-semibold text-gray-700 flex items-center justify-between gap-2">{lista === 'banco' ? 'Banco' : 'Tipo de cuenta'}
+                          {String(userRole).toLowerCase() === 'admin' && <button type="button" onClick={() => void editarLista(lista)} className="text-[10px] font-black uppercase text-rose-500 hover:underline">Editar lista</button>}
+                        </label>
+                        <select value={formData[field]} onChange={e => setFormData(prev => ({ ...prev, [field]: e.target.value }))} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-rose-300">
+                          <option value="">Selecciona…</option>
+                          {opciones.map(o => <option key={o}>{o}</option>)}
+                        </select>
+                      </div>
+                    );
+                  })}
                   {renderTextInput("N° Cuenta", "deposito_numero", null, "text", false, "bg-white")}
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-gray-700">Tipo de documento del titular</label>
+                    <select value={formData.tipo_documento_titular} onChange={e => setFormData(prev => ({ ...prev, tipo_documento_titular: e.target.value, documento_titular: NUMERIC_DOCS.includes(e.target.value) ? onlyDigits(prev.documento_titular) : prev.documento_titular }))} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-rose-300">
+                      {TIPOS_DOC.map(t => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+                  {renderTextInput("Documento del titular", "documento_titular", null, "text", false, "bg-white")}
                   {renderTextInput("Titular Cta", "deposito_titular", null, "text", false, "bg-white")}
                 </div>
                 <p className="text-xs text-gray-400 font-medium italic mt-2 text-center">
@@ -2342,6 +2423,24 @@ export default function NuevoContratoPage() {
                 </span>
               </div>
             </div>
+          </section>
+
+          {/* Factura al final, junto a los pagos (sigue obligatoria) */}
+          <section className="space-y-3">
+            <label htmlFor="numero_factura" className="text-sm font-semibold text-gray-700">
+              Factura <span className="text-rose-500">*</span>
+            </label>
+            <input id="numero_factura" name="numero_factura" type="text" required
+              aria-required="true" aria-describedby="invoice-help"
+              value={formData.numero_factura}
+              onChange={(e) => setFormData(prev => ({ ...prev, numero_factura: e.target.value }))}
+              placeholder="Número de factura"
+              className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300" />
+            <p id="invoice-help" className="text-xs text-gray-500">
+              {isEditMode
+                ? 'Edición administrativa del contrato existente. El número de contrato, firma y estado actual se conservarán.'
+                : 'El número de factura es obligatorio para guardar y generar el contrato.'}
+            </p>
           </section>
 
           {/* Submit */}
