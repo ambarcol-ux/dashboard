@@ -1,0 +1,41 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Primeras visitas</title>
+<style>body{font-family:system-ui,sans-serif;margin:16px;background:#fafaf9;color:#111}h1{font-size:20px}p{color:#555;font-size:13px}
+.kpis{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}.k{background:#fff;border:1px solid #eee;border-radius:12px;padding:10px 14px;min-width:120px}.k b{display:block;font-size:22px}.bad b{color:#e11d48}
+.mermaid{background:#fff;border:1px solid #eee;border-radius:12px;padding:12px;overflow:auto}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script></head><body translate="no">
+<h1>Primeras visitas y seguimientos · estado al 29/10/2026</h1>
+<div class="kpis"><div class="k"><b>9</b>en seguimiento</div><div class="k"><b>3</b>para hoy</div><div class="k bad"><b>18</b>vencidos</div><div class="k"><b>18%</b>recuperadas</div><div class="k bad"><b>0%</b>cumplimiento (Bogotá y Pereira)</div></div>
+<p>Rosa: pantallas · Amarillo: acciones · Azul: datos · Verde: reglas.</p>
+<div class="mermaid">
+flowchart LR
+  classDef ui fill:#ffe4e6,stroke:#e11d48,color:#111
+  classDef act fill:#fef3c7,stroke:#d97706,color:#111
+  classDef db fill:#dbeafe,stroke:#2563eb,color:#111
+  classDef code fill:#dcfce7,stroke:#16a34a,color:#111
+
+  PUB["Páginas públicas: agendar, reprogramar, gestionar cita (enlace firmado)"]:::ui --> PC[("primeras_citas")]:::db
+  PANEL["Panel (Dashboard): alertas Hoy / Vencidos"]:::ui
+  PAGE["Ventas y CRM › Primeras visitas"]:::ui --> IND["Indicadores: En seguimiento · Hoy · Vencidos · Recuperadas %"]:::ui
+  PAGE --> CUM["Cumplimiento por asesora y por sede"]:::ui
+  PAGE --> LISTA["Lista: filtros fecha, sede, modalidad, seguimiento, origen, resultado<br/>próximo seguimiento y último registro"]:::ui
+  PAGE --> ACC["Nueva vitrina · enlaces · análisis comercial · configurar agenda"]:::act
+  LISTA --> RES["Resultado de la visita: asistió · alquiló · posible seguimiento"]:::act
+  LISTA --> GEST["Gestionar: fecha del evento · historial arriba · plan con estados Hecho / Hoy / Vencido / Programado"]:::ui
+  GEST --> REG["Registrar seguimiento: texto ≥ 30 · canal · resultado · Abrir en WhatsApp"]:::act
+
+  RES --> PC
+  GEST --> PLAN["Plan: 5 fechas en días hábiles de mañana a evento − 3<br/>sin evento: +1, +3, +7, +14, +30 · recalcula al cambiar el evento"]:::code
+  PLAN --> SEG[("primeras_citas_seguimientos<br/>fecha · nota · canal · resultado · asignado_a · anulado_at")]:::db
+  FEST["Festivos de Colombia (private.festivos_co)"]:::code --> PLAN
+  REG --> REGLA["No antes de su fecha · uno por día · distinto al anterior<br/>Alquiló / Descartó / No desea contacto cierran el plan"]:::code
+  REGLA --> SEG
+  REG --> HIST[("primeras_citas_historial")]:::db
+  SEG --> RESU["seguimientos_resumen(): asesora lo suyo · líder y franquiciado sus sedes · admin todo"]:::code
+  RESU --> IND
+  RESU --> CUM
+  RESU --> PANEL
+  DES["Persona desactivada"]:::act --> TRAS["Pendientes pasan a la líder de la sede"]:::code --> SEG
+  PC --> CON[("contratos (primera_cita_id) → Alquiló")]:::db
+</div>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'strict',flowchart:{htmlLabels:true}});</script>
+</body></html>
