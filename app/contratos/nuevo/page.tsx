@@ -445,11 +445,15 @@ export default function NuevoContratoPage() {
         console.log('Filtrando vestidos activos globally para Typeahead de Sede:', selectedSedeId);
 
         // Buscador global de emergencia para contratos
-        const { data, error } = await supabase
+        // Only dresses whose CURRENT sede is the contract sede (sede_actual_id); sold, retired or archived ones are excluded.
+        if (!selectedSedeId) { setVestidosMaestro([]); return; }
+        const { data: rows, error } = await supabase
           .from('vestidos')
-          .select('*, sedes(nombre), stock_total, precio_sugerido')
-          .in('estado', ['Disponible', 'Mantenimiento', 'disponible', 'mantenimiento'])
+          .select('*, stock_total, precio_sugerido')
+          .eq('sede_actual_id', selectedSedeId)
           .eq('archivado', false);
+        const sedeNombre = sedesList.find(s => s.id === selectedSedeId)?.nombre || formData.sede;
+        const data = (rows || []).filter(v => !/vendid|baja/i.test(String(v.estado || ''))).map(v => ({ ...v, sedes: { nombre: sedeNombre } }));
 
         if (error) {
           console.error('[DATABASE ERROR] Vestidos:', error.message, error.details);
