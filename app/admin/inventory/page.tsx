@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { 
   Search, Package, MapPin, ArrowLeftRight, Loader2, 
   Trash2, Plus, Filter, LayoutGrid, List as ListIcon, CheckCircle2, ChevronLeft, ShieldAlert, ChevronDown,
-  X, FileText, TrendingUp, Clock, DollarSign, List, RotateCcw, Archive, ArchiveRestore, QrCode
+  X, FileText, TrendingUp, Clock, DollarSign, List, RotateCcw, Archive, ArchiveRestore, QrCode, Download
 } from 'lucide-react';
 import {downloadDressQr,dressLabelsPdf} from '@/lib/dress-qr';
 import { toast, Toaster } from 'sonner';
@@ -45,7 +45,8 @@ export default function InventoryPage() {
   const [removalTarget, setRemovalTarget] = useState<{id: string; codigo: string} | null>(null);
   const [user, setUser] = useState<any>(null);
   const userPermissions = usePermissions(user?.id ? String(user.id) : null);
-  const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal
+  const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal ('none' = sin sede)
+  const [novedadFilter, setNovedadFilter] = useState<string>('');
   const [editState, setEditState] = useState<Record<number, any>>({}); // Estado local de edición por vestidoid
   const [profilesList, setProfilesList] = useState<any[]>([]);
 
@@ -200,7 +201,7 @@ export default function InventoryPage() {
     try {
       const { data, error } = await supabase
         .from('vestidos')
-        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, stock_total, clasificacion_id, archivado, archivado_at, motivo_archivo, qr_token')
+        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, stock_total, clasificacion_id, archivado, archivado_at, motivo_archivo, qr_token, imagen_url')
         .order('codigo', { ascending: true });
       
       if (error) {
@@ -462,17 +463,33 @@ export default function InventoryPage() {
     }
   };
 
+  const sedeExiste = (id: string | null | undefined) => !!id && sedes.some(s => s.id === id);
+  // Data issues to clean before invoicing (Siigo).
+  const novedadesDe = (v: {clasificacion_id?: unknown; codigo?: unknown; sede_actual_id?: string | null; talla?: unknown; color?: unknown; nombre?: unknown; precio_sugerido?: unknown; precio_venta?: unknown; imagen_url?: unknown}) => {
+    const n: string[] = [];
+    if (!v.clasificacion_id) n.push('Sin clasificación');
+    if (!/^[A-Z0-9][A-Z0-9-]{1,19}$/.test(String(v.codigo || ''))) n.push('Código inválido');
+    if (!sedeExiste(v.sede_actual_id)) n.push('Sin sede');
+    if (!String(v.talla || '').trim()) n.push('Sin talla');
+    if (!String(v.color || '').trim()) n.push('Sin color');
+    if (!String(v.nombre || '').trim()) n.push('Sin nombre');
+    if (!(Number(v.precio_sugerido) > 0)) n.push('Sin precio de alquiler');
+    if (v.precio_venta == null) n.push('Sin precio de venta');
+    if (!String(v.imagen_url || '').trim()) n.push('Sin fotos');
+    return n;
+  };
   const filtered = vestidos.filter(v => {
     const searchMatch = 
       (v.codigo || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (clasificacionNombre(v.clasificacion_id) || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (v.nombre && v.nombre.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    const sedeMatch = sedeFilter === '' || v.sede_actual_id === sedeFilter;
+    const sedeMatch = sedeFilter === '' || (sedeFilter === 'none' ? !sedeExiste(v.sede_actual_id) : v.sede_actual_id === sedeFilter);
+    const novedadMatch = novedadFilter === '' || (novedadFilter === 'any' ? novedadesDe(v).length > 0 : novedadesDe(v).includes(novedadFilter));
     const clasificacionMatch = clasificacionFilter === '' ||
       (clasificacionFilter === 'none' ? !v.clasificacion_id : String(v.clasificacion_id) === clasificacionFilter);
     
-    return searchMatch && sedeMatch && clasificacionMatch && Boolean(v.archivado) === showArchived;
+    return searchMatch && sedeMatch && clasificacionMatch && novedadMatch && Boolean(v.archivado) === showArchived;
   });
 
   if (loading && vestidos.length === 0) {
@@ -567,8 +584,21 @@ export default function InventoryPage() {
             >
               <option value="">🏠 Todas las Sedes</option>
               {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              <option value="none">Sin sede</option>
             </select>
           </div>
+          {canEditSavedRecords(user, userPermissions) && <div className="w-full md:w-56">
+            <select
+              className="w-full px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
+              value={novedadFilter}
+              onChange={(e) => setNovedadFilter(e.target.value)}
+              aria-label="Novedades"
+            >
+              <option value="">⚠️ Novedades: todas</option>
+              <option value="any">Con alguna novedad</option>
+              {['Sin clasificación','Código inválido','Sin sede','Sin talla','Sin color','Sin nombre','Sin precio de alquiler','Sin precio de venta','Sin fotos'].map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>}
           <div className="w-full md:w-56">
             <select 
               className="w-full px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
@@ -594,6 +624,20 @@ export default function InventoryPage() {
           >
             <QrCode className="w-4 h-4" /> Etiquetas QR
           </button>
+          {canEditSavedRecords(user, userPermissions) && <button
+            onClick={() => {
+              // No xlsx library in the project: CSV UTF-8 with BOM opens directly in Excel.
+              const cell = (x: unknown) => { const t = String(x ?? ''); return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
+              const head = ['Código','Nombre','Clasificación','Talla','Color','Precio alquiler','Precio venta','Sede actual','Estado','Novedades'];
+              const rows = filtered.map(v => [v.codigo, v.nombre, clasificacionNombre(v.clasificacion_id) || '', v.talla, v.color, v.precio_sugerido ?? '', v.precio_venta ?? '', sedes.find(s => s.id === v.sede_actual_id)?.nombre || 'Sin sede', v.estado, novedadesDe(v).join(' · ')]);
+              const blob = new Blob(['\uFEFF' + [head, ...rows].map(r => r.map(cell).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' });
+              const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `inventario-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
+            }}
+            className="w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100"
+            title="Descargar la lista filtrada para Excel"
+          >
+            <Download className="w-4 h-4" /> Exportar
+          </button>}
           <div className="flex items-center gap-3 w-full md:w-auto">
              <div className="px-6 py-4 bg-gray-50 rounded-2xl text-gray-400 font-black text-[10px] uppercase tracking-widest border border-gray-100 italic">
                {showArchived ? 'ARCHIVADOS' : 'TOTAL STOCK'}: {filtered.length}
