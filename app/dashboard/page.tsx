@@ -67,6 +67,7 @@ import {
 import Link from 'next/link';
 import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
 import Sidebar from '@/components/Sidebar';
+import FollowupSummary from '@/components/FollowupSummary';
 import ContractSuppliers from '@/components/suppliers/ContractSuppliers';
 import { panelAccess } from '@/lib/panel-access';
 
@@ -2413,6 +2414,7 @@ export default function DashboardPage() {
         <div className="max-w-7xl mx-auto space-y-8">
         
         {String(user?.rol || '').toLowerCase() === 'admin' && <DepositAlert count={pendingDeposits}/>}
+        {user && <FollowupSummary mode="panel" />}
         {contractsError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">{contractsError}</div>}
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-rose-100">
