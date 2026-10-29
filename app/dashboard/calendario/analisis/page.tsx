@@ -5,6 +5,7 @@ import {supabase} from '@/lib/supabase';
 import {collectPages} from '@/lib/collect-pages';
 import {commercialRows,commercialMetrics,type HistoricCRM,type AnalysisVisit} from '@/lib/crm-analysis';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
+import {FollowupAnalysis} from '@/components/FollowupSummary';
 export default function CommercialAnalysis(){
  const year=new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'America/Bogota'}).format(new Date());
  const [from,setFrom]=useState(year+'-01-01'),[to,setTo]=useState(year+'-12-31'),[site,setSite]=useState(''),[advisor,setAdvisor]=useState(''),[origin,setOrigin]=useState('');
@@ -41,5 +42,5 @@ export default function CommercialAnalysis(){
  <div className="overflow-x-auto mt-6"><table className="w-full text-left text-sm"><caption className="py-3 text-left font-bold">Resultado por origen y sede · {from} al {to}</caption><thead><tr>{['Origen','Sede','Recibidas','Atendidas','Cerradas','Contratos confirmados','Conversión'].map(h=><th key={h} scope="col" className="p-2">{h}</th>)}</tr></thead><tbody>{byOrigin.map(g=><tr key={g.origen+g.sede} className="border-t"><th scope="row" className="p-2">{g.origen}</th><td className="p-2">{g.sede}</td><td className="p-2">{g.registros}</td><td className="p-2">{g.atendidas}</td><td className="p-2">{g.alquileres}</td><td className="p-2">{g.contratos}</td><td className="p-2">{g.conversion}%</td></tr>)}</tbody></table></div>
  <details className="mt-6"><summary className="cursor-pointer font-bold">Datos del histórico por revisar ({issues.length})</summary><p className={styles.notice}>Incluye registros sin fecha, aunque no puedan ubicarse en el periodo seleccionado. Todos conservan la fila y los datos originales.</p>{issues.map(r=><article key={r.id} className={styles.row}><div><strong>{r.nombre||'Registro sin nombre'}</strong><p>{r.sede} · {r.origen} · Fila {r.fila}</p><p>{r.incidencia}</p></div></article>)}</details>
  <details className="mt-6"><summary className="cursor-pointer font-bold">Motivos de no alquiler</summary>{Array.from(new Set(visible.filter(r=>!r.alquilo&&r.motivo).map(r=>r.motivo))).sort().map(m=><p key={m} className="py-1">{m}: {visible.filter(r=>!r.alquilo&&r.motivo===m).length}</p>)}</details></>}
- </section></main>;
+ <FollowupAnalysis/></section></main>;
 }
