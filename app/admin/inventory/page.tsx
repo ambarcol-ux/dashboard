@@ -564,8 +564,8 @@ export default function InventoryPage() {
           <InventoryByStatus vestidos={vestidos.filter(v => !v.archivado)} sedes={sedes} clasificaciones={clasificaciones} />
         ) : (<>
         {/* Filters & Actions */}
-        <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col md:flex-row items-center gap-4">
-          <div className="relative flex-1 w-full">
+        <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col gap-4">
+          <div className="relative w-full">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input 
               type="text" 
@@ -575,10 +575,11 @@ export default function InventoryPage() {
               className="w-full pl-12 pr-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 transition-all"
             />
           </div>
+          <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-3">
 
-          <div className="w-full md:w-64">
+          <div className="w-full md:w-auto">
             <select 
-              className="w-full px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
+              className="w-full md:w-auto md:min-w-[14rem] px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
               value={sedeFilter}
               onChange={(e) => setSedeFilter(e.target.value)}
             >
@@ -587,9 +588,9 @@ export default function InventoryPage() {
               <option value="none">Sin sede</option>
             </select>
           </div>
-          {canEditSavedRecords(user, userPermissions) && <div className="w-full md:w-56">
+          {canEditSavedRecords(user, userPermissions) && <div className="w-full md:w-auto">
             <select
-              className="w-full px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
+              className="w-full md:w-auto md:min-w-[14rem] px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
               value={novedadFilter}
               onChange={(e) => setNovedadFilter(e.target.value)}
               aria-label="Novedades"
@@ -599,9 +600,9 @@ export default function InventoryPage() {
               {['Sin clasificación','Código inválido','Sin sede','Sin talla','Sin color','Sin nombre','Sin precio de alquiler','Sin precio de venta','Sin fotos'].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>}
-          <div className="w-full md:w-56">
+          <div className="w-full md:w-auto">
             <select 
-              className="w-full px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
+              className="w-full md:w-auto md:min-w-[14rem] px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
               value={clasificacionFilter}
               onChange={(e) => setClasificacionFilter(e.target.value)}
             >
@@ -612,14 +613,14 @@ export default function InventoryPage() {
           </div>
           <button
             onClick={() => setShowArchived(a => !a)}
-            className={`w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 ${showArchived ? 'bg-gray-900 text-white border-gray-900' : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100'}`}
+            className={`w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 whitespace-nowrap ${showArchived ? 'bg-gray-900 text-white border-gray-900' : 'bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100'}`}
             title="Ver los códigos archivados para restaurarlos"
           >
             <Archive className="w-4 h-4" /> Archivados
           </button>
           <button
             onClick={() => { const t = toast.loading('Generando etiquetas…'); dressLabelsPdf(filtered).then(() => toast.success('Etiquetas listas', { id: t })).catch(e => toast.error(e.message, { id: t })); }}
-            className="w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100"
+            className="w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 whitespace-nowrap bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100"
             title="PDF con el QR de los vestidos de la lista"
           >
             <QrCode className="w-4 h-4" /> Etiquetas QR
@@ -633,13 +634,13 @@ export default function InventoryPage() {
               const blob = new Blob(['\uFEFF' + [head, ...rows].map(r => r.map(cell).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' });
               const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `inventario-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
             }}
-            className="w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100"
+            className="w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 whitespace-nowrap bg-gray-50 text-gray-500 border-gray-100 hover:bg-gray-100"
             title="Descargar la lista filtrada para Excel"
           >
             <Download className="w-4 h-4" /> Exportar
           </button>}
-          <div className="flex items-center gap-3 w-full md:w-auto">
-             <div className="px-6 py-4 bg-gray-50 rounded-2xl text-gray-400 font-black text-[10px] uppercase tracking-widest border border-gray-100 italic">
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+             <div className="px-6 py-4 bg-gray-50 rounded-2xl text-gray-400 font-black text-[10px] uppercase tracking-widest border border-gray-100 italic whitespace-nowrap">
                {showArchived ? 'ARCHIVADOS' : 'TOTAL STOCK'}: {filtered.length}
              </div>
              <button 
@@ -651,6 +652,7 @@ export default function InventoryPage() {
              >
                <Plus className="w-4 h-4" /> Nuevo Vestido
              </button>
+          </div>
           </div>
         </div>
 
