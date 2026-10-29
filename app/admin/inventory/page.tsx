@@ -773,20 +773,18 @@ export default function InventoryPage() {
         )}
 
         {/* Content */}
-        {viewMode === 'table' ? (
-          <div className="bg-white rounded-[2.5rem] shadow-xl border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto">
+        {viewMode === 'table' && (
+          <div className="hidden min-[900px]:block bg-white rounded-[2.5rem] shadow-xl border border-gray-100">
+            <div className="overflow-x-auto min-[1100px]:overflow-visible">
               <table className="w-full text-left">
                 <thead>
-                  <tr className="bg-gray-50/50 border-b border-gray-100">
-                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Prenda</th>
-                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Clasificación</th>
-                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Atributos</th>
-                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Precio sugerido alquiler</th>
-                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Precio de venta sugerido</th>
-                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Stock</th>
-                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ubicación / Logística</th>
-                    <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Acciones</th>
+                  <tr className="bg-gray-50 border-b border-gray-100">
+                    <th className="sticky left-0 z-10 bg-gray-50 px-4 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Prenda</th>
+                    <th className="px-3 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Clasificación · talla / color</th>
+                    <th className="px-3 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Precio alquiler / venta</th>
+                    <th className="px-3 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Stock</th>
+                    <th className="px-3 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Ubicación</th>
+                    <th className="sticky right-0 z-10 bg-gray-50 px-3 py-4 text-[10px] font-black text-gray-400 uppercase tracking-widest text-center">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -796,91 +794,85 @@ export default function InventoryPage() {
                       className="hover:bg-rose-50/30 transition-colors group cursor-pointer"
                       onClick={() => openDossier(v)}
                     >
-                      <td className="px-8 py-6">
-                        <div className="flex items-center gap-4">
-                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black shadow-sm shrink-0 ${
+                      <td className="sticky left-0 z-[1] bg-white group-hover:bg-rose-50 px-4 py-4 min-w-[13rem] max-w-[16rem]">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-11 h-11 rounded-2xl flex items-center justify-center font-black shadow-sm shrink-0 ${
                             v.estado === 'De Baja' ? 'bg-rose-600 text-white rotate-0' :
                             v.estado === 'Traslado' ? 'bg-amber-100 text-amber-600 animate-pulse' : 
                             'bg-rose-100 text-rose-500'
                           }`}>
-                            {v.imagen_url ? <img src={v.imagen_url} alt="" className="w-12 h-12 rounded-2xl object-cover" /> : v.estado === 'De Baja' ? 'X' : v.codigo.substring(0, 2)}
+                            {v.imagen_url ? <img src={v.imagen_url} alt="" className="w-11 h-11 rounded-2xl object-cover" /> : v.estado === 'De Baja' ? 'X' : v.codigo.substring(0, 2)}
                           </div>
-                          <div>
-                            <div className="font-black text-gray-900 text-base tracking-tighter uppercase leading-none mb-1">{v.codigo}</div>
-                            {v.archivado && <div className="mb-1 text-[10px] text-gray-500 normal-case max-w-[220px]">Archivado{v.archivado_at ? ` el ${new Date(v.archivado_at).toLocaleDateString('es-CO')}` : ''}: <b>{v.motivo_archivo || 'sin motivo'}</b></div>}
+                          <div className="min-w-0">
+                            <div className="font-black text-gray-900 text-base tracking-tighter uppercase leading-none mb-1 break-all">{v.codigo}</div>
+                            {v.archivado && <div className="mb-1 text-[10px] text-gray-500 normal-case">Archivado{v.archivado_at ? ` el ${new Date(v.archivado_at).toLocaleDateString('es-CO')}` : ''}: <b>{v.motivo_archivo || 'sin motivo'}</b></div>}
                             {canEditSavedRecords(user, userPermissions) && !v.archivado && <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDress(v); }} className="mb-1 text-[9px] font-black uppercase tracking-widest text-rose-500 hover:underline">Editar todo</button>}
                             <input 
                               type="text"
                               value={editState[v.id]?.nombre !== undefined ? editState[v.id].nombre : (v.nombre || '')}
                               onClick={(e) => e.stopPropagation()} // Prevent dossier opening when editing
                               onChange={(e) => handleEditChange(v.id, 'nombre', e.target.value)}
-                              className="text-[10px] text-gray-700 bg-gray-50 border border-transparent hover:border-gray-200 focus:bg-white focus:border-rose-300 w-full rounded-md px-1 py-0.5 font-bold uppercase tracking-widest transition-all outline-none"
+                              className="text-[10px] text-gray-700 bg-gray-50 border border-transparent hover:border-gray-200 focus:bg-white focus:border-rose-300 w-full rounded-md px-1 py-0.5 font-bold uppercase tracking-wide transition-all outline-none"
                               placeholder="Sin nombre"
                             />
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-6" onClick={(e) => e.stopPropagation()}>
+                      <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
                         <select
                           value={v.clasificacion_id || ''}
                           disabled={updatingId === v.id}
                           onChange={(e) => handleClasificacion(v.id, e.target.value)}
-                          className={`px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-wide outline-none cursor-pointer ${CLASSIFICATION_STYLES[clasificacionNombre(v.clasificacion_id) || ''] || UNCLASSIFIED_STYLE}`}
+                          className={`mb-2 max-w-full px-3 py-1.5 rounded-full border text-[10px] font-black uppercase tracking-wide outline-none cursor-pointer ${CLASSIFICATION_STYLES[clasificacionNombre(v.clasificacion_id) || ''] || UNCLASSIFIED_STYLE}`}
                           title="Cambiar clasificación"
                         >
                           <option value="">Sin clasificar</option>
                           {clasificaciones.filter(c => c.activo || c.id === v.clasificacion_id).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                         </select>
+                        <div className="flex flex-wrap gap-1.5 items-center">
+                          <input
+                            aria-label="Talla"
+                            placeholder="Sin talla"
+                            disabled={v.archivado}
+                            value={editState[v.id]?.talla !== undefined ? editState[v.id].talla : (v.talla || '')}
+                            onChange={(e) => handleEditChange(v.id, 'talla', e.target.value.toUpperCase())}
+                            className="w-20 px-2 py-1 bg-indigo-50 text-indigo-600 placeholder:text-indigo-300 rounded text-[10px] font-black uppercase border border-indigo-100 outline-none focus:border-indigo-300"
+                          />
+                          <input
+                            aria-label="Color"
+                            placeholder="Sin color"
+                            disabled={v.archivado}
+                            value={editState[v.id]?.color !== undefined ? editState[v.id].color : (v.color || '')}
+                            onChange={(e) => handleEditChange(v.id, 'color', e.target.value.toUpperCase())}
+                            className="w-28 px-2 py-1 bg-rose-50 text-rose-600 placeholder:text-rose-300 rounded text-[10px] font-black uppercase border border-rose-100 outline-none focus:border-rose-300"
+                          />
+                        </div>
                       </td>
-                      <td className="px-8 py-6">
-                         <div className="flex flex-wrap gap-1.5 items-center">
-                            <input
-                              aria-label="Talla"
-                              placeholder="Talla"
-                              disabled={v.archivado}
-                              value={editState[v.id]?.talla !== undefined ? editState[v.id].talla : (v.talla || '')}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => handleEditChange(v.id, 'talla', e.target.value.toUpperCase())}
-                              className="w-16 px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[9px] font-black uppercase tracking-tighter border border-indigo-100 outline-none focus:border-indigo-300"
-                            />
-                            <input
-                              aria-label="Color"
-                              placeholder="Color"
-                              disabled={v.archivado}
-                              value={editState[v.id]?.color !== undefined ? editState[v.id].color : (v.color || '')}
-                              onClick={(e) => e.stopPropagation()}
-                              onChange={(e) => handleEditChange(v.id, 'color', e.target.value.toUpperCase())}
-                              className="w-24 px-2 py-0.5 bg-rose-50 text-rose-600 rounded text-[9px] font-black uppercase tracking-tighter border border-rose-100 outline-none focus:border-rose-300"
-                            />
-                         </div>
-                      </td>
-                      <td className="px-6 py-6 text-center">
-                        <div className="flex items-center justify-center gap-1 border border-gray-200 bg-white rounded-lg px-2 overflow-hidden focus-within:ring-2 focus-within:ring-rose-200 transition-all text-sm w-32 mx-auto">
+                      <td className="px-3 py-4" onClick={(e) => e.stopPropagation()}>
+                        <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Alquiler</label>
+                        <div className="flex items-center gap-1 border border-gray-200 bg-white rounded-lg px-2 focus-within:ring-2 focus-within:ring-rose-200 transition-all text-sm w-32 mb-2">
                           <span className="text-gray-400 font-bold">$</span>
                           <input 
                             type="number"
-                            className="bg-transparent w-full py-2 text-gray-700 font-bold text-center outline-none"
+                            className="bg-transparent w-full py-1.5 text-gray-700 font-bold outline-none"
                             value={editState[v.id]?.precio_sugerido !== undefined ? editState[v.id].precio_sugerido : (v.precio_sugerido || 0)}
-                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => handleEditChange(v.id, 'precio_sugerido', e.target.value)}
                             placeholder="0"
                           />
                         </div>
-                      </td>
-                      <td className="px-6 py-6 text-center">
-                        <div className="flex items-center justify-center gap-1 border border-gray-200 bg-white rounded-lg px-2 overflow-hidden focus-within:ring-2 focus-within:ring-rose-200 transition-all text-sm w-32 mx-auto">
+                        <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1">Venta</label>
+                        <div className="flex items-center gap-1 border border-gray-200 bg-white rounded-lg px-2 focus-within:ring-2 focus-within:ring-rose-200 transition-all text-sm w-32">
                           <span className="text-gray-400 font-bold">$</span>
                           <input 
                             type="number"
-                            className="bg-transparent w-full py-2 text-gray-700 font-bold text-center outline-none"
+                            className="bg-transparent w-full py-1.5 text-gray-700 font-bold outline-none"
                             value={editState[v.id]?.precio_venta !== undefined ? (editState[v.id].precio_venta ?? '') : (v.precio_venta ?? '')}
-                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => handleEditChange(v.id, 'precio_venta', e.target.value)}
                             placeholder="—"
                           />
                         </div>
                       </td>
-                      <td className="px-6 py-6 text-center">
+                      <td className="px-3 py-4 text-center">
                          <div className="w-16 mx-auto">
                             <input 
                               type="number"
@@ -892,13 +884,12 @@ export default function InventoryPage() {
                             />
                          </div>
                       </td>
-                      <td className="px-6 py-6">
+                      <td className="px-3 py-4 min-w-[10rem]">
                         <div className="flex flex-col gap-2">
-                          <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Sede Actual</label>
                           <div className="relative group/select">
                             <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-rose-400 z-10" />
                             <select 
-                              className="w-full bg-white border border-gray-200 hover:border-rose-300 rounded-xl pl-8 pr-10 py-2.5 text-[10px] font-black text-gray-700 outline-none focus:ring-2 focus:ring-rose-200 transition-all cursor-pointer appearance-none shadow-sm hover:bg-rose-50/50"
+                              className="w-full bg-white border border-gray-200 hover:border-rose-300 rounded-xl pl-8 pr-8 py-2.5 text-[10px] font-black text-gray-700 outline-none focus:ring-2 focus:ring-rose-200 transition-all cursor-pointer appearance-none shadow-sm hover:bg-rose-50/50"
                               value={v.sede_actual_id || ''}
                               disabled={updatingId === v.id}
                               onChange={(e) => {
@@ -926,79 +917,41 @@ export default function InventoryPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-6">
-                        <div className="flex items-center justify-center gap-2">
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSaveVestido(v.id);
-                            }}
-                            disabled={!editState[v.id] || updatingId === v.id}
-                            className="p-3 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 text-white rounded-xl shadow-lg shadow-blue-100 transition-all active:scale-95 group"
-                            title="Guardar Cambios"
-                          >
-                            {updatingId === v.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4" />}
-                          </button>
-                          {v.archivado ? (
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRestoreVestido(v.id, v.codigo);
-                              }}
-                              disabled={updatingId === v.id}
-                              className="p-3 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-all active:scale-95 group"
-                              title={`Restaurar código${v.motivo_archivo ? ` (archivado: ${v.motivo_archivo})` : ''}`}
-                            >
-                              <ArchiveRestore className="w-4 h-4" />
+                      <td className="sticky right-0 z-[1] bg-white group-hover:bg-rose-50 px-3 py-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <details className="relative inline-block text-left">
+                          <summary className="list-none cursor-pointer w-10 h-10 rounded-xl bg-gray-50 hover:bg-gray-100 text-gray-600 font-black text-lg flex items-center justify-center" aria-label="Acciones">⋯</summary>
+                          <div className="absolute right-0 z-30 mt-2 w-52 rounded-2xl bg-white shadow-xl border border-gray-100 p-1">
+                            <button onClick={() => handleSaveVestido(v.id)} disabled={!editState[v.id] || updatingId === v.id} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-gray-700 hover:bg-blue-50 disabled:opacity-40">
+                              {updatingId === v.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Package className="w-4 h-4 text-blue-500" />} Guardar cambios
                             </button>
-                          ) : (
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteVestido(v.id, v.codigo);
-                            }}
-                            disabled={updatingId === v.id}
-                            className="p-3 bg-rose-50 hover:bg-rose-100 text-rose-500 rounded-xl transition-all active:scale-95 group"
-                            title="Eliminar o archivar código"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                          )}
-                          {canEditSavedRecords(user, userPermissions) && !v.archivado && (
-                            v.estado === 'Vendido' ? (
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setRollbackDress(v);
-                                  setShowRollbackModal(true);
-                                }}
-                                disabled={updatingId === v.id}
-                                className="p-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all active:scale-95 group animate-pulse"
-                                title="Revertir Venta"
-                              >
-                                <RotateCcw className="w-4 h-4" />
+                            {v.archivado ? (
+                              <button onClick={() => handleRestoreVestido(v.id, v.codigo)} disabled={updatingId === v.id} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-emerald-700 hover:bg-emerald-50" title={v.motivo_archivo ? `Archivado: ${v.motivo_archivo}` : undefined}>
+                                <ArchiveRestore className="w-4 h-4" /> Restaurar código
                               </button>
                             ) : (
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeBajaVestido(v.id, v.codigo);
-                                }}
-                                disabled={updatingId === v.id || v.estado === 'Dañado/Baja'}
-                                className="p-3 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all active:scale-95 group"
-                                title="Dar de Baja (Venta/Daño)"
-                              >
-                                <ShieldAlert className="w-4 h-4" />
+                              <button onClick={() => handleDeleteVestido(v.id, v.codigo)} disabled={updatingId === v.id} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50">
+                                <Trash2 className="w-4 h-4" /> Eliminar o archivar
                               </button>
-                            )
-                          )}
-                        </div>
+                            )}
+                            {canEditSavedRecords(user, userPermissions) && !v.archivado && (
+                              v.estado === 'Vendido' ? (
+                                <button onClick={() => { setRollbackDress(v); setShowRollbackModal(true); }} disabled={updatingId === v.id} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-rose-600 hover:bg-rose-50">
+                                  <RotateCcw className="w-4 h-4" /> Revertir venta
+                                </button>
+                              ) : (
+                                <button onClick={() => handleDeBajaVestido(v.id, v.codigo)} disabled={updatingId === v.id || v.estado === 'Dañado/Baja'} className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold text-orange-600 hover:bg-orange-50 disabled:opacity-40">
+                                  <ShieldAlert className="w-4 h-4" /> Dar de baja
+                                </button>
+                              )
+                            )}
+                          </div>
+                        </details>
                       </td>
                     </tr>
                   ))}
                   {filtered.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-8 py-20 text-center">
+                      <td colSpan={6} className="px-8 py-20 text-center">
                         <Package className="w-16 h-16 text-gray-100 mx-auto mb-4" />
                         <p className="text-gray-400 font-bold">{showArchived ? 'No hay códigos archivados con estos filtros.' : 'No se encontraron vestidos en el inventario.'}</p>
                       </td>
@@ -1008,8 +961,9 @@ export default function InventoryPage() {
               </table>
             </div>
           </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        )}
+        {(
+          <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 ${viewMode === 'table' ? 'min-[900px]:hidden' : ''}`}>
             {filtered.map((v) => (
               <div 
                 key={v.id} 
@@ -1099,7 +1053,7 @@ export default function InventoryPage() {
                         handleSaveVestido(v.id);
                       }}
                       disabled={!editState[v.id] || updatingId === v.id}
-                      className="flex-1 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2"
+                      className="flex-1 py-4 min-h-12 bg-blue-500 hover:bg-blue-600 disabled:bg-gray-200 text-white rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2"
                     >
                       {updatingId === v.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                       GUARDAR
@@ -1110,7 +1064,7 @@ export default function InventoryPage() {
                         if (v.archivado) handleRestoreVestido(v.id, v.codigo); else handleDeleteVestido(v.id, v.codigo);
                       }}
                       disabled={updatingId === v.id}
-                      className={`p-3 rounded-xl transition-all ${v.archivado ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600' : 'bg-rose-50 hover:bg-rose-100 text-rose-500'}`}
+                      className={`p-4 min-w-12 min-h-12 rounded-xl transition-all ${v.archivado ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-600' : 'bg-rose-50 hover:bg-rose-100 text-rose-500'}`}
                       title={v.archivado ? 'Restaurar código' : 'Eliminar o archivar código'}
                     >
                       {v.archivado ? <ArchiveRestore className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
@@ -1124,7 +1078,7 @@ export default function InventoryPage() {
                             setShowRollbackModal(true);
                           }}
                           disabled={updatingId === v.id}
-                          className="p-3 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all active:scale-95 group animate-pulse"
+                          className="p-4 min-w-12 min-h-12 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl transition-all active:scale-95 group animate-pulse"
                           title="Revertir Venta"
                         >
                           <RotateCcw className="w-4 h-4" />
@@ -1136,7 +1090,7 @@ export default function InventoryPage() {
                             handleDeBajaVestido(v.id, v.codigo);
                           }}
                           disabled={updatingId === v.id || v.estado === 'Dañado/Baja'}
-                          className="p-3 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all"
+                          className="p-4 min-w-12 min-h-12 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-xl transition-all"
                           title="Dar de Baja"
                         >
                           <ShieldAlert className="w-4 h-4" />
