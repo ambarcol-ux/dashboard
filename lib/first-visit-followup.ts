@@ -12,3 +12,15 @@ export function followupUrgency(date:string,done:boolean,result:string,today:str
  if(Date.parse(date+'T12:00:00Z')-Date.parse(today+'T12:00:00Z')<=86400000)return 'próximo';
  return 'pendiente';
 }
+
+/** Follow-up registration lists (same values the database accepts). */
+export const followupChannels=['WhatsApp','Llamada','Correo','Presencial'] as const;
+export const followupResults=['Sin respuesta','Interesada','Reagendó','Alquiló','Descartó','No desea contacto'] as const;
+/** These results close the plan. */
+export const closingFollowupResults=['Alquiló','Descartó','No desea contacto'];
+/** Plan state of one stage: Hecho, Hoy, Vencido or Programado. */
+export function followupState(date:string,done:boolean,today:string){
+ if(done)return 'Hecho';
+ if(date===today)return 'Hoy';
+ return date<today?'Vencido':'Programado';
+}
