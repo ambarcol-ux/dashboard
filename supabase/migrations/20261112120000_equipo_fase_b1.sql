@@ -289,3 +289,6 @@ do $$ declare d text:=pg_get_functiondef('public.guardar_persona(uuid,jsonb)'::r
   'sedes:=array(select s.id from public.sedes s where s.id::text in (select jsonb_array_elements_text(p_datos->''sedes'')));');
  execute d;
 end $$;
+
+-- "Unir" merges: references of the ficha without user move to the user's ficha (applied as migration unir_ficha_fusiona;
+-- require_contract_invoice skips only that move via ambar.fusion_ficha; same-day attendance duplicates stay on the old ficha).

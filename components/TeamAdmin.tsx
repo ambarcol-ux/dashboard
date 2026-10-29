@@ -60,7 +60,7 @@ function PersonEditor({person,ctx,fichas,sedesActuales,onDone,onClose}:{person:T
  const ficha=fichas.find(x=>x.profile_id===person.id);
  const [d,setD]=useState({nombre:person.nombre||'',rol_id:rolActual(person),sedes:sedesActuales,activo:person.activo!==false,vendedora:!!ficha?.aparece_como_vendedora}),[busy,setBusy]=useState(false),[clave,setClave]=useState(''),[link,setLink]=useState('');
  const all=!!ctx.roles.find(r=>r.id===d.rol_id)?.ve_todas_sedes;
- const save=async()=>{setBusy(true);const {error}=await supabase.rpc('guardar_persona',{p_usuario:person.id,p_datos:{nombre:d.nombre,rol_id:d.rol_id||undefined,sedes:all?[]:d.sedes,activo:d.activo,vendedora:d.vendedora}});setBusy(false);if(error)return ctx.onError(error.message);ctx.onNotice(`Ficha de ${d.nombre} guardada.${person.estado_ficha==='confirmada'?'':' Sigue pendiente hasta confirmarla en Revisión.'}`);await onDone();};
+ const save=async()=>{setBusy(true);const {error}=await supabase.rpc('guardar_persona',{p_usuario:person.id,p_datos:{nombre:d.nombre,rol_id:d.rol_id||undefined,sedes:all?[]:d.sedes,activo:d.activo,vendedora:d.vendedora}});setBusy(false);if(error)return ctx.onError(error.code==='23505'?'Ya existe una ficha con ese nombre':error.message);ctx.onNotice(`Ficha de ${d.nombre} guardada.${person.estado_ficha==='confirmada'?'':' Sigue pendiente hasta confirmarla en Revisión.'}`);await onDone();};
  const reset=async()=>{const r=await resetPasswordAction(person.id,clave);if(!r.success)return ctx.onError(r.message);setClave('');ctx.onNotice(`Clave temporal de ${d.nombre} restablecida.`);};
  const unir=async()=>{const {error}=await supabase.rpc('unir_ficha',{p_ficha:link,p_usuario:person.id});if(error)return ctx.onError(error.message);setLink('');await onDone();};
  return <div className={styles.card} style={{margin:'0 0 14px',background:'#f8fafc'}}>
@@ -123,16 +123,46 @@ function NewPerson({ctx,onDone}:{ctx:TeamCtx;onDone:()=>Promise<void>}){
 
 function FreeFichas({ctx,fichas,onDone}:{ctx:TeamCtx;fichas:Ficha[];onDone:()=>Promise<void>}){
  const free=fichas.filter(f=>!f.profile_id);
- const upd=async(f:Ficha,patch:Partial<Ficha>)=>{const {error}=await supabase.from('asesoras').update(patch).eq('id',f.id);if(error)ctx.onError(error.message);else await onDone();};
+ const [crear,setCrear]=useState<string|null>(null);
+ const upd=async(f:Ficha,patch:Partial<Ficha>)=>{const {error}=await supabase.from('asesoras').update(patch).eq('id',f.id);if(error)ctx.onError(error.code==='23505'?'Ya existe una ficha con ese nombre':error.message);else await onDone();};
  const unir=async(f:Ficha,u:string)=>{const {error}=await supabase.rpc('unir_ficha',{p_ficha:f.id,p_usuario:u});if(error)ctx.onError(error.message);else await onDone();};
  return <><h2 style={{marginTop:18}}>Fichas sin usuario del ERP ({free.length})</h2>
-  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Nombre</th><th>Sede</th><th>Vendedora</th><th>Unir a usuario</th><th>Estado</th></tr></thead><tbody>
+  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Nombre</th><th>Sede</th><th>Vendedora</th><th>Unir a usuario</th><th>Estado</th><th></th></tr></thead><tbody>
    {free.map(f=><tr key={f.id}><td><input defaultValue={f.nombre_completo||''} onBlur={e=>{const n=e.target.value.trim();if(n&&n!==f.nombre_completo)void upd(f,{nombre_completo:n});}}/></td>
     <td><select value={f.sede_id||''} onChange={e=>void upd(f,{sede_id:e.target.value||null})}><option value="">—</option>{Object.entries(ctx.sedes).map(([id,n])=><option key={id} value={id}>{n}</option>)}</select></td>
     <td><input type="checkbox" checked={!!f.aparece_como_vendedora} onChange={e=>void upd(f,{aparece_como_vendedora:e.target.checked})}/></td>
     <td><select value="" onChange={e=>{if(e.target.value)void unir(f,e.target.value);}}><option value="">Elegir usuario…</option>{ctx.people.filter(p=>p.activo!==false).map(p=><option key={p.id} value={p.id}>{nameOf(p)}</option>)}</select></td>
-    <td><Switch on={f.activo!==false} title="Activar o inactivar" onClick={()=>void upd(f,{activo:f.activo===false})}/></td></tr>)}
-  </tbody></table></div></>;
+    <td><Switch on={f.activo!==false} title="Activar o inactivar" onClick={()=>void upd(f,{activo:f.activo===false})}/></td>
+    <td>{f.activo!==false&&<button className={styles.button} onClick={()=>setCrear(crear===f.id?null:f.id)}>Crear usuario</button>}</td></tr>)}
+  </tbody></table></div>
+  {crear&&(()=>{const f=free.find(x=>x.id===crear);return f?<CreateUserForFicha key={f.id} ficha={f} ctx={ctx} onDone={async()=>{setCrear(null);await onDone();}}/>:null;})()}</>;
+}
+
+/** Creates the ERP user of an existing ficha and links it to THAT ficha (no new ficha). */
+function CreateUserForFicha({ficha,ctx,onDone}:{ficha:Ficha;ctx:TeamCtx;onDone:()=>Promise<void>}){
+ const [d,setD]=useState({email:'',clave:'',rol_id:'asesora',sedes:ficha.sede_id&&ficha.sede_id in ctx.sedes?[ficha.sede_id]:[] as string[]}),[busy,setBusy]=useState(false);
+ const all=!!ctx.roles.find(r=>r.id===d.rol_id)?.ve_todas_sedes;
+ const create=async()=>{
+  if(!all&&!d.sedes.length)return ctx.onError('Elige al menos una sede.');
+  setBusy(true);
+  try{
+   const r=await createUserAction({email:d.email.trim(),password:d.clave,nombre:ficha.nombre_completo||'',sede_id:all?'':d.sedes[0],rol:baseRol(d.rol_id)});
+   if(!r.success||!r.user?.id)throw Error(r.message||'No se pudo crear el usuario.');
+   const u=await supabase.rpc('unir_ficha',{p_ficha:ficha.id,p_usuario:r.user.id});if(u.error)throw u.error;
+   const g=await supabase.rpc('guardar_persona',{p_usuario:r.user.id,p_datos:{rol_id:d.rol_id,sedes:all?[]:d.sedes,estado:'confirmada'}});if(g.error)throw g.error;
+   ctx.onNotice(`Usuario creado para ${ficha.nombre_completo} y unido a su ficha.`);await onDone();
+  }catch(e){ctx.onError(msg(e));}finally{setBusy(false);}
+ };
+ return <div className={styles.card} style={{margin:'10px 0',background:'#fff7ed'}}>
+  <h3 style={{margin:0}}>Crear usuario para {ficha.nombre_completo}</h3>
+  <div className={styles.toolbar}>
+   <label>Correo<input type="email" autoComplete="off" value={d.email} onChange={e=>setD({...d,email:e.target.value})}/></label>
+   <label>Clave temporal<input type="password" autoComplete="new-password" value={d.clave} onChange={e=>setD({...d,clave:e.target.value})}/></label>
+   <label>Rol<select value={d.rol_id} onChange={e=>setD({...d,rol_id:e.target.value})}>{ctx.roles.map(r=><option key={r.id} value={r.id}>{r.nombre}</option>)}</select></label>
+  </div>
+  <SedesPicker sedes={ctx.sedes} value={d.sedes} onChange={v=>setD({...d,sedes:v})} all={all}/>
+  <div className={styles.actions} style={{marginTop:8}}><button className={`${styles.button} ${styles.primary}`} disabled={busy} onClick={()=>void create()}>{busy?'Creando…':'Crear usuario'}</button></div>
+ </div>;
 }
 
 /** Revisión: one card per pending person to choose its single role, sedes and the fate of each permission outside the role. */
