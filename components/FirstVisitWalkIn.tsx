@@ -40,10 +40,10 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved}:Props){
   if(f.nombre.trim().length<2)return setError('Escribe el nombre completo.');
   if(!/^\d{10,15}$/.test(digits(f.telefono)))return setError('Revisa el teléfono: entre 10 y 15 números.');
   if(!sede||!f.tipo_evento||!f.resultado||!fecha_hora||!asesora)return setError('Completa los campos obligatorios (*).');
-  if(f.resultado==='No cerró'&&f.motivo.trim().length<5)return setError('Sin posible seguimiento: escribe el motivo por el que no alquiló.');
+  if(f.resultado==='No cerró'&&f.motivo.trim().length<30)return setError('Para no hacer seguimiento escribe el motivo (mínimo 30 caracteres).');
   if(hasDups&&!link&&!asNew)return setError('El teléfono o la cédula ya existen: vincula el registro existente o elige «Continuar como vitrina nueva».');
   setSaving(true);
-  const {data,error}=await supabase.rpc('registrar_vitrina',{p_datos:{...f,telefono:digits(f.telefono),documento:digits(f.documento),sede_id:sede,fecha_hora,asesora_id:asesora,vincular_id:link||null,forzar:asNew}});
+  const {data,error}=await supabase.rpc('registrar_vitrina',{p_datos:{...f,telefono:digits(f.telefono),documento:digits(f.documento),sede_id:sede,fecha_hora,asesora_id:asesora,vincular_id:link||null,forzar:asNew,sin_seguimiento:f.resultado==='No cerró'}});
   setSaving(false);
   if(error)return setError(error.message.replace(/^DUPLICADO: /,''));
   if(createContract){router.push(`/contratos/nuevo?primeraCita=${data}`);return;}
@@ -79,8 +79,8 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved}:Props){
    </div>
    <label>Cómo se enteró<select value={f.como_se_entero} onChange={set('como_se_entero')}><option value="">Sin dato</option>{walkInSources.map(t=><option key={t}>{t}</option>)}</select></label>
    <label>¿Alquiló? *<select required value={f.resultado==='Cerrado'?'si':f.resultado?'no':''} onChange={e=>setF({...f,resultado:e.target.value==='si'?'Cerrado':e.target.value==='no'?'En seguimiento':''})}><option value="">Elige…</option><option value="si">Alquiló</option><option value="no">No alquiló</option></select></label>
-   {f.resultado&&f.resultado!=='Cerrado'&&<label>Posible seguimiento *<select required value={f.resultado==='No cerró'?'no':'si'} onChange={e=>setF({...f,resultado:e.target.value==='no'?'No cerró':'En seguimiento'})}><option value="si">Sí</option><option value="no">No</option></select></label>}
-   <label>{f.resultado==='No cerró'?'Motivo *':'Observaciones'}<textarea maxLength={1000} value={f.motivo} onChange={set('motivo')} required={f.resultado==='No cerró'} minLength={f.resultado==='No cerró'?5:undefined}/></label>
+   {f.resultado&&f.resultado!=='Cerrado'&&<label><input type="checkbox" checked={f.resultado==='No cerró'} onChange={e=>setF({...f,resultado:e.target.checked?'No cerró':'En seguimiento'})}/> No hacer seguimiento (motivo de mínimo 30 caracteres)</label>}
+   <label>{f.resultado==='No cerró'?'Motivo *':'Observaciones'}<textarea maxLength={1000} value={f.motivo} onChange={set('motivo')} required={f.resultado==='No cerró'} minLength={f.resultado==='No cerró'?30:undefined}/></label>
   </fieldset>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   <div className={styles.actions} style={{marginTop:16,justifyContent:'flex-end'}}>

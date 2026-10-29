@@ -24,3 +24,13 @@ export function followupState(date:string,done:boolean,today:string){
  if(date===today)return 'Hoy';
  return date<today?'Vencido':'Programado';
 }
+
+/** Result lists by follow-up type (same values the database accepts). */
+export const followupResultsByType:Record<string,readonly string[]>={
+ asistida:['Sin respuesta','Interesada','Regresó','Alquiló','Desistió','No desea contacto'],
+ vitrina:['Sin respuesta','Interesada','Regresó','Alquiló','Desistió','No desea contacto'],
+ no_asistida:['Sin respuesta','Reagendó','Canceló','Desistió','Alquiló','No desea contacto'],
+};
+export const desistReasons=['Precio','Alquiló en otro lugar','Cambió o canceló el evento','No le gustaron los modelos','Otro'] as const;
+export const finishResults=['Alquiló','Desistió','No desea contacto','Canceló','Sin respuesta'] as const;
+export const followupTypeLabel:Record<string,string>={asistida:'Cita asistida (no alquiló)',vitrina:'Vitrina (no alquiló)',no_asistida:'Cita no asistida'};
