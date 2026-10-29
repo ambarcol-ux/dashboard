@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { canAccessPath, canAccessAccountPath, homeForRole, isSupplier } from '@/lib/role-access';
-import { canReceiveGrants, firstAllowedPanel, overridesFromRows, panelAccess, panelForPath, rolePanelAccess } from '@/lib/panel-access';
+import { firstAllowedPanel, isSupplierProfile, panelAccess, panelForPath } from '@/lib/panel-access';
 import { DEPOSIT_PROFILE_HEADER, type DepositProfile } from '@/lib/deposit-profile';
 
 export async function middleware(req: NextRequest) {
@@ -46,9 +45,9 @@ export async function middleware(req: NextRequest) {
     const panel = panelForPath(path);
     const [authResult, profileResult, accessResult, permissionsResult] = await Promise.all([
       client.auth.getUser(token),
-      client.from('profiles').select('id,nombre,email,rol,sede_id,activo,estado_ficha').eq('id', subject).single<DepositProfile>(),
+      client.from('profiles').select('id,nombre,email,rol,rol_id,sede_id,activo,estado_ficha').eq('id', subject).single<DepositProfile>(),
       // Manual panel changes are only needed for menu pages.
-      panel ? client.from('accesos_paneles').select('panel,estado').eq('usuario_id', subject) : Promise.resolve({ data: [], error: null }),
+      Promise.resolve({ data: [], error: null }),
       // Permissions of all the user's roles decide which menu pages they can open.
       panel ? client.rpc('mis_permisos') : Promise.resolve({ data: null, error: null }),
     ]);
@@ -62,32 +61,20 @@ export async function middleware(req: NextRequest) {
     if (panel && (accessResult.error || permissionsResult.error)) {
       return NextResponse.json({ error: 'No fue posible validar tus accesos. Intenta recargar la página.' }, { status: 503 });
     }
-    const overrides = overridesFromRows(accessResult.data);
     const permissions = Array.isArray(permissionsResult.data) ? permissionsResult.data as string[] : null;
-    // An administrator's manual change decides menu pages; everything else keeps the role rules below.
-    if (panel && !isSupplier(profile.rol)) {
-      if (!panelAccess(panel.id, profile, overrides, permissions)) {
-        const home = firstAllowedPanel(profile, overrides, permissions) || '/perfil';
-        return path.startsWith('/api/') || !['GET','HEAD'].includes(req.method)
-          ? NextResponse.json({ error: 'No tienes acceso a este panel. Pide al administrador que te lo habilite.' }, { status: 403 })
-          : NextResponse.redirect(new URL(home === path ? '/perfil' : `${home}?sin_acceso=${encodeURIComponent(panel.id)}`, req.url));
+    // Suppliers only use their portal.
+    if (isSupplierProfile(profile)) {
+      if (!['/proveedor', '/login'].includes(path.replace(/(.)\/$/, '$1'))) {
+        return req.method === 'GET' || req.method === 'HEAD'
+          ? NextResponse.redirect(new URL('/proveedor', req.url))
+          : NextResponse.json({ error: 'Los proveedores solo tienen acceso a su portal.' }, { status: 403 });
       }
-      // Allowed by a manual grant or by the user's roles: the role permission is the rule for menu pages.
-      if ((overrides[panel.id] === 'permitido' && panel.grantable && canReceiveGrants(profile)) || (permissions && rolePanelAccess(panel.id, profile, permissions))) {
-        requestHeaders.set(DEPOSIT_PROFILE_HEADER, encodeURIComponent(JSON.stringify({...profile, authEmail: user.email ?? null})));
-        requestHeaders.set('x-ambar-profile-verified-at', String(Date.now()));
-        return next();
-      }
-    }
-    if (!canAccessAccountPath(profile.id, path, profile.estado_ficha)) {
+    } else if (panel && !panelAccess(panel.id, profile, null, permissions)) {
+      // Menu pages: only the person's role (rol_id + roles_permisos) decides.
+      const home = firstAllowedPanel(profile, null, permissions) || '/perfil';
       return path.startsWith('/api/') || !['GET','HEAD'].includes(req.method)
-        ? NextResponse.json({error:'Tu cuenta solo tiene acceso a los módulos de operaciones de tu sede.'},{status:403})
-        : NextResponse.redirect(new URL('/dashboard',req.url));
-    }
-    if (!canAccessPath(profile.rol, path)) {
-      return req.method === 'GET' || req.method === 'HEAD'
-      ? NextResponse.redirect(new URL(homeForRole(profile.rol), req.url))
-      : NextResponse.json({ error: isSupplier(profile.rol) ? 'Los proveedores solo tienen acceso a su portal.' : 'Contabilidad solo tiene acceso a depósitos y cierres de caja.' }, { status: 403 });
+        ? NextResponse.json({ error: 'No tienes acceso a este panel. Pide al administrador que te lo habilite.' }, { status: 403 })
+        : NextResponse.redirect(new URL(home === path ? '/perfil' : `${home}?sin_acceso=${encodeURIComponent(panel.id)}`, req.url));
     }
     requestHeaders.set(DEPOSIT_PROFILE_HEADER, encodeURIComponent(JSON.stringify({...profile, authEmail: user.email ?? null})));
     requestHeaders.set('x-ambar-profile-verified-at', String(Date.now()));

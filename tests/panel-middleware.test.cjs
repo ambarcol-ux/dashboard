@@ -11,17 +11,14 @@ vm.runInNewContext(transpile('middleware.ts'),{exports:mod.exports,URL,Headers,a
 const token='h.'+Buffer.from(JSON.stringify({sub:'u1'})).toString('base64url')+'.s';
 const go=(path,method='GET')=>mod.exports.middleware({nextUrl:{pathname:path},url:'https://erp.test'+path,method,cookies:{get:()=>({value:token})},headers:new Headers()});
 (async()=>{
- assert.equal((await go('/dashboard/calendario')).status,200,'default access');
- const denied=await go('/admin/reports');assert.equal(denied.status,307);assert.equal(denied.location,'/dashboard?sin_acceso=reports');
- rows=[{panel:'reports',estado:'permitido'}];assert.equal((await go('/admin/reports')).status,200,'granted panel');
- rows=[{panel:'calendario',estado:'bloqueado'}];assert.equal((await go('/dashboard/calendario')).status,307,'removed panel');
- assert.equal((await go('/dashboard/calendario','POST')).status,403);
- rows=[{panel:'dashboard',estado:'bloqueado'}];assert.equal((await go('/dashboard')).location,'/dashboard/calendario?sin_acceso=dashboard');
- rows=[{panel:'users',estado:'permitido'}];assert.equal((await go('/admin/users')).status,307,'admin-only panels cannot be granted');
- rows=[];accessError={message:'down'};assert.equal((await go('/dashboard/calendario')).status,503,'fails closed');accessError=null;
+ perms=['panel.calendario'];assert.equal((await go('/dashboard/calendario')).status,200,'role permission');
+ const denied=await go('/admin/reports');assert.equal(denied.status,307);assert.equal(denied.location,'/dashboard/calendario?sin_acceso=reports');
+ rows=[{panel:'reports',estado:'permitido'}];assert.equal((await go('/admin/reports')).status,307,'individual grants are ignored');rows=[];
+ assert.equal((await go('/admin/reports','POST')).status,403);
  assert.equal((await go('/perfil')).status,200,'pages outside the menu are unaffected');
- rol='admin';rows=[{panel:'reports',estado:'bloqueado'}];assert.equal((await go('/admin/reports')).status,307);assert.equal((await go('/admin/accesos')).status,200);
- rol='asesora';rows=[];perms=['panel.dashboard','panel.reports'];assert.equal((await go('/admin/reports')).status,200,'role permission opens the panel');
- const lost=await go('/dashboard/calendario');assert.equal(lost.status,307,'role without the permission');perms=null;
+ rol='admin';perms=[];assert.equal((await go('/admin/reports')).status,200);assert.equal((await go('/admin/accesos')).status,200);
+ rol='asesora';perms=['panel.dashboard','panel.reports'];assert.equal((await go('/admin/reports')).status,200,'role permission opens the panel');
+ assert.equal((await go('/admin/accesos')).status,307,'only the Administrator manages access');
+ rol='proveedor';perms=null;assert.equal((await go('/dashboard')).status,307,'suppliers only use their portal');assert.equal((await go('/proveedor')).status,200);
  console.log('PASS panel middleware: role defaults, grants, removals, landing redirect, admin-only rules and fail-closed');
 })().catch(e=>{console.error(e);process.exit(1);});

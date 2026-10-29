@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useVerifiedAccess } from '@/components/VerifiedAccessProvider';
-import { isAdminProfile } from '@/lib/role-access';
+import { isAdminProfile } from '@/lib/panel-access';
 import { FileText, Save, Loader2, Edit3, CheckCircle, XCircle } from 'lucide-react';
 
 interface PlantillaContrato {

@@ -8,6 +8,7 @@ export type DepositProfile = {
   email: string;
   activo: boolean | null;
   estado_ficha?: string | null;
+  rol_id?: string | null;
 };
 
 export function parseDepositProfile(value: string | null): DepositProfile | null {

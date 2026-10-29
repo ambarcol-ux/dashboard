@@ -1,8 +1,14 @@
-import {isAccounting,isAdminProfile,isScopedOperationsAccount,isSupplier,operationsPanels} from './role-access';
 
 export type PanelOverride='permitido'|'bloqueado';
 export type PanelOverrides=Record<string,PanelOverride>;
-type Profile={id?:unknown;rol?:unknown;email?:unknown;estado_ficha?:unknown}|null|undefined;
+type Profile={id?:unknown;rol?:unknown;rol_id?:unknown;email?:unknown;estado_ficha?:unknown}|null|undefined;
+const norm=(v:unknown)=>String(v??'').trim().toLowerCase();
+/** Suppliers only use their portal (they have no ERP role). */
+export const isSupplierProfile=(profile:Profile)=>norm(profile?.rol)==='proveedor';
+/** The single role (rol_id) decides; the legacy text role is only a fallback while a profile has no rol_id. */
+export const roleOf=(profile:Profile)=>norm(profile?.rol_id)||norm(profile?.rol);
+export const isAdminProfile=(profile:Profile)=>roleOf(profile)==='admin';
+export const isAccountingProfile=(profile:Profile)=>roleOf(profile)==='contabilidad';
 export type Panel={id:string;label:string;href:string;block:string;
  /** Paths (prefixes) that belong to the panel; the longest match wins. */
  paths:string[];
@@ -29,8 +35,6 @@ export const PANELS:Panel[]=[
  {id:'metas',label:'Metas y ventas',href:'/admin/metas',block:'VENTAS & CRM',paths:['/admin/metas'],staff:true,grantable:true},
  {id:'aliados_directos',label:'Aliados directos',href:'/dashboard/aliados-directos',block:'RED DE ALIADOS',paths:['/dashboard/aliados-directos'],staff:true,grantable:true},
  {id:'aliados_admin',label:'Gestión de aliados',href:'/dashboard/admin/aliados',block:'RED DE ALIADOS',paths:['/dashboard/admin/aliados'],grantable:true},
- {id:'comisiones',label:'Config. comisiones',href:'/dashboard/admin/escalas',block:'RED DE ALIADOS',paths:['/dashboard/admin/escalas'],grantable:true},
- {id:'liquidaciones',label:'Cierre de mes (aliados)',href:'/dashboard/admin/liquidaciones',block:'RED DE ALIADOS',paths:['/dashboard/admin/liquidaciones'],grantable:true},
  {id:'users',label:'Gestión de equipo',href:'/admin/users',block:'ADMINISTRACIÓN',paths:['/admin/users'],grantable:false},
  {id:'horarios',label:'Control de asistencia',href:'/dashboard/horarios',block:'ADMINISTRACIÓN',paths:['/dashboard/horarios'],grantable:true},
  {id:'config',label:'Configuración base',href:'/admin/config',block:'ADMINISTRACIÓN',paths:['/admin/config'],grantable:false},
@@ -51,35 +55,22 @@ export function panelForPath(path:string){
  return best;
 }
 
-/** Can this user receive extra panels? Suppliers only use their portal; accounting gets only the panels the admin allows (the database opens just those tables). */
-export const canReceiveGrants=(profile:Profile)=>!!profile&&!isSupplier(profile.rol);
+/** Can this user receive panels? Suppliers only use their portal. */
+export const canReceiveGrants=(profile:Profile)=>!!profile&&!isSupplierProfile(profile);
 
-/** Access the role gives without any manual change (same rules the menu always had). */
-export function defaultPanelAccess(panelId:string,profile:Profile){
- const panel=panelById(panelId);
- if(!panel||!profile)return false;
- if(isSupplier(profile.rol))return false;
- if(isAccounting(profile.rol))return panelId==='depositos'||panelId==='caja'||panelId==='aliados_directos';
- if(isScopedOperationsAccount(profile.id,profile.estado_ficha))return operationsPanels.includes(panel.href);
- if(isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown}))return true;
- return !!panel.staff;
-}
-
-/** Role access: with the user's permissions (sum of their roles) the "panel.<id>" permission decides; without them, the built-in defaults. */
+/** Role access: the "panel.<id>" permission of the person's single role decides; the Administrator sees everything. */
 export function rolePanelAccess(panelId:string,profile:Profile,permissions?:string[]|null){
- if(!permissions||!profile||isSupplier(profile.rol)||isScopedOperationsAccount(profile.id,profile.estado_ficha)||isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown}))return defaultPanelAccess(panelId,profile);
  const panel=panelById(panelId);
- return !!panel&&(panel.grantable||isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown}))&&permissions.includes(`panel.${panelId}`);
+ if(!panel||!profile||isSupplierProfile(profile))return false;
+ if(isAdminProfile(profile))return true;
+ if(panelId==='accesos')return false;
+ return !!permissions?.includes(`panel.${panelId}`);
 }
+/** Kept for callers: without individual changes the default is the role access. */
+export const defaultPanelAccess=(panelId:string,profile:Profile)=>rolePanelAccess(panelId,profile,null);
 
-/** Final access: a manual "Quitar" always wins; "Permitir" only applies to grantable panels and users that can receive it; otherwise the user's roles decide. */
-export function panelAccess(panelId:string,profile:Profile,overrides:PanelOverrides|null|undefined,permissions?:string[]|null){
- // A confirmed person has no individual changes: only its role decides.
- const o=profile?.estado_ficha==='confirmada'?undefined:overrides?.[panelId],panel=panelById(panelId);
- if(!panel)return false;
- if(panelId==='accesos')return isAdminProfile(profile as {id?:unknown;rol?:unknown;email?:unknown});
- if(o==='bloqueado')return false;
- if(o==='permitido'&&panel.grantable&&canReceiveGrants(profile))return true;
+/** Final access: only the role (rol_id + roles_permisos). Individual panel changes are no longer used. */
+export function panelAccess(panelId:string,profile:Profile,_overrides:PanelOverrides|null|undefined,permissions?:string[]|null){
  return rolePanelAccess(panelId,profile,permissions);
 }
 

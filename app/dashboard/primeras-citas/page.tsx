@@ -7,7 +7,7 @@ import Sidebar from '@/components/Sidebar';
 import FirstVisits from '@/components/FirstVisits';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 import {supabase} from '@/lib/supabase';
-import {isAdminProfile} from '@/lib/role-access';
+import {isAdminProfile} from '@/lib/panel-access';
 import styles from '../calendario/calendar.module.css';
 
 export default function FirstVisitsPage(){

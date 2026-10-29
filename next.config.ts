@@ -3,7 +3,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   // Gestión de equipo se unificó en Equipo y accesos.
   async redirects() {
-    return [{ source: '/admin/users', destination: '/admin/accesos', permanent: false }];
+    return [
+      { source: '/admin/users', destination: '/admin/accesos', permanent: false },
+      // Commission model retired: its screens go back to the Panel.
+      { source: '/dashboard/admin/escalas', destination: '/dashboard', permanent: false },
+      { source: '/dashboard/admin/liquidaciones', destination: '/dashboard', permanent: false },
+    ];
   },
 };
 

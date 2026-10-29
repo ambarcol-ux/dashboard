@@ -6,14 +6,12 @@ import {ShieldCheck} from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 import {supabase} from '@/lib/supabase';
-import {isAdminProfile,isSupplier} from '@/lib/role-access';
-import {isAccounting} from '@/lib/role-access';
-import {PANELS,canReceiveGrants,panelAccess,panelById,rolePanelAccess,type PanelOverride,type PanelOverrides} from '@/lib/panel-access';
+import {PANELS,canReceiveGrants,panelAccess,panelById,rolePanelAccess,type PanelOverride,type PanelOverrides,isAdminProfile,isSupplierProfile,isAccountingProfile} from '@/lib/panel-access';
 import {resetPermissions} from '@/lib/use-permissions';
 import {resetPanelOverrides} from '@/lib/use-panel-overrides';
 import styles from '@/app/dashboard/caja/caja.module.css';
 import {PersonTeamCard} from '@/components/TeamCards';
-import {PeopleTab,ReviewTab,UnifiedHistory} from '@/components/TeamAdmin';
+import {PeopleTab,UnifiedHistory} from '@/components/TeamAdmin';
 
 type Person={id:string;nombre:string|null;email:string|null;rol:string|null;rol_id?:string|null;estado_ficha?:string|null;sede_id:string|null;activo:boolean|null;extra?:string[]};
 /** Base role plus the extra roles assigned in Roles y permisos (asesora_lider, franquiciado…). */
@@ -49,7 +47,7 @@ export default function AccessPage(){
 
 function AccessManager({selfId}:{selfId:string}){
  const [people,setPeople]=useState<Person[]>([]),[sedes,setSedes]=useState<Record<string,string>>({}),[saved,setSaved]=useState<Record<string,PanelOverrides>>({}),[log,setLog]=useState<LogRow[]>([]);
- const [tab,setTab]=useState<'personas'|'revision'|'usuario'|'panel'|'roles'|'historial'>('personas');
+ const [tab,setTab]=useState<'personas'|'roles'|'historial'>('personas');
  const [userSedes,setUserSedes]=useState<Record<string,string[]>>({}),[teamLog,setTeamLog]=useState<{id:number;usuario_id:string|null;tipo:string;detalle:Record<string,unknown>;hecho_por:string|null;fecha:string}[]>([]);
  const [roleData,setRoleData]=useState<RoleData>({permisos:[],roles:[],rolePerms:{},userRoles:{}}),[roleLog,setRoleLog]=useState<{id:number;tipo:string;objetivo:string;detalle:Record<string,unknown>;usuario:string|null;fecha_hora:string}[]>([]);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[loading,setLoading]=useState(true);
@@ -91,14 +89,11 @@ function AccessManager({selfId}:{selfId:string}){
  };
 
  return <>
-  <div className={styles.tabs}>{([['personas','Personas'],['revision',`Revisión (${people.filter(p=>p.estado_ficha!=='confirmada'&&String(p.rol).toLowerCase()!=='proveedor').length})`],['usuario','Paneles por usuario'],['panel','Por panel'],['roles','Configuración · Roles y permisos'],['historial','Configuración · Historial']] as const).map(([id,l])=><button key={id} className={`${styles.tab} ${tab===id?styles.tabActive:''}`} onClick={()=>{setTab(id);setNotice('');}}>{l}</button>)}</div>
+  <div className={styles.tabs}>{([['personas','Personas'],['roles','Configuración · Roles y permisos'],['historial','Configuración · Historial']] as const).map(([id,l])=><button key={id} className={`${styles.tab} ${tab===id?styles.tabActive:''}`} onClick={()=>{setTab(id);setNotice('');}}>{l}</button>)}</div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   {loading?<p className={styles.empty}>Cargando…</p>
-   :tab==='usuario'?<ByUser people={people} sedes={sedes} saved={saved} onSave={save} roleData={roleData} onRolesSaved={async msg=>{setNotice(msg);resetPermissions();await load();}} onError={setError} onTeamChanged={load}/>
    :tab==='personas'?<PeopleTab people={people} sedes={sedes} roles={roleData.roles} userSedes={userSedes} reload={load} onError={setError} onNotice={setNotice}/>
-   :tab==='revision'?<ReviewTab ctx={{people,sedes,roles:roleData.roles,userSedes,reload:load,onError:setError,onNotice:setNotice}} rolePerms={roleData.rolePerms} userRoles={roleData.userRoles} saved={saved} permisos={roleData.permisos}/>
-   :tab==='panel'?<ByPanel people={people} sedes={sedes} saved={saved} onSave={save} roleData={roleData}/>
    :tab==='roles'?<RolesManager data={roleData} onSaved={async msg=>{setNotice(msg);resetPermissions();await load();}} onError={setError}/>
    :<UnifiedHistory people={people} roles={roleData.roles} panelLog={log} roleLog={roleLog} teamLog={teamLog}/>}
  </>;
@@ -135,8 +130,8 @@ function ByUser({people,sedes,saved,onSave,roleData,onRolesSaved,onError,onTeamC
   </section>
   <section className={styles.card}>
    {!person?<p className={styles.empty}>Elige un usuario para ver y cambiar sus paneles.</p>
-    :isSupplier(person.rol)?<p className={styles.empty}>{name(person)} es proveedor: solo entra a su portal de proveedor y no ve paneles del ERP.</p>:<>
-    <h2>{name(person)}</h2><p>{person.email} · rol {rolTexto(person)}{person.sede_id?` · ${sedes[person.sede_id]||''}`:''}{isAccounting(person.rol)&&' · Contabilidad: por defecto solo Depósitos y Caja; los paneles que le permitas los verá en solo lectura de contratos.'}</p>
+    :isSupplierProfile(person)?<p className={styles.empty}>{name(person)} es proveedor: solo entra a su portal de proveedor y no ve paneles del ERP.</p>:<>
+    <h2>{name(person)}</h2><p>{person.email} · rol {rolTexto(person)}{person.sede_id?` · ${sedes[person.sede_id]||''}`:''}{isAccountingProfile(person)&&' · Contabilidad: por defecto solo Depósitos y Caja; los paneles que le permitas los verá en solo lectura de contratos.'}</p>
     <PersonTeamCard key={`t-${person.id}`} person={person} sedes={sedes} onChanged={onTeamChanged} onError={onError}/>
     <UserRoles key={person.id} person={person} data={roleData} onSaved={onRolesSaved} onError={onError}/>
     <div className={styles.tableScroll}><table className={styles.table}>
@@ -161,7 +156,7 @@ function ByUser({people,sedes,saved,onSave,roleData,onRolesSaved,onError,onTeamC
 function ByPanel({people,sedes,saved,onSave,roleData}:{people:Person[];sedes:Record<string,string>;saved:Record<string,PanelOverrides>;onSave:(c:{usuario:string;cambios:{panel:string;estado:Choice}[]}[])=>Promise<boolean>;roleData:RoleData}){
  const [panelId,setPanelId]=useState('calendario'),[draft,setDraft]=useState<Record<string,Choice>>({}),[busy,setBusy]=useState(false),[onlyActive,setOnlyActive]=useState(true);
  const panel=panelById(panelId)!;
- const list=people.filter(p=>!isSupplier(p.rol)&&(!onlyActive||p.activo!==false));
+ const list=people.filter(p=>!isSupplierProfile(p)&&(!onlyActive||p.activo!==false));
  const current=(id:string)=>draft[id]??choiceOf(saved[id],panelId);
  const pending=Object.entries(draft).filter(([id,c])=>c!==choiceOf(saved[id],panelId));
  return <section className={styles.card}>
@@ -208,6 +203,9 @@ function UserRoles({person,data,onSaved,onError}:{person:Person;data:RoleData;on
  </div>;
 }
 
+/** Commission model panels retired from the menu and the grid. */
+const RETIRED=['panel.comisiones','panel.liquidaciones'];
+
 /** Catalog of every permission of every module; the Administrator marks them on any role. */
 function RolesManager({data,onSaved,onError}:{data:RoleData;onSaved:(msg:string)=>Promise<void>;onError:(m:string)=>void}){
  const [roleId,setRoleId]=useState(data.roles.find(r=>r.id==='asesora_lider')?.id||data.roles[0]?.id||''),[draft,setDraft]=useState<string[]|null>(null),[busy,setBusy]=useState(false),[nuevo,setNuevo]=useState('');
@@ -226,8 +224,8 @@ function RolesManager({data,onSaved,onError}:{data:RoleData;onSaved:(msg:string)
   </div>
   {role&&<p className={styles.help} style={{marginBottom:10}}>{role.descripcion}{isAdminRole?' El Administrador siempre tiene todos los permisos.':''}</p>}
   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Permiso</th><th>Detalle</th><th style={{width:90}}>Activo</th></tr></thead>
-   <tbody>{modules.map(m=>[<tr key={m}><td colSpan={3} style={{background:'#f8fafc',fontWeight:800,fontSize:11,letterSpacing:'.05em',color:'#64748b'}}>{m.toUpperCase()}</td></tr>,
-    ...data.permisos.filter(p=>p.modulo===m).map(p=><tr key={p.codigo}><td><b>{p.accion}</b><small>{p.codigo}</small></td><td className={styles.help}>{p.solo_admin?'Solo el rol Administrador (para dárselo a alguien, asígnale el rol Administrador en Gestión de equipo). ':''}{p.descripcion}</td>
+   <tbody>{modules.filter(m=>data.permisos.some(p=>p.modulo===m&&!RETIRED.includes(p.codigo))).map(m=>[<tr key={m}><td colSpan={3} style={{background:'#f8fafc',fontWeight:800,fontSize:11,letterSpacing:'.05em',color:'#64748b'}}>{m.toUpperCase()}</td></tr>,
+    ...data.permisos.filter(p=>p.modulo===m&&!RETIRED.includes(p.codigo)).map(p=><tr key={p.codigo}><td><b>{p.accion}</b><small>{p.codigo}</small></td><td className={styles.help}>{p.solo_admin?'Solo el rol Administrador (para dárselo a alguien, asígnale el rol Administrador en Gestión de equipo). ':''}{p.descripcion}</td>
      <td><input type="checkbox" aria-label={p.accion} disabled={isAdminRole||p.solo_admin} checked={isAdminRole||current.includes(p.codigo)} onChange={e=>toggle(p.codigo,e.target.checked)}/></td></tr>)])}</tbody></table></div>
   {!isAdminRole&&<div className={styles.actions} style={{marginTop:14}}><button className={`${styles.button} ${styles.primary}`} disabled={busy||draft===null} onClick={()=>void save()}>{busy?'Guardando…':'Guardar permisos del rol'}</button>{draft!==null&&<button className={styles.button} onClick={()=>setDraft(null)}>Descartar</button>}</div>}
  </section>;
