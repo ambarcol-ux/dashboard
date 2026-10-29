@@ -165,7 +165,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
         )}
       </div>
 
-      <nav className="flex-1 p-4 space-y-6 overflow-y-auto custom-scrollbar pb-10">
+      <nav className="flex-1 p-4 space-y-6 overflow-y-auto overflow-x-hidden custom-scrollbar pb-10">
         <DepositAlert count={depositCount}/>
         {blocksWithSoon.map((block, blockIndex) => {
           if (!block.items.some(item => !item.disabled && canSee(item.panel || item.id))) return null;
@@ -173,9 +173,9 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
 
           return (
             <div key={blockIndex} className="space-y-1">
-              <button type="button" onClick={() => setToggled(prev => ({ ...prev, [block.title]: !open }))} aria-expanded={open} className="w-full flex items-center justify-between px-4 py-2 text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-rose-500">
-                {block.title}
-                <ChevronDown className={`w-3 h-3 transition-transform ${open ? '' : '-rotate-90'}`} />
+              <button type="button" onClick={() => setToggled(prev => ({ ...prev, [block.title]: !open }))} aria-expanded={open} className="w-full flex items-center justify-between gap-2 px-4 py-2 text-left whitespace-normal break-words text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-rose-500">
+                <span className="min-w-0 flex-1 text-left">{block.title}</span>
+                <ChevronDown className={`w-3 h-3 shrink-0 transition-transform ${open ? '' : '-rotate-90'}`} />
               </button>
 
               <div className={open ? 'space-y-1' : 'hidden'}>
@@ -205,7 +205,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
                   </>
                 );
 
-                const className = `flex items-center gap-3 px-4 py-2.5 rounded-xl font-black text-xs transition-all group border ${
+                const className = `flex items-center gap-3 px-4 py-2.5 rounded-xl font-black text-xs text-left break-words min-w-0 transition-all group border ${
                   isActive
                     ? 'bg-rose-50 text-rose-600 border-rose-100 shadow-sm shadow-rose-50'
                     : isDisabled
