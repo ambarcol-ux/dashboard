@@ -1,6 +1,6 @@
 /** Rental price shown in the dress agenda: the contract value when the date has a contract, otherwise the inventory list price. */
 export type RentalPrice={label:'Precio contrato'|'Precio lista';value:number|null;text:string};
-const cop=(v:number)=>'$'+Math.round(v).toLocaleString('es-CO').replace(/,/g,'.');
+export const cop=(v:number)=>'$'+Math.round(v).toLocaleString('es-CO').replace(/,/g,'.');
 const positive=(v:unknown)=>{const n=Number(v);return v!==null&&v!==undefined&&v!==''&&Number.isFinite(n)&&n>0?n:null;};
 export function rentalPrice(contractValue:unknown,listPrice:unknown,hasContract:boolean):RentalPrice{
  const value=positive(hasContract?contractValue:listPrice);
