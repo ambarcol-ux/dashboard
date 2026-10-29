@@ -201,7 +201,7 @@ export default function InventoryPage() {
     try {
       const { data, error } = await supabase
         .from('vestidos')
-        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, stock_total, clasificacion_id, archivado, archivado_at, motivo_archivo, qr_token, imagen_url')
+        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, stock_total, clasificacion_id, archivado, archivado_at, motivo_archivo, qr_token, imagen_url, foto_frente, foto_espalda, foto_detalle')
         .order('codigo', { ascending: true });
       
       if (error) {
@@ -506,7 +506,7 @@ export default function InventoryPage() {
       
       <Sidebar user={user} handleLogout={handleLogout} activePage="inventory" />
 
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+      <main translate="no" className="flex-1 p-4 md:p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
         
         {/* Header */}
@@ -801,7 +801,7 @@ export default function InventoryPage() {
                             v.estado === 'Traslado' ? 'bg-amber-100 text-amber-600 animate-pulse' : 
                             'bg-rose-100 text-rose-500'
                           }`}>
-                            {v.estado === 'De Baja' ? 'X' : v.codigo.substring(0, 2)}
+                            {v.imagen_url ? <img src={v.imagen_url} alt="" className="w-12 h-12 rounded-2xl object-cover" /> : v.estado === 'De Baja' ? 'X' : v.codigo.substring(0, 2)}
                           </div>
                           <div>
                             <div className="font-black text-gray-900 text-base tracking-tighter uppercase leading-none mb-1">{v.codigo}</div>
@@ -1320,6 +1320,7 @@ export default function InventoryPage() {
 
                  {/* Content Area */}
                  <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#f8fafc]">
+                    <DressPhotos dress={selectedDressDossier} canEdit={canEditSavedRecords(user, userPermissions)} onSaved={(patch) => { setSelectedDressDossier((d: Record<string, unknown>) => ({ ...d, ...patch })); setVestidos(prev => prev.map(v => v.id === selectedDressDossier.id ? { ...v, ...patch } : v)); }} />
                     
                     {/* Atributos Quick View */}
                     <div className="grid grid-cols-4 gap-3 mb-8">
@@ -1572,4 +1573,44 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
         <button onClick={() => void save()} disabled={saving || faltan.length > 0} className="px-5 py-3 rounded-xl bg-rose-500 text-white font-black text-sm disabled:opacity-50">{saving ? 'Guardando…' : 'Guardar'}</button></div>
     </div>
   </div>;
+}
+
+const PHOTO_SLOTS = [['foto_frente', 'Frente'], ['foto_espalda', 'Espalda'], ['foto_detalle', 'Detalle']] as const;
+/** Resizes to max 1600 px JPEG so photos stay light. */
+async function resizePhoto(file: File): Promise<Blob> {
+  const img = await createImageBitmap(file);
+  const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
+  canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+  return await new Promise((ok, fail) => canvas.toBlob(b => b ? ok(b) : fail(new Error('No se pudo procesar la foto.')), 'image/jpeg', 0.82));
+}
+/** Catalog step 2: three photos per dress (front, back, detail); the front one is the list image. */
+function DressPhotos({ dress, canEdit, onSaved }: { dress: Record<string, unknown>; canEdit: boolean; onSaved: (patch: Record<string, string>) => void }) {
+  const [busy, setBusy] = useState('');
+  const upload = async (field: string, file?: File) => {
+    if (!file) return;
+    setBusy(field);
+    try {
+      const path = `${dress.id}/${field}-${Date.now()}.jpg`;
+      const { error } = await supabase.storage.from('vestidos_fotos').upload(path, await resizePhoto(file), { contentType: 'image/jpeg' });
+      if (error) throw error;
+      const url = supabase.storage.from('vestidos_fotos').getPublicUrl(path).data.publicUrl;
+      const patch: Record<string, string> = { [field]: url, ...(field === 'foto_frente' ? { imagen_url: url } : {}) };
+      const { error: e2 } = await supabase.from('vestidos').update(patch).eq('id', dress.id);
+      if (e2) throw e2;
+      onSaved(patch); toast.success('Foto guardada');
+    } catch (e) { toast.error(e instanceof Error ? e.message : (e as { message?: string })?.message || 'No se pudo subir la foto.'); } finally { setBusy(''); }
+  };
+  return (
+    <div className="grid grid-cols-3 gap-3 mb-8">
+      {PHOTO_SLOTS.map(([field, label]) => (
+        <label key={field} className={`relative block aspect-[3/4] rounded-2xl border-2 border-dashed border-gray-200 bg-white overflow-hidden ${canEdit ? 'cursor-pointer hover:border-rose-300' : ''}`}>
+          {dress[field] ? <img src={String(dress[field])} alt={label} className="w-full h-full object-cover" /> : <span className="absolute inset-0 flex items-center justify-center text-xs font-black text-gray-400 uppercase">{busy === field ? 'Subiendo…' : canEdit ? `Subir ${label}` : 'Sin foto'}</span>}
+          <span className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-[10px] font-black uppercase tracking-widest text-center py-1">{busy === field ? 'Subiendo…' : label}</span>
+          {canEdit && <input type="file" accept="image/*" className="hidden" disabled={!!busy} onChange={e => void upload(field, e.target.files?.[0])} />}
+        </label>
+      ))}
+    </div>
+  );
 }
