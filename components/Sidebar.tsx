@@ -4,9 +4,7 @@ import { usePermissions } from '@/lib/use-permissions';
 import React, { useState } from 'react';
 import Link from 'next/link';
 import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
-import { isAccounting, isScopedOperationsAccount } from '@/lib/role-access';
-import { panelAccess } from '@/lib/panel-access';
-import { usePanelOverrides } from '@/lib/use-panel-overrides';
+import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
 import {
   FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown
 } from 'lucide-react';
@@ -21,13 +19,10 @@ interface SidebarProps {
 export default function Sidebar({ user, handleLogout, activePage, pendingDeposits }: SidebarProps) {
   const depositCount = useDepositCount(pendingDeposits, user?.id);
   const [isOpen, setIsOpen] = useState(false);
-  const normalizedRole = String(user?.rol || '').toLowerCase();
-  const operationsOnly = isScopedOperationsAccount(user?.id, user?.estado_ficha);
-  const accountingOnly = isAccounting(normalizedRole);
-  const overrides = usePanelOverrides(user?.id ? String(user.id) : null);
+  const accountingOnly = isAccountingProfile(user);
   // Same rules as the route guard: role defaults plus the administrator's manual changes.
   const permissions = usePermissions(user?.id ? String(user.id) : null);
-  const canSee = (id: string) => panelAccess(id, user || {}, overrides, permissions);
+  const canSee = (id: string) => panelAccess(id, user || {}, null, permissions);
 
   type SidebarItem = {
     id: string;
@@ -137,7 +132,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
     'REPORTES E INDICADORES': ['ESTADO DE RESULTADOS POR SEDE', 'RENTABILIDAD POR VESTIDO', 'TABLEROS POR MÓDULO'],
     'CONFIGURACIÓN': ['INTEGRACIONES', 'LISTAS'],
   };
-  const showComingSoon = normalizedRole === 'admin';
+  const showComingSoon = isAdminProfile(user);
   const blocksWithSoon: SidebarBlock[] = sidebarBlocks.map(block => ({
     ...block,
     items: [...block.items, ...(showComingSoon ? (comingSoon[block.title] || []).map(label => ({ id: `soon-${label}`, label, icon: Clock, href: '#', color: 'gray', disabled: true })) : [])]
@@ -248,7 +243,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
         >
           <BookOpen className="w-5 h-5" /> MANUAL DE USUARIO
         </Link>}
-        {!accountingOnly && !operationsOnly && <Link
+        {!accountingOnly && <Link
           href="/perfil"
           onClick={() => isMobile && setIsOpen(false)}
           className={`flex items-center gap-3 px-4 py-3 rounded-xl font-black text-sm transition-all group ${

@@ -52,7 +52,7 @@ export function PeopleTab(ctx:TeamCtx){
     <td>{veTodas(r)?'Todas':sedesOf(p).map(s=>sedes[s]||'—').join(', ')||'—'}</td>
     <td><span className={`${styles.badge} ${p.estado_ficha==='confirmada'?styles.badgeIn:styles.badgeWarn}`}>{p.estado_ficha==='confirmada'?'Confirmada':'Pendiente'}</span></td>
     <td>{p.activo===false?'Inactivo':'Activo'}{(()=>{const fi=fichas.find(x=>x.profile_id===p.id);return fi&&(fi.activo!==false)!==(p.activo!==false)?<small>ficha {fi.activo===false?'inactiva':'activa'}</small>:null;})()}</td></tr>;})}</tbody></table></div>
-  <FreeFichas ctx={ctx} fichas={fichas} onDone={reload}/>
+  {f.activo!=='activos'&&<FichasHistorial sedes={sedes}/>}
  </section>;
 }
 
@@ -106,10 +106,9 @@ function NewPerson({ctx,onDone}:{ctx:TeamCtx;onDone:()=>Promise<void>}){
  };
  return <div className={styles.card} style={{margin:'0 0 14px',background:'#fff7ed'}}>
   <h2>Nueva persona</h2>
-  <p className={styles.help}>1. Datos · 2. Entra al ERP · 3. Rol · 4. Sedes · 5. Vendedora. Nace confirmada.</p>
+  <p className={styles.help}>1. Datos · 2. Usuario del ERP · 3. Rol · 4. Sedes · 5. Vendedora. Nace confirmada.</p>
   <div className={styles.toolbar}>
    <label>1. Nombre completo<input value={d.nombre} onChange={e=>setD({...d,nombre:e.target.value})}/></label>
-   <label className={styles.check} style={{alignSelf:'end'}}><input type="checkbox" checked={d.entra} onChange={e=>setD({...d,entra:e.target.checked})}/>2. Entra al ERP</label>
    {d.entra&&<><label>Correo<input type="email" autoComplete="off" value={d.email} onChange={e=>setD({...d,email:e.target.value})}/></label>
     <label>Clave temporal<input type="password" autoComplete="new-password" value={d.clave} onChange={e=>setD({...d,clave:e.target.value})}/></label></>}
    <label>3. Rol<select value={d.rol_id} onChange={e=>setD({...d,rol_id:e.target.value})}>{ctx.roles.map(r=><option key={r.id} value={r.id}>{r.nombre}</option>)}</select></label>
@@ -136,6 +135,16 @@ function FreeFichas({ctx,fichas,onDone}:{ctx:TeamCtx;fichas:Ficha[];onDone:()=>P
     <td>{f.activo!==false&&<button className={styles.button} onClick={()=>setCrear(crear===f.id?null:f.id)}>Crear usuario</button>}</td></tr>)}
   </tbody></table></div>
   {crear&&(()=>{const f=free.find(x=>x.id===crear);return f?<CreateUserForFicha key={f.id} ficha={f} ctx={ctx} onDone={async()=>{setCrear(null);await onDone();}}/>:null;})()}</>;
+}
+
+/** Old fichas without user that still have contracts or other records: shown with Estado = Inactivos as history. */
+function FichasHistorial({sedes}:{sedes:Record<string,string>}){
+ const [rows,setRows]=useState<{id:string;nombre:string;sede_id:string|null;referencias:number}[]>([]);
+ useEffect(()=>{let live=true;void supabase.rpc('fichas_historial').then(({data})=>{if(live)setRows((data||[]) as typeof rows);});return()=>{live=false;};},[]);
+ if(!rows.length)return null;
+ return <><h2 style={{marginTop:18}}>Historial · fichas anteriores ({rows.length})</h2>
+  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Ficha</th><th>Sede</th><th>Registros</th><th>Estado</th></tr></thead>
+   <tbody>{rows.map(f=><tr key={f.id} style={{opacity:.7}}><td>{f.nombre}</td><td>{f.sede_id?sedes[f.sede_id]||'—':'—'}</td><td>{f.referencias}</td><td>Historial</td></tr>)}</tbody></table></div></>;
 }
 
 /** Creates the ERP user of an existing ficha and links it to THAT ficha (no new ficha). */

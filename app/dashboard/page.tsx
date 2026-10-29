@@ -16,6 +16,7 @@ import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { requireInvoice, INVOICE_REQUIRED_MESSAGE } from '@/lib/invoice-validation';
+import { usePermissions } from '@/lib/use-permissions';
 import { canEditSavedRecords, additionalContractFields, toEditingValue, getAdditionalContractUpdates } from '@/lib/saved-record-editing';
 import { Toaster, toast } from 'sonner';
 import { useRouter } from 'next/navigation';
@@ -68,7 +69,6 @@ import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
 import Sidebar from '@/components/Sidebar';
 import ContractSuppliers from '@/components/suppliers/ContractSuppliers';
 import { panelAccess } from '@/lib/panel-access';
-import { usePanelOverrides } from '@/lib/use-panel-overrides';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -138,9 +138,9 @@ export default function DashboardPage() {
   const [selectedAsesoraId, setSelectedAsesoraId] = useState<string>('');
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [user, setUser] = useState<any>(null);
-  const panelOverrides = usePanelOverrides(user?.id ? String(user.id) : null);
+  const userPermissions = usePermissions(user?.id ? String(user.id) : null);
   const pendingDeposits = useDepositCount(user ? undefined : null, user?.id);
-  const isDashboardAdmin = canEditSavedRecords(user);
+  const isDashboardAdmin = canEditSavedRecords(user, userPermissions);
   // -- Modals Invoice/Factura QC --
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [invoiceContract, setInvoiceContract] = useState<any>(null);
@@ -2495,7 +2495,7 @@ export default function DashboardPage() {
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-emerald-500" /> Vestidos con mayor rentabilidad
                 </h3>
-                {panelAccess('reports', user || {}, panelOverrides) && <Link href="/admin/reports" className="text-[10px] font-black text-rose-500 hover:text-rose-600 uppercase tracking-tighter"> Ver Reporte Full → </Link>}
+                {panelAccess('reports', user || {}, null, userPermissions) && <Link href="/admin/reports" className="text-[10px] font-black text-rose-500 hover:text-rose-600 uppercase tracking-tighter"> Ver Reporte Full → </Link>}
              </div>
              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 {kpiVestidos.map((v, i) => (

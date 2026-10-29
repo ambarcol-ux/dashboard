@@ -1,16 +1,16 @@
-import {isScopedOperationsAccount} from './role-access';
 type EditingUser = {
   id?: string;
   activo?: boolean;
   email?: string;
   rol?: string;
+  rol_id?: string | null;
   app_metadata?: Record<string, unknown>;
 };
 
-// Consume only the server-managed claim returned by Supabase Auth.
+// Administrator, or any role with the "registros.editar_guardados" permission.
 // Database access continues to be enforced by the existing RLS policies.
-export function canEditSavedRecords(user: EditingUser | null | undefined): boolean {
-  return user?.activo !== false && (String(user?.rol || '').toLowerCase() === 'admin' || (String(user?.rol || '').toLowerCase() === 'asesora' && isScopedOperationsAccount(user?.id)));
+export function canEditSavedRecords(user: EditingUser | null | undefined, permissions?: string[] | null): boolean {
+  return user?.activo !== false && (String(user?.rol_id || user?.rol || '').toLowerCase() === 'admin' || !!permissions?.includes('registros.editar_guardados'));
 }
 
 export const additionalContractFields = [

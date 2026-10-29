@@ -1,4 +1,5 @@
 'use client';
+import {usePermissions} from '@/lib/use-permissions';
 import {canEditSavedRecords} from '@/lib/saved-record-editing';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 
@@ -43,6 +44,7 @@ export default function InventoryPage() {
   const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado'>('bandeja');
   const [removalTarget, setRemovalTarget] = useState<{id: string; codigo: string} | null>(null);
   const [user, setUser] = useState<any>(null);
+  const userPermissions = usePermissions(user?.id ? String(user.id) : null);
   const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal
   const [editState, setEditState] = useState<Record<number, any>>({}); // Estado local de edición por vestidoid
   const [profilesList, setProfilesList] = useState<any[]>([]);
@@ -760,7 +762,7 @@ export default function InventoryPage() {
                           <div>
                             <div className="font-black text-gray-900 text-base tracking-tighter uppercase leading-none mb-1">{v.codigo}</div>
                             {v.archivado && <div className="mb-1 text-[10px] text-gray-500 normal-case max-w-[220px]">Archivado{v.archivado_at ? ` el ${new Date(v.archivado_at).toLocaleDateString('es-CO')}` : ''}: <b>{v.motivo_archivo || 'sin motivo'}</b></div>}
-                            {canEditSavedRecords(user) && !v.archivado && <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDress(v); }} className="mb-1 text-[9px] font-black uppercase tracking-widest text-rose-500 hover:underline">Editar todo</button>}
+                            {canEditSavedRecords(user, userPermissions) && !v.archivado && <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDress(v); }} className="mb-1 text-[9px] font-black uppercase tracking-widest text-rose-500 hover:underline">Editar todo</button>}
                             <input 
                               type="text"
                               value={editState[v.id]?.nombre !== undefined ? editState[v.id].nombre : (v.nombre || '')}
@@ -916,7 +918,7 @@ export default function InventoryPage() {
                             <Trash2 className="w-4 h-4" />
                           </button>
                           )}
-                          {canEditSavedRecords(user) && !v.archivado && (
+                          {canEditSavedRecords(user, userPermissions) && !v.archivado && (
                             v.estado === 'Vendido' ? (
                               <button 
                                 onClick={(e) => {
@@ -1067,7 +1069,7 @@ export default function InventoryPage() {
                     >
                       {v.archivado ? <ArchiveRestore className="w-4 h-4" /> : <Trash2 className="w-4 h-4" />}
                     </button>
-                    {canEditSavedRecords(user) && !v.archivado && (
+                    {canEditSavedRecords(user, userPermissions) && !v.archivado && (
                       v.estado === 'Vendido' ? (
                         <button 
                           onClick={(e) => {

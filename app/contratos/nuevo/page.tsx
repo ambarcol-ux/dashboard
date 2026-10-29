@@ -295,11 +295,12 @@ export default function NuevoContratoPage() {
 
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('rol, activo')
+          .select('rol, rol_id, activo')
           .eq('id', user.id)
           .single();
+        const { data: perms } = await supabase.rpc('mis_permisos');
 
-        if (profileError || !profile || profile.activo === false || !canEditSavedRecords({...profile,id:user.id})) {
+        if (profileError || !profile || profile.activo === false || !canEditSavedRecords({...profile,id:user.id}, perms as string[] | null)) {
           toast.error('Solo un administrador puede editar un contrato pactado.');
           router.replace('/dashboard');
           return;

@@ -16,16 +16,16 @@ export async function PATCH(request:Request){
   const body=await request.json();
   if(typeof body.id!=='string'||!body.original||typeof body.original!=='object')return NextResponse.json({error:'Contrato inválido.'},{status:400});
   const patch=validateCalendarPatch(body.changes);
-  const {data:profile,error:pe}=await db.from('profiles').select('rol,sede_id,nombre,activo').eq('id',user.id).single();
+  const [{data:profile,error:pe},{data:perms}]=await Promise.all([db.from('profiles').select('rol,rol_id,sede_id,nombre,activo').eq('id',user.id).single(),db.rpc('mis_permisos')]);
   if(profile)profile.rol=String(profile.rol).toLowerCase();
-  if(pe||!profile||profile.activo===false||!['admin','asesora'].includes(profile.rol)||(profile.rol!=='admin'&&!profile.sede_id))return NextResponse.json({error:'No tienes un perfil autorizado para editar.'},{status:403});
-  let read=db.from('contratos').select(calendarColumns).eq('id',body.id);
-  if(profile.rol!=='admin')read=read.eq('sede_id',profile.sede_id);
+  if(pe||!profile||profile.activo===false||!['admin','asesora'].includes(profile.rol))return NextResponse.json({error:'No tienes un perfil autorizado para editar.'},{status:403});
+  const read=db.from('contratos').select(calendarColumns).eq('id',body.id);
+  // The person's sedes (usuario_sedes) are enforced by the contratos RLS policy on this user-scoped client.
   const {data:row,error:re}=await read.single();
   if(re||!row)return NextResponse.json({error:'Contrato no disponible para tu usuario.'},{status:404});
   const current=row as unknown as Record<string,any>;
   const contractIsPacted=!['borrador','pendiente_admin'].includes(String(current.estado||'').toLowerCase());
-  if(contractIsPacted&&!canEditSavedRecords({...profile,id:user.id}))return NextResponse.json({error:'Solo un administrador puede modificar un contrato pactado.'},{status:403});
+  if(contractIsPacted&&!canEditSavedRecords({...profile,id:user.id},perms as string[]|null))return NextResponse.json({error:'Solo un administrador puede modificar un contrato pactado.'},{status:403});
   const prexvKeys=[...prexvFields,'fecha_pre_xv','fecha_fotografia','fecha_maquillaje'];
   const touchesPrexv=Object.keys(patch).some(k=>prexvKeys.includes(k));
   const touchesSpecial=Object.keys(patch).some(k=>['bloqueo_especial_referencia','bloqueo_especial_fecha'].includes(k));

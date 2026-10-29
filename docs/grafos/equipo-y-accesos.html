@@ -1,0 +1,57 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Equipo y accesos</title>
+<style>body{font-family:system-ui,sans-serif;margin:16px;background:#fafaf9;color:#111}h1{font-size:20px}p{color:#555;font-size:13px}
+.kpis{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}.k{background:#fff;border:1px solid #eee;border-radius:12px;padding:10px 14px;min-width:120px}.k b{display:block;font-size:22px}
+.mermaid{background:#fff;border:1px solid #eee;border-radius:12px;padding:12px;overflow:auto}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script></head><body translate="no">
+<h1>Equipo y accesos · estado al 29/10/2026</h1>
+<div class="kpis"><div class="k"><b>26</b>fichas confirmadas</div><div class="k"><b>0</b>pendientes de revisión</div><div class="k"><b>13</b>usuarios activos</div><div class="k"><b>7</b>vendedoras activas</div><div class="k"><b>1</b>ficha activa sin usuario</div></div>
+<p>Rosa: pantallas · Amarillo: acciones · Azul: datos · Verde: reglas · Gris: pendiente.</p>
+<div class="mermaid">
+flowchart LR
+  classDef ui fill:#ffe4e6,stroke:#e11d48,color:#111
+  classDef act fill:#fef3c7,stroke:#d97706,color:#111
+  classDef db fill:#dbeafe,stroke:#2563eb,color:#111
+  classDef code fill:#dcfce7,stroke:#16a34a,color:#111
+  classDef todo fill:#f3f4f6,stroke:#9ca3af,color:#555,stroke-dasharray:4 3
+
+  MENU["Recursos humanos › EQUIPO Y ACCESOS ✅"]:::ui --> PAGE["/admin/accesos · solo Administrador"]:::ui
+  OLD["Gestión de equipo y Config. › equipo<br/>redirigen aquí ✅"]:::ui -.-> PAGE
+
+  PAGE --> P1["Personas ✅"]:::ui
+  PAGE --> P2["Revisión (0 pendientes) ✅"]:::ui
+  PAGE --> P3["Paneles por usuario ✅"]:::ui
+  PAGE --> P4["Por panel ✅"]:::ui
+  PAGE --> P5["Config. · Roles y permisos ✅"]:::ui
+  PAGE --> P6["Config. · Historial ✅"]:::ui
+
+  P1 --> A1["Nueva persona: datos › entra al ERP › rol › sedes › vendedora ✅"]:::act
+  P1 --> A2["Ficha editable: nombre, rol, sedes, activo, vendedora, restablecer clave ✅"]:::act
+  P1 --> A3["Fichas sin usuario: editar · Crear usuario · Unir = fusionar ✅"]:::act
+  P2 --> A4["Rol sugerido · sedes · permisos fuera del rol<br/>Pasar a todo el rol / Quitar · Confirmar ✅"]:::act
+  P5 --> A5["Cuadrícula por módulo · crear rol · Ve todas las sedes ✅"]:::act
+
+  A1 --> PROF[("profiles<br/>rol_id · estado_ficha · activo")]:::db
+  A1 --> AUTH[("auth.users")]:::db
+  A2 --> PROF
+  A2 --> US[("usuario_sedes")]:::db
+  A3 --> ASE[("asesoras = ficha de toda persona<br/>aparece_como_vendedora · profile_id único")]:::db
+  A3 --> REF[("contratos · citas · entregas · primeras citas · retablos · asistencia")]:::db
+  A4 --> RP[("roles · roles_permisos")]:::db
+  A4 --> PROF
+  A5 --> RP
+  P6 --> LOG[("accesos_paneles_bitacora · roles_bitacora · equipo_bitacora")]:::db
+
+  PROF --> PERM["mis_permisos(): confirmada = solo su rol ✅"]:::code
+  RP --> PERM
+  PERM --> PA["Menú y rutas por rol ✅"]:::code
+  ASE --> VEND["Contratos y Metas listan solo vendedoras ✅"]:::ui
+
+  COR["Corregir / anular pagos y depósitos ✅<br/>sin cierre: Líder y Franquiciado en su sede<br/>con cierre: solo Contabilidad · Admin siempre"]:::code --> HIST[("historial_cambios_contrato")]:::db
+  US --> COR
+
+  B2["Fase B2: varias sedes por persona en todo el ERP<br/>(hoy cada pantalla usa una sola sede)"]:::todo
+  US -.-> B2
+  SRE["Editar registros guardados por permiso de rol<br/>(hoy por cuentas fijas)"]:::todo
+</div>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'strict',flowchart:{htmlLabels:true}});</script>
+</body></html>
