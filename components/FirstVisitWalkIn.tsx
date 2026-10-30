@@ -3,7 +3,6 @@ import {useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {supabase} from '@/lib/supabase';
 import {bogotaLocalToIso,nowBogotaLocal,walkInEventTypes,walkInSources} from '@/lib/first-visits';
-import {useConfig} from '@/lib/config';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
 
 type Duplicates={visitas:{id:string;nombre:string;fecha:string;hora:string;sede:string;estado:string;origen:string;vinculable:boolean;pendiente:boolean}[];contratos:{id:string;numero_contrato:string;nombre:string;sede:string|null;fecha_evento:string|null}[];aliados?:{id:string;nombre:string;aliado:string|null;contrato:boolean}[];aviso?:string|null};
@@ -13,7 +12,6 @@ const digits=(v:string)=>v.replace(/\D/g,'');
 
 /** "Nueva vitrina": a client who walked in without an appointment, saved as attended and outside booking slots. */
 export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=false,onCreated}:Props){
- const cfg=useConfig(),fw='pv_visita_vitrina';
  const router=useRouter(),dialog=useRef<HTMLDialogElement>(null);
  const [f,setF]=useState(alContratar?{...empty,resultado:'Contrato pendiente'}:empty),[sede,setSede]=useState(profile.sede_id||''),[when,setWhen]=useState(()=>nowBogotaLocal()),[asesora,setAsesora]=useState(profile.id);
  const [sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[asesoras,setAsesoras]=useState<{id:string;nombre:string|null;email:string|null}[]>([]);
@@ -79,10 +77,10 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
     <label>Asesora que atiende *<select value={asesora} onChange={e=>setAsesora(e.target.value)} required>{!asesoras.some(a=>a.id===asesora)&&<option value={asesora}>Yo</option>}{asesoras.map(a=><option key={a.id} value={a.id}>{a.nombre||a.email}</option>)}</select></label>
    </div>
    <div className={styles.grid2}>
-    <label>{cfg.field(fw,'tipo_evento','Tipo de evento')} *<select value={f.tipo_evento} onChange={set('tipo_evento')} required><option value="">Selecciona…</option>{cfg.list('pv_tipos_evento_vitrina',walkInEventTypes).map(t=><option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}</select></label>
-    <label>{cfg.field(fw,'fecha_evento','Fecha del evento')}<input type="date" value={f.fecha_evento} onChange={set('fecha_evento')}/></label>
+    <label>Tipo de evento *<select value={f.tipo_evento} onChange={set('tipo_evento')} required><option value="">Selecciona…</option>{walkInEventTypes.map(t=><option key={t}>{t}</option>)}</select></label>
+    <label>Fecha del evento<input type="date" value={f.fecha_evento} onChange={set('fecha_evento')}/></label>
    </div>
-   <label>{cfg.field(fw,'como_se_entero','Cómo se enteró')}<select value={f.como_se_entero} onChange={set('como_se_entero')}><option value="">Sin dato</option>{cfg.list('pv_como_se_entero',walkInSources).map(t=><option key={t.valor} value={t.valor}>{t.etiqueta}</option>)}</select></label>
+   <label>Cómo se enteró<select value={f.como_se_entero} onChange={set('como_se_entero')}><option value="">Sin dato</option>{walkInSources.map(t=><option key={t}>{t}</option>)}</select></label>
    {!alContratar&&<label>¿Alquiló? *<select required value={f.resultado==='Cerrado'?'si':f.resultado?'no':''} onChange={e=>setF({...f,resultado:e.target.value==='si'?'Cerrado':e.target.value==='no'?'En seguimiento':''})}><option value="">Elige…</option><option value="si">Alquiló</option><option value="no">No alquiló</option></select></label>}
    {!alContratar&&f.resultado&&f.resultado!=='Cerrado'&&<label><input type="checkbox" checked={f.resultado==='No cerró'} onChange={e=>setF({...f,resultado:e.target.checked?'No cerró':'En seguimiento'})}/> No hacer seguimiento (motivo de mínimo 30 caracteres)</label>}
    <label>{f.resultado==='No cerró'?'Motivo *':'Observaciones'}<textarea maxLength={1000} value={f.motivo} onChange={set('motivo')} required={f.resultado==='No cerró'} minLength={f.resultado==='No cerró'?30:undefined}/></label>

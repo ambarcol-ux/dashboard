@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
-import ConfigCatalog from '@/components/config/ConfigCatalog';
 
 export default function AdminConfigPage() {
   const readAccess = useVerifiedAccess();
@@ -278,7 +277,6 @@ export default function AdminConfigPage() {
           </div>
 
           </div>
-          <ConfigCatalog />
         </div>
       </div>
     </div>
