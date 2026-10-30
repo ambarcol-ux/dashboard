@@ -19,9 +19,9 @@ export default function SalesGoals({mes,anio,profile}:{mes:number;anio:number;pr
  const [version,setVersion]=useState(0);
  // Panel historial: period (month, range or year) and view by contract date or payment date.
  const pad=(x:number)=>String(x).padStart(2,'0');
- const [per,setPer]=useState<'mes'|'rango'|'anio'>('mes'),[pMes,setPMes]=useState(`${anio}-${pad(mes)}`),[pDesde,setPDesde]=useState(`${anio}-${pad(mes)}-01`),[pHasta,setPHasta]=useState(()=>new Date().toISOString().slice(0,10)),[pAnio,setPAnio]=useState(String(anio)),[verPor,setVerPor]=useState<'contratos'|'caja'>('contratos');
+ const [per,setPer]=useState<'mes'|'rango'|'anio'|'todo'>('mes'),[pMes,setPMes]=useState(`${anio}-${pad(mes)}`),[pDesde,setPDesde]=useState(`${anio}-${pad(mes)}-01`),[pHasta,setPHasta]=useState(()=>new Date().toISOString().slice(0,10)),[pAnio,setPAnio]=useState(String(anio)),[verPor,setVerPor]=useState<'contratos'|'caja'>('contratos');
  useEffect(()=>{setPMes(`${anio}-${pad(mes)}`);setPAnio(String(anio));},[mes,anio]);
- const [desde,hasta]=per==='mes'?[`${pMes}-01`,new Date(Date.UTC(Number(pMes.slice(0,4)),Number(pMes.slice(5,7)),0)).toISOString().slice(0,10)]:per==='anio'?[`${pAnio}-01-01`,`${pAnio}-12-31`]:[pDesde,pHasta];
+ const [desde,hasta]=per==='mes'?[`${pMes}-01`,new Date(Date.UTC(Number(pMes.slice(0,4)),Number(pMes.slice(5,7)),0)).toISOString().slice(0,10)]:per==='anio'?[`${pAnio}-01-01`,`${pAnio}-12-31`]:per==='todo'?['2020-01-01',new Date().toISOString().slice(0,10)]:[pDesde,pHasta];
  useEffect(()=>{
   if(!desde||!hasta||hasta<desde){setRows([]);return;}let live=true;
   void supabase.rpc('historial_ventas_periodo',{p_desde:desde,p_hasta:hasta,p_sede:sede||null,p_modo:verPor}).then(({data,error})=>{
@@ -84,9 +84,9 @@ export default function SalesGoals({mes,anio,profile}:{mes:number;anio:number;pr
   </div>}
 
   <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 space-y-4">
-   <div className="flex flex-wrap items-center gap-2 justify-between"><h2 className="text-lg font-black text-gray-900">Panel historial · {sedeName} · {desde.split('-').reverse().join('/')} al {hasta.split('-').reverse().join('/')} · {verPor==='caja'?'Caja del período':'Contratos del período'}{filter!=='todos'?` · ${AGING[filter].label}`:''}</h2>{loading&&<span className="text-xs text-gray-400">Cargando…</span>}</div>
+   <div className="flex flex-wrap items-center gap-2 justify-between"><h2 className="text-lg font-black text-gray-900">Panel historial · {sedeName} · {per==='todo'?'Todo el historial':`${desde.split('-').reverse().join('/')} al ${hasta.split('-').reverse().join('/')}`} · {verPor==='caja'?'Caja del período':'Contratos del período'}{filter!=='todos'?` · ${AGING[filter].label}`:''}</h2>{loading&&<span className="text-xs text-gray-400">Cargando…</span>}</div>
    <div className="flex flex-wrap items-end gap-2 text-xs font-bold text-gray-600">
-    <label className="flex flex-col gap-1">Período<select value={per} onChange={e=>setPer(e.target.value as 'mes'|'rango'|'anio')} className="px-3 py-2 border border-gray-200 rounded-xl"><option value="mes">Mes</option><option value="rango">Rango</option><option value="anio">Año</option></select></label>
+    <label className="flex flex-col gap-1">Período<select value={per} onChange={e=>setPer(e.target.value as 'mes'|'rango'|'anio'|'todo')} className="px-3 py-2 border border-gray-200 rounded-xl"><option value="mes">Mes</option><option value="rango">Rango</option><option value="anio">Año</option><option value="todo">Todo el historial</option></select></label>
     {per==='mes'&&<label className="flex flex-col gap-1">Mes<input type="month" value={pMes} onChange={e=>e.target.value&&setPMes(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl"/></label>}
     {per==='rango'&&<><label className="flex flex-col gap-1">Desde<input type="date" value={pDesde} onChange={e=>setPDesde(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl"/></label><label className="flex flex-col gap-1">Hasta<input type="date" value={pHasta} onChange={e=>setPHasta(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl"/></label></>}
     {per==='anio'&&<label className="flex flex-col gap-1">Año<input type="number" min={2020} max={2100} value={pAnio} onChange={e=>setPAnio(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl w-24"/></label>}
