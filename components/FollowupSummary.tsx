@@ -2,6 +2,7 @@
 import {useEffect,useState} from 'react';
 import Link from 'next/link';
 import {supabase} from '@/lib/supabase';
+import {useConfig} from '@/lib/config';
 
 type Row={nombre:string;debidos:number;hechos:number;cumplimiento:number};
 type Summary={en_seguimiento:number;hoy:number;vencidos:number;recuperadas_pct:number;
@@ -9,6 +10,7 @@ type Summary={en_seguimiento:number;hoy:number;vencidos:number;recuperadas_pct:n
 
 /** Follow-ups of first visits by role: advisor = her own; leader / franchisee = their sedes; admin = all (seguimientos_resumen). */
 export default function FollowupSummary({mode}:{mode:'panel'|'full'}){
+ const maxAlertas=useConfig().param('pv_alertas_visibles',8);
  const [data,setData]=useState<Summary|null>(null);
  useEffect(()=>{let live=true;void supabase.rpc('seguimientos_resumen').then(({data})=>{if(live&&data)setData(data as Summary);});return()=>{live=false;};},[]);
  if(!data)return null;
@@ -18,8 +20,8 @@ export default function FollowupSummary({mode}:{mode:'panel'|'full'}){
   return <section className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
    <div className="flex flex-wrap items-center justify-between gap-2"><p className="font-black text-amber-900">Seguimientos de primeras visitas: {data.hoy} para hoy · {data.vencidos} vencidos</p>
     <Link href="/dashboard/primeras-citas" className="text-xs font-black uppercase text-amber-800 underline">Ver seguimientos</Link></div>
-   <ul className="mt-2 space-y-1 text-sm text-amber-900">{data.alertas.slice(0,8).map(a=><li key={a.cita_id+a.fecha}><b>{a.estado}</b> · {a.cliente} · {fecha(a.fecha)} · {a.sede||'—'} · {a.asignada}</li>)}</ul>
-   {data.alertas.length>8&&<p className="text-xs text-amber-800 mt-1">Y {data.alertas.length-8} más.</p>}
+   <ul className="mt-2 space-y-1 text-sm text-amber-900">{data.alertas.slice(0,maxAlertas).map(a=><li key={a.cita_id+a.fecha}><b>{a.estado}</b> · {a.cliente} · {fecha(a.fecha)} · {a.sede||'—'} · {a.asignada}</li>)}</ul>
+   {data.alertas.length>maxAlertas&&<p className="text-xs text-amber-800 mt-1">Y {data.alertas.length-maxAlertas} más.</p>}
   </section>;
  }
  const tile=(l:string,v:string|number)=><div className="bg-white border border-gray-100 rounded-2xl px-4 py-3 min-w-[9rem]"><p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{l}</p><p className="text-2xl font-black text-gray-900">{v}</p></div>;
