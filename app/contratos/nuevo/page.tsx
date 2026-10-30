@@ -5,6 +5,7 @@ import type { UploadedSupport } from '@/lib/payment-support';
 import {canEditSavedRecords} from '@/lib/saved-record-editing';
 
 import PreXvFields from '@/components/PreXvFields';
+import ContractVisitPicker from '@/components/ContractVisitPicker';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { initialDepositAmount } from '@/lib/initial-deposit';
 import { contractSuggestedDeposit } from '@/lib/deposit-rules';
@@ -217,26 +218,34 @@ export default function NuevoContratoPage() {
   const [asesorasFiltradas, setAsesorasFiltradas] = useState<any[]>([]);
   const [busyVestidoIds, setBusyVestidoIds] = useState<Set<string>>(new Set());
 
-  useEffect(()=>{
-    const params=new URLSearchParams(window.location.search),id=params.get('primeraCita');
-    if(!id||params.has('editar')||!sedesList.length)return;
-    let live=true;setFirstVisitLoading(true);
-    void (async()=>{
-      const {data:c,error}=await supabase.from('primeras_citas').select('id,sede_id,cliente_nombre,telefono,email,estado').eq('id',id).single();
+  // Visit of origin: from ?primeraCita or chosen in the form (search or "Registrar vitrina").
+  const loadVisit=(id:string,isLive:()=>boolean=()=>true)=>{
+    setFirstVisitLoading(true);setFirstVisitError('');
+    return (async()=>{
+      const {data:c,error}=await supabase.from('primeras_citas').select('id,codigo,sede_id,cliente_nombre,telefono,email,cliente_documento,estado').eq('id',id).single();
       if(error||!c)throw new Error('No puedes acceder a esta primera cita. Vuelve al Calendario.');
-      if(!['asistio','seguimiento'].includes(c.estado))throw new Error('Registra primero la atención de la cita en Calendario.');
+      if(c.estado==='cancelada')throw new Error('La visita está cancelada.');
       const {data:existing,error:ce}=await supabase.from('contratos').select('id').eq('primera_cita_id',id).maybeSingle();
       if(ce)throw new Error('No se pudo verificar si la cita ya tiene contrato.');
       if(existing)throw new Error('Esta cita ya tiene un contrato. Ábrelo desde Calendario.');
       const site=sedesList.find(s=>s.id===c.sede_id);if(!site)throw new Error('La sede de la cita no está disponible.');
-      if(live){setFirstVisit(c);setFormData(prev=>({...prev,cliente_nombre:c.cliente_nombre,whatsapp:c.telefono,cliente_email:c.email||'',sede_id:site.id,sede:site.nombre}));}
-    })().catch(e=>{if(live)setFirstVisitError(e.message);}).finally(()=>{if(live)setFirstVisitLoading(false);});
+      if(isLive()){setFirstVisit(c);setFormData(prev=>({...prev,cliente_nombre:c.cliente_nombre,whatsapp:c.telefono,cliente_email:c.email||'',cliente_documento:prev.cliente_documento||c.cliente_documento||'',sede_id:site.id,sede:site.nombre}));}
+    })().catch(e=>{if(isLive())setFirstVisitError(e.message);}).finally(()=>{if(isLive())setFirstVisitLoading(false);});
+  };
+  useEffect(()=>{
+    const params=new URLSearchParams(window.location.search),id=params.get('primeraCita');
+    if(!id||params.has('editar')||!sedesList.length)return;
+    let live=true;void loadVisit(id,()=>live);
     return()=>{live=false;};
   },[sedesList]);
   const assertFirstVisitReady=()=>{
     if(!isEditMode&&new URLSearchParams(window.location.search).has('primeraCita')){
       if(!firstVisit||firstVisitLoading||firstVisitError)throw new Error(firstVisitError||'Espera a que se cargue la primera cita.');
       if(formData.sede_id!==firstVisit.sede_id)throw new Error('El contrato debe conservar la sede de la primera cita.');
+    }
+    if(!isEditMode&&!aliadoModo.tiene){
+      if(!firstVisit||firstVisitLoading)throw new Error('Busca la visita de la clienta o registra la vitrina antes de crear el contrato.');
+      if(formData.sede_id!==firstVisit.sede_id)throw new Error('El contrato debe conservar la sede de la visita.');
     }
   };
 
@@ -1732,7 +1741,7 @@ export default function NuevoContratoPage() {
   return (
     <div className="min-h-screen bg-gray-100 flex justify-center py-8 font-sans px-2 sm:px-4 pb-24">
       <Toaster position="top-right" richColors />
-      {(firstVisit||firstVisitLoading||firstVisitError)&&<div className="mx-auto max-w-6xl rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm" role={firstVisitError?'alert':'status'}>{firstVisitError|| (firstVisitLoading?'Cargando primera cita…':`Contrato originado en primera visita: ${firstVisit.cliente_nombre}. Al guardarlo quedará vinculado a su seguimiento.`)} <a className="font-bold underline" href="/dashboard/primeras-citas">Volver al Calendario</a></div>}
+      {(firstVisit||firstVisitLoading||firstVisitError)&&<div className="mx-auto max-w-6xl rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm" role={firstVisitError?'alert':'status'}>{firstVisitError|| (firstVisitLoading?'Cargando primera cita…':`Contrato originado en ${firstVisit.codigo||'primera visita'}: ${firstVisit.cliente_nombre}. Al guardarlo quedará vinculado a su seguimiento.`)} <a className="font-bold underline" href="/dashboard/primeras-citas">Volver al Calendario</a></div>}
 
       <div className="w-full max-w-5xl bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-200">
 
@@ -1776,6 +1785,7 @@ export default function NuevoContratoPage() {
           )}
 
 
+          {!isEditMode&&!firstVisit&&!aliadoModo.tiene&&<ContractVisitPicker onPick={id=>{if(sedesList.length)void loadVisit(id);}}/>}
           <ContractAllyMode value={aliadoModo} onChange={setAliadoModo} descuento={descuentoAliado} numero={editingContractNumber}
             total={Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0)}
             disabled={isEditMode && !['borrador','pendiente_admin'].includes(String(editingContractState).toLowerCase()) && String(userRole).toLowerCase() !== 'admin'}
