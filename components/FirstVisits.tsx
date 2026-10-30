@@ -29,6 +29,7 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
  const from=customFrom,to=customTo;
  const [segs,setSegs]=useState<Record<string,SegInfo>>({});
  const [tab,setTab]=useState<'citas'|'seguimientos'>('citas'),[segRows,setSegRows]=useState<FirstVisit[]>([]),[segInfo,setSegInfo]=useState<Record<string,SegInfo>>({}),[names,setNames]=useState<Record<string,string>>({});
+ const [pick,setPick]=useState<string[]>([]),[targets,setTargets]=useState<{id:string;nombre:string}[]>([]),[target,setTarget]=useState(''),[segReload,setSegReload]=useState(0);
  const [fSede,setFSede]=useState(''),[fTipo,setFTipo]=useState(''),[fEstado,setFEstado]=useState(''),[fAsesora,setFAsesora]=useState('');
  const [rows,setRows]=useState<FirstVisit[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
  // Next follow-up and last registration of each listed visit.
@@ -37,7 +38,10 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
  useEffect(()=>{if(tab!=='seguimientos')return;let live=true;const d=(n:number)=>new Date(Date.now()+n*86400000).toISOString().slice(0,10);
   void supabase.rpc('listar_primeras_citas',{p_desde:d(-300),p_hasta:d(60)}).then(async({data})=>{const list=((data||[]) as FirstVisit[]).filter(v=>v.tipo_seguimiento);const info=await loadSegInfo(list.map(v=>v.id));
    const ids=[...new Set(Object.values(info).map(i=>i.asignado).filter(Boolean))] as string[];const {data:pp}=ids.length?await supabase.from('profiles').select('id,nombre,email').in('id',ids):{data:[]};
-   if(!live)return;setSegRows(list);setSegInfo(info);setNames(Object.fromEntries((pp||[]).map(x=>[x.id,x.nombre||x.email])));});return()=>{live=false;};},[tab]);
+   if(!live)return;setSegRows(list);setSegInfo(info);setNames(Object.fromEntries((pp||[]).map(x=>[x.id,x.nombre||x.email])));});return()=>{live=false;};},[tab,segReload]);
+ // Reassign: only admin / sede leader receive advisors (enforced by the RPC).
+ useEffect(()=>{setPick([]);setTarget('');if(!fSede){setTargets([]);return;}void supabase.rpc('asesoras_reasignables',{p_sede:fSede}).then(({data})=>setTargets((data||[]) as {id:string;nombre:string}[]));},[fSede]);
+ async function reassign(){if(!pick.length||!target)return;setError('');const {data,error}=await supabase.rpc('reasignar_seguimientos',{p_citas:pick,p_asesora:target});if(error){setError(error.message);return;}setNotice(`${data} clientas reasignadas.`);setPick([]);setSegReload(n=>n+1);}
  const [search,setSearch]=useState(''),[site,setSite]=useState(''),[state,setState]=useState(''),[mode,setMode]=useState(''),[page,setPage]=useState(1);
  const [selected,setSelected]=useState<FirstVisit|null>(null),[result,setResult]=useState(''),[reason,setReason]=useState(''),[attended,setAttended]=useState(''),[rented,setRented]=useState(''),[followup,setFollowup]=useState(''),[note,setNote]=useState(''),[saving,setSaving]=useState(false),[history,setHistory]=useState<{id:string;created_at:string;accion:string;detalle:string}[]>([]);
  const [canDelete,setCanDelete]=useState(false),[deleteReason,setDeleteReason]=useState('');
@@ -86,8 +90,9 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
    <label>Estado<select value={fEstado} onChange={e=>setFEstado(e.target.value)}><option value="">Todos</option><option value="hoy">Hoy</option><option value="vencidos">Vencidos</option><option value="aldia">Al día</option><option value="cerrados">Cerrados</option></select></label>
    <label>Asesora<select value={fAsesora} onChange={e=>setFAsesora(e.target.value)}><option value="">Todas</option>{Object.entries(names).map(([id,n])=><option key={id} value={id}>{n}</option>)}</select></label>
   </div>
+  {targets.length>0&&<div className={styles.controls}><label>Reasignar a…<select value={target} onChange={e=>setTarget(e.target.value)}><option value="">Elige asesora</option>{targets.map(t=><option key={t.id} value={t.id}>{t.nombre}</option>)}</select></label><button type="button" disabled={!pick.length||!target} onClick={()=>void reassign()}>Reasignar {pick.length} seleccionadas</button></div>}
   <div className={styles.stats}>{([['En seguimiento',abiertas.length],['Hoy',lista.filter(v=>est(v)==='Hoy').length],['Vencidas',lista.filter(v=>est(v)==='Vencido').length],['Al día',lista.filter(v=>est(v)==='Al día').length],['Cerradas',lista.filter(v=>est(v)==='Cerrado').length]] as [string,number][]).map(([l,n])=><div key={l}><strong>{n}</strong><span>{l} (clientas)</span></div>)}</div>
-  {lista.sort((x,y)=>String(segInfo[x.id]?.proximo||'9999').localeCompare(String(segInfo[y.id]?.proximo||'9999'))).map(v=><article className={styles.row} key={v.id}><div><strong>{v.cliente_nombre}</strong><span className={styles.tag}>{followupTypeLabel[v.tipo_seguimiento||'']||v.tipo_seguimiento} · {segInfo[v.id]?.hechos||0}/5 · {est(v)}</span>
+  {lista.sort((x,y)=>String(segInfo[x.id]?.proximo||'9999').localeCompare(String(segInfo[y.id]?.proximo||'9999'))).map(v=><article className={styles.row} key={v.id}><div>{targets.length>0&&est(v)!=='Cerrado'&&<input type="checkbox" aria-label={`Seleccionar ${v.cliente_nombre}`} checked={pick.includes(v.id)} onChange={e=>setPick(p=>e.target.checked?[...p,v.id]:p.filter(x=>x!==v.id))}/>} <strong>{v.cliente_nombre}</strong><span className={styles.tag}>{followupTypeLabel[v.tipo_seguimiento||'']||v.tipo_seguimiento} · {segInfo[v.id]?.hechos||0}/5 · {est(v)}</span>
    <p>{v.sede} · {v.telefono} · Asesora: {names[segInfo[v.id]?.asignado||'']||'—'}</p>
    <p>Próximo: {segInfo[v.id]?.proximo?segInfo[v.id]!.proximo!.split('-').reverse().join('/'):'—'} · Último: {segInfo[v.id]?.ultimo?`${segInfo[v.id]!.ultimo!.slice(0,10).split('-').reverse().join('/')}${segInfo[v.id]!.ultimo!.slice(10)}`:'—'}{v.cierre_seguimiento?` · ${v.cierre_seguimiento}`:''}</p></div>
    <div className={styles.actions}><button onClick={()=>open(v)}>Gestionar / historial</button></div></article>)}
