@@ -1,0 +1,84 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Metas y ventas</title>
+<style>body{font-family:system-ui,sans-serif;margin:16px;background:#fafaf9;color:#111}h1{font-size:20px}h2{font-size:16px;margin-top:24px}p,li{color:#444;font-size:13px}
+.mermaid{background:#fff;border:1px solid #eee;border-radius:12px;padding:12px;overflow:auto}.bad{color:#b45309;font-weight:700}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script></head><body translate="no">
+<h1>Metas y ventas (/admin/metas) · estado al 30/10/2026</h1>
+<p>Rosa: pantallas · Amarillo: filtros y acciones · Azul: datos · Verde: cálculos · Naranja: puntos a revisar.</p>
+<div class="mermaid">
+flowchart LR
+  classDef ui fill:#ffe4e6,stroke:#e11d48,color:#111
+  classDef act fill:#fef3c7,stroke:#d97706,color:#111
+  classDef db fill:#dbeafe,stroke:#2563eb,color:#111
+  classDef code fill:#dcfce7,stroke:#16a34a,color:#111
+  classDef warn fill:#ffedd5,stroke:#c2410c,color:#7c2d12
+
+  PAGE["app/admin/metas/page.tsx · Metas y Ventas<br/>selector de mes ‹ OCTUBRE 2026 ›"]:::ui
+  PAGE --> SG["components/metas/SalesGoals.tsx (mes, año, rol)"]:::ui
+  PAGE --> MA["Metas por asesora + botón Meta por asesora<br/>crear · editar · eliminar"]:::ui
+
+  %% Alcance
+  SCOPE["metas_sede_usuario(): admin y contabilidad ven todo;<br/>los demás, su sede (sedes_limitadas / usuario_sedes)"]:::code
+  SG --> FSEDE["Selector Todas las sedes / sede (bloqueado si no ve todo)"]:::act
+
+  %% Metas por sede
+  SG --> ASM["asegurar_metas_mes → asegurar_metas_sede<br/>crea la meta del mes copiando la anterior (o 50 M) · marca Automática"]:::code
+  ASM --> METAS[("metas (tipo sede/asesora, monto_meta, mes, año, dias_operativos, automatica)")]:::db
+  METAS --> TRG["trigger registrar_historial_meta"]:::code --> HM[("historial_metas")]:::db
+  SG --> MP["metas_panel(mes, año)"]:::code
+  SCOPE --> MP
+  METAS --> MP
+  CON[("contratos")]:::db --> MP
+  PAG[("pagos")]:::db --> MP
+  DO["dias_operativos(): lunes a sábado sin festivos"]:::code --> MP
+  MP --> CARDS["Tarjetas: Meta del mes · Vendido del mes · Cumplimiento · Meta de hoy"]:::ui
+  MP --> TAB["Tabla por sede: Meta · Vendido · Cumplimiento · Meta diaria base · Meta de hoy · Recaudado del mes<br/>clic en una sede = filtra"]:::ui
+  LIB["lib/sales-goals.ts: baseDailyGoal = meta ÷ días · todayGoal = (meta − vendido hasta ayer) ÷ días que faltan · progress"]:::code --> CARDS & TAB
+  SG --> CFG["Configuración de metas (solo admin): monto y días por sede + Historial de cambios"]:::act --> METAS
+  HM --> CFG
+
+  %% Panel historial
+  SG --> PH["Panel historial · sede · período · vista · grupo"]:::ui
+  PH --> FP["Período: Mes · Rango · Año · Todo el historial"]:::act
+  PH --> VP["Ver por: Contratos del período (fecha del contrato) · Caja del período (fecha del abono)"]:::act
+  FP & VP & FSEDE --> HV["historial_ventas_periodo(desde, hasta, sede, modo)<br/>excluye cancelado, anulado, borrador, rechazado"]:::code
+  SCOPE --> HV
+  CON --> HV
+  PAG --> HV
+  HV --> SALDO["lib/saldo.ts: Facturado = valor_total + arreglos · Recaudado = abonos (o abonos del período en Caja) · Pendiente = saldo ≥ 0"]:::code
+  SALDO --> PCARDS["Tarjetas Facturado · Recaudado · Pendiente"]:::ui
+  SALDO --> CHIPS["Pestañas con conteo: Todos · Al día · +30 · +90 · +120 · Pagadas<br/>(días desde la factura o el contrato)"]:::act
+  CHIPS --> LIST["Lista (300 visibles) + Totales alineados · clic = detalle del contrato con abonos"]:::ui
+  CHIPS --> EXP["Exportar CSV (admin y contabilidad) con los mismos filtros"]:::act
+  PAG --> DET["Detalle: factura, recibos y abonos"]:::ui
+  LIST --> DET
+
+  %% Metas por asesora
+  MA --> ASE[("asesoras (aparece_como_vendedora)")]:::db
+  MA --> METAS
+  MA --> PAGA["Avance = suma de pagos del mes por asesora o sede (cálculo en el navegador, tope 200 %)"]:::code
+  PAG --> PAGA
+
+  %% Puntos a revisar
+  MP -.-> W1["Vendido del mes usa created_at y solo valor_total;<br/>Panel historial usa fecha del contrato y suma arreglos"]:::warn
+  MP -.-> W2["Recaudado del mes por fecha UTC; el historial usa hora de Colombia"]:::warn
+  PAGA -.-> W3["Metas por asesora miden recaudo (pagos), no contratos vendidos"]:::warn
+  SALDO -.-> W4["3 contratos con abonos de más: Facturado − Recaudado ≠ Pendiente por $700.003"]:::warn
+</div>
+
+<h2>Cómo quedó</h2>
+<ul>
+<li><b>Arriba:</b> mes seleccionado, sede (todas o una), tarjetas de meta, vendido, cumplimiento y meta de hoy, y tabla por sede.</li>
+<li><b>Configuración de metas</b> (solo admin): monto y días operativos por sede, con historial de cambios. Las metas del mes nuevo se crean solas copiando la anterior.</li>
+<li><b>Panel historial:</b> período (mes, rango, año o todo), sede y «Ver por» contratos o caja. Tarjetas, pestañas con conteo, lista, totales y exportación usan los mismos filtros y lib/saldo.ts.</li>
+<li><b>Metas por asesora:</b> crear, editar y eliminar; el avance se calcula con los pagos del mes.</li>
+<li><b>Acceso:</b> admin y contabilidad ven todas las sedes; los demás roles, su sede. Proveedores sin acceso.</li>
+</ul>
+<h2>Puntos a revisar</h2>
+<ul>
+<li class="bad">Vendido del mes (arriba) y Facturado (panel historial) pueden diferir: distinta fecha (creación vs fecha del contrato) y el de arriba no suma arreglos.</li>
+<li class="bad">Recaudado del mes toma la fecha en UTC; el historial en hora de Colombia.</li>
+<li class="bad">Metas por asesora miden recaudo, no ventas.</li>
+<li class="bad">Ventas del módulo Ventas: no existe tabla ni ruta; pendiente definir el origen.</li>
+</ul>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'strict',flowchart:{htmlLabels:true}});</script>
+</body></html>
