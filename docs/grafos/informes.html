@@ -1,0 +1,61 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Informes y estadísticas</title>
+<style>body{font-family:system-ui,sans-serif;margin:16px;background:#fafaf9;color:#111}h1{font-size:20px}h2{font-size:16px;margin-top:24px}p,li{color:#444;font-size:13px}
+.mermaid{background:#fff;border:1px solid #eee;border-radius:12px;padding:12px;overflow:auto}.bad{color:#e11d48;font-weight:700}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script></head><body translate="no">
+<h1>Informes y estadísticas (/admin/reports) · estado al 30/10/2026</h1>
+<p>Rosa: pantallas · Amarillo: filtros y acciones · Azul: datos · Verde: cálculos · Rojo: problemas detectados.</p>
+<div class="mermaid">
+flowchart LR
+  classDef ui fill:#ffe4e6,stroke:#e11d48,color:#111
+  classDef act fill:#fef3c7,stroke:#d97706,color:#111
+  classDef db fill:#dbeafe,stroke:#2563eb,color:#111
+  classDef code fill:#dcfce7,stroke:#16a34a,color:#111
+  classDef bad fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
+
+  MENU["Menú › Operaciones › Reportes y estadísticas<br/>panel 'reports' (lib/panel-access.ts) · solo admin en Sidebar"]:::ui --> MW["middleware: exige sesión en /admin"]:::code --> PAGE["app/admin/reports/page.tsx<br/>Informes y estadísticas"]:::ui
+  PAGE --> ACC["useVerifiedAccess(): usuario y rol"]:::code
+  PAGE --> FS["Filtro Sede: Sede Global o una sede activa"]:::act
+  PAGE --> FP["Filtro Período: Mes actual · Mes anterior · Últimos 3 meses · Año actual · Rango personalizado"]:::act
+  PAGE --> REF["Refrescar"]:::act
+  SEDES[("sedes (activo)")]:::db --> FS
+  FS --> KPI["fetchKPIs(filtros)"]:::code
+  FP --> FECHAS["getStartEndDates(): inicio y fin en hora del navegador → ISO (UTC)"]:::code --> KPI
+  REF --> KPI
+
+  KPI --> Q1["Consulta 1: contratos.valor_total<br/>estado ≠ cancelado · created_at en rango · sede"]:::code
+  KPI --> Q2["Consulta 2: idéntica a la 1"]:::bad
+  KPI --> Q3["Consulta 3: contratos.saldo + total_multas<br/>estado ≠ cancelado · created_at en rango"]:::code
+  KPI --> Q4["Consulta 4: contrato_items_vestidos + vestidos + contratos<br/>created_at en rango · sede del contrato"]:::code
+  CON[("contratos")]:::db --> Q1 & Q2 & Q3
+  ITEMS[("contrato_items_vestidos")]:::db --> Q4
+  VEST[("vestidos (codigo, nombre, sede_actual_id)")]:::db --> Q4
+
+  Q1 --> C1["Tarjeta Facturado total"]:::ui
+  Q2 --> C2["Tarjeta Facturado del mes"]:::ui
+  Q3 --> C3["Tarjeta Pendiente por recaudar"]:::ui
+  Q4 --> RANK["Agrupa por código · cuenta líneas · top 10"]:::code --> TOP["Top 10 vestidos más rentados<br/>código · sede actual del vestido · alquileres confirmados"]:::ui
+
+  Q2 -.-> P1["Facturado total = Facturado del mes siempre (misma consulta)"]:::bad
+  Q1 -.-> P2["Incluye anulados, borradores y rechazados (solo excluye 'cancelado')<br/>sin total_arreglos · usa created_at, no fecha del contrato"]:::bad
+  Q3 -.-> P3["Pendiente con columna saldo + multas, no con lib/saldo.ts<br/>no cuadra con Metas y ventas"]:::bad
+  RANK -.-> P4["Agrupa por código (se repite entre sedes), no por id<br/>cuenta contratos anulados como 'confirmados'"]:::bad
+  FECHAS -.-> P5["Rango calculado en hora del navegador, no hora de Colombia"]:::bad
+</div>
+
+<h2>Qué muestra</h2>
+<ul>
+<li><b>Filtros:</b> sede (Global o una sede activa) y período (mes actual, mes anterior, últimos 3 meses, año actual, rango personalizado). Botón Refrescar.</li>
+<li><b>Tarjetas:</b> Facturado total, Facturado del mes y Pendiente por recaudar, todas con el mismo filtro.</li>
+<li><b>Top 10 vestidos:</b> número de líneas de contrato por código de vestido en el período, con la sede actual del vestido.</li>
+</ul>
+<h2>Problemas detectados</h2>
+<ul>
+<li class="bad">Facturado total y Facturado del mes salen de la misma consulta: siempre muestran el mismo valor (por eso ambas dicen $76.098.500).</li>
+<li class="bad">Solo excluye estado «cancelado»: suma anulados, borradores y rechazados. Metas y ventas excluye los cuatro.</li>
+<li class="bad">Pendiente usa la columna saldo + total_multas, no la regla única de lib/saldo.ts (valor_total + total_arreglos − anticipo).</li>
+<li class="bad">El ranking agrupa por código, que se repite entre sedes; debería agrupar por id del vestido. También cuenta contratos anulados.</li>
+<li class="bad">Fechas por created_at y en hora del navegador; Metas y ventas usa la fecha del contrato en hora de Colombia.</li>
+<li>Sin exportar ni detalle por sede; acceso: panel «reports» (Sidebar lo marca solo para admin).</li>
+</ul>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'strict',flowchart:{htmlLabels:true}});</script>
+</body></html>
