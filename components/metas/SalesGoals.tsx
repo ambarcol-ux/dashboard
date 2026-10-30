@@ -3,6 +3,7 @@ import {useEffect,useMemo,useState} from 'react';
 import {CalendarClock,Download,History,Lock,Save,Settings2,Store,X} from 'lucide-react';
 import {toast} from 'sonner';
 import {supabase} from '@/lib/supabase';
+import {saldoContrato,totalContrato} from '@/lib/saldo';
 import {AGING,agingBucket,baseDailyGoal,overdueBalance,progress,receivablesCsv,todayGoal,type AgingBucket,type Receivable,type SiteGoal} from '@/lib/sales-goals';
 
 const money=(v:unknown)=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Number(v)||0);
@@ -16,17 +17,30 @@ export default function SalesGoals({mes,anio,profile}:{mes:number;anio:number;pr
  const [goals,setGoals]=useState<SiteGoal[]>([]),[rows,setRows]=useState<Receivable[]>([]),[sede,setSede]=useState<string>(''),[loading,setLoading]=useState(true);
  const [filter,setFilter]=useState<AgingBucket|'todos'>('todos'),[detail,setDetail]=useState<Receivable|null>(null),[config,setConfig]=useState(false);
  const [version,setVersion]=useState(0);
+ // Panel historial: period (month, range or year) and view by contract date or payment date.
+ const pad=(x:number)=>String(x).padStart(2,'0');
+ const [per,setPer]=useState<'mes'|'rango'|'anio'>('mes'),[pMes,setPMes]=useState(`${anio}-${pad(mes)}`),[pDesde,setPDesde]=useState(`${anio}-${pad(mes)}-01`),[pHasta,setPHasta]=useState(()=>new Date().toISOString().slice(0,10)),[pAnio,setPAnio]=useState(String(anio)),[verPor,setVerPor]=useState<'contratos'|'caja'>('contratos');
+ useEffect(()=>{setPMes(`${anio}-${pad(mes)}`);setPAnio(String(anio));},[mes,anio]);
+ const [desde,hasta]=per==='mes'?[`${pMes}-01`,new Date(Date.UTC(Number(pMes.slice(0,4)),Number(pMes.slice(5,7)),0)).toISOString().slice(0,10)]:per==='anio'?[`${pAnio}-01-01`,`${pAnio}-12-31`]:[pDesde,pHasta];
+ useEffect(()=>{
+  if(!desde||!hasta||hasta<desde)return;let live=true;
+  void supabase.rpc('historial_ventas_periodo',{p_desde:desde,p_hasta:hasta,p_sede:sede||null,p_modo:verPor}).then(({data,error})=>{
+   if(!live)return;if(error){toast.error('No se pudo cargar el historial: '+error.message);return;}
+   setRows(((data||[]) as (Receivable&{valor_total:number;total_arreglos:number;anticipo:number;abonos_periodo:number})[]).map(r=>({...r,valor:totalContrato(r),saldo:Math.max(0,saldoContrato(r)),recaudado:verPor==='caja'?Number(r.abonos_periodo)||0:Number(r.anticipo)||0})));
+  });
+  return()=>{live=false;};
+ },[desde,hasta,sede,verPor,version]);
  const reload=()=>{setLoading(true);setVersion(v=>v+1);};
  useEffect(()=>{
   let live=true;
   void (async()=>{
    await supabase.rpc('asegurar_metas_mes',{p_mes:mes,p_anio:anio});
-   const [g,c]=await Promise.all([supabase.rpc('metas_panel',{p_sede:null,p_mes:mes,p_anio:anio}),supabase.rpc('cartera_contratos',{p_sede:null})]);
+   const g=await supabase.rpc('metas_panel',{p_sede:null,p_mes:mes,p_anio:anio});
    if(!live)return;
    setLoading(false);
-   if(g.error||c.error){toast.error('No se pudieron cargar las metas: '+(g.error||c.error)!.message);return;}
+   if(g.error){toast.error('No se pudieron cargar las metas: '+g.error.message);return;}
    const list=(g.data||[]) as SiteGoal[];
-   setGoals(list);setRows((c.data||[]) as Receivable[]);
+   setGoals(list);
    if(!seesAll&&list[0])setSede(list[0].sede_id);
   })();
   return()=>{live=false;};
@@ -40,7 +54,7 @@ export default function SalesGoals({mes,anio,profile}:{mes:number;anio:number;pr
  const siteRows=useMemo(()=>rows.filter(r=>!sede||r.sede_id===sede),[rows,sede]);
  const counts=useMemo(()=>siteRows.reduce((a,r)=>{a[agingBucket(r)]++;return a;},{al_dia:0,mas30:0,mas90:0,mas120:0,pagada:0} as Record<AgingBucket,number>),[siteRows]);
  const shown=filter==='todos'?siteRows:siteRows.filter(r=>agingBucket(r)===filter);
- const exportCsv=()=>{const url=URL.createObjectURL(new Blob([receivablesCsv(shown)],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`cartera-${sede?goals.find(g=>g.sede_id===sede)?.sede:'todas'}-${anio}-${String(mes).padStart(2,'0')}.csv`;a.click();URL.revokeObjectURL(url);};
+ const exportCsv=()=>{const url=URL.createObjectURL(new Blob([receivablesCsv(shown)],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`historial-${verPor}-${sede?goals.find(g=>g.sede_id===sede)?.sede:'todas'}-${desde}_${hasta}.csv`;a.click();URL.revokeObjectURL(url);};
  const sedeName=sede?goals.find(g=>g.sede_id===sede)?.sede:'Todas las sedes';
 
  return <section className="space-y-6">
@@ -71,6 +85,19 @@ export default function SalesGoals({mes,anio,profile}:{mes:number;anio:number;pr
 
   <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 space-y-4">
    <div className="flex flex-wrap items-center gap-2 justify-between"><h2 className="text-lg font-black text-gray-900">Panel historial · {sedeName}</h2>{loading&&<span className="text-xs text-gray-400">Cargando…</span>}</div>
+   <div className="flex flex-wrap items-end gap-2 text-xs font-bold text-gray-600">
+    <label className="flex flex-col gap-1">Período<select value={per} onChange={e=>setPer(e.target.value as 'mes'|'rango'|'anio')} className="px-3 py-2 border border-gray-200 rounded-xl"><option value="mes">Mes</option><option value="rango">Rango</option><option value="anio">Año</option></select></label>
+    {per==='mes'&&<label className="flex flex-col gap-1">Mes<input type="month" value={pMes} onChange={e=>e.target.value&&setPMes(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl"/></label>}
+    {per==='rango'&&<><label className="flex flex-col gap-1">Desde<input type="date" value={pDesde} onChange={e=>setPDesde(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl"/></label><label className="flex flex-col gap-1">Hasta<input type="date" value={pHasta} onChange={e=>setPHasta(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl"/></label></>}
+    {per==='anio'&&<label className="flex flex-col gap-1">Año<input type="number" min={2020} max={2100} value={pAnio} onChange={e=>setPAnio(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl w-24"/></label>}
+    {seesAll&&<label className="flex flex-col gap-1">Sede<select value={sede} onChange={e=>setSede(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl"><option value="">Todas las sedes</option>{goals.map(g=><option key={g.sede_id} value={g.sede_id}>{g.sede}</option>)}</select></label>}
+    <label className="flex flex-col gap-1">Ver por<select value={verPor} onChange={e=>setVerPor(e.target.value as 'contratos'|'caja')} className="px-3 py-2 border border-gray-200 rounded-xl"><option value="contratos">Contratos del período (fecha del contrato)</option><option value="caja">Caja del período (fecha del abono)</option></select></label>
+   </div>
+   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+    <Card title="Facturado" value={money(shown.reduce((a,r)=>a+r.valor,0))} note={`${shown.length} contratos`}/>
+    <Card title="Recaudado" value={money(shown.reduce((a,r)=>a+r.recaudado,0))} note={verPor==='caja'?'Abonos con fecha en el período':'Abonos de los contratos del período'}/>
+    <Card title="Pendiente" value={money(shown.reduce((a,r)=>a+r.saldo,0))} note="Saldo actual de estos contratos"/>
+   </div>
    <div className="flex flex-wrap gap-2">
     <Chip active={filter==='todos'} onClick={()=>setFilter('todos')} cls="bg-sky-50 text-sky-700 border-sky-300">Todos {siteRows.length}</Chip>
     {(Object.keys(AGING) as AgingBucket[]).map(b=><Chip key={b} active={filter===b} onClick={()=>setFilter(b)} cls={AGING[b].cls}>{AGING[b].chip}: {counts[b]}</Chip>)}
