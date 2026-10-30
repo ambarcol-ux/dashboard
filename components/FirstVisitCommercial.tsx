@@ -1,7 +1,8 @@
 'use client';
 import {useCallback,useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
-import {followupChannels,followupResultsByType,desistReasons,finishResults,followupTypeLabel,followupState} from '@/lib/first-visit-followup';
+import {followupTypeLabel,followupState} from '@/lib/first-visit-followup';
+import {emptyConfig,fieldState,loadModuleConfig,minChars} from '@/lib/module-config';
 import type {FirstVisit} from '@/lib/first-visits';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
 type Followup={id:string;updated_at:string;etapa:number;fecha:string;nota:string;realizado_at:string|null;canal:string|null;resultado:string|null;anulado_at:string|null};
@@ -11,11 +12,14 @@ export default function FirstVisitCommercial({visit,showMessages=false,onChanged
  const [stages,setStages]=useState<Followup[]>([]),[messages,setMessages]=useState<Message[]>([]),[link,setLink]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(false);
  const load=useCallback(async()=>{const [v,f,m]=await Promise.all([supabase.from('primeras_citas').select('*').eq('id',visit.id).single(),supabase.from('primeras_citas_seguimientos').select('id,updated_at,etapa,fecha,nota,realizado_at,canal,resultado,anulado_at').eq('cita_id',visit.id).order('etapa'),showMessages?supabase.from('primeras_citas_mensajes').select('id,tipo,estado,entrega_estado,programado_at,error').eq('cita_id',visit.id).order('programado_at',{ascending:false}).limit(25):Promise.resolve({data:[],error:null})]);if(v.error||f.error||m.error)throw Error('No se pudo cargar la gestión comercial.');setRow({...visit,...v.data});setDocumento(v.data.cliente_documento||'');setStages(f.data||[]);setMessages(m.data||[]);},[visit,showMessages]);
  useEffect(()=>{void load().catch(e=>setError(e.message));},[load]);
+ const [cfg,setCfg]=useState(emptyConfig);
+ useEffect(()=>{void loadModuleConfig('primeras_visitas','pv_').then(setCfg);},[]);
+ const min=minChars(cfg),canalState=fieldState(cfg,'registro_seguimiento','canal'),resState=fieldState(cfg,'registro_seguimiento','resultado');
  async function run(work:()=>Promise<void>){if(busy)return;setBusy(true);setError('');setNotice('');try{await work();await load();onChanged();}catch(e){setError(e instanceof Error?e.message:'No se pudo guardar.');}finally{setBusy(false);}}
  async function makeLink(){await run(async()=>{const {data}=await supabase.auth.getSession();const r=await fetch('/api/primeras-citas/gestionar',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${data.session?.access_token||''}`},body:JSON.stringify({accion:'enlace',id:visit.id})});const d=await r.json();if(!r.ok)throw Error(d.error);setLink(d.enlace);});}
  async function save(){await run(async()=>{const {error}=await supabase.rpc('editar_comercial_primera_cita',{p_id:row.id,p_version:row.updated_at,p_datos:{fecha_evento:event,enlace_virtual:meet,resultado:row.resultado_comercial||'EN SEGUIMIENTO',nota:note}});if(error)throw error;setNotice('Fecha del evento guardada.');});}
  const [reg,setReg]=useState({nota:'',canal:'',resultado:'',motivo:''}),[fin,setFin]=useState<{resultado:string;motivo:string}|null>(null);
- async function register(stage:Followup){await run(async()=>{const {error}=await supabase.rpc('gestionar_seguimiento_primera_cita',{p_id:stage.id,p_nota:reg.nota,p_canal:reg.canal,p_resultado:reg.resultado,p_motivo:reg.resultado==='Desistió'?reg.motivo:null,p_version:stage.updated_at});if(error)throw error;setReg({nota:'',canal:'',resultado:'',motivo:''});setNotice('Seguimiento registrado.');});}
+ async function register(stage:Followup){await run(async()=>{const {error}=await supabase.rpc('gestionar_seguimiento_primera_cita',{p_id:stage.id,p_nota:reg.nota,p_canal:reg.canal||null,p_resultado:reg.resultado||null,p_motivo:null,p_version:stage.updated_at});if(error)throw error;setReg({nota:'',canal:'',resultado:'',motivo:''});setNotice('Seguimiento registrado.');});}
  async function finish(){if(!fin)return;await run(async()=>{const {error}=await supabase.rpc('finalizar_seguimiento_primera_cita',{p_cita:visit.id,p_resultado:fin.resultado,p_motivo:fin.motivo});if(error)throw error;setFin(null);setNotice('Seguimiento finalizado.');});}
  async function saveDocument(){await run(async()=>{const {error}=await supabase.rpc('guardar_documento_primera_cita',{p_id:row.id,p_documento:documento,p_version:row.updated_at});if(error)throw error;setNotice('Cédula guardada para reprogramar la cita.');});}
  const phone=visit.telefono.length===10?'57'+visit.telefono:visit.telefono;
@@ -25,16 +29,15 @@ export default function FirstVisitCommercial({visit,showMessages=false,onChanged
  {plan.length>0&&<><h4>Plan de seguimiento · {followupTypeLabel[tipo]||tipo}</h4><ul>{plan.map(s=><li key={s.id}>Seguimiento {s.etapa} · {s.fecha.split('-').reverse().join('/')} · <strong>{s.anulado_at?s.resultado:followupState(s.fecha,!!s.realizado_at,today)}</strong></li>)}</ul></>}
  {cierre&&<p><strong>Seguimiento cerrado:</strong> {cierre}</p>}
  {abierto&&turno&&!hoyHecho&&<fieldset disabled={busy}><legend>Registrar seguimiento {turno.etapa}</legend>
-  <label>Conclusión de lo hablado (mínimo 30 caracteres)<textarea maxLength={1000} value={reg.nota} onChange={e=>setReg({...reg,nota:e.target.value})}/></label>
-  <label>Canal<select value={reg.canal} onChange={e=>setReg({...reg,canal:e.target.value})}><option value="">Elige…</option>{followupChannels.map(c=><option key={c}>{c}</option>)}</select></label>
-  <label>Resultado<select value={reg.resultado} onChange={e=>setReg({...reg,resultado:e.target.value})}><option value="">Elige…</option>{(followupResultsByType[tipo]||followupResultsByType.asistida).map(c=><option key={c}>{c}</option>)}</select></label>
-  {reg.resultado==='Desistió'&&<label>Motivo<select value={reg.motivo} onChange={e=>setReg({...reg,motivo:e.target.value})}><option value="">Elige…</option>{desistReasons.map(c=><option key={c}>{c}</option>)}</select></label>}
-  <div className={styles.actions}><button type="button" disabled={reg.nota.trim().length<30||!reg.canal||!reg.resultado||(reg.resultado==='Desistió'&&!reg.motivo)} onClick={()=>void register(turno)}>Registrar seguimiento</button></div></fieldset>}
+  <label>Conclusión de lo hablado (mínimo {min} caracteres)<textarea maxLength={1000} value={reg.nota} onChange={e=>setReg({...reg,nota:e.target.value})}/></label>
+  {canalState!=='oculto'&&<label>Canal{canalState==='opcional'?' (opcional)':''}<select value={reg.canal} onChange={e=>setReg({...reg,canal:e.target.value})}><option value="">Elige…</option>{(cfg.lists.pv_canales||[]).map(c=><option key={c}>{c}</option>)}</select></label>}
+  {resState!=='oculto'&&<label>Resultado{resState==='opcional'?' (opcional)':''}<select value={reg.resultado} onChange={e=>setReg({...reg,resultado:e.target.value})}><option value="">Elige…</option>{(cfg.lists.pv_resultados_seguimiento||[]).map(c=><option key={c}>{c}</option>)}</select></label>}
+  <div className={styles.actions}><button type="button" disabled={reg.nota.trim().length<min||(canalState==='obligatorio'&&!reg.canal)||(resState==='obligatorio'&&!reg.resultado)} onClick={()=>void register(turno)}>Registrar seguimiento</button></div></fieldset>}
  {abierto&&plan.length>0&&(!fin?<div className={styles.actions}><button type="button" disabled={busy} onClick={()=>setFin({resultado:'',motivo:''})}>Finalizar seguimiento</button></div>
   :<fieldset disabled={busy}><legend>Finalizar seguimiento</legend>
-   <label>Resultado<select value={fin.resultado} onChange={e=>setFin({...fin,resultado:e.target.value})}><option value="">Elige…</option>{finishResults.map(c=><option key={c}>{c}</option>)}</select></label>
-   <label>Motivo (mínimo 30 caracteres)<textarea maxLength={1000} value={fin.motivo} onChange={e=>setFin({...fin,motivo:e.target.value})}/></label>
-   <div className={styles.actions}><button type="button" onClick={()=>setFin(null)}>Cancelar</button><button type="button" disabled={!fin.resultado||fin.motivo.trim().length<30} onClick={()=>void finish()}>Finalizar</button></div></fieldset>)}
+   <label>Motivo de cierre<select value={fin.resultado} onChange={e=>setFin({...fin,resultado:e.target.value})}><option value="">Elige…</option>{(cfg.lists.pv_motivos_cierre||[]).map(c=><option key={c}>{c}</option>)}</select></label>
+   <label>{fin.resultado==='Otro'?`Cuál (mínimo ${min} caracteres)`:'Detalle (opcional)'}<textarea maxLength={1000} value={fin.motivo} onChange={e=>setFin({...fin,motivo:e.target.value})}/></label>
+   <div className={styles.actions}><button type="button" onClick={()=>setFin(null)}>Cancelar</button><button type="button" disabled={!fin.resultado||(fin.resultado==='Otro'&&fin.motivo.trim().length<min)} onClick={()=>void finish()}>Finalizar</button></div></fieldset>)}
  {abierto&&!turno&&plan.some(s=>!s.realizado_at)&&<p>El próximo seguimiento se registra desde su fecha.</p>}
  {abierto&&hoyHecho&&<p>Ya hay un seguimiento registrado hoy.</p>}
 </>;})()}{showMessages&&<><h4>Confirmaciones y recordatorios</h4><p>Los envíos automáticos requieren la conexión de WhatsApp activa. Un mensaje pendiente todavía no se ha enviado.</p>{messages.map(m=><p key={m.id}>{m.tipo} · {new Date(m.programado_at).toLocaleString('es-CO',{timeZone:'America/Bogota'})} · <strong>{m.entrega_estado?({sent:'Enviado',delivered:'Entregado',read:'Leído',failed:'No entregado'}[m.entrega_estado]||m.estado):m.estado}</strong>{m.error?' · Requiere revisión de la conexión':''}</p>)}</>}{notice&&<p role="status">{notice}</p>}{error&&<p role="alert" className={styles.error}>{error}</p>}</section>;

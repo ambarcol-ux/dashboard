@@ -2,6 +2,7 @@
 import {useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {supabase} from '@/lib/supabase';
+import {emptyConfig,loadModuleConfig,minChars} from '@/lib/module-config';
 import {bogotaLocalToIso,nowBogotaLocal,walkInEventTypes,walkInSources} from '@/lib/first-visits';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
 
@@ -16,7 +17,9 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
  const [f,setF]=useState(alContratar?{...empty,resultado:'Contrato pendiente'}:empty),[sede,setSede]=useState(profile.sede_id||''),[when,setWhen]=useState(()=>nowBogotaLocal()),[asesora,setAsesora]=useState(profile.id);
  const [sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[asesoras,setAsesoras]=useState<{id:string;nombre:string|null;email:string|null}[]>([]);
  const [dups,setDups]=useState<Duplicates|null>(null),[link,setLink]=useState(''),[asNew,setAsNew]=useState(false);
- const [saving,setSaving]=useState(false),[error,setError]=useState('');
+ const [saving,setSaving]=useState(false),[error,setError]=useState(''),[cfg,setCfg]=useState(emptyConfig);
+ useEffect(()=>{void loadModuleConfig('primeras_visitas','pv_').then(setCfg);},[]);
+ const min=minChars(cfg);
  useEffect(()=>{dialog.current?.showModal();},[]);
  useEffect(()=>{
   void supabase.from('sedes').select('id,nombre').eq('activo',true).order('nombre').then(({data})=>{setSedes(data||[]);if(!profile.sede_id&&data?.[0])setSede(s=>s||data[0].id);});
@@ -40,7 +43,7 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
   if(f.nombre.trim().length<2)return setError('Escribe el nombre completo.');
   if(!/^\d{10,15}$/.test(digits(f.telefono)))return setError('Revisa el teléfono: entre 10 y 15 números.');
   if(!sede||!f.tipo_evento||!f.resultado||!fecha_hora||!asesora)return setError('Completa los campos obligatorios (*).');
-  if(f.resultado==='No cerró'&&f.motivo.trim().length<30)return setError('Para no hacer seguimiento escribe el motivo (mínimo 30 caracteres).');
+  if(f.resultado==='No cerró'&&f.motivo.trim().length<min)return setError(`Para no hacer seguimiento escribe el motivo (mínimo ${min} caracteres).`);
   if(hasDups&&!link&&!asNew)return setError('El teléfono o la cédula ya existen: vincula el registro existente o elige «Continuar como vitrina nueva».');
   setSaving(true);
   const {data,error}=await supabase.rpc('registrar_vitrina',{p_datos:{...f,al_contratar:alContratar,telefono:digits(f.telefono),documento:digits(f.documento),sede_id:sede,fecha_hora,asesora_id:asesora,vincular_id:link||null,forzar:asNew,sin_seguimiento:f.resultado==='No cerró'}});
@@ -82,8 +85,8 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
    </div>
    <label>Cómo se enteró<select value={f.como_se_entero} onChange={set('como_se_entero')}><option value="">Sin dato</option>{walkInSources.map(t=><option key={t}>{t}</option>)}</select></label>
    {!alContratar&&<label>¿Alquiló? *<select required value={f.resultado==='Cerrado'?'si':f.resultado?'no':''} onChange={e=>setF({...f,resultado:e.target.value==='si'?'Cerrado':e.target.value==='no'?'En seguimiento':''})}><option value="">Elige…</option><option value="si">Alquiló</option><option value="no">No alquiló</option></select></label>}
-   {!alContratar&&f.resultado&&f.resultado!=='Cerrado'&&<label><input type="checkbox" checked={f.resultado==='No cerró'} onChange={e=>setF({...f,resultado:e.target.checked?'No cerró':'En seguimiento'})}/> No hacer seguimiento (motivo de mínimo 30 caracteres)</label>}
-   <label>{f.resultado==='No cerró'?'Motivo *':'Observaciones'}<textarea maxLength={1000} value={f.motivo} onChange={set('motivo')} required={f.resultado==='No cerró'} minLength={f.resultado==='No cerró'?30:undefined}/></label>
+   {!alContratar&&f.resultado&&f.resultado!=='Cerrado'&&<label><input type="checkbox" checked={f.resultado==='No cerró'} onChange={e=>setF({...f,resultado:e.target.checked?'No cerró':'En seguimiento'})}/> No hacer seguimiento (motivo de mínimo {min} caracteres)</label>}
+   <label>{f.resultado==='No cerró'?'Motivo *':'Observaciones'}<textarea maxLength={1000} value={f.motivo} onChange={set('motivo')} required={f.resultado==='No cerró'} minLength={f.resultado==='No cerró'?min:undefined}/></label>
   </fieldset>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   <div className={styles.actions} style={{marginTop:16,justifyContent:'flex-end'}}>
