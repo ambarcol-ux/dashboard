@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
-import ConfigCatalog from '@/components/config/ConfigCatalog';
+import ConfigCenter from '@/components/ConfigCenter';
 
 export default function AdminConfigPage() {
   const readAccess = useVerifiedAccess();
@@ -275,10 +275,14 @@ export default function AdminConfigPage() {
               <p className="text-sm text-gray-600">El equipo (asesoras, usuarios, roles y sedes de cada persona) se gestiona ahora en un solo lugar.</p>
               <Link href="/admin/accesos" className="inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-rose-500 text-white text-xs font-black uppercase tracking-widest hover:bg-rose-600"><Users className="w-4 h-4" /> Ir a Equipo y accesos</Link>
             </div>
+
+            <div className="space-y-3">
+              <h2 className="text-lg font-black text-gray-900">Configuración · Listas, parámetros y formularios</h2>
+              <ConfigCenter />
+            </div>
           </div>
 
           </div>
-          <ConfigCatalog />
         </div>
       </div>
     </div>
