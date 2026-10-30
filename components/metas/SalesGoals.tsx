@@ -23,7 +23,7 @@ export default function SalesGoals({mes,anio,profile}:{mes:number;anio:number;pr
  useEffect(()=>{setPMes(`${anio}-${pad(mes)}`);setPAnio(String(anio));},[mes,anio]);
  const [desde,hasta]=per==='mes'?[`${pMes}-01`,new Date(Date.UTC(Number(pMes.slice(0,4)),Number(pMes.slice(5,7)),0)).toISOString().slice(0,10)]:per==='anio'?[`${pAnio}-01-01`,`${pAnio}-12-31`]:[pDesde,pHasta];
  useEffect(()=>{
-  if(!desde||!hasta||hasta<desde)return;let live=true;
+  if(!desde||!hasta||hasta<desde){setRows([]);return;}let live=true;
   void supabase.rpc('historial_ventas_periodo',{p_desde:desde,p_hasta:hasta,p_sede:sede||null,p_modo:verPor}).then(({data,error})=>{
    if(!live)return;if(error){toast.error('No se pudo cargar el historial: '+error.message);return;}
    setRows(((data||[]) as (Receivable&{valor_total:number;total_arreglos:number;anticipo:number;abonos_periodo:number})[]).map(r=>({...r,valor:totalContrato(r),saldo:Math.max(0,saldoContrato(r)),recaudado:verPor==='caja'?Number(r.abonos_periodo)||0:Number(r.anticipo)||0})));
@@ -54,7 +54,7 @@ export default function SalesGoals({mes,anio,profile}:{mes:number;anio:number;pr
  const siteRows=useMemo(()=>rows.filter(r=>!sede||r.sede_id===sede),[rows,sede]);
  const counts=useMemo(()=>siteRows.reduce((a,r)=>{a[agingBucket(r)]++;return a;},{al_dia:0,mas30:0,mas90:0,mas120:0,pagada:0} as Record<AgingBucket,number>),[siteRows]);
  const shown=filter==='todos'?siteRows:siteRows.filter(r=>agingBucket(r)===filter);
- const exportCsv=()=>{const url=URL.createObjectURL(new Blob([receivablesCsv(shown)],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`historial-${verPor}-${sede?goals.find(g=>g.sede_id===sede)?.sede:'todas'}-${desde}_${hasta}.csv`;a.click();URL.revokeObjectURL(url);};
+ const exportCsv=()=>{const url=URL.createObjectURL(new Blob([receivablesCsv(shown)],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`historial-${verPor}-${filter}-${sede?goals.find(g=>g.sede_id===sede)?.sede:'todas'}-${desde}_${hasta}.csv`;a.click();URL.revokeObjectURL(url);};
  const sedeName=sede?goals.find(g=>g.sede_id===sede)?.sede:'Todas las sedes';
 
  return <section className="space-y-6">
@@ -84,7 +84,7 @@ export default function SalesGoals({mes,anio,profile}:{mes:number;anio:number;pr
   </div>}
 
   <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 space-y-4">
-   <div className="flex flex-wrap items-center gap-2 justify-between"><h2 className="text-lg font-black text-gray-900">Panel historial · {sedeName}</h2>{loading&&<span className="text-xs text-gray-400">Cargando…</span>}</div>
+   <div className="flex flex-wrap items-center gap-2 justify-between"><h2 className="text-lg font-black text-gray-900">Panel historial · {sedeName} · {desde.split('-').reverse().join('/')} al {hasta.split('-').reverse().join('/')} · {verPor==='caja'?'Caja del período':'Contratos del período'}{filter!=='todos'?` · ${AGING[filter].label}`:''}</h2>{loading&&<span className="text-xs text-gray-400">Cargando…</span>}</div>
    <div className="flex flex-wrap items-end gap-2 text-xs font-bold text-gray-600">
     <label className="flex flex-col gap-1">Período<select value={per} onChange={e=>setPer(e.target.value as 'mes'|'rango'|'anio')} className="px-3 py-2 border border-gray-200 rounded-xl"><option value="mes">Mes</option><option value="rango">Rango</option><option value="anio">Año</option></select></label>
     {per==='mes'&&<label className="flex flex-col gap-1">Mes<input type="month" value={pMes} onChange={e=>e.target.value&&setPMes(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl"/></label>}
@@ -110,7 +110,7 @@ export default function SalesGoals({mes,anio,profile}:{mes:number;anio:number;pr
      <td className="px-4 py-3 text-gray-600">{r.fecha.split('-').reverse().join('/')}</td><td className="px-4 py-3 text-gray-600">{r.factura||r.recibo||'—'}</td>
      <td className="px-4 py-3 text-right">{money(r.valor)}</td><td className="px-4 py-3 text-right">{money(r.recaudado)}</td><td className={`px-4 py-3 text-right ${r.saldo>0?'font-black text-gray-900':'text-gray-400'}`}>{money(r.saldo)}</td>
      <td className="px-4 py-3 text-right text-gray-600">{r.dias}</td><td className="px-4 py-3"><span className={`inline-block px-3 py-1 rounded-full border text-xs font-bold ${AGING[b].cls}`}>{AGING[b].label}</span></td></tr>;})}</tbody>
-    <tfoot><tr className="font-black text-gray-900 border-t border-gray-100"><td className="px-4 py-3" colSpan={sede?4:5}>Totales</td><td className="px-4 py-3 text-right">{money(shown.reduce((a,r)=>a+r.valor,0))}</td><td className="px-4 py-3 text-right">{money(shown.reduce((a,r)=>a+r.recaudado,0))}</td><td className="px-4 py-3 text-right">{money(shown.reduce((a,r)=>a+r.saldo,0))}</td><td colSpan={2}/></tr></tfoot>
+    <tfoot><tr className="font-black text-gray-900 border-t border-gray-100"><td className="px-4 py-3" colSpan={sede?3:4}>Totales</td><td className="px-4 py-3 text-right">{money(shown.reduce((a,r)=>a+r.valor,0))}</td><td className="px-4 py-3 text-right">{money(shown.reduce((a,r)=>a+r.recaudado,0))}</td><td className="px-4 py-3 text-right">{money(shown.reduce((a,r)=>a+r.saldo,0))}</td><td colSpan={2}/></tr></tfoot>
    </table></div>
    {!shown.length&&!loading&&<p className="text-center text-sm text-gray-400 py-6">No hay contratos en este grupo.</p>}
    {shown.length>300&&<p className="text-xs text-gray-400">Se muestran 300 de {shown.length}. Usa los filtros o exporta para ver todos.</p>}
