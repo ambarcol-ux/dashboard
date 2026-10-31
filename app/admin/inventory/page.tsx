@@ -1,5 +1,6 @@
 'use client';
 import { downloadCatalogPdf } from '@/lib/dress-catalog-pdf';
+import { codeCandidates } from '@/lib/dress-photos';
 import {usePermissions} from '@/lib/use-permissions';
 import {canEditSavedRecords} from '@/lib/saved-record-editing';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
@@ -1595,7 +1596,6 @@ async function resizePhoto(file: File): Promise<Blob> {
   return await new Promise((ok, fail) => canvas.toBlob(b => b ? ok(b) : fail(new Error('No se pudo procesar la foto.')), 'image/jpeg', 0.82));
 }
 /** Reference at the start of a file name: «1001 450000.jpg» → 1001; «QP8RJ1416-frente.png» → QP8RJ1416. */
-const codeCandidates = (name: string) => { const base = name.replace(/\.[^.]+$/, '').trim().toUpperCase(); return [base.match(/^[A-Z0-9]+(?:-[A-Z0-9]+)*/)?.[0], base.match(/^[A-Z0-9]+/)?.[0]].filter((x): x is string => !!x); };
 /** Bulk photo upload: each file goes to the dresses whose reference starts its name, in the first free slot (front, back, detail). */
 function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]; onClose: () => void }) {
   const [log, setLog] = useState<{ archivo: string; resultado: string; ok: boolean }[]>([]), [busy, setBusy] = useState(false), [done, setDone] = useState(0), [total, setTotal] = useState(0);
@@ -1628,14 +1628,43 @@ function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]
     }
     setBusy(false);
   };
+  // Google Drive: shared folder link; the server imports a few photos per call until the folder ends.
+  const [carpeta, setCarpeta] = useState(''), [driveError, setDriveError] = useState('');
+  const runDrive = async () => {
+    setBusy(true); setLog([]); setDone(0); setTotal(0); setDriveError('');
+    try {
+      const { data: s } = await supabase.auth.getSession();
+      let next: string | null = null, n = 0;
+      do {
+        const r: Response = await fetch('/api/inventario/drive', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.session?.access_token || ''}` }, body: JSON.stringify({ carpeta, pageToken: next }) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'No se pudo importar.');
+        const rows = (d.resultados || []) as { archivo: string; tipo: string; mensaje: string }[];
+        n += rows.length; setTotal(n); setDone(n);
+        setLog(l => [...l, ...rows.map(x => ({ archivo: x.archivo, resultado: (x.tipo === 'aviso' ? '⚠ ' : x.tipo === 'omitido' ? '↺ ' : '') + x.mensaje, ok: x.tipo === 'ok' || x.tipo === 'aviso' || x.tipo === 'omitido' }))]);
+        next = d.next;
+      } while (next);
+    } catch (e) { setDriveError(e instanceof Error ? e.message : 'No se pudo importar.'); } finally { setBusy(false); }
+  };
+  const errores = log.filter(l => !l.ok || l.resultado.startsWith('⚠'));
+  const exportErrors = () => { const t = '\uFEFFArchivo;Detalle\n' + errores.map(l => `"${l.archivo.replace(/"/g, '""')}";"${l.resultado.replace(/"/g, '""')}"`).join('\n'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([t], { type: 'text/csv;charset=utf-8' })); a.download = 'fotos-por-corregir.csv'; a.click(); URL.revokeObjectURL(a.href); };
   const okCount = log.filter(l => l.ok).length;
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !busy && onClose()}>
       <div className="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4" onClick={e => e.stopPropagation()}>
         <h3 className="text-xl font-black text-gray-900">Carga masiva de fotos</h3>
         <p className="text-sm text-gray-600">Elige varias fotos a la vez. Cada archivo debe empezar con la referencia del vestido (por ejemplo <b>1001 450000.jpg</b>). Se guarda en el primer espacio libre: frente, espalda y detalle. Si la referencia está en varias sedes, la foto va a todas. Fotos de Google Drive: descárgalas primero al equipo.</p>
+        <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-2">
+          <p className="text-sm font-black text-gray-900">Desde Google Drive</p>
+          <p className="text-xs text-gray-600">Comparte la carpeta como «Cualquier persona con el enlace» (lector) y pega aquí el link. El sistema revisa referencia y precio de cada archivo y te dice cuáles corregir. Puedes repetirla: las fotos ya cargadas no se duplican.</p>
+          <div className="flex flex-wrap gap-2"><input value={carpeta} onChange={e => setCarpeta(e.target.value)} placeholder="https://drive.google.com/drive/folders/…" className="flex-1 min-w-[220px] px-3 py-2 border border-gray-200 rounded-xl text-sm" />
+            <button type="button" disabled={busy || !carpeta.trim()} onClick={() => void runDrive()} className="px-4 py-2 rounded-xl bg-rose-500 text-white text-xs font-black uppercase disabled:opacity-50">Importar de Drive</button></div>
+          {driveError && <p role="alert" className="text-xs font-bold text-rose-700">{driveError}</p>}
+        </div>
+        <p className="text-sm font-black text-gray-900">O desde este equipo</p>
         <input type="file" accept="image/*" multiple disabled={busy} onChange={e => void run(e.target.files)} className="block w-full text-sm" />
         {total > 0 && <p className="font-bold text-gray-800">{busy ? `Subiendo ${done} de ${total}…` : `Listo: ${okCount} de ${total} fotos asignadas.`}</p>}
+        {!busy && errores.length > 0 && <button type="button" onClick={exportErrors} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase">Descargar lista por corregir ({errores.length})</button>}
         <ul className="text-xs space-y-1">{log.map((l, i) => <li key={i} className={l.ok ? 'text-emerald-700' : 'text-rose-700'}><b>{l.archivo}</b> → {l.resultado}</li>)}</ul>
         <button type="button" disabled={busy} onClick={onClose} className="px-5 py-3 rounded-xl bg-gray-900 text-white text-xs font-black uppercase">Cerrar</button>
       </div>
