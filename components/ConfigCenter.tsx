@@ -9,7 +9,7 @@ type Field={formulario:string;campo:string;modulo:string;etiqueta:string;estado:
 type Change={id:number;tabla:string;clave:string;accion:string;antes:Record<string,unknown>|null;despues:Record<string,unknown>|null;created_at:string;usuario_id:string|null};
 
 const LISTS:Record<string,string>={pv_canales:'Primeras visitas · Canales de contacto',pv_resultados_seguimiento:'Primeras visitas · Resultado del seguimiento',pv_motivos_cierre:'Primeras visitas · Motivos de cierre',
- pv_motivos_no_asistencia:'Primeras visitas · Motivos de no asistencia',pv_motivos_eliminar:'Primeras visitas · Motivos para eliminar cita',banco:'Contratos · Bancos',tipo_cuenta:'Contratos · Tipos de cuenta'};
+ pv_motivos_no_asistencia:'Primeras visitas · Motivos de no asistencia',pv_motivos_eliminar:'Primeras visitas · Motivos para eliminar cita',accesorios:'Contratos · Accesorios incluidos',banco:'Contratos · Bancos',tipo_cuenta:'Contratos · Tipos de cuenta'};
 const FORMS:Record<string,string>={resultado_cita:'Resultado de la cita',registro_seguimiento:'Registro de seguimiento'};
 const TABLES:Record<string,string>={listas_contrato:'Lista',config_parametros:'Parámetro',config_formularios:'Formulario'};
 const box='bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3';
