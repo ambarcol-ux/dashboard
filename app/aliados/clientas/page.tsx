@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useState} from 'react';
 import {CheckCircle,Loader2} from 'lucide-react';
-import {CLIENT_CATEGORIES} from '@/lib/ally-clients';
+import {ALLY_EVENT_LABEL,categoryRange,type AllyCategory} from '@/lib/ally-clients';
 
 type Key={token?:string;codigo?:string};
 const call=async(body:Record<string,unknown>)=>{const r=await fetch('/api/aliados/clientas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo completar.');return d;};
@@ -9,10 +9,10 @@ const EMPTY={tipo_evento:'',categoria:'',rep_nombre:'',rep_cedula:'',rep_parente
 
 /** Public form where a representative or client registers with an ally (ally's private link or ally's code). */
 export default function AllyClientPage(){
- const [key,setKey]=useState<Key|null>(null),[codigo,setCodigo]=useState(''),[aliado,setAliado]=useState<{nombre:string;codigo:string}|null>(null);
+ const [key,setKey]=useState<Key|null>(null),[codigo,setCodigo]=useState(''),[aliado,setAliado]=useState<{nombre:string;codigo:string}|null>(null),[categorias,setCategorias]=useState<AllyCategory[]>([]);
  const [f,setF]=useState(EMPTY),[menor,setMenor]=useState(false),[datos,setDatos]=useState(false),[publicidad,setPublicidad]=useState(false);
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[done,setDone]=useState<{id?:string;duplicado?:boolean}|null>(null),[loading,setLoading]=useState(true);
- const open=async(k:Key)=>{setError('');setBusy(true);try{const d=await call({accion:'ver',...k});setKey(k);setAliado(d.aliado);}catch(e){setError(e instanceof Error?e.message:'');}finally{setBusy(false);setLoading(false);}};
+ const open=async(k:Key)=>{setError('');setBusy(true);try{const d=await call({accion:'ver',...k});setKey(k);setAliado(d.aliado);setCategorias(d.categorias||[]);}catch(e){setError(e instanceof Error?e.message:'');}finally{setBusy(false);setLoading(false);}};
  useEffect(()=>{
   const t=decodeURIComponent(window.location.hash.slice(1));
   history.replaceState(null,'',window.location.pathname);
@@ -43,10 +43,10 @@ export default function AllyClientPage(){
    {aliado&&!done&&<>
     <section className={card}><h2 className="font-black text-gray-900">1. Evento</h2>
      <div className="grid sm:grid-cols-2 gap-3">
-      <label className={label}>Tipo de evento<select className={input} value={f.tipo_evento} onChange={e=>setF({...f,tipo_evento:e.target.value,categoria:''})}><option value="">Selecciona…</option><option value="XV">XV años</option><option value="GALA">Gala</option></select></label>
-      <label className={label}>Categoría<select className={input} value={f.categoria} disabled={!f.tipo_evento} onChange={set('categoria')}><option value="">Selecciona…</option>{f.tipo_evento&&CLIENT_CATEGORIES[f.tipo_evento as 'XV'|'GALA'].map(c=><option key={c}>{c}</option>)}</select></label>
+      <label className={label}>Tipo de evento<select className={input} value={f.tipo_evento} onChange={e=>setF({...f,tipo_evento:e.target.value,categoria:''})}><option value="">Selecciona…</option>{(Object.keys(ALLY_EVENT_LABEL) as (keyof typeof ALLY_EVENT_LABEL)[]).filter(t=>categorias.some(c=>c.tipo===t)).map(t=><option key={t} value={t}>{ALLY_EVENT_LABEL[t]}</option>)}</select></label>
+      <label className={label}>Categoría<select className={input} value={f.categoria} disabled={!f.tipo_evento} onChange={set('categoria')}><option value="">Selecciona…</option>{categorias.filter(c=>c.tipo===f.tipo_evento).map(c=><option key={c.nombre} value={c.nombre}>{c.nombre} · {categoryRange(c)}</option>)}</select></label>
       {field('fecha_evento','Fecha del evento','date')}
-      {f.tipo_evento==='GALA'&&<label className={label}>¿La clienta es menor de edad?<select className={input} value={menor?'si':'no'} onChange={e=>setMenor(e.target.value==='si')}><option value="no">No, es mayor de edad</option><option value="si">Sí, la registra su representante</option></select></label>}
+      {(f.tipo_evento==='GALA'||f.tipo_evento==='NOVIA')&&<label className={label}>¿La clienta es menor de edad?<select className={input} value={menor?'si':'no'} onChange={e=>setMenor(e.target.value==='si')}><option value="no">No, es mayor de edad</option><option value="si">Sí, la registra su representante</option></select></label>}
      </div></section>
     {f.tipo_evento&&<>
      {rep&&<section className={card}><h2 className="font-black text-gray-900">2. Representante</h2><div className="grid sm:grid-cols-2 gap-3">

@@ -1,8 +1,8 @@
 'use client';
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
 import {Handshake} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
-import {CLIENT_CATEGORIES,clientId,type AllyClient} from '@/lib/ally-clients';
+import {ALLY_EVENT_LABEL,categoryRange,clientId,type AllyCategory,type AllyClient} from '@/lib/ally-clients';
 
 export {ALLY_DISCOUNT,EMPTY_ALLY_MODE,allyModeError,allyModePayload,type ContractAlly,type ContractAllyModeValue} from '@/lib/ally-clients';
 import {EMPTY_ALLY_MODE,type ContractAlly,type ContractAllyModeValue} from '@/lib/ally-clients';
@@ -10,6 +10,8 @@ const money=(v:number)=>new Intl.NumberFormat('es-CO',{style:'currency',currency
 
 /** Classification at the start of the lease contract: Cliente directo (unchanged) or Aliado (ally is the client; the ally's client data are loaded). */
 export default function ContractAllyMode({value,onChange,onAlly,onClienta,descuento,total,numero,disabled}:{value:ContractAllyModeValue;onChange:(v:ContractAllyModeValue)=>void;onAlly:(a:ContractAlly)=>void;onClienta:(c:AllyClient)=>void;descuento:number;total:number;numero:string;disabled?:boolean}){
+ const [cats,setCats]=useState<AllyCategory[]>([]);
+ useEffect(()=>{void supabase.rpc('categorias_aliado').then(({data})=>setCats((data||[]) as AllyCategory[]));},[]);
  const [qa,setQa]=useState(''),[qc,setQc]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
  const find=async(fn:string,args:Record<string,unknown>,notFound:string)=>{setBusy(true);setError('');const {data,error:e}=await supabase.rpc(fn,args);setBusy(false);if(e||!data){setError(e?.message||notFound);return null;}return data;};
  const loadAlly=async()=>{const a=await find('buscar_aliado_contrato',{p_q:qa},'No hay un aliado activo con ese ID, código o cédula.') as ContractAlly|null;if(a){onChange({...value,aliado:a,clienta:null,categoria:''});onAlly(a);}};
@@ -28,8 +30,8 @@ export default function ContractAllyMode({value,onChange,onAlly,onClienta,descue
     {c?<div className="mt-1 bg-white border border-violet-200 rounded-xl p-4 space-y-1 font-normal">
       <p><b>{clientId(c.numero)}</b> · {c.clienta_nombre} · {c.clienta_menor?'T.I.':'C.C.'} {c.clienta_documento}{!disabled&&<button type="button" className="ml-3 text-xs font-bold text-violet-700 underline" onClick={()=>onChange({...value,clienta:null})}>Cambiar</button>}</p>
       {c.rep_nombre&&<p>Representante: {c.rep_nombre} ({c.rep_parentesco}) · C.C. {c.rep_cedula} · {c.rep_celular} · {c.rep_correo}</p>}
-      <p>{c.tipo_evento==='XV'?'XV años':'Gala'} · evento {c.fecha_evento.split('-').reverse().join('/')} · Autorizaciones: datos {new Date(c.autoriza_datos_at).toLocaleDateString('es-CO')} · imagen {c.uso_imagen?'Sí':'No'} · publicidad {c.publicidad?'Sí':'No'}</p>
-      <label className="block pt-2 font-semibold">Categoría<select className={box+' mt-1'} disabled={disabled} value={value.categoria} onChange={e=>onChange({...value,categoria:e.target.value})}>{CLIENT_CATEGORIES[c.tipo_evento].map(x=><option key={x}>{x}</option>)}</select></label>
+      <p>{ALLY_EVENT_LABEL[c.tipo_evento]||c.tipo_evento} · evento {c.fecha_evento.split('-').reverse().join('/')} · Autorizaciones: datos {new Date(c.autoriza_datos_at).toLocaleDateString('es-CO')} · imagen {c.uso_imagen?'Sí':'No'} · publicidad {c.publicidad?'Sí':'No'}</p>
+      <label className="block pt-2 font-semibold">Categoría<select className={box+' mt-1'} disabled={disabled} value={value.categoria} onChange={e=>onChange({...value,categoria:e.target.value})}>{!cats.some(x=>x.tipo===c.tipo_evento&&x.nombre===value.categoria)&&value.categoria&&<option value={value.categoria}>{value.categoria}</option>}{cats.filter(x=>x.tipo===c.tipo_evento).map(x=><option key={x.nombre} value={x.nombre}>{x.nombre} · {categoryRange(x)}</option>)}</select></label>
       {value.categoria!==c.categoria&&<p className="text-xs text-amber-700">Cambio de categoría ({c.categoria} → {value.categoria}): ajusta el valor del alquiler; el cambio queda en el historial.</p>}
      </div>
     :<div className="mt-1 flex gap-2"><input className={box} disabled={disabled} placeholder="ID de clienta (CLI-00001), tarjeta de identidad o cédula del representante" value={qc} onChange={e=>setQc(e.target.value)}/><button type="button" disabled={busy||!qc.trim()} onClick={()=>void loadClient()} className="px-4 rounded-xl bg-violet-600 text-white text-sm font-bold disabled:opacity-50">Cargar</button></div>}</div>}

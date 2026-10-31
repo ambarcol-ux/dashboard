@@ -1,18 +1,24 @@
 /** Clientas del aliado (paso 4): categories, states and validation of the public form. */
-export const CLIENT_CATEGORIES={XV:['Esencial','Clásica','Premium','Exclusiva'],GALA:['Clásica','Premium']} as const;
+/** Event types of an ally's client; categories come from Configuración › Categorías (public.categorias_aliado). */
+export type AllyEventType='XV'|'GALA'|'NOVIA';
+export const ALLY_EVENT_LABEL:Record<AllyEventType,string>={XV:'XV años',GALA:'Gala',NOVIA:'Novia'};
+export type AllyCategory={tipo:AllyEventType;nombre:string;desde:number;hasta:number|null};
+const pesos=(n:number)=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(n);
+/** «Clásica · $1.500.001 a $2.500.000» */
+export const categoryRange=(c:AllyCategory)=>c.hasta==null?(c.desde>0?`más de ${pesos(c.desde)}`:'todos los precios'):`${c.desde>0?`${pesos(c.desde+1)} a `:'hasta '}${pesos(c.hasta)}`;
 export const CLIENT_STATES=['Registrada','Cita agendada','Asistió','Contrató','No contrató'] as const;
-export type AllyClient={id:string;numero:number;aliado_id:string;tipo_evento:'XV'|'GALA';categoria:string;clienta_menor:boolean;rep_nombre:string|null;rep_cedula:string|null;rep_parentesco:string|null;rep_celular:string|null;rep_correo:string|null;
+export type AllyClient={id:string;numero:number;aliado_id:string;tipo_evento:AllyEventType;categoria:string;clienta_menor:boolean;rep_nombre:string|null;rep_cedula:string|null;rep_parentesco:string|null;rep_celular:string|null;rep_correo:string|null;
  clienta_nombre:string;clienta_documento:string;clienta_celular:string|null;clienta_correo:string|null;fecha_evento:string;uso_imagen:boolean;publicidad:boolean;autoriza_datos_at:string;estado:(typeof CLIENT_STATES)[number];creado_en:string};
 export const clientId=(n:number)=>`CLI-${String(n).padStart(5,'0')}`;
 
 /** Validates the public form; throws a message for the visitor. today = YYYY-MM-DD (Bogotá). */
-export function allyClientSignup(input:Record<string,unknown>,today:string){
+export function allyClientSignup(input:Record<string,unknown>,today:string,categorias:AllyCategory[]){
  const t=(k:string,max=140)=>String(input[k]??'').trim().slice(0,max);
  const digits=(k:string)=>t(k,20).replace(/\D/g,'');
- const tipo=t('tipo_evento') as 'XV'|'GALA';
- if(tipo!=='XV'&&tipo!=='GALA')throw Error('Elige si es XV años o Gala.');
+ const tipo=t('tipo_evento') as AllyEventType;
+ if(!(tipo in ALLY_EVENT_LABEL))throw Error('Elige el tipo de evento: XV años, Gala o Novia.');
  const categoria=t('categoria');
- if(!(CLIENT_CATEGORIES[tipo] as readonly string[]).includes(categoria))throw Error('Elige la categoría.');
+ if(!categorias.some(c=>c.tipo===tipo&&c.nombre===categoria))throw Error('Elige la categoría.');
  const menor=tipo==='XV'||input.clienta_menor===true;
  const email=(v:string)=>/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v);
  const phone=(v:string)=>/^[0-9+ ()-]{7,20}$/.test(v);

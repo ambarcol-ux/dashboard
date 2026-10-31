@@ -40,6 +40,7 @@ export default function InventoryPage() {
   });
   const [clasificaciones, setClasificaciones] = useState<DressClassification[]>([]);
   const [clasificacionFilter, setClasificacionFilter] = useState<string>(''); // '' todas, 'none' sin clasificar, o id
+  const [categoriaFilter, setCategoriaFilter] = useState<string>(''); // '' todas, 'none' sin categoría, o nombre
   const [showArchived, setShowArchived] = useState(false);
   const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado'>('bandeja');
   const [removalTarget, setRemovalTarget] = useState<{id: string; codigo: string} | null>(null);
@@ -201,7 +202,7 @@ export default function InventoryPage() {
     try {
       const { data, error } = await supabase
         .from('vestidos')
-        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, stock_total, clasificacion_id, archivado, archivado_at, motivo_archivo, qr_token, imagen_url, foto_frente, foto_espalda, foto_detalle')
+        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, stock_total, clasificacion_id, categoria, archivado, archivado_at, motivo_archivo, qr_token, imagen_url, foto_frente, foto_espalda, foto_detalle')
         .order('codigo', { ascending: true });
       
       if (error) {
@@ -378,7 +379,8 @@ export default function InventoryPage() {
     setUpdatingId(null);
     if (error) { toast.error('No se pudo guardar la clasificación: ' + error.message); return; }
     if (!data?.length) { toast.error('No tienes permiso sobre códigos de esta sede.'); return; }
-    setVestidos(prev => prev.map(v => v.id === id ? { ...v, clasificacion_id: value ? Number(value) : null } : v));
+    const { data: cat } = await supabase.from('vestidos').select('categoria').eq('id', id).maybeSingle();
+    setVestidos(prev => prev.map(v => v.id === id ? { ...v, clasificacion_id: value ? Number(value) : null, categoria: cat?.categoria ?? null } : v));
   };
 
   const clasificacionNombre = (id: number | null | undefined) => clasificaciones.find(c => c.id === id)?.nombre;
@@ -486,8 +488,9 @@ export default function InventoryPage() {
     
     const sedeMatch = sedeFilter === '' || (sedeFilter === 'none' ? !sedeExiste(v.sede_actual_id) : v.sede_actual_id === sedeFilter);
     const novedadMatch = novedadFilter === '' || (novedadFilter === 'any' ? novedadesDe(v).length > 0 : novedadesDe(v).includes(novedadFilter));
-    const clasificacionMatch = clasificacionFilter === '' ||
-      (clasificacionFilter === 'none' ? !v.clasificacion_id : String(v.clasificacion_id) === clasificacionFilter);
+    const clasificacionMatch = (clasificacionFilter === '' ||
+      (clasificacionFilter === 'none' ? !v.clasificacion_id : String(v.clasificacion_id) === clasificacionFilter))
+      && (categoriaFilter === '' || (categoriaFilter === 'none' ? !v.categoria : v.categoria === categoriaFilter));
     
     return searchMatch && sedeMatch && clasificacionMatch && novedadMatch && Boolean(v.archivado) === showArchived;
   });
@@ -609,6 +612,16 @@ export default function InventoryPage() {
               <option value="">👗 Todas las clasificaciones</option>
               {clasificaciones.map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
               <option value="none">Sin clasificar</option>
+            </select>
+            <select
+              value={categoriaFilter}
+              onChange={(e) => setCategoriaFilter(e.target.value)}
+              aria-label="Categoría"
+              className="px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 shadow-sm"
+            >
+              <option value="">🏷️ Todas las categorías</option>
+              {Array.from(new Set(vestidos.filter(v => clasificacionFilter === '' || String(v.clasificacion_id) === clasificacionFilter).map(v => v.categoria).filter(Boolean))).sort().map(c => <option key={c} value={c}>{c}</option>)}
+              <option value="none">Sin categoría</option>
             </select>
           </div>
           <button
@@ -829,6 +842,7 @@ export default function InventoryPage() {
                           <option value="">Sin clasificar</option>
                           {clasificaciones.filter(c => c.activo || c.id === v.clasificacion_id).map(c => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                         </select>
+                        <span className="mb-2 ml-1 inline-block text-[10px] font-black uppercase text-gray-500">{v.categoria || 'Sin categoría'}</span>
                         <div className="flex flex-wrap gap-1.5 items-center">
                           <input
                             aria-label="Talla"
@@ -980,7 +994,7 @@ export default function InventoryPage() {
                   <span className="text-[10px] font-black tracking-widest text-gray-300 uppercase">STOCK</span>
                 </div>
                 <h3 className="text-xl font-black text-gray-900 tracking-tighter uppercase mb-1">{v.codigo}</h3>
-                <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-6 italic">{clasificacionNombre(v.clasificacion_id) || 'Sin Clasificar'}{v.archivado ? ' · Archivado' : ''}</p>
+                <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-6 italic">{clasificacionNombre(v.clasificacion_id) || 'Sin Clasificar'}{v.categoria ? ` · ${v.categoria}` : ''}{v.archivado ? ' · Archivado' : ''}</p>
                 
                 <div className="space-y-4 pt-4 border-t border-gray-50">
                   {v.estado === 'De Baja' && (
@@ -1284,6 +1298,7 @@ export default function InventoryPage() {
                          { label: 'Talla', val: selectedDressDossier.talla || 'N/A', icon: LayoutGrid, color: 'indigo' },
                          { label: 'Color', val: selectedDressDossier.color || 'N/A', icon: Filter, color: 'rose' },
                          { label: 'Sede', val: selectedDressDossier.sede?.nombre || 'N/A', icon: MapPin, color: 'amber' },
+                         { label: 'Categoría', val: selectedDressDossier.categoria || 'Sin categoría', icon: Filter, color: 'rose' },
                          { label: 'Garantía', val: '$0', icon: ShieldAlert, color: 'gray' }
                        ].map((atr, i) => (
                          <div key={i} className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm text-center shadow-indigo-100/10 hover:shadow-md transition-shadow">
