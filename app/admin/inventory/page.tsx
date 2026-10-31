@@ -19,6 +19,10 @@ import InventoryByStatus from '@/components/InventoryByStatus';
 import DressRemovalDialog from '@/components/DressRemovalDialog';
 import {CLASSIFICATION_STYLES, UNCLASSIFIED_STYLE, type DressClassification} from '@/lib/inventory';
 
+// Pesos colombianos with thousands separator in price inputs (3.500.000); only digits are saved.
+const soloDigitos = (t: string) => t.replace(/\D/g, '');
+const miles = (v: unknown) => { if (typeof v === 'number') return Number.isFinite(v) ? Math.round(v).toLocaleString('es-CO') : ''; const d = soloDigitos(String(v ?? '')); return d ? Number(d).toLocaleString('es-CO') : ''; };
+
 export default function InventoryPage() {
   const readAccess = useVerifiedAccess();
   const [loading, setLoading] = useState(true);
@@ -758,21 +762,19 @@ export default function InventoryPage() {
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">6. Precio de alquiler *</label>
                     <input 
-                      type="number" min="1" step="1000"
+                      type="text" inputMode="numeric" min="1" step="1000"
                       placeholder="Ej: 1500000"
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none"
-                      value={newDress.precio}
-                      onChange={(e) => setNewDress({...newDress, precio: e.target.value})}
+                      value={miles(newDress.precio)} onChange={(e) => setNewDress({...newDress, precio: soloDigitos(e.target.value)})}
                     />
                   </div>
                   <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Precio de venta sugerido</label>
                     <input 
-                      type="number" min="1" step="1000"
+                      type="text" inputMode="numeric"
                       placeholder="Opcional"
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none"
-                      value={newDress.precio_venta}
-                      onChange={(e) => setNewDress({...newDress, precio_venta: e.target.value})}
+                      value={miles(newDress.precio_venta)} onChange={(e) => setNewDress({...newDress, precio_venta: soloDigitos(e.target.value)})}
                     />
                   </div>
                   <div className="space-y-1">
@@ -883,10 +885,10 @@ export default function InventoryPage() {
                         <div className="flex items-center gap-1 border border-gray-200 bg-white rounded-lg px-2 focus-within:ring-2 focus-within:ring-rose-200 transition-all text-sm w-32 mb-2">
                           <span className="text-gray-400 font-bold">$</span>
                           <input 
-                            type="number"
+                            type="text" inputMode="numeric"
                             className="bg-transparent w-full py-1.5 text-gray-700 font-bold outline-none"
-                            value={editState[v.id]?.precio_sugerido !== undefined ? editState[v.id].precio_sugerido : (v.precio_sugerido || 0)}
-                            onChange={(e) => handleEditChange(v.id, 'precio_sugerido', e.target.value)}
+                            value={miles(editState[v.id]?.precio_sugerido !== undefined ? editState[v.id].precio_sugerido : (v.precio_sugerido || 0))}
+                            onChange={(e) => handleEditChange(v.id, 'precio_sugerido', soloDigitos(e.target.value))}
                             placeholder="0"
                           />
                         </div>
@@ -894,10 +896,10 @@ export default function InventoryPage() {
                         <div className="flex items-center gap-1 border border-gray-200 bg-white rounded-lg px-2 focus-within:ring-2 focus-within:ring-rose-200 transition-all text-sm w-32">
                           <span className="text-gray-400 font-bold">$</span>
                           <input 
-                            type="number"
+                            type="text" inputMode="numeric"
                             className="bg-transparent w-full py-1.5 text-gray-700 font-bold outline-none"
-                            value={editState[v.id]?.precio_venta !== undefined ? (editState[v.id].precio_venta ?? '') : (v.precio_venta ?? '')}
-                            onChange={(e) => handleEditChange(v.id, 'precio_venta', e.target.value)}
+                            value={miles(editState[v.id]?.precio_venta !== undefined ? (editState[v.id].precio_venta ?? '') : (v.precio_venta ?? ''))}
+                            onChange={(e) => handleEditChange(v.id, 'precio_venta', soloDigitos(e.target.value))}
                             placeholder="—"
                           />
                         </div>
@@ -1035,10 +1037,10 @@ export default function InventoryPage() {
                        <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-lg px-2 overflow-hidden focus-within:ring-2 focus-within:ring-rose-200">
                           <span className="text-gray-400 text-xs font-bold">$</span>
                           <input 
-                            type="number"
+                            type="text" inputMode="numeric"
                             className="w-full text-xs font-black text-gray-700 bg-transparent py-2 outline-none"
-                            value={editState[v.id]?.precio_sugerido !== undefined ? editState[v.id].precio_sugerido : (v.precio_sugerido || 0)}
-                            onChange={(e) => handleEditChange(v.id, 'precio_sugerido', e.target.value)}
+                            value={miles(editState[v.id]?.precio_sugerido !== undefined ? editState[v.id].precio_sugerido : (v.precio_sugerido || 0))}
+                            onChange={(e) => handleEditChange(v.id, 'precio_sugerido', soloDigitos(e.target.value))}
                           />
                        </div>
                      </div>
@@ -1047,10 +1049,10 @@ export default function InventoryPage() {
                        <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-lg px-2 overflow-hidden focus-within:ring-2 focus-within:ring-rose-200">
                           <span className="text-gray-400 text-xs font-bold">$</span>
                           <input 
-                            type="number"
+                            type="text" inputMode="numeric"
                             className="w-full text-xs font-black text-gray-700 bg-transparent py-2 outline-none"
-                            value={editState[v.id]?.precio_venta !== undefined ? (editState[v.id].precio_venta ?? '') : (v.precio_venta ?? '')}
-                            onChange={(e) => handleEditChange(v.id, 'precio_venta', e.target.value)}
+                            value={miles(editState[v.id]?.precio_venta !== undefined ? (editState[v.id].precio_venta ?? '') : (v.precio_venta ?? ''))}
+                            onChange={(e) => handleEditChange(v.id, 'precio_venta', soloDigitos(e.target.value))}
                             placeholder="—"
                           />
                        </div>
@@ -1554,8 +1556,8 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
       <div className="grid grid-cols-3 gap-4">
         <label className={label}>4. Talla *<input className={input} value={f.talla} onChange={(e) => setF({ ...f, talla: e.target.value.toUpperCase() })} /></label>
         <label className={label}>5. Color *<input className={input} value={f.color} onChange={(e) => setF({ ...f, color: e.target.value.toUpperCase() })} /></label>
-        <label className={label}>6. Precio de alquiler *<input type="number" min="1" className={input} value={f.precio} onChange={(e) => setF({ ...f, precio: e.target.value })} /></label>
-        <label className={label}>Precio de venta sugerido<input type="number" min="1" placeholder="Opcional" className={input} value={f.precio_venta} onChange={(e) => setF({ ...f, precio_venta: e.target.value })} /></label>
+        <label className={label}>6. Precio de alquiler *<input type="text" inputMode="numeric" className={input} value={miles(f.precio)} onChange={(e) => setF({ ...f, precio: soloDigitos(e.target.value) })} /></label>
+        <label className={label}>Precio de venta sugerido<input type="text" inputMode="numeric" placeholder="Opcional" className={input} value={miles(f.precio_venta)} onChange={(e) => setF({ ...f, precio_venta: soloDigitos(e.target.value) })} /></label>
       </div>
       <p className="text-[11px] text-gray-400">La sede se cambia con la lista «Sede actual» de la fila (traslado) y el estado con sus botones de siempre.</p>
       <div className="flex gap-3 justify-end"><button onClick={onClose} disabled={saving} className="px-5 py-3 rounded-xl border font-bold text-sm">Cancelar</button>
