@@ -1,11 +1,11 @@
 import {createClient} from '@supabase/supabase-js';
-import {PHOTO_FIELDS,codeCandidates,driveFolderId,priceFromName} from '@/lib/dress-photos';
+import {PHOTO_FIELDS,codeCandidates,driveFolderId,priceFromName,slotFromName,suggestDresses,type DressRef,type Suggestion} from '@/lib/dress-photos';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer'}});
 const MAX=10*1024*1024,TYPES=['image/jpeg','image/png','image/webp'],BATCH=8,MAX_FOLDERS=400,MAX_FILES=4000;
-type DriveFile={id:string;name:string;carpeta:string};
-type Result={archivo:string;tipo:'ok'|'aviso'|'error'|'omitido';mensaje:string};
+type DriveFile={id:string;name:string;carpeta:string;vestido_id?:string};
+type Result={archivo:string;tipo:'ok'|'aviso'|'error'|'omitido'|'sugerencia';mensaje:string;file?:DriveFile;candidatos?:Suggestion[]};
 
 /** Imports dress photos from a shared Google Drive folder and its subfolders (one folder per dress is fine).
  * accion 'listar' walks the folders; accion 'importar' uploads up to BATCH files. The reference (and price) comes from
@@ -31,7 +31,7 @@ export async function POST(request:Request){
  }
 
  const files=(Array.isArray(body.archivos)?body.archivos:[]).slice(0,BATCH).filter(f=>/^[A-Za-z0-9_-]{10,}$/.test(String(f?.id)));
- const {data:dresses,error:de}=await db.from('vestidos').select('id,codigo,precio_sugerido,foto_frente,foto_espalda,foto_detalle').eq('archivado',false);
+ const {data:dresses,error:de}=await db.from('vestidos').select('id,codigo,nombre,color,precio_sugerido,foto_frente,foto_espalda,foto_detalle').eq('archivado',false);
  if(de)return reply({error:'No se pudo leer el inventario.'},500);
  const byCode=new Map<string,Record<string,unknown>[]>();
  for(const v of dresses||[]){const k=String(v.codigo||'').trim().toUpperCase();if(k)byCode.set(k,[...(byCode.get(k)||[]),v]);}
@@ -43,8 +43,14 @@ export async function POST(request:Request){
   const fromFile=codeCandidates(String(f.name)),fromFolder=codeCandidates(String(f.carpeta||''));
   const code=fromFile.find(c=>byCode.has(c))||fromFolder.find(c=>byCode.has(c))||fromFile.at(-1)||fromFolder.at(-1)||'';
   const source=fromFile.includes(code)?String(f.name):String(f.carpeta||'');
-  const targets=byCode.get(code)||[];
-  if(!targets.length){resultados.push({archivo:label,tipo:'error',mensaje:`No hay vestido con la referencia «${code||'—'}». Revisa el nombre o el código en Inventario.`});continue;}
+  // An approved suggestion names the dress; otherwise the exact reference.
+  const approved=f.vestido_id?(dresses||[]).find(v=>String(v.id)===String(f.vestido_id)):null;
+  const targets=approved?[approved]:byCode.get(code)||[];
+  if(!targets.length){
+   const list=dresses as unknown as DressRef[],candidatos=suggestDresses(String(f.name),list).length?suggestDresses(String(f.name),list):suggestDresses(String(f.carpeta||''),list);
+   resultados.push(candidatos.length?{archivo:label,tipo:'sugerencia',mensaje:'Revisa y aprueba el vestido.',file:f,candidatos}:{archivo:label,tipo:'error',mensaje:`No hay vestido con la referencia «${code||'—'}». Revisa el nombre o el código en Inventario.`});
+   continue;
+  }
   const pending=targets.filter(v=>!PHOTO_FIELDS.some(k=>String(v[k]||'').includes(`drive-${f.id}`)));
   if(!pending.length){resultados.push({archivo:label,tipo:'omitido',mensaje:'Ya estaba cargada.'});continue;}
   try{
@@ -55,7 +61,8 @@ export async function POST(request:Request){
    const bytes=await file.arrayBuffer(),hechos:string[]=[],avisos:string[]=[];
    if(bytes.byteLength>MAX)throw Error('La foto pesa más de 10 MB.');
    for(const v of pending){
-    const slot=PHOTO_FIELDS.find(k=>!v[k]);
+    const hint=slotFromName(String(f.name))||slotFromName(String(f.carpeta||''));
+    const slot=hint&&!v[hint]?hint:PHOTO_FIELDS.find(k=>!v[k]);
     if(!slot){avisos.push(`${v.codigo} ya tiene 3 fotos`);continue;}
     const path=`${v.id}/drive-${f.id}-${slot}.${type.split('/')[1].replace('jpeg','jpg')}`;
     const {error:ue}=await db.storage.from('vestidos_fotos').upload(path,bytes,{contentType:type,upsert:true});
@@ -66,7 +73,7 @@ export async function POST(request:Request){
     if(e2)throw Error(e2.message);
     Object.assign(v,patch);hechos.push(`${v.codigo} · ${slot.replace('foto_','')}`);
    }
-   const precio=priceFromName(source,code),actual=Number(targets[0].precio_sugerido)||0;
+   const precio=priceFromName(approved?String(f.name):source,approved?(String(f.name).match(/^[A-Za-z]{0,4}\d{3,}/)?.[0]||''):code),actual=Number(targets[0].precio_sugerido)||0;
    if(precio&&precio!==actual)avisos.push(`el precio del nombre (${precio.toLocaleString('es-CO')}) no coincide con el del inventario (${actual?actual.toLocaleString('es-CO'):'sin precio'})`);
    resultados.push({archivo:label,tipo:hechos.length?(avisos.length?'aviso':'ok'):'error',mensaje:[hechos.join(' · '),...avisos].filter(Boolean).join(' · ')});
   }catch(e){resultados.push({archivo:label,tipo:'error',mensaje:e instanceof Error?e.message:'No se pudo subir.'});}
