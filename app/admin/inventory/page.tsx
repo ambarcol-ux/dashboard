@@ -1570,7 +1570,18 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
 const PHOTO_SLOTS = [['foto_frente', 'Frente'], ['foto_espalda', 'Espalda'], ['foto_detalle', 'Detalle']] as const;
 /** Resizes to max 1600 px JPEG so photos stay light. */
 async function resizePhoto(file: File): Promise<Blob> {
-  const img = await createImageBitmap(file);
+  // Decode: image bitmap first, then the browser image element; if neither works, a JPG/PNG/WebP up to 3 MB goes as is.
+  let img: CanvasImageSource & { width: number; height: number };
+  try { img = await createImageBitmap(file); }
+  catch {
+    try {
+      const url = URL.createObjectURL(file), el = new Image();
+      el.src = url; await el.decode(); URL.revokeObjectURL(url); img = el;
+    } catch {
+      if (/^image\/(jpeg|png|webp)$/.test(file.type) && file.size <= 3 * 1024 * 1024) return file;
+      throw new Error(/heic|heif/i.test(file.type + file.name) ? 'La foto está en formato HEIC (iPhone). Guárdala como JPG o tómala de nuevo en «Más compatible» y vuelve a subirla.' : 'No se pudo leer la foto. Si está en Google Drive, descárgala primero al equipo (o usa Google Drive para escritorio) y súbela en JPG o PNG.');
+    }
+  }
   const scale = Math.min(1, 1600 / Math.max(img.width, img.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
@@ -1585,7 +1596,8 @@ function DressPhotos({ dress, canEdit, onSaved }: { dress: Record<string, unknow
     setBusy(field);
     try {
       const path = `${dress.id}/${field}-${Date.now()}.jpg`;
-      const { error } = await supabase.storage.from('vestidos_fotos').upload(path, await resizePhoto(file), { contentType: 'image/jpeg' });
+      const blob = await resizePhoto(file);
+      const { error } = await supabase.storage.from('vestidos_fotos').upload(path, blob, { contentType: blob.type || 'image/jpeg' });
       if (error) throw error;
       const url = supabase.storage.from('vestidos_fotos').getPublicUrl(path).data.publicUrl;
       const patch: Record<string, string> = { [field]: url, ...(field === 'foto_frente' ? { imagen_url: url } : {}) };
