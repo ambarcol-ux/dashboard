@@ -26,7 +26,6 @@ import { saldoContrato } from '@/lib/saldo';
 import { cop } from '@/lib/rental-price';
 
 const MONEY_FIELDS = ['valor_total', 'servicios_adicionales', 'anticipo', 'valor_deposito'];
-const TIPOS_DOC = ['CC', 'CE', 'TI', 'Pasaporte', 'PPT', 'NIT'];
 const NUMERIC_DOCS = ['CC', 'TI', 'NIT'];
 // Accessories come from Configuración › Listas (lista 'accesorios'); saved as "Nombre: cantidad".
 const ACCESORIO_ALIAS: Record<string, string> = { 'Aro/Gitana': 'Cancán / Aro', 'Cancán': 'Cancán / Aro' };
@@ -188,7 +187,6 @@ export default function NuevoContratoPage() {
   const [metodosPago, setMetodosPago] = useState<string[]>([]);
   const [anticipoSoportes, setAnticipoSoportes] = useState<UploadedSupport[]>([]);
   const [subiendoSoporte, setSubiendoSoporte] = useState(false);
-  const opcionesPago = ["Efectivo", "Transferencia", "Tarjeta", "Link de Pago"];
 
   // Arreglos dinámicos
   const [arreglos, setArreglos] = useState<{ tipo: string; cm: string; precio: string }[]>([]);
@@ -206,10 +204,10 @@ export default function NuevoContratoPage() {
   const [loadingVestidos, setLoadingVestidos] = useState(false);
   const [asesorasList, setAsesorasList] = useState<any[]>([]);
   const [misSedes, setMisSedes] = useState<string[]>([]);
-  const [listas, setListas] = useState<{ banco: string[]; tipo_cuenta: string[]; accesorios: string[] }>({ banco: [], tipo_cuenta: [], accesorios: [] });
+  const [listas, setListas] = useState<{ banco: string[]; tipo_cuenta: string[]; accesorios: string[]; tipos_documento: string[]; contrato_medios_pago: string[] }>({ banco: [], tipo_cuenta: [], accesorios: [], tipos_documento: [], contrato_medios_pago: [] });
   const cargarListas = async () => {
     const { data } = await supabase.from('listas_contrato').select('lista, valor').eq('activo', true).order('orden');
-    setListas({ banco: (data || []).filter(x => x.lista === 'banco').map(x => x.valor), tipo_cuenta: (data || []).filter(x => x.lista === 'tipo_cuenta').map(x => x.valor), accesorios: (data || []).filter(x => x.lista === 'accesorios').map(x => x.valor) });
+    setListas({ banco: (data || []).filter(x => x.lista === 'banco').map(x => x.valor), tipo_cuenta: (data || []).filter(x => x.lista === 'tipo_cuenta').map(x => x.valor), accesorios: (data || []).filter(x => x.lista === 'accesorios').map(x => x.valor), tipos_documento: (data || []).filter(x => x.lista === 'tipos_documento').map(x => x.valor), contrato_medios_pago: (data || []).filter(x => x.lista === 'contrato_medios_pago').map(x => x.valor) });
   };
   // Administrator edits the bank / account type lists ("-Valor" removes it).
   const editarLista = async (lista: 'banco' | 'tipo_cuenta') => {
@@ -1854,7 +1852,7 @@ export default function NuevoContratoPage() {
               <div className="space-y-1">
                 <label className="text-sm font-semibold text-gray-700 flex items-center gap-2"><FileText className="w-4 h-4 text-rose-500" /> Tipo de documento <span className="text-rose-500">*</span></label>
                 <select value={formData.tipo_documento_cliente} onChange={e => setFormData(prev => ({ ...prev, tipo_documento_cliente: e.target.value, cliente_documento: NUMERIC_DOCS.includes(e.target.value) ? onlyDigits(prev.cliente_documento) : prev.cliente_documento }))} className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300">
-                  {TIPOS_DOC.map(t => <option key={t}>{t}</option>)}
+                  {listas.tipos_documento.map(t => <option key={t}>{t}</option>)}
                 </select>
               </div>
               {renderTextInput("Número de documento", "cliente_documento", <FileText className="w-4 h-4 text-rose-500" />, "text", true)}
@@ -2299,7 +2297,7 @@ export default function NuevoContratoPage() {
                 <div className="pt-2 border-t border-emerald-200/50">
                   <h3 className="font-bold text-gray-700 mb-2 text-sm">Métodos de Pago Utilizados (Abono)</h3>
                   <div className="flex flex-wrap gap-2">
-                    {opcionesPago.map(mp => (
+                    {Array.from(new Set([...listas.contrato_medios_pago, ...metodosPago])).map(mp => (
                       <label key={mp} className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-semibold cursor-pointer hover:border-emerald-300 transition-colors">
                         <input type="checkbox" checked={metodosPago.includes(mp)} onChange={() => handleCheckboxArray(mp, metodosPago, setMetodosPago)} className="w-4 h-4 accent-emerald-500" /> {mp}
                       </label>
@@ -2351,7 +2349,7 @@ export default function NuevoContratoPage() {
                   <div className="space-y-1">
                     <label className="text-sm font-semibold text-gray-700">Tipo de documento del titular</label>
                     <select value={formData.tipo_documento_titular} onChange={e => setFormData(prev => ({ ...prev, tipo_documento_titular: e.target.value, documento_titular: NUMERIC_DOCS.includes(e.target.value) ? onlyDigits(prev.documento_titular) : prev.documento_titular }))} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-rose-300">
-                      {TIPOS_DOC.map(t => <option key={t}>{t}</option>)}
+                      {listas.tipos_documento.map(t => <option key={t}>{t}</option>)}
                     </select>
                   </div>
                   {renderTextInput("Documento del titular", "documento_titular", null, "text", false, "bg-white")}

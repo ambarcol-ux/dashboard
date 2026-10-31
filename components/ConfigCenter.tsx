@@ -10,7 +10,7 @@ type Category={id:number;clasificacion_id:number;nombre:string;precio_hasta:numb
 type Change={id:number;tabla:string;clave:string;accion:string;antes:Record<string,unknown>|null;despues:Record<string,unknown>|null;created_at:string;usuario_id:string|null};
 
 const LISTS:Record<string,string>={pv_canales:'Primeras visitas · Canales de contacto',pv_resultados_seguimiento:'Primeras visitas · Resultado del seguimiento',pv_motivos_cierre:'Primeras visitas · Motivos de cierre',
- pv_motivos_no_asistencia:'Primeras visitas · Motivos de no asistencia',pv_motivos_eliminar:'Primeras visitas · Motivos para eliminar cita',accesorios:'Contratos · Accesorios incluidos',banco:'Contratos · Bancos',tipo_cuenta:'Contratos · Tipos de cuenta'};
+ pv_motivos_no_asistencia:'Primeras visitas · Motivos de no asistencia',pv_motivos_eliminar:'Primeras visitas · Motivos para eliminar cita',accesorios:'Contratos · Accesorios incluidos',banco:'Contratos · Bancos',contrato_medios_pago:'Contratos · Medios de pago',tipos_documento:'Contratos · Tipos de documento',pv_tipos_evento_vitrina:'Primeras visitas · Tipo de evento (vitrina)',pv_como_se_entero:'Primeras visitas · Cómo se enteró',prov_tipos_servicio:'Proveedores · Tipos de servicio',prov_tipos_documento:'Proveedores · Tipos de documento',prov_medios_pago:'Proveedores · Medios de pago',tipo_cuenta:'Contratos · Tipos de cuenta'};
 const FORMS:Record<string,string>={resultado_cita:'Resultado de la cita',registro_seguimiento:'Registro de seguimiento'};
 const TABLES:Record<string,string>={listas_contrato:'Lista',config_parametros:'Parámetro',config_formularios:'Formulario',categorias_vestido:'Categoría de vestido'};
 const box='bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3';

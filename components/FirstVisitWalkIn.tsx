@@ -3,7 +3,7 @@ import {useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {supabase} from '@/lib/supabase';
 import {emptyConfig,loadModuleConfig,minChars} from '@/lib/module-config';
-import {bogotaLocalToIso,nowBogotaLocal,walkInEventTypes,walkInSources} from '@/lib/first-visits';
+import {bogotaLocalToIso,nowBogotaLocal} from '@/lib/first-visits';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
 
 type Duplicates={visitas:{id:string;nombre:string;fecha:string;hora:string;sede:string;estado:string;origen:string;vinculable:boolean;pendiente:boolean}[];contratos:{id:string;numero_contrato:string;nombre:string;sede:string|null;fecha_evento:string|null}[];aliados?:{id:string;nombre:string;aliado:string|null;contrato:boolean}[];aviso?:string|null};
@@ -80,10 +80,10 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
     <label>Asesora que atiende *<select value={asesora} onChange={e=>setAsesora(e.target.value)} required>{!asesoras.some(a=>a.id===asesora)&&<option value={asesora}>Yo</option>}{asesoras.map(a=><option key={a.id} value={a.id}>{a.nombre||a.email}</option>)}</select></label>
    </div>
    <div className={styles.grid2}>
-    <label>Tipo de evento *<select value={f.tipo_evento} onChange={set('tipo_evento')} required><option value="">Selecciona…</option>{walkInEventTypes.map(t=><option key={t}>{t}</option>)}</select></label>
+    <label>Tipo de evento *<select value={f.tipo_evento} onChange={set('tipo_evento')} required><option value="">Selecciona…</option>{(cfg.lists.pv_tipos_evento_vitrina||[]).map(t=><option key={t}>{t}</option>)}</select></label>
     <label>Fecha del evento<input type="date" value={f.fecha_evento} onChange={set('fecha_evento')}/></label>
    </div>
-   <label>Cómo se enteró<select value={f.como_se_entero} onChange={set('como_se_entero')}><option value="">Sin dato</option>{walkInSources.map(t=><option key={t}>{t}</option>)}</select></label>
+   <label>Cómo se enteró<select value={f.como_se_entero} onChange={set('como_se_entero')}><option value="">Sin dato</option>{(cfg.lists.pv_como_se_entero||[]).map(t=><option key={t}>{t}</option>)}</select></label>
    {!alContratar&&<label>¿Alquiló? *<select required value={f.resultado==='Cerrado'?'si':f.resultado?'no':''} onChange={e=>setF({...f,resultado:e.target.value==='si'?'Cerrado':e.target.value==='no'?'En seguimiento':''})}><option value="">Elige…</option><option value="si">Alquiló</option><option value="no">No alquiló</option></select></label>}
    {!alContratar&&f.resultado&&f.resultado!=='Cerrado'&&<label><input type="checkbox" checked={f.resultado==='No cerró'} onChange={e=>setF({...f,resultado:e.target.checked?'No cerró':'En seguimiento'})}/> No hacer seguimiento (motivo de mínimo {min} caracteres)</label>}
    <label>{f.resultado==='No cerró'?'Motivo *':'Observaciones'}<textarea maxLength={1000} value={f.motivo} onChange={set('motivo')} required={f.resultado==='No cerró'} minLength={f.resultado==='No cerró'?min:undefined}/></label>

@@ -1,4 +1,5 @@
 'use client';
+import ListOptions from '@/components/ListOptions';
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
@@ -8,7 +9,7 @@ import SupplierPackages from '@/components/suppliers/SupplierPackages';
 import {supabase} from '@/lib/supabase';
 import {money} from '@/lib/deposits';
 import {bogotaDay} from '@/lib/contract-calendar';
-import {SERVICE_TYPES,bogotaDateTime,errorText,nextCode,normalizePhone,sumMoney,type SupplierSummary} from '@/lib/suppliers';
+import {bogotaDateTime,errorText,nextCode,normalizePhone,sumMoney,type SupplierSummary} from '@/lib/suppliers';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
 type Alerts={documentos_por_vencer:{proveedor_id:string;proveedor:string;titulo:string;vence_el:string}[];
@@ -41,7 +42,7 @@ function SuppliersAdmin(){
  },[mes]);
  useEffect(()=>{void load();},[load]);
 
- const types=useMemo(()=>[...new Set([...SERVICE_TYPES,...rows.map(r=>r.tipo_servicio)])].sort(),[rows]);
+ const types=useMemo(()=>[...new Set(rows.map(r=>r.tipo_servicio))].sort(),[rows]);
  const text=q.trim().toLowerCase(),digits=q.replace(/\D/g,'');
  const list=rows.filter(r=>(!sede||r.sedes.includes(sede))&&(!servicio||r.tipo_servicio===servicio)&&(!estado||r.estado===estado)
   &&(!text||r.nombre.toLowerCase().includes(text)||r.codigo.toLowerCase().includes(text)||(digits.length>=3&&(r.celular||'').includes(digits))));
@@ -119,7 +120,7 @@ function NewSupplier({sedes,codes,onClose,onCreated}:{sedes:Sede[];codes:string[
   <h2>Nuevo proveedor</h2>
   <div className={styles.form}>
    <div className={styles.row}><label>Código<input value={form.codigo} onChange={e=>setForm({...form,codigo:e.target.value.toUpperCase()})}/></label>
-    <label>Tipo de servicio<select value={form.tipo_servicio} onChange={e=>setForm({...form,tipo_servicio:e.target.value})}><option value="">Selecciona…</option>{SERVICE_TYPES.map(t=><option key={t}>{t}</option>)}</select></label></div>
+    <label>Tipo de servicio<select value={form.tipo_servicio} onChange={e=>setForm({...form,tipo_servicio:e.target.value})}><option value="">Selecciona…</option><ListOptions lista="prov_tipos_servicio"/></select></label></div>
    <label>Nombre (persona, empresa o lugar)<input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})}/></label>
    <div className={styles.row}><label>Celular<input inputMode="numeric" value={form.celular} onChange={e=>setForm({...form,celular:e.target.value})} placeholder="3001234567"/></label>
     <label>Correo<input type="email" value={form.correo} onChange={e=>setForm({...form,correo:e.target.value})}/></label></div>

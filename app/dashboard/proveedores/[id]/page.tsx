@@ -1,4 +1,5 @@
 'use client';
+import ListOptions from '@/components/ListOptions';
 import {useCallback,useEffect,useState} from 'react';
 import Link from 'next/link';
 import {useParams} from 'next/navigation';
@@ -8,7 +9,7 @@ import {supabase} from '@/lib/supabase';
 import {money} from '@/lib/deposits';
 import {parseCashAmount} from '@/lib/cash';
 import {bogotaDay} from '@/lib/contract-calendar';
-import {DOC_TYPES,SERVICE_TYPES,bogotaDateTime,defaultVisibility,errorText,isLossTariff,nextCode,normalizePhone,supplierFilePath,sumMoney,tariffMargin,type Supplier,type Tariff} from '@/lib/suppliers';
+import {bogotaDateTime,defaultVisibility,errorText,isLossTariff,nextCode,normalizePhone,supplierFilePath,sumMoney,tariffMargin,type Supplier,type Tariff} from '@/lib/suppliers';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
 type Sede={id:string;nombre:string};
@@ -124,7 +125,7 @@ function DataTab({supplier,sedes,mySedes,onDone,onError}:{supplier:Supplier;sede
  };
  return <section className={styles.card}><div className={styles.form}>
   <div className={styles.row}><label>Nombre<input value={f.nombre} onChange={set('nombre')}/></label>
-   <label>Tipo de servicio<select value={f.tipo_servicio} onChange={set('tipo_servicio')}>{[...new Set([...SERVICE_TYPES,f.tipo_servicio])].map(t=><option key={t}>{t}</option>)}</select></label></div>
+   <label>Tipo de servicio<select value={f.tipo_servicio} onChange={set('tipo_servicio')}><ListOptions lista="prov_tipos_servicio" keep={[f.tipo_servicio]}/></select></label></div>
   <div className={styles.row}><label>Celular<input inputMode="numeric" value={f.celular} onChange={set('celular')}/></label><label>Celular 2<input inputMode="numeric" value={f.celular_2} onChange={set('celular_2')}/></label></div>
   <div className={styles.row}><label>Correo (para su usuario)<input type="email" value={f.correo} onChange={set('correo')}/></label><label>Cédula o NIT<input value={f.documento} onChange={set('documento')}/></label></div>
   <div className={styles.row}><label>Banco<input value={f.banco} onChange={set('banco')}/></label><label>Tipo de cuenta<input value={f.tipo_cuenta} onChange={set('tipo_cuenta')} placeholder="Ahorros / Corriente"/></label></div>
@@ -173,7 +174,7 @@ function TariffsTab({supplierId,tariffs,codes,sedes,mySedes,defaultService,onDon
   {form&&<div className={styles.form} style={{marginBottom:18,borderBottom:'1px solid #e2e8f0',paddingBottom:18}}>
    <h2>{replacing?`Cambio de precio de ${replacing.codigo}`:'Nueva tarifa'}</h2>
    <div className={styles.row}><label>Sede<select value={form.sede_id} onChange={set('sede_id')}><option value="">Selecciona…</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
-    <label>Servicio<select value={form.servicio} onChange={set('servicio')}><option value="">Selecciona…</option>{[...new Set([...SERVICE_TYPES,form.servicio].filter(Boolean))].map(t=><option key={t}>{t}</option>)}</select></label></div>
+    <label>Servicio<select value={form.servicio} onChange={set('servicio')}><option value="">Selecciona…</option><ListOptions lista="prov_tipos_servicio" keep={[form.servicio]}/></select></label></div>
    <label>Descripción del paquete<textarea rows={2} value={form.descripcion} onChange={set('descripcion')} placeholder="Sesión 2 horas, 30 fotos + 15 impresas"/></label>
    <label>Recurso (caballo o lugar, opcional)<input value={form.recurso} onChange={set('recurso')}/></label>
    <div className={styles.row}><label>Valor a empresa (se le paga al proveedor)<input inputMode="decimal" value={form.valor_empresa} onChange={set('valor_empresa')}/></label>
@@ -216,7 +217,7 @@ function DocumentsTab({supplierId,docs,onDone,onError}:{supplierId:string;docs:D
  const update=async(d:Doc,values:Partial<Doc>,message:string)=>{const {error}=await supabase.from('documentos_proveedor').update(values).eq('id',d.id);if(error)onError(error.message);else onDone(message);};
  return <section className={styles.card}>
   <div className={styles.form} style={{marginBottom:18}}>
-   <div className={styles.row}><label>Tipo<select value={f.tipo} onChange={e=>setF({...f,tipo:e.target.value,visibilidad:defaultVisibility(e.target.value)})}>{DOC_TYPES.map(t=><option key={t}>{t}</option>)}</select></label>
+   <div className={styles.row}><label>Tipo<select value={f.tipo} onChange={e=>setF({...f,tipo:e.target.value,visibilidad:defaultVisibility(e.target.value)})}><ListOptions lista="prov_tipos_documento" keep={[f.tipo]}/></select></label>
     <label>Título<input value={f.titulo} onChange={e=>setF({...f,titulo:e.target.value})} placeholder="Condiciones 2026"/></label></div>
    <div className={styles.row}><label>Visibilidad<select value={f.visibilidad} disabled={defaultVisibility(f.tipo)==='Interno'} onChange={e=>setF({...f,visibilidad:e.target.value})}><option value="Asesora">Asesora (asesoras y administración)</option><option value="Interno">Interno (solo administración)</option></select></label>
     <label>Vence el (opcional)<input type="date" value={f.vence_el} onChange={e=>setF({...f,vence_el:e.target.value})}/></label></div>
