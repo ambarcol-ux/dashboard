@@ -1,5 +1,5 @@
 import {publicServerClient,publicReply,readJson,UUID_RE} from '@/lib/public-db';
-import {allyClientSignup,clientId} from '@/lib/ally-clients';
+import {ALLY_EVENT_LABEL,allyClientSignup,clientId,type AllyCategory} from '@/lib/ally-clients';
 import {allyClientConfirmEmail,allyClientDuplicateEmail,allyClientNoticeEmail,sendAllyEmail} from '@/lib/ally-emails';
 export const dynamic='force-dynamic';
 
@@ -18,9 +18,12 @@ export async function POST(request:Request){
   const {data:ally,error}=await (UUID_RE.test(token)?q.eq('token',token):q.eq('codigo',codigo)).maybeSingle();
   if(error)return publicReply({error:'El servicio no está disponible.'},503);
   if(!ally)return publicReply({error:'El enlace o código no es válido o el aliado no está activo.'},404);
-  if(body.accion!=='registrar')return publicReply({aliado:{nombre:ally.nombre_completo,codigo:ally.codigo}});
+  const {data:cats,error:ec}=await db.rpc('categorias_aliado');
+  if(ec)return publicReply({error:'El servicio no está disponible.'},503);
+  const categorias=((cats||[]) as AllyCategory[]).map(c=>({tipo:c.tipo,nombre:c.nombre,desde:Number(c.desde)||0,hasta:c.hasta==null?null:Number(c.hasta)}));
+  if(body.accion!=='registrar')return publicReply({aliado:{nombre:ally.nombre_completo,codigo:ally.codigo},categorias});
   let d;
-  try{d=allyClientSignup((body.datos||{}) as Record<string,unknown>,today());}catch(e){return publicReply({error:e instanceof Error?e.message:'Revisa los datos.'},400);}
+  try{d=allyClientSignup((body.datos||{}) as Record<string,unknown>,today(),categorias);}catch(e){return publicReply({error:e instanceof Error?e.message:'Revisa los datos.'},400);}
   const {data:prev}=await db.from('aliado_clientas').select('numero,aliado_id,aliados(nombre_completo)').eq('clienta_documento',d.clienta_documento).maybeSingle();
   const {data:admins}=await db.from('profiles').select('email').eq('rol','admin').eq('activo',true);
   const adminEmails=(admins||[]).map(a=>a.email).filter(Boolean) as string[];
@@ -35,7 +38,7 @@ export async function POST(request:Request){
   const id=clientId(row.numero),origin=process.env.FIRST_VISIT_PUBLIC_ORIGIN?.replace(/\/$/,'')||new URL(request.url).origin;
   await Promise.all([
    sendAllyEmail(String(d.rep_correo||d.clienta_correo),allyClientConfirmEmail(d.clienta_nombre,id,ally.nombre_completo,`${origin}/agendar-primera-cita`)),
-   sendAllyEmail(ally.correo,allyClientNoticeEmail(ally.nombre_completo,d.clienta_nombre,`${d.tipo_evento==='XV'?'XV años':'Gala'} ${d.categoria}`)),
+   sendAllyEmail(ally.correo,allyClientNoticeEmail(ally.nombre_completo,d.clienta_nombre,`${ALLY_EVENT_LABEL[d.tipo_evento]} ${d.categoria}`)),
   ]);
   return publicReply({ok:true,id});
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
