@@ -33,7 +33,7 @@ export default function AgendaPanel(){
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {tab!=='historial'&&<div className={styles.toolbar} style={{marginBottom:16}}>
-   <label>Sede<select value={site} onChange={e=>setSite(e.target.value)}>{config.sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}{config.propietario||config.sedes_editables.includes(s.id)?'':' (solo consulta)'}</option>)}</select></label>
+   <label>Sede<select value={site} onChange={e=>setSite(e.target.value)}>{config.sedes.filter(s=>config.propietario||!config.sedes_editables.length||config.sedes_editables.includes(s.id)).map(s=><option key={s.id} value={s.id}>{s.nombre}{config.propietario||config.sedes_editables.includes(s.id)?'':' (solo consulta)'}</option>)}</select></label>
    {tab!=='estado'&&<label>Modalidad<select value={mode} onChange={e=>setMode(e.target.value as AgendaMode)}>{MODES.map(m=><option key={m} value={m}>{modeName(m)}</option>)}</select></label>}
    <span className={styles.help}>Cada sede tiene su propia agenda presencial y virtual.</span>
   </div>}

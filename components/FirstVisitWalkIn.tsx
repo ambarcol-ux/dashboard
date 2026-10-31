@@ -22,7 +22,8 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
  const min=minChars(cfg);
  useEffect(()=>{dialog.current?.showModal();},[]);
  useEffect(()=>{
-  void supabase.from('sedes').select('id,nombre').eq('activo',true).order('nombre').then(({data})=>{setSedes(data||[]);if(!profile.sede_id&&data?.[0])setSede(s=>s||data[0].id);});
+  // Only the sedes where this person may register visits.
+  void Promise.all([supabase.from('sedes').select('id,nombre').eq('activo',true).order('nombre'),supabase.rpc('sedes_primeras_visitas')]).then(([{data},{data:ok}])=>{const list=(data||[]).filter(x=>!Array.isArray(ok)||ok.includes(x.id));setSedes(list);setSede(s=>list.some(x=>x.id===s)?s:list[0]?.id||'');});
   void supabase.from('profiles').select('id,nombre,email').eq('activo',true).in('rol',['asesora','admin','Asesora','Admin']).order('nombre').then(({data})=>setAsesoras(data||[]));
  },[profile.sede_id]);
  // Duplicate check on phone, ID card or email against visits, contracts and ally clients.
