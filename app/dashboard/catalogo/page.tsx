@@ -1,7 +1,7 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
-import {BookOpen,Download} from 'lucide-react';
+import {BookOpen,Download,Link2} from 'lucide-react';
 import SupplierShell,{type ShellProfile} from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
 import {cop} from '@/lib/rental-price';
@@ -33,6 +33,20 @@ function Catalog({profile}:{profile:ShellProfile}){
   &&(!soloFoto||!!(d.foto_frente||d.imagen_url))&&(!text||`${d.codigo} ${d.nombre} ${d.color}`.toLowerCase().includes(text))),[rows,tipo,categoria,sede,soloFoto,text]);
  const categorias=[...new Set(rows.filter(d=>!tipo||String(d.clasificacion_id)===tipo).map(d=>d.categoria).filter(Boolean))].sort() as string[];
  const canEdit=profile.rol==='admin';
+ // Public links of the current filter (tipo, categoría, sede): /c/[token], always up to date with the inventory.
+ type PublicLink={token:string;titulo:string;activo:boolean;created_at:string;creado_por:string|null};
+ const [links,setLinks]=useState<PublicLink[]>([]),[notice,setNotice]=useState('');
+ const loadLinks=()=>supabase.from('catalogos_publicos').select('token,titulo,activo,created_at,creado_por').order('created_at',{ascending:false}).limit(50).then(({data})=>setLinks((data||[]) as PublicLink[]));
+ useEffect(()=>{void loadLinks();},[]);
+ const urlOf=(t:string)=>`${window.location.origin}/c/${t}`;
+ const copy=async(t:string)=>{try{await navigator.clipboard.writeText(urlOf(t));setNotice('Link copiado.');}catch{setNotice(urlOf(t));}};
+ const createLink=async()=>{
+  const titulo=[tipo?tipoNombre(Number(tipo)):'Catálogo Ámbar Couture',categoria,sede?sedes.find(s=>s.id===sede)?.nombre:''].filter(Boolean).join(' · ');
+  const {data,error:e}=await supabase.from('catalogos_publicos').insert({titulo,clasificacion_id:tipo?Number(tipo):null,categoria:categoria||null,sede_id:sede||null,creado_por:profile.id}).select('token').single();
+  if(e||!data){setNotice('No se pudo crear el link.');return;}
+  await copy(data.token);void loadLinks();
+ };
+ const toggle=async(l:PublicLink)=>{await supabase.from('catalogos_publicos').update({activo:!l.activo}).eq('token',l.token);void loadLinks();};
  const pdf=()=>{setBusy(true);void downloadCatalogPdf(list.map(d=>({codigo:d.codigo.trim(),nombre:d.nombre,tipo:tipoNombre(d.clasificacion_id),categoria:d.categoria,talla:d.talla,color:d.color,precio:d.precio_sugerido,foto:d.foto_frente||d.imagen_url})),
   [tipo?tipoNombre(Number(tipo)):'Todos los tipos',categoria||'todas las categorías',sede?sedes.find(s=>s.id===sede)?.nombre:'todas las sedes'].join(' · ')).finally(()=>setBusy(false));};
  return <section className={styles.card}>
@@ -43,7 +57,15 @@ function Catalog({profile}:{profile:ShellProfile}){
    <label>Buscar<input value={q} onChange={e=>setQ(e.target.value)} placeholder="Código, nombre o color"/></label>
    <label><input type="checkbox" checked={soloFoto} onChange={e=>setSoloFoto(e.target.checked)}/> Solo con foto</label>
    <button type="button" disabled={busy||!list.length} onClick={pdf} className={styles.primary}><Download size={14}/> {busy?'Generando…':`Catálogo PDF (${list.length})`}</button>
+   <button type="button" onClick={()=>void createLink()} className={styles.primary} title="Crea un link público con este filtro (tipo, categoría y sede) y lo copia"><Link2 size={14}/> Copiar link público</button>
   </div>
+  {notice&&<p role="status" style={{marginBottom:10,fontWeight:700,wordBreak:'break-all'}}>{notice}</p>}
+  {links.length>0&&<details style={{marginBottom:14}}><summary style={{cursor:'pointer',fontWeight:800}}>Links públicos ({links.filter(l=>l.activo).length} activos)</summary>
+   {links.map(l=><p key={l.token} style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center',margin:'6px 0',fontSize:13,opacity:l.activo?1:.5}}>
+    <b>{l.titulo}</b> · {new Date(l.created_at).toLocaleDateString('es-CO')}
+    {l.activo&&<button type="button" onClick={()=>void copy(l.token)}>Copiar</button>}
+    {(canEdit||l.creado_por===profile.id)&&<button type="button" onClick={()=>void toggle(l)}>{l.activo?'Desactivar':'Activar'}</button>}</p>)}
+  </details>}
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))',gap:14}}>
    {list.map(d=><article key={d.id} style={{border:'1px solid #eee',borderRadius:16,overflow:'hidden',background:'#fff'}}>
