@@ -1011,6 +1011,8 @@ export default function InventoryPage() {
                 </div>
                 <h3 className="text-xl font-black text-gray-900 tracking-tighter uppercase mb-1">{v.codigo}</h3>
                 <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-6 italic">{clasificacionNombre(v.clasificacion_id) || 'Sin Clasificar'}{v.categoria ? ` · ${v.categoria}` : ''}{v.archivado ? ' · Archivado' : ''}</p>
+                <p className="text-sm font-bold text-gray-600 -mt-4 mb-2 break-words">{v.nombre || 'Sin descripción'}{v.talla || v.color ? ` · Talla ${v.talla || '—'} · ${v.color || '—'}` : ''}</p>
+                {canEditSavedRecords(user, userPermissions) && !v.archivado && <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDress(v); }} className="mb-4 px-4 py-2 rounded-xl bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-widest">Editar referencia y descripción</button>}
                 
                 <div className="space-y-4 pt-4 border-t border-gray-50">
                   {v.estado === 'De Baja' && (
