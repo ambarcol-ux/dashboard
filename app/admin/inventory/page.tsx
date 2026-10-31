@@ -1630,25 +1630,40 @@ function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]
   };
   // Google Drive: shared folder link; the server imports a few photos per call until the folder ends.
   const [carpeta, setCarpeta] = useState(''), [driveError, setDriveError] = useState('');
-  const runDrive = async () => {
-    setBusy(true); setLog([]); setDone(0); setTotal(0); setDriveError('');
+  type Sug = { file: { id: string; name: string; carpeta: string }; archivo: string; candidatos: { id: string; codigo: string; nombre: string | null; color: string | null; precio: number | null; puntaje: number }[]; elegido: string };
+  const [sugs, setSugs] = useState<Sug[]>([]);
+  const callDrive = async (payload: object) => {
+    const { data: s } = await supabase.auth.getSession();
+    const r = await fetch('/api/inventario/drive', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.session?.access_token || ''}` }, body: JSON.stringify(payload) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'No se pudo importar.');
+    return d;
+  };
+  type Row = { archivo: string; tipo: string; mensaje: string; file?: Sug['file']; candidatos?: Sug['candidatos'] };
+  const addRows = (rows: Row[]) => {
+    setLog(l => [...l, ...rows.filter(x => x.tipo !== 'sugerencia').map(x => ({ archivo: x.archivo, resultado: (x.tipo === 'aviso' ? '⚠ ' : x.tipo === 'omitido' ? '↺ ' : '') + x.mensaje, ok: x.tipo === 'ok' || x.tipo === 'aviso' || x.tipo === 'omitido' }))]);
+    const nuevas = rows.filter(x => x.tipo === 'sugerencia' && x.file && x.candidatos?.length).map(x => ({ file: x.file!, archivo: x.archivo, candidatos: x.candidatos!, elegido: x.candidatos![0].puntaje >= 75 ? x.candidatos![0].id : '' }));
+    if (nuevas.length) setSugs(p => [...p, ...nuevas]);
+  };
+  // Approved suggestions: upload each photo to the chosen dress.
+  const approve = async () => {
+    const ok = sugs.filter(x => x.elegido); if (!ok.length) return;
+    setBusy(true); setDriveError('');
     try {
-      const { data: s } = await supabase.auth.getSession();
-      const call = async (payload: object) => {
-        const r = await fetch('/api/inventario/drive', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.session?.access_token || ''}` }, body: JSON.stringify(payload) });
-        const d = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(d.error || 'No se pudo importar.');
-        return d;
-      };
-      // 1. Walk the folder and its subfolders; 2. import 8 photos per call.
-      const { archivos = [] } = await call({ accion: 'listar', carpeta }) as { archivos?: { id: string; name: string; carpeta: string }[] };
+      for (let i = 0; i < ok.length; i += 8) addRows((await callDrive({ accion: 'importar', archivos: ok.slice(i, i + 8).map(x => ({ ...x.file, vestido_id: x.elegido })) })).resultados || []);
+      setSugs(p => p.filter(x => !x.elegido));
+    } catch (e) { setDriveError(e instanceof Error ? e.message : 'No se pudo importar.'); } finally { setBusy(false); }
+  };
+  const runDrive = async () => {
+    setBusy(true); setLog([]); setSugs([]); setDone(0); setTotal(0); setDriveError('');
+    try {
+      // 1. Walk the folder and its subfolders; 2. import 8 photos per call (unclear names come back as suggestions).
+      const { archivos = [] } = await callDrive({ accion: 'listar', carpeta }) as { archivos?: Sug['file'][] };
       if (!archivos.length) throw new Error('No se encontraron fotos en esa carpeta ni en sus subcarpetas. Revisa que esté compartida como «Cualquier persona con el enlace».');
       setTotal(archivos.length);
       for (let i = 0; i < archivos.length; i += 8) {
-        const d = await call({ accion: 'importar', archivos: archivos.slice(i, i + 8) });
-        const rows = (d.resultados || []) as { archivo: string; tipo: string; mensaje: string }[];
+        addRows((await callDrive({ accion: 'importar', archivos: archivos.slice(i, i + 8) })).resultados || []);
         setDone(Math.min(archivos.length, i + 8));
-        setLog(l => [...l, ...rows.map(x => ({ archivo: x.archivo, resultado: (x.tipo === 'aviso' ? '⚠ ' : x.tipo === 'omitido' ? '↺ ' : '') + x.mensaje, ok: x.tipo === 'ok' || x.tipo === 'aviso' || x.tipo === 'omitido' }))]);
       }
     } catch (e) { setDriveError(e instanceof Error ? e.message : 'No se pudo importar.'); } finally { setBusy(false); }
   };
@@ -1673,6 +1688,17 @@ function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]
           <input type="file" accept="image/*" multiple disabled={busy} onChange={e => void run(e.target.files)} className="hidden" />
         </label>
         {total > 0 && <p className="font-bold text-gray-800">{busy ? `Subiendo ${done} de ${total}…` : `Listo: ${okCount} de ${total} fotos asignadas.`}</p>}
+        {sugs.length > 0 && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
+          <p className="text-sm font-black text-amber-900">Por aprobar ({sugs.length}): el nombre no coincide exacto con la referencia</p>
+          <p className="text-xs text-amber-800">Te proponemos el vestido más probable (mismos números iniciales, precio y color). Revisa, cambia si hace falta y aprueba.</p>
+          <ul className="space-y-2 text-xs">{sugs.map((x, i) => <li key={x.file.id} className="flex flex-wrap items-center gap-2">
+            <span className="font-bold text-gray-800 min-w-[200px] flex-1">{x.archivo}</span>
+            <select value={x.elegido} onChange={e => setSugs(p => p.map((y, j) => j === i ? { ...y, elegido: e.target.value } : y))} className="px-2 py-1 border border-amber-200 rounded-lg bg-white max-w-full">
+              <option value="">No subir</option>
+              {x.candidatos.map(c => <option key={c.id} value={c.id}>{c.puntaje}% · {c.codigo} · {c.nombre || ''} · {c.color || ''} · {c.precio ? '$' + Number(c.precio).toLocaleString('es-CO') : 'sin precio'}</option>)}
+            </select></li>)}</ul>
+          <button type="button" disabled={busy || !sugs.some(x => x.elegido)} onClick={() => void approve()} className="px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-black uppercase disabled:opacity-50">Aprobar y subir ({sugs.filter(x => x.elegido).length})</button>
+        </div>}
         {!busy && errores.length > 0 && <button type="button" onClick={exportErrors} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase">Descargar lista por corregir ({errores.length})</button>}
         <ul className="text-xs space-y-1">{log.map((l, i) => <li key={i} className={l.ok ? 'text-emerald-700' : 'text-rose-700'}><b>{l.archivo}</b> → {l.resultado}</li>)}</ul>
         <button type="button" disabled={busy} onClick={onClose} className="px-5 py-3 rounded-xl bg-gray-900 text-white text-xs font-black uppercase">Cerrar</button>
