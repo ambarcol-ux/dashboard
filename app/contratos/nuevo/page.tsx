@@ -28,7 +28,14 @@ import { cop } from '@/lib/rental-price';
 const MONEY_FIELDS = ['valor_total', 'servicios_adicionales', 'anticipo', 'valor_deposito'];
 const TIPOS_DOC = ['CC', 'CE', 'TI', 'Pasaporte', 'PPT', 'NIT'];
 const NUMERIC_DOCS = ['CC', 'TI', 'NIT'];
-const ACCESORIOS_SI_NO = ['Cancán', 'Ganchos', 'Tiara', 'Caja de tiara', 'Cojines'];
+// Accessories come from Configuración › Listas (lista 'accesorios'); saved as "Nombre: cantidad".
+const ACCESORIO_ALIAS: Record<string, string> = { 'Aro/Gitana': 'Cancán / Aro', 'Cancán': 'Cancán / Aro' };
+const leerAccesorio = (a: string) => {
+  const [, n = a, r] = a.match(/^(.*?)(?::\s*(.*))?$/) || [];
+  const nombre = ACCESORIO_ALIAS[n.trim()] || n.trim(), resto = (r || '').trim();
+  const cantidad = !resto ? 1 : /^no$/i.test(resto) ? 0 : Number(resto.match(/\d+/)?.[0] || (/^s[ií]/i.test(resto) ? 1 : 0));
+  return { nombre, cantidad };
+};
 const onlyDigits = (v: string) => v.replace(/[^0-9]/g, '');
 /** Money typed as $500.000; the form keeps only the number. */
 const moneyShow = (v: unknown) => { const t = String(v ?? '').trim(); if (!t) return ''; const n = /^\d+(\.\d+)?$/.test(t) ? Math.round(Number(t)) : Number(onlyDigits(t)); return Number.isFinite(n) ? cop(n) : ''; };
@@ -177,7 +184,6 @@ export default function NuevoContratoPage() {
     setFechasBloqueoEspecial(prev => prev.filter((_, i) => i !== idx));
 
   const [accesoriosSeleccionados, setAccesoriosSeleccionados] = useState<string[]>([]);
-  const opcionesAccesorios = ["Tiara", "Corbatín", "Corbata", "Pañuelo", "Velo/Mantilla", "Aro/Gitana"];
 
   const [metodosPago, setMetodosPago] = useState<string[]>([]);
   const [anticipoSoportes, setAnticipoSoportes] = useState<UploadedSupport[]>([]);
@@ -200,10 +206,10 @@ export default function NuevoContratoPage() {
   const [loadingVestidos, setLoadingVestidos] = useState(false);
   const [asesorasList, setAsesorasList] = useState<any[]>([]);
   const [misSedes, setMisSedes] = useState<string[]>([]);
-  const [listas, setListas] = useState<{ banco: string[]; tipo_cuenta: string[] }>({ banco: [], tipo_cuenta: [] });
+  const [listas, setListas] = useState<{ banco: string[]; tipo_cuenta: string[]; accesorios: string[] }>({ banco: [], tipo_cuenta: [], accesorios: [] });
   const cargarListas = async () => {
     const { data } = await supabase.from('listas_contrato').select('lista, valor').eq('activo', true).order('orden');
-    setListas({ banco: (data || []).filter(x => x.lista === 'banco').map(x => x.valor), tipo_cuenta: (data || []).filter(x => x.lista === 'tipo_cuenta').map(x => x.valor) });
+    setListas({ banco: (data || []).filter(x => x.lista === 'banco').map(x => x.valor), tipo_cuenta: (data || []).filter(x => x.lista === 'tipo_cuenta').map(x => x.valor), accesorios: (data || []).filter(x => x.lista === 'accesorios').map(x => x.valor) });
   };
   // Administrator edits the bank / account type lists ("-Valor" removes it).
   const editarLista = async (lista: 'banco' | 'tipo_cuenta') => {
@@ -2136,31 +2142,18 @@ export default function NuevoContratoPage() {
               <div className="space-y-3">
                 <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2"><Briefcase className="w-4 h-4 text-rose-500" /> Accesorios Incluidos</h3>
                 <div className="grid grid-cols-2 gap-3 p-4 border border-gray-200 rounded-xl bg-white shadow-sm">
-                  {opcionesAccesorios.map(ac => (
-                    <label key={ac} className="flex items-center gap-2 text-sm font-medium text-gray-700 cursor-pointer hover:text-rose-600 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={accesoriosSeleccionados.includes(ac)}
-                        onChange={() => handleCheckboxArray(ac, accesoriosSeleccionados, setAccesoriosSeleccionados)}
-                        className="w-4 h-4 accent-rose-500 rounded"
-                      />
-                      {ac}
-                    </label>
-                  ))}
-                  {ACCESORIOS_SI_NO.map(k => {
-                    const actual = accesoriosSeleccionados.find(a => a.startsWith(k + ': '))?.slice(k.length + 2) || '';
-                    const poner = (v: string) => setAccesoriosSeleccionados(prev => [...prev.filter(a => !a.startsWith(k + ': ')), ...(v ? [`${k}: ${v}`] : [])]);
-                    const si = actual.startsWith('Sí');
+                  {listas.accesorios.map(k => {
+                    const actual = accesoriosSeleccionados.map(leerAccesorio).filter(x => x.nombre === k).reduce((t, x) => t + x.cantidad, 0);
+                    const poner = (v: number) => setAccesoriosSeleccionados(prev => [...prev.filter(a => leerAccesorio(a).nombre !== k), ...(v > 0 ? [`${k}: ${v}`] : [])]);
                     return (
-                      <div key={k} className="col-span-2 flex flex-wrap items-center gap-2 text-sm font-medium text-gray-700">
-                        <span className="min-w-[7rem]">{k}</span>
-                        <select value={actual ? (si ? 'Sí' : 'No') : ''} onChange={e => poner(e.target.value === 'Sí' && k === 'Ganchos' ? 'Sí (1)' : e.target.value)} className="bg-gray-50 border border-gray-200 rounded-lg px-2 py-1">
-                          <option value="">—</option><option>Sí</option><option>No</option>
-                        </select>
-                        {k === 'Ganchos' && si && <input type="number" min="1" aria-label="Cantidad de ganchos" value={actual.match(/\((\d+)\)/)?.[1] || '1'} onChange={e => poner(`Sí (${Math.max(1, Number(e.target.value) || 1)})`)} className="w-20 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1" />}
-                      </div>
+                      <label key={k} className="flex items-center justify-between gap-2 text-sm font-medium text-gray-700">
+                        <span>{k}</span>
+                        <input type="number" min="0" max="20" aria-label={`Cantidad de ${k}`} value={actual || ''} placeholder="0" onChange={e => poner(Math.min(20, Math.max(0, Number(e.target.value) || 0)))} className="w-16 bg-gray-50 border border-gray-200 rounded-lg px-2 py-1 text-right" />
+                      </label>
                     );
                   })}
+                  {accesoriosSeleccionados.filter(a => !listas.accesorios.includes(leerAccesorio(a).nombre)).length > 0 && <p className="col-span-2 text-xs text-gray-400">Registrados antes: {accesoriosSeleccionados.filter(a => !listas.accesorios.includes(leerAccesorio(a).nombre)).join(', ')}</p>}
+                  <p className="col-span-2 text-xs text-gray-400">Cantidad en 0 = no incluido. La lista se edita en Configuración base › Listas.</p>
                 </div>
               </div>
 
