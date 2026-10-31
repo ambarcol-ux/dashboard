@@ -13,7 +13,7 @@ interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo';
 }
 
 export default function Sidebar({ user, handleLogout, activePage, pendingDeposits }: SidebarProps) {
@@ -60,6 +60,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
         { id: 'pedidos_estrene', label: 'PEDIDOS ESTRENE', icon: ShoppingBag, href: '/dashboard/pedidos-estrene', color: 'violet' },
         { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'emerald' },
         { id: 'aliados_directos', label: 'ALIADOS DIRECTOS', icon: Handshake, href: '/dashboard/aliados-directos', color: 'rose' },
+        { id: 'catalogo', label: 'CATÁLOGO', icon: BookOpen, href: '/dashboard/catalogo', color: 'rose' },
       ]
     },
     {
@@ -123,14 +124,14 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
 
   // Upcoming modules: shown greyed out, without link, only to the Administrador role.
   const comingSoon: Record<string, string[]> = {
-    'VENTAS Y CRM': ['CLIENTES', 'COTIZACIONES', 'CATÁLOGO'],
+    'VENTAS Y CRM': ['CLIENTES', 'COTIZACIONES'],
     'INVENTARIO': ['TRASLADOS', 'MANTENIMIENTO Y ARREGLOS', 'TOMA FÍSICA'],
     'OPERACIONES Y LOGÍSTICA': ['ENTREGAS Y DEVOLUCIONES', 'ADAPTACIONES Y CONFECCIÓN'],
     'COMPRAS Y PROVEEDORES': ['ÓRDENES DE COMPRA'],
     'FINANZAS Y CONTABILIDAD': ['CUENTAS POR COBRAR', 'GASTOS Y PRESUPUESTO', 'CONCILIACIÓN BANCARIA', 'CONCILIACIÓN CON SIIGO'],
     'RECURSOS HUMANOS': ['NÓMINA', 'CONTRATOS LABORALES', 'VACACIONES E INCAPACIDADES'],
     'REPORTES E INDICADORES': ['ESTADO DE RESULTADOS POR SEDE', 'RENTABILIDAD POR VESTIDO', 'TABLEROS POR MÓDULO'],
-    'CONFIGURACIÓN': ['INTEGRACIONES', 'LISTAS'],
+    'CONFIGURACIÓN': ['INTEGRACIONES'],
   };
   const showComingSoon = isAdminProfile(user);
   const blocksWithSoon: SidebarBlock[] = sidebarBlocks.map(block => ({

@@ -28,7 +28,8 @@ export default function InventoryPage() {
   const [loading, setLoading] = useState(true);
   const [vestidos, setVestidos] = useState<any[]>([]);
   const [sedes, setSedes] = useState<any[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
+  // ?q=CODE (from the Catálogo) pre-fills the search.
+  const [searchTerm, setSearchTerm] = useState(() => typeof window === 'undefined' ? '' : new URLSearchParams(window.location.search).get('q') || '');
   const [updatingId, setUpdatingId] = useState<string | number | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
   const [isModalOpen, setIsModalOpen] = useState(false);
