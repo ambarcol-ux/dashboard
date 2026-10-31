@@ -1634,16 +1634,22 @@ function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]
     setBusy(true); setLog([]); setDone(0); setTotal(0); setDriveError('');
     try {
       const { data: s } = await supabase.auth.getSession();
-      let next: string | null = null, n = 0;
-      do {
-        const r: Response = await fetch('/api/inventario/drive', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.session?.access_token || ''}` }, body: JSON.stringify({ carpeta, pageToken: next }) });
+      const call = async (payload: object) => {
+        const r = await fetch('/api/inventario/drive', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.session?.access_token || ''}` }, body: JSON.stringify(payload) });
         const d = await r.json().catch(() => ({}));
         if (!r.ok) throw new Error(d.error || 'No se pudo importar.');
+        return d;
+      };
+      // 1. Walk the folder and its subfolders; 2. import 8 photos per call.
+      const { archivos = [] } = await call({ accion: 'listar', carpeta }) as { archivos?: { id: string; name: string; carpeta: string }[] };
+      if (!archivos.length) throw new Error('No se encontraron fotos en esa carpeta ni en sus subcarpetas. Revisa que esté compartida como «Cualquier persona con el enlace».');
+      setTotal(archivos.length);
+      for (let i = 0; i < archivos.length; i += 8) {
+        const d = await call({ accion: 'importar', archivos: archivos.slice(i, i + 8) });
         const rows = (d.resultados || []) as { archivo: string; tipo: string; mensaje: string }[];
-        n += rows.length; setTotal(n); setDone(n);
+        setDone(Math.min(archivos.length, i + 8));
         setLog(l => [...l, ...rows.map(x => ({ archivo: x.archivo, resultado: (x.tipo === 'aviso' ? '⚠ ' : x.tipo === 'omitido' ? '↺ ' : '') + x.mensaje, ok: x.tipo === 'ok' || x.tipo === 'aviso' || x.tipo === 'omitido' }))]);
-        next = d.next;
-      } while (next);
+      }
     } catch (e) { setDriveError(e instanceof Error ? e.message : 'No se pudo importar.'); } finally { setBusy(false); }
   };
   const errores = log.filter(l => !l.ok || l.resultado.startsWith('⚠'));
