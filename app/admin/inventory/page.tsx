@@ -47,7 +47,7 @@ export default function InventoryPage() {
   const [clasificaciones, setClasificaciones] = useState<DressClassification[]>([]);
   const [clasificacionFilter, setClasificacionFilter] = useState<string>(''); // '' todas, 'none' sin clasificar, o id
   const [categoriaFilter, setCategoriaFilter] = useState<string>('');
-  const [catalogBusy, setCatalogBusy] = useState(false); // '' todas, 'none' sin categoría, o nombre
+  const [catalogBusy, setCatalogBusy] = useState(false), [bulkOpen, setBulkOpen] = useState(false); // '' todas, 'none' sin categoría, o nombre
   const [showArchived, setShowArchived] = useState(false);
   const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado'>('bandeja');
   const [removalTarget, setRemovalTarget] = useState<{id: string; codigo: string} | null>(null);
@@ -673,6 +673,11 @@ export default function InventoryPage() {
           >
             <Download className="w-4 h-4" /> {catalogBusy ? 'Generando…' : 'Catálogo PDF'}
           </button>
+          {canEditSavedRecords(user, userPermissions) && <button type="button" onClick={() => setBulkOpen(true)}
+            className="w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 whitespace-nowrap bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
+            title="Sube muchas fotos: la referencia al inicio del nombre del archivo indica el vestido">
+            <Plus className="w-4 h-4" /> Carga masiva de fotos
+          </button>}
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
              <div className="px-6 py-4 bg-gray-50 rounded-2xl text-gray-400 font-black text-[10px] uppercase tracking-widest border border-gray-100 italic whitespace-nowrap">
                {showArchived ? 'ARCHIVADOS' : 'TOTAL STOCK'}: {filtered.length}
@@ -690,6 +695,7 @@ export default function InventoryPage() {
           </div>
         </div>
 
+        {bulkOpen && <BulkPhotos vestidos={vestidos} onClose={() => { setBulkOpen(false); loadData(); }} />}
         {editingDress && <EditDressModal dress={editingDress} clasificaciones={clasificaciones} onClose={() => setEditingDress(null)} onSaved={() => { setEditingDress(null); loadData(); }} />}
         {/* Modal Nuevo Vestido */}
         {isModalOpen && (
@@ -1587,6 +1593,54 @@ async function resizePhoto(file: File): Promise<Blob> {
   canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
   canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
   return await new Promise((ok, fail) => canvas.toBlob(b => b ? ok(b) : fail(new Error('No se pudo procesar la foto.')), 'image/jpeg', 0.82));
+}
+/** Reference at the start of a file name: «1001 450000.jpg» → 1001; «QP8RJ1416-frente.png» → QP8RJ1416. */
+const codeCandidates = (name: string) => { const base = name.replace(/\.[^.]+$/, '').trim().toUpperCase(); return [base.match(/^[A-Z0-9]+(?:-[A-Z0-9]+)*/)?.[0], base.match(/^[A-Z0-9]+/)?.[0]].filter((x): x is string => !!x); };
+/** Bulk photo upload: each file goes to the dresses whose reference starts its name, in the first free slot (front, back, detail). */
+function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]; onClose: () => void }) {
+  const [log, setLog] = useState<{ archivo: string; resultado: string; ok: boolean }[]>([]), [busy, setBusy] = useState(false), [done, setDone] = useState(0), [total, setTotal] = useState(0);
+  const run = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setBusy(true); setLog([]); setDone(0); setTotal(files.length);
+    const byCode = new Map<string, Record<string, unknown>[]>();
+    for (const v of vestidos) { const k = String(v.codigo || '').trim().toUpperCase(); if (k) byCode.set(k, [...(byCode.get(k) || []), { ...v }]); }
+    for (const file of Array.from(files)) {
+      const cands = codeCandidates(file.name), code = cands.find(c => byCode.has(c)) || cands[cands.length - 1] || '', targets = byCode.get(code) || [];
+      let resultado = '', ok = false;
+      try {
+        if (!code || !targets.length) throw new Error(`No hay vestido con la referencia «${code || file.name}».`);
+        const blob = await resizePhoto(file), done: string[] = [];
+        for (const v of targets) {
+          const slot = PHOTO_SLOTS.find(([f]) => !v[f])?.[0];
+          if (!slot) { done.push(`${v.codigo}: ya tiene 3 fotos`); continue; }
+          const path = `${v.id}/${slot}-${Date.now()}.jpg`;
+          const { error } = await supabase.storage.from('vestidos_fotos').upload(path, blob, { contentType: blob.type || 'image/jpeg' });
+          if (error) throw error;
+          const url = supabase.storage.from('vestidos_fotos').getPublicUrl(path).data.publicUrl;
+          const patch: Record<string, string> = { [slot]: url, ...(slot === 'foto_frente' ? { imagen_url: url } : {}) };
+          const { error: e2 } = await supabase.from('vestidos').update(patch).eq('id', v.id);
+          if (e2) throw e2;
+          Object.assign(v, patch); done.push(`${v.codigo} · ${PHOTO_SLOTS.find(([f]) => f === slot)?.[1]}`); ok = true;
+        }
+        resultado = done.join(' · ');
+      } catch (e) { resultado = e instanceof Error ? e.message : (e as { message?: string })?.message || 'No se pudo subir.'; }
+      setLog(l => [...l, { archivo: file.name, resultado, ok }]); setDone(d => d + 1);
+    }
+    setBusy(false);
+  };
+  const okCount = log.filter(l => l.ok).length;
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !busy && onClose()}>
+      <div className="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4" onClick={e => e.stopPropagation()}>
+        <h3 className="text-xl font-black text-gray-900">Carga masiva de fotos</h3>
+        <p className="text-sm text-gray-600">Elige varias fotos a la vez. Cada archivo debe empezar con la referencia del vestido (por ejemplo <b>1001 450000.jpg</b>). Se guarda en el primer espacio libre: frente, espalda y detalle. Si la referencia está en varias sedes, la foto va a todas. Fotos de Google Drive: descárgalas primero al equipo.</p>
+        <input type="file" accept="image/*" multiple disabled={busy} onChange={e => void run(e.target.files)} className="block w-full text-sm" />
+        {total > 0 && <p className="font-bold text-gray-800">{busy ? `Subiendo ${done} de ${total}…` : `Listo: ${okCount} de ${total} fotos asignadas.`}</p>}
+        <ul className="text-xs space-y-1">{log.map((l, i) => <li key={i} className={l.ok ? 'text-emerald-700' : 'text-rose-700'}><b>{l.archivo}</b> → {l.resultado}</li>)}</ul>
+        <button type="button" disabled={busy} onClick={onClose} className="px-5 py-3 rounded-xl bg-gray-900 text-white text-xs font-black uppercase">Cerrar</button>
+      </div>
+    </div>
+  );
 }
 /** Catalog step 2: three photos per dress (front, back, detail); the front one is the list image. */
 function DressPhotos({ dress, canEdit, onSaved }: { dress: Record<string, unknown>; canEdit: boolean; onSaved: (patch: Record<string, string>) => void }) {
