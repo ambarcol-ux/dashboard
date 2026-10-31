@@ -33,6 +33,7 @@ export const PANELS:Panel[]=[
  {id:'proveedores',label:'Gestión de proveedores',href:'/dashboard/proveedores',block:'PROVEEDORES',paths:['/dashboard/proveedores'],grantable:false},
  {id:'proveedores-pagos',label:'Pagos a proveedores',href:'/dashboard/proveedores/pagos',block:'PROVEEDORES',paths:['/dashboard/proveedores/pagos'],grantable:false},
  {id:'metas',label:'Metas y ventas',href:'/admin/metas',block:'VENTAS & CRM',paths:['/admin/metas'],staff:true,grantable:true},
+ {id:'catalogo',label:'Catálogo de vestidos',href:'/dashboard/catalogo',block:'VENTAS & CRM',paths:['/dashboard/catalogo'],staff:true,grantable:true},
  {id:'aliados_directos',label:'Aliados directos',href:'/dashboard/aliados-directos',block:'RED DE ALIADOS',paths:['/dashboard/aliados-directos'],staff:true,grantable:true},
  {id:'aliados_admin',label:'Gestión de aliados',href:'/dashboard/admin/aliados',block:'RED DE ALIADOS',paths:['/dashboard/admin/aliados'],grantable:true},
  {id:'users',label:'Gestión de equipo',href:'/admin/users',block:'ADMINISTRACIÓN',paths:['/admin/users'],grantable:false},
