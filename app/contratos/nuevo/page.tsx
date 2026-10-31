@@ -137,9 +137,15 @@ export default function NuevoContratoPage() {
   const [aliadoModo, setAliadoModo] = useState<ContractAllyModeValue>(EMPTY_ALLY_MODE);
   const valorAlquilerNum = parseFloat(String(formData.valor_total).replace(/[^0-9.-]+/g, '')) || 0;
   // Aliado: 5% discount only on the dress line (rental value).
-  const descuentoAliado = aliadoModo.tiene ? Math.round(valorAlquilerNum * ALLY_DISCOUNT) : 0;
+  // Configuración › Parámetros: aliado discount and minimum payment (%).
+  const [aliadoPct, setAliadoPct] = useState({ descuento: ALLY_DISCOUNT * 100, minimo: 50 });
+  useEffect(() => { void supabase.from('config_parametros').select('clave,valor').in('clave', ['aliado_descuento_pct', 'aliado_pago_minimo_pct']).then(({ data }) => {
+    const v = Object.fromEntries((data || []).map(r => [r.clave, Number(r.valor)]));
+    setAliadoPct(p => ({ descuento: Number.isFinite(v.aliado_descuento_pct) ? v.aliado_descuento_pct : p.descuento, minimo: Number.isFinite(v.aliado_pago_minimo_pct) ? v.aliado_pago_minimo_pct : p.minimo }));
+  }); }, []);
+  const descuentoAliado = aliadoModo.tiene ? Math.round(valorAlquilerNum * aliadoPct.descuento / 100) : 0;
   const aliadoModoError = () => isEditMode ? (aliadoModo.tiene && !aliadoModo.aliado ? 'En modo Aliado busca y carga el aliado.' : null)
-    : allyModeError(aliadoModo, Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0), parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, '')) || 0);
+    : allyModeError(aliadoModo, Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0), parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, '')) || 0, aliadoPct.minimo);
   const sendAllyMeasures = async (contratoId: string) => {
     if (!aliadoModo.tiene) return;
     const { data: s } = await supabase.auth.getSession();
@@ -1790,7 +1796,7 @@ export default function NuevoContratoPage() {
 
 
           {!isEditMode&&!firstVisit&&!aliadoModo.tiene&&<ContractVisitPicker onPick={id=>{if(sedesList.length)void loadVisit(id);}}/>}
-          <ContractAllyMode value={aliadoModo} onChange={setAliadoModo} descuento={descuentoAliado} numero={editingContractNumber}
+          <ContractAllyMode value={aliadoModo} onChange={setAliadoModo} descuento={descuentoAliado} descuentoPct={aliadoPct.descuento} minimoPct={aliadoPct.minimo} numero={editingContractNumber}
             total={Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0)}
             disabled={isEditMode && !['borrador','pendiente_admin'].includes(String(editingContractState).toLowerCase()) && String(userRole).toLowerCase() !== 'admin'}
             onAlly={a => setFormData(prev => ({ ...prev, cliente_nombre: a.nombre, cliente_documento: a.cedula, cliente_email: a.correo, whatsapp: a.celular, direccion: a.direccion }))}

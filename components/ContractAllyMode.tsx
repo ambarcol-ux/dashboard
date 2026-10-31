@@ -9,7 +9,7 @@ import {EMPTY_ALLY_MODE,type ContractAlly,type ContractAllyModeValue} from '@/li
 const money=(v:number)=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(v);
 
 /** Classification at the start of the lease contract: Cliente directo (unchanged) or Aliado (ally is the client; the ally's client data are loaded). */
-export default function ContractAllyMode({value,onChange,onAlly,onClienta,descuento,total,numero,disabled}:{value:ContractAllyModeValue;onChange:(v:ContractAllyModeValue)=>void;onAlly:(a:ContractAlly)=>void;onClienta:(c:AllyClient)=>void;descuento:number;total:number;numero:string;disabled?:boolean}){
+export default function ContractAllyMode({value,onChange,onAlly,onClienta,descuento,total,numero,disabled,descuentoPct=5,minimoPct=50}:{descuentoPct?:number;minimoPct?:number;value:ContractAllyModeValue;onChange:(v:ContractAllyModeValue)=>void;onAlly:(a:ContractAlly)=>void;onClienta:(c:AllyClient)=>void;descuento:number;total:number;numero:string;disabled?:boolean}){
  const [cats,setCats]=useState<AllyCategory[]>([]);
  useEffect(()=>{void supabase.rpc('categorias_aliado').then(({data})=>setCats((data||[]) as AllyCategory[]));},[]);
  const [qa,setQa]=useState(''),[qc,setQc]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
@@ -35,7 +35,7 @@ export default function ContractAllyMode({value,onChange,onAlly,onClienta,descue
       {value.categoria!==c.categoria&&<p className="text-xs text-amber-700">Cambio de categoría ({c.categoria} → {value.categoria}): ajusta el valor del alquiler; el cambio queda en el historial.</p>}
      </div>
     :<div className="mt-1 flex gap-2"><input className={box} disabled={disabled} placeholder="ID de clienta (CLI-00001), tarjeta de identidad o cédula del representante" value={qc} onChange={e=>setQc(e.target.value)}/><button type="button" disabled={busy||!qc.trim()} onClick={()=>void loadClient()} className="px-4 rounded-xl bg-violet-600 text-white text-sm font-bold disabled:opacity-50">Cargar</button></div>}</div>}
-   <p className="text-xs text-gray-600">Descuento aliado 5% sobre el vestido: <b>{money(descuento)}</b> · Pago mínimo 50%: <b>{money(Math.round(total*0.5))}</b> · Referencia de pago: <b>{numero||'el número del contrato (se asigna al crear)'}</b> · No se despacha con saldo pendiente.</p>
+   <p className="text-xs text-gray-600">Descuento aliado {descuentoPct}% sobre el vestido: <b>{money(descuento)}</b> · Pago mínimo {minimoPct}%: <b>{money(Math.round(total*minimoPct/100))}</b> · Referencia de pago: <b>{numero||'el número del contrato (se asigna al crear)'}</b> · No se despacha con saldo pendiente.</p>
   </>}
  </section>;
 }

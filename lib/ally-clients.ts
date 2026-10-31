@@ -43,10 +43,12 @@ export const EMPTY_ALLY_MODE:ContractAllyModeValue={tiene:false,aliado:null,clie
 export const ALLY_DISCOUNT=0.05;
 /** Columns saved on the contract for the Aliado mode (Cliente directo clears them in the database). */
 export const allyModePayload=(v:ContractAllyModeValue,descuento:number)=>({tiene_aliado:v.tiene,aliado_id:v.tiene?v.aliado?.id??null:null,aliado_clienta_id:v.tiene?v.clienta?.id??null:null,categoria_aliado:v.tiene?v.categoria||null:null,descuento_aliado:v.tiene?descuento:0});
-export function allyModeError(v:ContractAllyModeValue,total:number,anticipo:number){
+/** minPct: Configuración › Parámetros «aliado_pago_minimo_pct» (default 50). */
+export function allyModeError(v:ContractAllyModeValue,total:number,anticipo:number,minPct=50){
  if(!v.tiene)return null;
  if(!v.aliado)return 'En modo Aliado busca y carga el aliado.';
  if(!v.clienta)return 'Carga la clienta del aliado (ID, tarjeta de identidad o cédula del representante).';
- if(anticipo<Math.round(total*0.5))return `En modo Aliado el pago mínimo para crear el contrato es el 50% (${new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(Math.round(total*0.5))}).`;
+ const minimo=Math.round(total*minPct/100);
+ if(anticipo<minimo)return `En modo Aliado el pago mínimo para crear el contrato es el ${minPct}% (${new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(minimo)}).`;
  return null;
 }
