@@ -1653,7 +1653,7 @@ function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => !busy && onClose()}>
       <div className="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4" onClick={e => e.stopPropagation()}>
         <h3 className="text-xl font-black text-gray-900">Carga masiva de fotos</h3>
-        <p className="text-sm text-gray-600">Elige varias fotos a la vez. Cada archivo debe empezar con la referencia del vestido (por ejemplo <b>1001 450000.jpg</b>). Se guarda en el primer espacio libre: frente, espalda y detalle. Si la referencia está en varias sedes, la foto va a todas. Fotos de Google Drive: descárgalas primero al equipo.</p>
+        <p className="text-sm text-gray-600">Elige varias fotos a la vez. Cada archivo debe empezar con la referencia del vestido (por ejemplo <b>1001 450000.jpg</b>). Se guarda en el primer espacio libre: frente, espalda y detalle. Si la referencia está en varias sedes, la foto va a todas. Puedes traerlas directo de una carpeta de Google Drive o elegirlas del equipo.</p>
         <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-2">
           <p className="text-sm font-black text-gray-900">Desde Google Drive</p>
           <p className="text-xs text-gray-600">Comparte la carpeta como «Cualquier persona con el enlace» (lector) y pega aquí el link. El sistema revisa referencia y precio de cada archivo y te dice cuáles corregir. Puedes repetirla: las fotos ya cargadas no se duplican.</p>
@@ -1662,7 +1662,10 @@ function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]
           {driveError && <p role="alert" className="text-xs font-bold text-rose-700">{driveError}</p>}
         </div>
         <p className="text-sm font-black text-gray-900">O desde este equipo</p>
-        <input type="file" accept="image/*" multiple disabled={busy} onChange={e => void run(e.target.files)} className="block w-full text-sm" />
+        <label className={`inline-flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-black uppercase cursor-pointer ${busy ? 'bg-gray-200 text-gray-400' : 'bg-rose-500 text-white hover:bg-rose-600'}`}>
+          <Plus className="w-4 h-4" /> Elegir fotos del equipo
+          <input type="file" accept="image/*" multiple disabled={busy} onChange={e => void run(e.target.files)} className="hidden" />
+        </label>
         {total > 0 && <p className="font-bold text-gray-800">{busy ? `Subiendo ${done} de ${total}…` : `Listo: ${okCount} de ${total} fotos asignadas.`}</p>}
         {!busy && errores.length > 0 && <button type="button" onClick={exportErrors} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase">Descargar lista por corregir ({errores.length})</button>}
         <ul className="text-xs space-y-1">{log.map((l, i) => <li key={i} className={l.ok ? 'text-emerald-700' : 'text-rose-700'}><b>{l.archivo}</b> → {l.resultado}</li>)}</ul>

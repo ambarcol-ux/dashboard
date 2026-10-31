@@ -14,7 +14,6 @@ export async function POST(request:Request){
  const bearer=request.headers.get('authorization')||'';
  if(!bearer.startsWith('Bearer '))return reply({error:'Inicia sesión.'},401);
  const key=process.env.GOOGLE_DRIVE_API_KEY;
- if(!key)return reply({error:'Falta configurar la clave de Google Drive (GOOGLE_DRIVE_API_KEY) en el servidor.'},503);
  let body:{carpeta?:string;pageToken?:string};
  try{body=JSON.parse((await request.text()).slice(0,4000)||'{}');}catch{return reply({error:'Datos no válidos.'},400);}
  const folder=driveFolderId(String(body.carpeta||''));
@@ -25,10 +24,9 @@ export async function POST(request:Request){
  const [{data:admin},{data:perms}]=await Promise.all([db.rpc('es_admin'),db.rpc('mis_permisos')]);
  if(admin!==true&&!(Array.isArray(perms)&&perms.includes('registros.editar_guardados')))return reply({error:'No tienes permiso para cargar fotos.'},403);
 
- const q=encodeURIComponent(`'${folder}' in parents and trashed=false and mimeType contains 'image/'`);
- const list=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,mimeType,size)&orderBy=name&pageSize=${PAGE}&key=${key}${body.pageToken?`&pageToken=${encodeURIComponent(body.pageToken)}`:''}`);
- if(!list.ok)return reply({error:list.status===404||list.status===403?'No se pudo abrir la carpeta: compártela como «Cualquier persona con el enlace» (lector).':'Google Drive no respondió. Intenta de nuevo.'},400);
- const page=await list.json() as {nextPageToken?:string;files?:{id:string;name:string;mimeType:string;size?:string}[]};
+ let page:{nextPageToken?:string|null;files?:DriveFile[]};
+ try{page=key?await listWithKey(folder,key,body.pageToken):await listPublic(folder,body.pageToken);}
+ catch(e){return reply({error:e instanceof Error?e.message:'Google Drive no respondió. Intenta de nuevo.'},400);}
 
  const {data:dresses,error:de}=await db.from('vestidos').select('id,codigo,precio_sugerido,foto_frente,foto_espalda,foto_detalle').eq('archivado',false);
  if(de)return reply({error:'No se pudo leer el inventario.'},500);
@@ -44,9 +42,10 @@ export async function POST(request:Request){
   const pending=targets.filter(v=>!PHOTO_FIELDS.some(k=>String(v[k]||'').includes(`drive-${f.id}`)));
   if(!pending.length){resultados.push({archivo:f.name,tipo:'omitido',mensaje:'Ya estaba cargada.'});continue;}
   try{
-   const file=await fetch(`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${key}`);
-   if(!file.ok)throw Error('No se pudo descargar de Drive.');
+   const file=await fetch(key?`https://www.googleapis.com/drive/v3/files/${f.id}?alt=media&key=${key}`:`https://drive.usercontent.google.com/download?id=${f.id}&export=download&confirm=t`);
+   if(!file.ok||(!key&&!String(file.headers.get('content-type')||'').startsWith('image/')))throw Error('No se pudo descargar de Drive: revisa que la carpeta esté compartida como «Cualquier persona con el enlace».');
    const bytes=await file.arrayBuffer(),hechos:string[]=[],avisos:string[]=[];
+   if(bytes.byteLength>MAX)throw Error('La foto pesa más de 10 MB.');
    for(const v of pending){
     const slot=PHOTO_FIELDS.find(k=>!v[k]);
     if(!slot){avisos.push(`${v.codigo} ya tiene 3 fotos`);continue;}
@@ -65,4 +64,28 @@ export async function POST(request:Request){
   }catch(e){resultados.push({archivo:f.name,tipo:'error',mensaje:e instanceof Error?e.message:'No se pudo subir.'});}
  }
  return reply({resultados,next:page.nextPageToken||null});
+}
+
+type DriveFile={id:string;name:string;mimeType:string;size?:string};
+const MIME:Record<string,string>={jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',webp:'image/webp',heic:'image/heic',heif:'image/heif'};
+/** With an API key: Drive API v3, PAGE files per call. */
+async function listWithKey(folder:string,key:string,token?:string){
+ const q=encodeURIComponent(`'${folder}' in parents and trashed=false and mimeType contains 'image/'`);
+ const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=nextPageToken,files(id,name,mimeType,size)&orderBy=name&pageSize=${PAGE}&key=${key}${token?`&pageToken=${encodeURIComponent(token)}`:''}`);
+ if(!r.ok)throw Error(r.status===404||r.status===403?'No se pudo abrir la carpeta: compártela como «Cualquier persona con el enlace» (lector).':'Google Drive no respondió. Intenta de nuevo.');
+ return await r.json() as {nextPageToken?:string;files?:DriveFile[]};
+}
+/** Without a key: the public folder view of a folder shared «anyone with the link»; PAGE files per call by position. */
+async function listPublic(folder:string,token?:string){
+ const r=await fetch(`https://drive.google.com/embeddedfolderview?id=${encodeURIComponent(folder)}`);
+ const html=r.ok?await r.text():'';
+ const decode=(t:string)=>t.replace(/&amp;/g,'&').replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/&lt;/g,'<').replace(/&gt;/g,'>').trim();
+ const all:DriveFile[]=[];
+ for(const m of html.matchAll(/id="entry-([A-Za-z0-9_-]{10,})"[\s\S]*?class="flip-entry-title">([^<]*)</g)){
+  const name=decode(m[2]),ext=name.split('.').pop()?.toLowerCase()||'';
+  if(MIME[ext])all.push({id:m[1],name,mimeType:MIME[ext]});
+ }
+ if(!r.ok||!/flip-entry|flip-list/.test(html))throw Error('No se pudo abrir la carpeta: compártela como «Cualquier persona con el enlace» (lector).');
+ const from=Number(token)||0;
+ return {files:all.sort((a,b)=>a.name.localeCompare(b.name)).slice(from,from+PAGE),nextPageToken:from+PAGE<all.length?String(from+PAGE):null};
 }
