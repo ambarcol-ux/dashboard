@@ -1,3 +1,4 @@
+import {useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 
 /** Configuración (Listas, Parámetros y Formularios) shared by the modules; edited only by Administración. */
@@ -21,3 +22,12 @@ export async function loadModuleConfig(modulo:string,listPrefix:string):Promise<
 export const minChars=(c:ModuleConfig)=>Number(c.params.min_caracteres)||30;
 /** Field state, 'obligatorio' when not configured. */
 export const fieldState=(c:ModuleConfig,form:string,field:string):FieldState=>c.forms[`${form}.${field}`]||'obligatorio';
+
+/** Active values of several Configuración lists (React hook for client pages). */
+export function useLists(names:string[]){
+ const key=names.join('|');
+ const [lists,setLists]=useState<Record<string,string[]>>({});
+ useEffect(()=>{let live=true;void supabase.from('listas_contrato').select('lista,valor').in('lista',key.split('|')).eq('activo',true).order('orden').then(({data})=>{
+  if(!live)return;const out:Record<string,string[]>={};for(const r of data||[])(out[r.lista]??=[]).push(r.valor);setLists(out);});return()=>{live=false;};},[key]);
+ return lists;
+}
