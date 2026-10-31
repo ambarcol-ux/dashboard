@@ -1,4 +1,5 @@
 'use client';
+import { downloadCatalogPdf } from '@/lib/dress-catalog-pdf';
 import {usePermissions} from '@/lib/use-permissions';
 import {canEditSavedRecords} from '@/lib/saved-record-editing';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
@@ -40,7 +41,8 @@ export default function InventoryPage() {
   });
   const [clasificaciones, setClasificaciones] = useState<DressClassification[]>([]);
   const [clasificacionFilter, setClasificacionFilter] = useState<string>(''); // '' todas, 'none' sin clasificar, o id
-  const [categoriaFilter, setCategoriaFilter] = useState<string>(''); // '' todas, 'none' sin categoría, o nombre
+  const [categoriaFilter, setCategoriaFilter] = useState<string>('');
+  const [catalogBusy, setCatalogBusy] = useState(false); // '' todas, 'none' sin categoría, o nombre
   const [showArchived, setShowArchived] = useState(false);
   const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado'>('bandeja');
   const [removalTarget, setRemovalTarget] = useState<{id: string; codigo: string} | null>(null);
@@ -642,8 +644,8 @@ export default function InventoryPage() {
             onClick={() => {
               // No xlsx library in the project: CSV UTF-8 with BOM opens directly in Excel.
               const cell = (x: unknown) => { const t = String(x ?? ''); return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
-              const head = ['Código','Nombre','Clasificación','Talla','Color','Precio alquiler','Precio venta','Sede actual','Estado','Novedades'];
-              const rows = filtered.map(v => [v.codigo, v.nombre, clasificacionNombre(v.clasificacion_id) || '', v.talla, v.color, v.precio_sugerido ?? '', v.precio_venta ?? '', sedes.find(s => s.id === v.sede_actual_id)?.nombre || 'Sin sede', v.estado, novedadesDe(v).join(' · ')]);
+              const head = ['Código','Nombre','Clasificación','Categoría','Talla','Color','Precio alquiler','Precio venta','Sede actual','Estado','Novedades'];
+              const rows = filtered.map(v => [v.codigo, v.nombre, clasificacionNombre(v.clasificacion_id) || '', v.categoria || '', v.talla, v.color, v.precio_sugerido ?? '', v.precio_venta ?? '', sedes.find(s => s.id === v.sede_actual_id)?.nombre || 'Sin sede', v.estado, novedadesDe(v).join(' · ')]);
               const blob = new Blob(['\uFEFF' + [head, ...rows].map(r => r.map(cell).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' });
               const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `inventario-${new Date().toISOString().slice(0, 10)}.csv`; a.click(); URL.revokeObjectURL(a.href);
             }}
@@ -652,6 +654,20 @@ export default function InventoryPage() {
           >
             <Download className="w-4 h-4" /> Exportar
           </button>}
+          <button
+            disabled={catalogBusy || !filtered.length}
+            onClick={() => {
+              setCatalogBusy(true);
+              const tipo = clasificacionFilter && clasificacionFilter !== 'none' ? clasificacionNombre(Number(clasificacionFilter)) : '';
+              const sub = [tipo || 'Todos los tipos', categoriaFilter && categoriaFilter !== 'none' ? categoriaFilter : 'todas las categorías'].join(' · ');
+              void downloadCatalogPdf(filtered.map(v => ({ codigo: String(v.codigo).trim(), nombre: v.nombre, tipo: clasificacionNombre(v.clasificacion_id) || 'Sin tipo', categoria: v.categoria || null, talla: v.talla, color: v.color, precio: Number(v.precio_sugerido) || null, foto: v.foto_frente || v.imagen_url || null })), sub)
+                .catch(() => toast.error('No se pudo generar el catálogo.')).finally(() => setCatalogBusy(false));
+            }}
+            className="w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 whitespace-nowrap bg-rose-50 text-rose-600 border-rose-100 hover:bg-rose-100 disabled:opacity-50"
+            title="Catálogo en PDF con fotos de la lista filtrada (por tipo y categoría)"
+          >
+            <Download className="w-4 h-4" /> {catalogBusy ? 'Generando…' : 'Catálogo PDF'}
+          </button>
           <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
              <div className="px-6 py-4 bg-gray-50 rounded-2xl text-gray-400 font-black text-[10px] uppercase tracking-widest border border-gray-100 italic whitespace-nowrap">
                {showArchived ? 'ARCHIVADOS' : 'TOTAL STOCK'}: {filtered.length}
