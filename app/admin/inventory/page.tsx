@@ -696,7 +696,7 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        {bulkOpen && <BulkPhotos vestidos={vestidos} onClose={() => { setBulkOpen(false); loadData(); }} />}
+        {bulkOpen && <BulkPhotos vestidos={vestidos} sedes={sedes} sedeInicial={sedeFilter && sedeFilter !== 'none' ? sedeFilter : ''} onClose={() => { setBulkOpen(false); loadData(); }} />}
         {editingDress && <EditDressModal dress={editingDress} clasificaciones={clasificaciones} onClose={() => setEditingDress(null)} onSaved={() => { setEditingDress(null); loadData(); }} />}
         {/* Modal Nuevo Vestido */}
         {isModalOpen && (
@@ -1597,13 +1597,14 @@ async function resizePhoto(file: File): Promise<Blob> {
 }
 /** Reference at the start of a file name: «1001 450000.jpg» → 1001; «QP8RJ1416-frente.png» → QP8RJ1416. */
 /** Bulk photo upload: each file goes to the dresses whose reference starts its name, in the first free slot (front, back, detail). */
-function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]; onClose: () => void }) {
+function BulkPhotos({ vestidos, sedes, sedeInicial, onClose }: { vestidos: Record<string, unknown>[]; sedes: { id: string; nombre: string }[]; sedeInicial: string; onClose: () => void }) {
+  const [sede, setSede] = useState(sedeInicial);
   const [log, setLog] = useState<{ archivo: string; resultado: string; ok: boolean }[]>([]), [busy, setBusy] = useState(false), [done, setDone] = useState(0), [total, setTotal] = useState(0);
   const run = async (files: FileList | null) => {
     if (!files?.length) return;
     setBusy(true); setLog([]); setDone(0); setTotal(files.length);
     const byCode = new Map<string, Record<string, unknown>[]>();
-    for (const v of vestidos) { const k = String(v.codigo || '').trim().toUpperCase(); if (k) byCode.set(k, [...(byCode.get(k) || []), { ...v }]); }
+    for (const v of vestidos.filter(x => !sede || x.sede_actual_id === sede)) { const k = String(v.codigo || '').trim().toUpperCase(); if (k) byCode.set(k, [...(byCode.get(k) || []), { ...v }]); }
     for (const file of Array.from(files)) {
       const cands = codeCandidates(file.name), code = cands.find(c => byCode.has(c)) || cands[cands.length - 1] || '', targets = byCode.get(code) || [];
       let resultado = '', ok = false;
@@ -1650,7 +1651,7 @@ function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]
     const ok = sugs.filter(x => x.elegido); if (!ok.length) return;
     setBusy(true); setDriveError('');
     try {
-      for (let i = 0; i < ok.length; i += 8) addRows((await callDrive({ accion: 'importar', archivos: ok.slice(i, i + 8).map(x => ({ ...x.file, vestido_id: x.elegido })) })).resultados || []);
+      for (let i = 0; i < ok.length; i += 8) addRows((await callDrive({ accion: 'importar', sede, archivos: ok.slice(i, i + 8).map(x => ({ ...x.file, vestido_id: x.elegido })) })).resultados || []);
       setSugs(p => p.filter(x => !x.elegido));
     } catch (e) { setDriveError(e instanceof Error ? e.message : 'No se pudo importar.'); } finally { setBusy(false); }
   };
@@ -1662,7 +1663,7 @@ function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]
       if (!archivos.length) throw new Error('No se encontraron fotos en esa carpeta ni en sus subcarpetas. Revisa que esté compartida como «Cualquier persona con el enlace».');
       setTotal(archivos.length);
       for (let i = 0; i < archivos.length; i += 8) {
-        addRows((await callDrive({ accion: 'importar', archivos: archivos.slice(i, i + 8) })).resultados || []);
+        addRows((await callDrive({ accion: 'importar', sede, archivos: archivos.slice(i, i + 8) })).resultados || []);
         setDone(Math.min(archivos.length, i + 8));
       }
     } catch (e) { setDriveError(e instanceof Error ? e.message : 'No se pudo importar.'); } finally { setBusy(false); }
@@ -1675,6 +1676,11 @@ function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]
       <div className="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4" onClick={e => e.stopPropagation()}>
         <h3 className="text-xl font-black text-gray-900">Carga masiva de fotos</h3>
         <p className="text-sm text-gray-600">Elige varias fotos a la vez. Cada archivo debe empezar con la referencia del vestido (por ejemplo <b>1001 450000.jpg</b>). Se guarda en el primer espacio libre: frente, espalda y detalle. Si la referencia está en varias sedes, la foto va a todas. Puedes traerlas directo de una carpeta de Google Drive o elegirlas del equipo.</p>
+        <label className="block text-sm font-black text-gray-900">Sede de los vestidos
+          <select value={sede} disabled={busy} onChange={e => setSede(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-bold">
+            <option value="">Todas las sedes (la referencia en varias sedes recibe la foto en todas)</option>
+            {sedes.map(x => <option key={x.id} value={x.id}>Solo {x.nombre}</option>)}
+          </select></label>
         <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-2">
           <p className="text-sm font-black text-gray-900">Desde Google Drive</p>
           <p className="text-xs text-gray-600">Comparte la carpeta como «Cualquier persona con el enlace» (lector) y pega aquí el link. El sistema revisa referencia y precio de cada archivo y te dice cuáles corregir. Puedes repetirla: las fotos ya cargadas no se duplican.</p>

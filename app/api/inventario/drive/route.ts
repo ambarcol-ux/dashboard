@@ -14,7 +14,7 @@ export async function POST(request:Request){
  if(request.headers.get('origin')&&request.headers.get('origin')!==new URL(request.url).origin)return reply({error:'Solicitud no permitida.'},403);
  const bearer=request.headers.get('authorization')||'';
  if(!bearer.startsWith('Bearer '))return reply({error:'Inicia sesión.'},401);
- let body:{accion?:string;carpeta?:string;archivos?:DriveFile[]};
+ let body:{accion?:string;carpeta?:string;archivos?:DriveFile[];sede?:string};
  try{body=JSON.parse((await request.text()).slice(0,200000)||'{}');}catch{return reply({error:'Datos no válidos.'},400);}
  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:auth}=await db.auth.getUser(bearer.slice(7));
@@ -31,10 +31,13 @@ export async function POST(request:Request){
  }
 
  const files=(Array.isArray(body.archivos)?body.archivos:[]).slice(0,BATCH).filter(f=>/^[A-Za-z0-9_-]{10,}$/.test(String(f?.id)));
- const {data:dresses,error:de}=await db.from('vestidos').select('id,codigo,nombre,color,precio_sugerido,foto_frente,foto_espalda,foto_detalle').eq('archivado',false);
+ const {data:dresses,error:de}=await db.from('vestidos').select('id,codigo,nombre,color,precio_sugerido,foto_frente,foto_espalda,foto_detalle,sede_actual_id').eq('archivado',false);
  if(de)return reply({error:'No se pudo leer el inventario.'},500);
+ // Only the dresses of the chosen sede receive photos (all sedes when none is chosen).
+ const sede=/^[0-9a-f-]{36}$/i.test(String(body.sede||''))?String(body.sede):'';
+ const pool=(dresses||[]).filter(v=>!sede||v.sede_actual_id===sede);
  const byCode=new Map<string,Record<string,unknown>[]>();
- for(const v of dresses||[]){const k=String(v.codigo||'').trim().toUpperCase();if(k)byCode.set(k,[...(byCode.get(k)||[]),v]);}
+ for(const v of pool){const k=String(v.codigo||'').trim().toUpperCase();if(k)byCode.set(k,[...(byCode.get(k)||[]),v]);}
 
  // Drive files already imported (any dress), so a repeated import skips them, also the approved ones.
  const imported=new Set<string>();
@@ -48,11 +51,11 @@ export async function POST(request:Request){
   const code=fromFile.find(c=>byCode.has(c))||fromFolder.find(c=>byCode.has(c))||fromFile.at(-1)||fromFolder.at(-1)||'';
   const source=fromFile.includes(code)?String(f.name):String(f.carpeta||'');
   // An approved suggestion names the dress; otherwise the exact reference.
-  const approved=f.vestido_id?(dresses||[]).find(v=>String(v.id)===String(f.vestido_id)):null;
+  const approved=f.vestido_id?pool.find(v=>String(v.id)===String(f.vestido_id)):null;
   const targets=approved?[approved]:byCode.get(code)||[];
   if(!targets.length){
-   const list=dresses as unknown as DressRef[],candidatos=suggestDresses(String(f.name),list).length?suggestDresses(String(f.name),list):suggestDresses(String(f.carpeta||''),list);
-   resultados.push(candidatos.length?{archivo:label,tipo:'sugerencia',mensaje:'Revisa y aprueba el vestido.',file:f,candidatos}:{archivo:label,tipo:'error',mensaje:`No hay vestido con la referencia «${code||'—'}». Revisa el nombre o el código en Inventario.`});
+   const list=pool as unknown as DressRef[],candidatos=suggestDresses(String(f.name),list).length?suggestDresses(String(f.name),list):suggestDresses(String(f.carpeta||''),list);
+   resultados.push(candidatos.length?{archivo:label,tipo:'sugerencia',mensaje:'Revisa y aprueba el vestido.',file:f,candidatos}:{archivo:label,tipo:'error',mensaje:`No hay vestido con la referencia «${code||'—'}»${sede?' en esta sede':''}. Revisa el nombre o el código en Inventario.`});
    continue;
   }
   const pending=targets.filter(v=>!PHOTO_FIELDS.some(k=>String(v[k]||'').includes(`drive-${f.id}`)));
