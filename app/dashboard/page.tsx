@@ -71,6 +71,12 @@ import FollowupSummary from '@/components/FollowupSummary';
 import ContractSuppliers from '@/components/suppliers/ContractSuppliers';
 import { panelAccess } from '@/lib/panel-access';
 
+/** Photos of the contract's dresses (front, else any loaded photo), up to 3, for a quick visual reference. */
+const fotosVestidos = (c: { prendas?: { vestido?: Record<string, unknown> | null }[]; items?: { vestido?: Record<string, unknown> | null }[] }) =>
+  (c.prendas || c.items || []).map(p => p.vestido).filter((v): v is Record<string, unknown> => !!v)
+    .map(v => ({ codigo: String(v.codigo || ''), url: (v.foto_frente || v.imagen_url || v.foto_espalda || v.foto_detalle || '') as string }))
+    .filter(f => f.url).slice(0, 3);
+
 export default function DashboardPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
@@ -2871,6 +2877,7 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-2">
+                        {fotosVestidos(c).length > 0 && <div className="flex gap-1">{fotosVestidos(c).map((f, i) => <img key={i} src={f.url} alt={f.codigo} title={f.codigo} loading="lazy" className="w-12 h-16 rounded-lg object-cover border border-gray-100" />)}</div>}
                         <span className="text-xs font-bold text-gray-500 line-clamp-1 max-w-[100px]" title="Vestidos Atados">
                           Vestidos: {loading ? '(Cargando...)' : (c.vestidos_count || c.prendas?.length || 0)}
                         </span>
@@ -2960,7 +2967,7 @@ export default function DashboardPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-700">
-                        {c.vestidos_count || c.prendas?.length || 0}
+                        <div className="flex items-center gap-1">{fotosVestidos(c).map((f, i) => <img key={i} src={f.url} alt={f.codigo} title={f.codigo} loading="lazy" className="w-9 h-12 rounded-md object-cover border border-gray-100" />)}<span className="ml-1">{c.vestidos_count || c.prendas?.length || 0}</span></div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{c.sede}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
