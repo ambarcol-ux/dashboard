@@ -1,4 +1,5 @@
 import {createClient} from '@supabase/supabase-js';
+import sharp from 'sharp';
 import {PHOTO_FIELDS,codeCandidates,driveFolderId,priceFromName,slotFromName,suggestDresses,type DressRef,type Suggestion} from '@/lib/dress-photos';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -71,14 +72,16 @@ export async function POST(request:Request){
    const type=String(file.headers.get('content-type')||'').split(';')[0].trim();
    if(!file.ok)throw Error('No se pudo descargar de Drive: revisa que la carpeta esté compartida como «Cualquier persona con el enlace».');
    if(!TYPES.includes(type))throw Error(/heic|heif/i.test(type)?'La foto está en HEIC (iPhone): guárdala como JPG.':`No es una foto JPG, PNG o WebP (${type||'desconocido'}).`);
-   const bytes=await file.arrayBuffer(),hechos:string[]=[],avisos:string[]=[];
-   if(bytes.byteLength>MAX)throw Error('La foto pesa más de 10 MB.');
+   const original=await file.arrayBuffer(),hechos:string[]=[],avisos:string[]=[];
+   if(original.byteLength>MAX)throw Error('La foto pesa más de 10 MB.');
+   // Same size as photos uploaded by hand: up to 1600 px, JPEG 82 %, upright (EXIF rotation applied).
+   const bytes=await sharp(Buffer.from(original)).rotate().resize(1600,1600,{fit:'inside',withoutEnlargement:true}).jpeg({quality:82,mozjpeg:true}).toBuffer();
    for(const v of pending){
     const hint=slotFromName(String(f.name))||slotFromName(String(f.carpeta||''));
     const slot=hint&&!v[hint]?hint:PHOTO_FIELDS.find(k=>!v[k]);
     if(!slot){avisos.push(`${v.codigo} ya tiene sus 3 fotos`);continue;}
-    const path=`${v.id}/drive-${f.id}-${slot}.${type.split('/')[1].replace('jpeg','jpg')}`;
-    const {error:ue}=await db.storage.from('vestidos_fotos').upload(path,bytes,{contentType:type});
+    const path=`${v.id}/drive-${f.id}-${slot}.jpg`;
+    const {error:ue}=await db.storage.from('vestidos_fotos').upload(path,bytes,{contentType:'image/jpeg'});
     if(ue)throw Error(ue.message);
     const url=db.storage.from('vestidos_fotos').getPublicUrl(path).data.publicUrl;
     const patch:Record<string,string>={[slot]:url,...(slot==='foto_frente'?{imagen_url:url}:{})};
