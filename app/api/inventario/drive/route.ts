@@ -21,8 +21,9 @@ export async function POST(request:Request){
  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:auth}=await db.auth.getUser(bearer.slice(7));
  if(!auth?.user)return reply({error:'Inicia sesión.'},401);
- const [{data:admin},{data:perms}]=await Promise.all([db.rpc('es_admin'),db.rpc('mis_permisos')]);
- if(admin!==true&&!(Array.isArray(perms)&&perms.includes('registros.editar_guardados')))return reply({error:'No tienes permiso para cargar fotos.'},403);
+ const {data:editables}=await db.rpc('sedes_inventario_editables');
+ if(!Array.isArray(editables)||!editables.length)return reply({error:'No tienes permiso para cargar fotos.'},403);
+ if(body.sede&&!editables.map(String).includes(String(body.sede)))return reply({error:'Solo puedes cargar fotos al inventario de tu sede.'},403);
  const key=process.env.GOOGLE_DRIVE_API_KEY;
 
  if(body.accion==='listar'){
