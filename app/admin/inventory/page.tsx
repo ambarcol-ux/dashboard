@@ -24,6 +24,9 @@ import {CLASSIFICATION_STYLES, UNCLASSIFIED_STYLE, type DressClassification} fro
 const soloDigitos = (t: string) => t.replace(/\D/g, '');
 const miles = (v: unknown) => { if (typeof v === 'number') return Number.isFinite(v) ? Math.round(v).toLocaleString('es-CO') : ''; const d = soloDigitos(String(v ?? '')); return d ? Number(d).toLocaleString('es-CO') : ''; };
 
+/** Preview photo of a dress: front, else any loaded photo. */
+const fotoDe = (v: Record<string, unknown>) => (v.foto_frente || v.imagen_url || v.foto_espalda || v.foto_detalle || null) as string | null;
+
 export default function InventoryPage() {
   const readAccess = useVerifiedAccess();
   const [loading, setLoading] = useState(true);
@@ -840,7 +843,7 @@ export default function InventoryPage() {
                             v.estado === 'Traslado' ? 'bg-amber-100 text-amber-600 animate-pulse' : 
                             'bg-rose-100 text-rose-500'
                           }`}>
-                            {v.imagen_url ? <img src={v.imagen_url} alt="" className="w-11 h-11 rounded-2xl object-cover" /> : v.estado === 'De Baja' ? 'X' : v.codigo.substring(0, 2)}
+                            {fotoDe(v) ? <img src={fotoDe(v)!} alt="" loading="lazy" className="w-11 h-11 rounded-2xl object-cover" /> : v.estado === 'De Baja' ? 'X' : v.codigo.substring(0, 2)}
                           </div>
                           <div className="min-w-0">
                             <div className="font-black text-gray-900 text-base tracking-tighter uppercase leading-none mb-1 break-all">{v.codigo}</div>
@@ -1011,12 +1014,13 @@ export default function InventoryPage() {
                 onClick={() => openDossier(v)}
               >
                 <div className="flex justify-between items-start mb-4">
-                  <div 
+                  {fotoDe(v) ? <img src={fotoDe(v)!} alt={v.nombre || v.codigo} loading="lazy" onClick={() => openDossier(v)} className="w-24 h-32 rounded-2xl object-cover shadow-sm border border-gray-100" />
+                  : <div 
                     className="w-14 h-14 bg-rose-100 text-rose-500 rounded-3xl flex items-center justify-center text-xl font-black shadow-inner rotate-3 group-hover:rotate-0 transition-transform"
                     onClick={() => openDossier(v)}
                   >
                     {v.codigo?.substring(0, 2) || '??'}
-                  </div>
+                  </div>}
                   <span className="text-[10px] font-black tracking-widest text-gray-300 uppercase">STOCK</span>
                 </div>
                 <h3 className="text-xl font-black text-gray-900 tracking-tighter uppercase mb-1">{v.codigo}</h3>
