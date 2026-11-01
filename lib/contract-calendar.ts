@@ -49,7 +49,7 @@ export type CalendarContract = {
   saldo?: number | null;
   items?: {
     vestido_id: string | null;
-    vestido?: { codigo?: string | null } | null;
+    vestido?: { codigo?: string | null; foto_frente?: string | null; foto_espalda?: string | null; foto_detalle?: string | null; imagen_url?: string | null } | null;
   }[];
 } & PrexvData & Partial<Record<MilestoneField, string | null>>;
 
@@ -88,7 +88,7 @@ export const calendarColumns = [
   'bloqueo_especial_vestido_id',
   'bloqueo_especial_referencia',
   ...milestoneTypes.map(t=>t.field),
-  'items:contrato_items_vestidos(vestido_id,vestido:vestidos(codigo))'
+  'items:contrato_items_vestidos(vestido_id,vestido:vestidos(codigo,foto_frente,foto_espalda,foto_detalle,imagen_url))'
 ].join(',');
 
 export function bogotaDay(value: string): string | null {

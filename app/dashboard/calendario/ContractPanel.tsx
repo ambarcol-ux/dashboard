@@ -80,6 +80,8 @@ export default function ContractPanel({
      .map(item=>item.vestido?.codigo)
      .filter((value):value is string=>Boolean(value))
  ));
+ // Photo of each dress (front, else any loaded photo) to recognize it at a glance.
+ const fotos=(contract.items||[]).map(i=>i.vestido).filter(v=>!!v).map(v=>({codigo:v!.codigo||'',url:v!.foto_frente||v!.imagen_url||v!.foto_espalda||v!.foto_detalle||''})).filter(f=>f.url);
  const refsLabel=refs.length?refs.join(' · '):(contract.referencia_vestido||'Ver referencias en contrato');
 
  const close=()=>{
@@ -225,6 +227,7 @@ export default function ContractPanel({
         <hr/>
         <p>Factura: {contract.numero_factura||'Sin asignar'}</p>
         <p>Referencias del contrato: {refsLabel}</p>
+        {fotos.length>0&&<div style={{display:'flex',gap:8,flexWrap:'wrap',margin:'6px 0'}}>{fotos.map((f,i)=><a key={i} href={f.url} target="_blank" rel="noopener noreferrer" title={f.codigo} style={{textAlign:'center',fontSize:11,fontWeight:700,color:'inherit',textDecoration:'none'}}><img src={f.url} alt={f.codigo} loading="lazy" style={{width:72,height:96,objectFit:'cover',borderRadius:10,border:'1px solid #eee',display:'block'}}/>{f.codigo}</a>)}</div>}
         <p>Valor: {cop(Number(contract.valor_total||0))}</p>
         <p>Saldo: {cop(saldoContrato(contract))}</p>
       </div>
