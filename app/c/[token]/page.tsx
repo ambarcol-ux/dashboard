@@ -7,15 +7,26 @@ import {cop} from '@/lib/rental-price';
 
 type Dress={codigo:string;nombre:string|null;talla:string|null;color:string|null;precio:number|null;tipo:string|null;categoria:string|null;foto:string|null;fotos?:(string|null)[]};
 
-/** Public catalog shared by link: photos and rental prices of the saved filter, always up to date with the inventory. */
+type Promo={nombre:string;beneficio:string;hasta:string;codigo:string|null;condiciones:string;categorias:string[]|null};
+
+/** Public catalog shared by link (/c/[token] or fixed /[sede]/[tipo]): photos and rental prices of the saved filter, always up to date with the inventory. */
 export default function PublicCatalogPage(){
- const token=String(useParams<{token:string}>().token||'');
- const [data,setData]=useState<{titulo:string;vestidos:Dress[]}|null>(null),[error,setError]=useState(''),[open,setOpen]=useState<Dress|null>(null);
- useEffect(()=>{void fetch(`/api/catalogo?t=${encodeURIComponent(token)}`).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo cargar el catálogo.');setData(d);}).catch(e=>setError(e.message));},[token]);
+ const params=useParams<{token?:string;sede?:string;tipo?:string}>(),token=String(params.token||'');
+ const query=token?`t=${encodeURIComponent(token)}`:`s=${encodeURIComponent(String(params.sede||'').toLowerCase())}&k=${encodeURIComponent(String(params.tipo||'').toLowerCase())}`;
+ const [data,setData]=useState<{titulo:string;sede_id:string|null;vestidos:Dress[];promociones?:Promo[]}|null>(null),[error,setError]=useState(''),[open,setOpen]=useState<Dress|null>(null);
+ // o= (origin of the link) travels to the booking form and is saved on the booked visit.
+ useEffect(()=>{void fetch(`/api/catalogo?${query}`).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo cargar el catálogo.');setData(d);}).catch(e=>setError(e.message));},[query]);
+ const book=()=>{const origin=(new URLSearchParams(window.location.search).get('o')||'').replace(/[^A-Za-z0-9._-]/g,'').slice(0,60);
+  window.location.href=`/agendar-primera-cita?${new URLSearchParams({...(data?.sede_id?{sede:data.sede_id}:{}),...(origin?{o:origin}:{})})}`;};
  return <main translate="no" className="min-h-screen bg-[#faf8f5] py-8 px-4">
   <div className="max-w-5xl mx-auto space-y-6">
    <header className="text-center"><p className="text-[11px] font-black tracking-[.2em] text-amber-700">ÁMBAR COUTURE</p><h1 className="text-2xl font-black text-gray-900 mt-2">{data?.titulo||'Catálogo'}</h1>
     {data&&<p className="text-sm text-gray-500 mt-1">{data.vestidos.length} vestidos · precios de alquiler</p>}</header>
+   {!!data?.promociones?.length&&<section className="space-y-2">{data.promociones.map(p=><article key={p.nombre} className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm">
+    <p className="font-black text-amber-900">{p.nombre} · {p.beneficio}</p>
+    <p className="text-amber-800 text-xs">Hasta el {p.hasta.split('-').reverse().join('/')}{p.categorias?.length?` · ${p.categorias.join(', ')}`:''}{p.codigo?` · Código ${p.codigo}`:''}</p>
+    {p.condiciones&&<p className="text-amber-800 text-xs mt-1">{p.condiciones}</p>}</article>)}</section>}
+   {data&&<p className="text-center"><button type="button" onClick={book} className="inline-block px-5 py-3 rounded-2xl bg-gray-900 text-white text-sm font-black">Agendar cita</button></p>}
    {error&&<p role="alert" className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-4 text-sm font-bold text-center">{error}</p>}
    {!data&&!error&&<p className="flex items-center justify-center gap-2 text-gray-500"><Loader2 className="w-5 h-5 animate-spin"/> Cargando…</p>}
    {data&&<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">

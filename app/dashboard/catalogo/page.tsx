@@ -7,6 +7,8 @@ import SupplierShell,{type ShellProfile} from '@/components/suppliers/SupplierSh
 import {supabase} from '@/lib/supabase';
 import {cop} from '@/lib/rental-price';
 import {downloadCatalogPdf} from '@/lib/dress-catalog-pdf';
+import {allySlug} from '@/lib/ally-validation';
+import {PROMO_FIELDS,promoApplies,promoBenefit,type Promotion} from '@/lib/promotions';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
 type Dress={id:string;codigo:string;nombre:string|null;talla:string|null;color:string|null;precio_sugerido:number|null;estado:string|null;categoria:string|null;clasificacion_id:number|null;sede_actual_id:string|null;foto_frente:string|null;foto_espalda:string|null;foto_detalle:string|null;imagen_url:string|null};
@@ -52,6 +54,12 @@ function Catalog({profile}:{profile:ShellProfile}){
   if(e||!data){setNotice('No se pudo crear el link.');return;}
   await copy(data.token);void loadLinks();
  };
+ // Fixed link /[sede]/[tipo] (catalogos_publicos.ruta, created on first visit); ?o= marks the origin of booked visits.
+ const fixedUrl=sede&&tipo?`/${allySlug(sedes.find(s=>s.id===sede)?.nombre||'')}/${allySlug(tipoNombre(Number(tipo)))}`:'';
+ const copyFixed=async()=>{const url=window.location.origin+fixedUrl;try{await navigator.clipboard.writeText(url);setNotice(`Enlace fijo copiado: ${url} (agrega ?o=origen para medir de dónde llegan las citas).`);}catch{setNotice(url);}};
+ const [promos,setPromos]=useState<Promotion[]>([]);
+ useEffect(()=>{void supabase.from('promociones').select(PROMO_FIELDS).eq('activo',true).then(({data})=>setPromos((data||[]) as Promotion[]));},[]);
+ const promosVisibles=promos.filter(p=>promoApplies(p,{sede:sede||null,tipos:[tipo?Number(tipo):null],categorias:[categoria||null]}));
  const toggle=async(l:PublicLink)=>{await supabase.from('catalogos_publicos').update({activo:!l.activo}).eq('token',l.token);void loadLinks();};
  const pdf=(modo:'una'|'tres'='una')=>{setBusy(true);void downloadCatalogPdf(list.map(d=>({codigo:d.codigo.trim(),nombre:d.nombre,tipo:tipoNombre(d.clasificacion_id),categoria:d.categoria,talla:d.talla,color:d.color,precio:d.precio_sugerido,foto:cover(d),fotos:[d.foto_frente||d.imagen_url,d.foto_espalda,d.foto_detalle]})),
   [tipo?tipoNombre(Number(tipo)):'Todos los tipos',categoria||'todas las categorías',sede?sedes.find(s=>s.id===sede)?.nombre:'todas las sedes'].join(' · '),modo).finally(()=>setBusy(false));};
@@ -66,6 +74,9 @@ function Catalog({profile}:{profile:ShellProfile}){
    <button type="button" disabled={busy||!list.length} onClick={()=>pdf('tres')} className={styles.primary} title="Un vestido por fila con frente, espalda y detalle"><Download size={14}/> PDF con 3 fotos</button>
    <button type="button" onClick={()=>void createLink()} className={styles.primary} title="Crea un link público con este filtro (tipo, categoría y sede) y lo copia"><Link2 size={14}/> Copiar link público</button>
   </div>
+  {fixedUrl&&<p style={{marginBottom:10}}><button type="button" onClick={()=>void copyFixed()} className={styles.primary}><Link2 size={14}/> Copiar enlace fijo</button></p>}
+  {promosVisibles.length>0&&<div style={{display:'grid',gap:6,marginBottom:14}}>{promosVisibles.map(p=><p key={p.id} style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:12,padding:'8px 12px',fontSize:13}}>
+   <b>{p.nombre}</b> · {promoBenefit(p)} · hasta {p.hasta.split('-').reverse().join('/')}{p.categorias?.length?` · ${p.categorias.join(', ')}`:''}{p.codigo?` · Código ${p.codigo}`:''}{p.condiciones&&<><br/><span style={{color:'#555'}}>{p.condiciones}</span></>}</p>)}</div>}
   {notice&&<p role="status" style={{marginBottom:10,fontWeight:700,wordBreak:'break-all'}}>{notice}</p>}
   {links.length>0&&<details style={{marginBottom:14}}><summary style={{cursor:'pointer',fontWeight:800}}>Links públicos ({links.filter(l=>l.activo).length} activos)</summary>
    {links.map(l=><p key={l.token} style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center',margin:'6px 0',fontSize:13,opacity:l.activo?1:.5}}>
