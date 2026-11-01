@@ -11,6 +11,7 @@ export async function middleware(req: NextRequest) {
   // Auth + RLS result may be forwarded to the server component.
   requestHeaders.delete(DEPOSIT_PROFILE_HEADER);
   requestHeaders.delete('x-ambar-profile-verified-at');
+  requestHeaders.delete('x-ambar-panel-ok');
   const next = () => NextResponse.next({ request: { headers: requestHeaders } });
   // Login must render even when Supabase Auth is slow or an old cookie exists.
   if (path === '/login' || path === '/agendar-primera-cita' || path === '/api/primeras-citas' || path === '/api/primeras-citas/gestionar' || path === '/api/primeras-citas/recuperar' || path === '/reprogramar-primera-cita' || path === '/api/primeras-citas/procesar' || path === '/api/primeras-citas/correos' || path === '/api/primeras-citas/whatsapp-script' || path === '/api/primeras-citas/eventos-crm' || path === '/api/primeras-citas/whatsapp' || path === '/agendar-primera-cita/gestionar') return next();
@@ -78,6 +79,8 @@ export async function middleware(req: NextRequest) {
     }
     requestHeaders.set(DEPOSIT_PROFILE_HEADER, encodeURIComponent(JSON.stringify({...profile, authEmail: user.email ?? null})));
     requestHeaders.set('x-ambar-profile-verified-at', String(Date.now()));
+    // The person's role grants this menu page (checked above): /admin pages open for granted roles too.
+    if (panel) requestHeaders.set('x-ambar-panel-ok', panel.id);
     return next();
   } catch (error) {
     console.error('La validación de acceso tardó demasiado:', error);
