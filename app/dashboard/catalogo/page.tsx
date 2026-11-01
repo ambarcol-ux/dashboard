@@ -52,8 +52,8 @@ function Catalog({profile}:{profile:ShellProfile}){
   await copy(data.token);void loadLinks();
  };
  const toggle=async(l:PublicLink)=>{await supabase.from('catalogos_publicos').update({activo:!l.activo}).eq('token',l.token);void loadLinks();};
- const pdf=()=>{setBusy(true);void downloadCatalogPdf(list.map(d=>({codigo:d.codigo.trim(),nombre:d.nombre,tipo:tipoNombre(d.clasificacion_id),categoria:d.categoria,talla:d.talla,color:d.color,precio:d.precio_sugerido,foto:cover(d)})),
-  [tipo?tipoNombre(Number(tipo)):'Todos los tipos',categoria||'todas las categorías',sede?sedes.find(s=>s.id===sede)?.nombre:'todas las sedes'].join(' · ')).finally(()=>setBusy(false));};
+ const pdf=(modo:'una'|'tres'='una')=>{setBusy(true);void downloadCatalogPdf(list.map(d=>({codigo:d.codigo.trim(),nombre:d.nombre,tipo:tipoNombre(d.clasificacion_id),categoria:d.categoria,talla:d.talla,color:d.color,precio:d.precio_sugerido,foto:cover(d),fotos:[d.foto_frente||d.imagen_url,d.foto_espalda,d.foto_detalle]})),
+  [tipo?tipoNombre(Number(tipo)):'Todos los tipos',categoria||'todas las categorías',sede?sedes.find(s=>s.id===sede)?.nombre:'todas las sedes'].join(' · '),modo).finally(()=>setBusy(false));};
  return <section className={styles.card}>
   <div className={styles.toolbar} style={{marginBottom:14}}>
    <label>Tipo<select value={tipo} onChange={e=>{setTipo(e.target.value);setCategoria('');}}><option value="">Todos</option>{tipos.map(t=><option key={t.id} value={t.id}>{t.nombre}</option>)}</select></label>
@@ -61,7 +61,8 @@ function Catalog({profile}:{profile:ShellProfile}){
    <label>Sede<select value={sede} onChange={e=>setSede(e.target.value)}><option value="">Todas</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
    <label>Buscar<input value={q} onChange={e=>setQ(e.target.value)} placeholder="Código, nombre o color"/></label>
    <label><input type="checkbox" checked={soloFoto} onChange={e=>setSoloFoto(e.target.checked)}/> Solo con foto</label>
-   <button type="button" disabled={busy||!list.length} onClick={pdf} className={styles.primary}><Download size={14}/> {busy?'Generando…':`Catálogo PDF (${list.length})`}</button>
+   <button type="button" disabled={busy||!list.length} onClick={()=>pdf()} className={styles.primary}><Download size={14}/> {busy?'Generando…':`Catálogo PDF (${list.length})`}</button>
+   <button type="button" disabled={busy||!list.length} onClick={()=>pdf('tres')} className={styles.primary} title="Un vestido por fila con frente, espalda y detalle"><Download size={14}/> PDF con 3 fotos</button>
    <button type="button" onClick={()=>void createLink()} className={styles.primary} title="Crea un link público con este filtro (tipo, categoría y sede) y lo copia"><Link2 size={14}/> Copiar link público</button>
   </div>
   {notice&&<p role="status" style={{marginBottom:10,fontWeight:700,wordBreak:'break-all'}}>{notice}</p>}
