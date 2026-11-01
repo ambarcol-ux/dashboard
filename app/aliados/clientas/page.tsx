@@ -11,8 +11,8 @@ const EMPTY={tipo_evento:'',categoria:'',rep_nombre:'',rep_cedula:'',rep_parente
 export default function AllyClientPage(){
  const [key,setKey]=useState<Key|null>(null),[codigo,setCodigo]=useState(''),[aliado,setAliado]=useState<{nombre:string;codigo:string}|null>(null),[categorias,setCategorias]=useState<AllyCategory[]>([]);
  const [f,setF]=useState(EMPTY),[menor,setMenor]=useState(false),[datos,setDatos]=useState(false),[publicidad,setPublicidad]=useState(false);
- const [error,setError]=useState(''),[busy,setBusy]=useState(false),[done,setDone]=useState<{id?:string;duplicado?:boolean}|null>(null),[loading,setLoading]=useState(true);
- const open=async(k:Key)=>{setError('');setBusy(true);try{const d=await call({accion:'ver',...k});setKey(k);setAliado(d.aliado);setCategorias(d.categorias||[]);}catch(e){setError(e instanceof Error?e.message:'');}finally{setBusy(false);setLoading(false);}};
+ const [error,setError]=useState(''),[busy,setBusy]=useState(false),[done,setDone]=useState<{id?:string;duplicado?:boolean;autorizacion?:string|null}|null>(null),[declaracion,setDeclaracion]=useState(''),[loading,setLoading]=useState(true);
+ const open=async(k:Key)=>{setError('');setBusy(true);try{const d=await call({accion:'ver',...k});setKey(k);setAliado(d.aliado);setCategorias(d.categorias||[]);setDeclaracion(d.declaracion||'');}catch(e){setError(e instanceof Error?e.message:'');}finally{setBusy(false);setLoading(false);}};
  useEffect(()=>{
   const t=decodeURIComponent(window.location.hash.slice(1));
   history.replaceState(null,'',window.location.pathname);
@@ -36,7 +36,7 @@ export default function AllyClientPage(){
    <header className="text-center"><p className="text-[11px] font-black tracking-[.2em] text-amber-700">ÁMBAR COUTURE · ALIADOS</p><h1 className="text-2xl font-black text-gray-900 mt-2">Registro de clientas</h1>{aliado&&<p className="text-sm text-gray-500 mt-1">Aliado: <b>{aliado.nombre}</b> · {aliado.codigo}</p>}</header>
    {error&&<p role="alert" className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-4 text-sm font-bold">{error}</p>}
    {loading&&<p className="flex items-center justify-center gap-2 text-gray-500"><Loader2 className="w-5 h-5 animate-spin"/> Cargando…</p>}
-   {done&&<div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex gap-3 items-start"><CheckCircle className="w-6 h-6 text-emerald-600 shrink-0"/><div><p className="font-black text-emerald-800">{done.duplicado?'Ya estabas registrada':'¡Registro confirmado!'}</p><p className="text-sm text-emerald-700">{done.duplicado?'Este documento ya estaba registrado con Ámbar Couture. Te contactaremos.':`Tu ID es ${done.id}. Te enviamos la confirmación y el enlace para agendar tu cita al correo.`}</p></div></div>}
+   {done&&<div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex gap-3 items-start"><CheckCircle className="w-6 h-6 text-emerald-600 shrink-0"/><div><p className="font-black text-emerald-800">{done.duplicado?'Ya estabas registrada':'¡Registro confirmado!'}</p><p className="text-sm text-emerald-700">{done.duplicado?'Este documento ya estaba registrado con Ámbar Couture. Te contactaremos.':`Tu ID es ${done.id}. Te enviamos la confirmación y el enlace para agendar tu cita al correo.`}</p>{done.autorizacion&&<p className="text-sm text-emerald-800 mt-2">La clienta debe aceptar la autorización de datos en su propio enlace (también le llegó al correo): <a className="underline break-all" href={done.autorizacion}>{done.autorizacion}</a></p>}</div></div>}
    {!loading&&!aliado&&!done&&<section className={card}><h2 className="font-black text-gray-900">Código del aliado</h2><p className="text-xs text-gray-500">Escribe el código que te dio tu aliado (ej.: ORG-0001).</p>
     <input className={input} value={codigo} onChange={e=>setCodigo(e.target.value.toUpperCase())} placeholder="ORG-0001"/>
     <button disabled={busy||!codigo.trim()} onClick={()=>void open({codigo})} className="w-full px-4 py-3 rounded-xl bg-gray-900 text-white text-sm font-black disabled:opacity-50">Continuar</button></section>}
@@ -55,7 +55,7 @@ export default function AllyClientPage(){
       {field('clienta_nombre','Nombre completo')}{field('clienta_documento',rep?'Tarjeta de identidad':'Cédula','numeric')}
       {!rep&&<>{field('clienta_celular','Celular','tel')}{field('clienta_correo','Correo','email')}</>}</div></section>
      <section className={card}><h2 className="font-black text-gray-900">Autorizaciones</h2>
-      <label className="flex gap-2 items-start text-sm text-gray-700"><input type="checkbox" className="mt-1" checked={datos} onChange={e=>setDatos(e.target.checked)}/>Autorizo a Ámbar Couture el tratamiento de los datos personales registrados según la Ley 1581 de 2012 (obligatorio).</label>
+      <label className="flex gap-2 items-start text-sm text-gray-700"><input type="checkbox" className="mt-1" checked={datos} onChange={e=>setDatos(e.target.checked)}/>{declaracion||'Declaro que la clienta (o su representante) me autorizó a compartir sus datos con Ámbar Couture para registrarla.'} (obligatorio)</label>
       <div className="text-sm text-gray-700"><p className="mb-1">¿Autorizas el uso de imagen en redes sociales? (obligatorio)</p>
        {(['si','no'] as const).map(v=><label key={v} className="mr-4"><input type="radio" name="imagen" checked={f.uso_imagen===v} onChange={()=>setF({...f,uso_imagen:v})}/> {v==='si'?'Sí':'No'}</label>)}</div>
       <label className="flex gap-2 items-start text-sm text-gray-700"><input type="checkbox" className="mt-1" checked={publicidad} onChange={e=>setPublicidad(e.target.checked)}/>Acepto recibir publicidad de Ámbar Couture (opcional).</label>

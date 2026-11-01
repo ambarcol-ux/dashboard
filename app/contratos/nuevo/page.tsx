@@ -6,6 +6,8 @@ import {canEditSavedRecords} from '@/lib/saved-record-editing';
 
 import PreXvFields from '@/components/PreXvFields';
 import ContractVisitPicker from '@/components/ContractVisitPicker';
+import DataAuthorization, { saveDataAuthorization } from '@/components/DataAuthorization';
+import type { AuthChoice, AuthState } from '@/lib/data-authorization';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { initialDepositAmount } from '@/lib/initial-deposit';
 import { contractSuggestedDeposit } from '@/lib/deposit-rules';
@@ -88,6 +90,8 @@ export default function NuevoContratoPage() {
   const [vipAliado, setVipAliado] = useState('');
 
   // -- State Principal --
+  const [dataAuth, setDataAuth] = useState<AuthChoice>({ tratamiento: false, comercial: false });
+  const [dataAuthState, setDataAuthState] = useState<AuthState>(null);
   const [formData, setFormData] = useState({
     // Básicos
     numero_factura: '',
@@ -1417,6 +1421,8 @@ export default function NuevoContratoPage() {
 
     // Soporte obligatorio del anticipo (también se valida en la base de datos)
     const abonoConSoporte = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
+    // Autorización de datos (una vez por persona): obligatoria la de tratamiento en contratos nuevos.
+    if (!isEditMode && dataAuthState?.estado !== 'autorizada' && !dataAuth.tratamiento) { toast.error('Marca la autorización de tratamiento de datos de la clienta (obligatoria).'); return; }
     if (!isEditMode && abonoConSoporte > 0) {
       if (subiendoSoporte) { toast.error('Espera a que termine de subir el soporte del anticipo.'); return; }
       if (!anticipoSoportes.length) { toast.error('Falta el soporte de ingreso. Adjunta el comprobante del anticipo para poder guardar el contrato.'); return; }
@@ -1587,6 +1593,8 @@ export default function NuevoContratoPage() {
       const { data: insertedContract, error: insertError } = await supabase.from('contratos').insert([payload]).select('id').single();
 
       if (insertError) throw insertError;
+      try { await saveDataAuthorization({ documento: formData.cliente_documento.trim(), telefono: formData.whatsapp, nombre: formData.cliente_nombre.trim(), email: formData.cliente_email.trim(), sede: formData.sede_id || null, origen: 'contrato', choice: dataAuth, state: dataAuthState }); }
+      catch (e) { toast.error('Contrato guardado, pero no se registró la autorización de datos: ' + (e instanceof Error ? e.message : '')); }
       if (insertedContract?.id) await syncRetablo(insertedContract.id);
       if (insertedContract?.id) await sendAllyMeasures(insertedContract.id);
 
@@ -2431,6 +2439,8 @@ export default function NuevoContratoPage() {
               </div>
             </div>
           </section>
+
+          {!isEditMode && <DataAuthorization documento={formData.cliente_documento} telefono={formData.whatsapp} value={dataAuth} onChange={setDataAuth} onState={setDataAuthState} />}
 
           {/* Factura al final, junto a los pagos (sigue obligatoria) */}
           <section className="space-y-3">

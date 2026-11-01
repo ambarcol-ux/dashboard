@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 import {toast} from 'sonner';
+import DataAuthorizationAdmin from '@/components/DataAuthorizationAdmin';
 
 type Item={lista:string;valor:string;orden:number;activo:boolean};
 type Param={clave:string;modulo:string;etiqueta:string;tipo:'entero'|'booleano';valor:number|boolean;minimo:number|null;maximo:number|null;orden:number;ayuda:string|null};
@@ -17,7 +18,7 @@ const box='bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-
 
 /** Configuración (solo Administración): Listas, Parámetros y Formularios reutilizables, con historial. */
 export default function ConfigCenter(){
- const [tab,setTab]=useState<'listas'|'parametros'|'formularios'|'categorias'|'historial'>('listas');
+ const [tab,setTab]=useState<'listas'|'parametros'|'formularios'|'categorias'|'autorizaciones'|'historial'>('listas');
  const [cats,setCats]=useState<Category[]>([]),[tipos,setTipos]=useState<{id:number;nombre:string}[]>([]),[newCat,setNewCat]=useState<Record<number,{nombre:string;hasta:string}>>({});
  const [items,setItems]=useState<Item[]>([]),[params,setParams]=useState<Param[]>([]),[fields,setFields]=useState<Field[]>([]),[changes,setChanges]=useState<Change[]>([]);
  const [nuevo,setNuevo]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false);
@@ -29,8 +30,8 @@ export default function ConfigCenter(){
  async function run(work:()=>PromiseLike<{error:{message:string}|null}>,ok:string){if(busy)return;setBusy(true);const {error}=await work();setBusy(false);if(error)toast.error(error.message);else{toast.success(ok);void load();}}
  const lists=Array.from(new Set([...Object.keys(LISTS),...items.map(i=>i.lista)]));
  return <div className="space-y-4">
-  <div className="flex flex-wrap gap-2">{(['listas','parametros','formularios','categorias','historial'] as const).map(t=><button key={t} type="button" onClick={()=>setTab(t)}
-   className={`px-4 py-2 rounded-xl text-xs font-black uppercase ${tab===t?'bg-rose-500 text-white':'bg-white border border-gray-200 text-gray-600'}`}>{{listas:'Listas',parametros:'Parámetros',formularios:'Formularios',categorias:'Categorías',historial:'Historial'}[t]}</button>)}</div>
+  <div className="flex flex-wrap gap-2">{(['listas','parametros','formularios','categorias','autorizaciones','historial'] as const).map(t=><button key={t} type="button" onClick={()=>setTab(t)}
+   className={`px-4 py-2 rounded-xl text-xs font-black uppercase ${tab===t?'bg-rose-500 text-white':'bg-white border border-gray-200 text-gray-600'}`}>{{listas:'Listas',parametros:'Parámetros',formularios:'Formularios',categorias:'Categorías',autorizaciones:'Autorizaciones',historial:'Historial'}[t]}</button>)}</div>
 
   {tab==='listas'&&lists.map(lista=>{const rows=items.filter(i=>i.lista===lista);return <div key={lista} className={box}>
    <p className="font-black text-gray-900">{LISTS[lista]||lista}</p>
@@ -73,6 +74,7 @@ export default function ConfigCenter(){
     <button disabled={busy} className="px-4 py-2 rounded-xl bg-rose-500 text-white text-xs font-black uppercase">Agregar</button></form>
   </div>;})}</>}
 
+  {tab==='autorizaciones'&&<DataAuthorizationAdmin canEditTexts/>}
   {tab==='historial'&&<div className={box}>{changes.map(c=>{const a=c.antes||{},d=c.despues||{},keys=Object.keys({...a,...d}).filter(k=>JSON.stringify(a[k])!==JSON.stringify(d[k]));
    return <p key={c.id} className="text-sm border-b border-gray-50 py-2"><b>{new Date(c.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota'})}</b> · {TABLES[c.tabla]||c.tabla} · {c.clave} · {c.accion==='insert'?'creado':c.accion==='delete'?'eliminado':keys.map(k=>`${k}: ${JSON.stringify(a[k])} → ${JSON.stringify(d[k])}`).join(', ')}</p>;})}
    {!changes.length&&<p className="text-sm text-gray-400">Sin cambios.</p>}</div>}
