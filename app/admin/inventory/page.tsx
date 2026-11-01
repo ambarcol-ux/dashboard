@@ -1676,6 +1676,29 @@ function BulkPhotos({ vestidos, sedes, clasificaciones, sedeInicial, tipoInicial
       }
     } catch (e) { setDriveError(e instanceof Error ? e.message : 'No se pudo importar.'); } finally { setBusy(false); }
   };
+  // Administration: shrink photos already stored (same links).
+  const [opt, setOpt] = useState('');
+  const optimize = async () => {
+    if (!window.confirm('¿Optimizar todas las fotos ya subidas? Se reducen a 1600 px en JPG; cada vestido conserva sus mismas fotos.')) return;
+    setBusy(true); setOpt('Revisando fotos…');
+    let desde: number | null = 0, n = 0, a = 0, d = 0, err = 0;
+    try {
+      while (desde !== null) {
+        const r = await callOptimize(desde);
+        n += r.optimizadas; a += r.antes; d += r.despues; err += r.errores.length;
+        setOpt(`Revisando ${Math.min(r.total, (desde || 0) + 6)} de ${r.total} vestidos · ${n} fotos optimizadas · ${Math.round((a - d) / 1048576)} MB ahorrados${err ? ` · ${err} con error` : ''}`);
+        desde = r.siguiente;
+      }
+      setOpt(o => 'Listo: ' + o.replace(/^Revisando \d+ de /, ''));
+    } catch (e) { setOpt(e instanceof Error ? e.message : 'No se pudo optimizar.'); } finally { setBusy(false); }
+  };
+  const callOptimize = async (desde: number) => {
+    const { data: s } = await supabase.auth.getSession();
+    const r = await fetch('/api/inventario/optimizar', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.session?.access_token || ''}` }, body: JSON.stringify({ desde }) });
+    const x = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(x.error || 'No se pudo optimizar.');
+    return x as { optimizadas: number; antes: number; despues: number; errores: string[]; siguiente: number | null; total: number };
+  };
   const errores = log.filter(l => !l.ok || l.resultado.startsWith('⚠'));
   const exportErrors = () => { const t = '\uFEFFArchivo;Detalle\n' + errores.map(l => `"${l.archivo.replace(/"/g, '""')}";"${l.resultado.replace(/"/g, '""')}"`).join('\n'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([t], { type: 'text/csv;charset=utf-8' })); a.download = 'fotos-por-corregir.csv'; a.click(); URL.revokeObjectURL(a.href); };
   const okCount = log.filter(l => l.ok).length;
@@ -1719,6 +1742,11 @@ function BulkPhotos({ vestidos, sedes, clasificaciones, sedeInicial, tipoInicial
         </div>}
         {!busy && errores.length > 0 && <button type="button" onClick={exportErrors} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase">Descargar lista por corregir ({errores.length})</button>}
         <ul className="text-xs space-y-1">{log.map((l, i) => <li key={i} className={l.ok ? 'text-emerald-700' : 'text-rose-700'}><b>{l.archivo}</b> → {l.resultado}</li>)}</ul>
+        <div className="rounded-2xl border border-gray-100 p-3 space-y-2">
+          <p className="text-xs text-gray-600"><b>Optimizar fotos ya subidas</b> (solo Administración): reduce a 1600 px en JPG las fotos pesadas para ahorrar espacio; los vestidos conservan sus mismas fotos.</p>
+          <button type="button" disabled={busy} onClick={() => void optimize()} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase">Optimizar fotos</button>
+          {opt && <p className="text-xs font-bold text-gray-800">{opt}</p>}
+        </div>
         <button type="button" disabled={busy} onClick={onClose} className="px-5 py-3 rounded-xl bg-gray-900 text-white text-xs font-black uppercase">Cerrar</button>
       </div>
     </div>
