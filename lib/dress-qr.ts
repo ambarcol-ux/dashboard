@@ -4,6 +4,12 @@ type QrDress={codigo:string;qr_token?:string|null};
 const qrUrl=(d:QrDress)=>`${window.location.origin}/v/${d.qr_token}`;
 const qrPng=async(d:QrDress,width=600)=>(await import('qrcode')).toDataURL(qrUrl(d),{width,margin:1,errorCorrectionLevel:'M'});
 
+/** Dress QR as an image (data URL) to show it on screen. */
+export async function dressQrImage(d:QrDress){
+ if(!d.qr_token)throw Error('Este vestido aún no tiene QR. Recarga la página.');
+ return qrPng(d,800);
+}
+
 /** Downloads the dress QR (public /v/[qr_token] page) as PNG. */
 export async function downloadDressQr(d:QrDress){
  if(!d.qr_token)throw Error('Este vestido aún no tiene QR. Recarga la página.');

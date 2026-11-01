@@ -1,5 +1,6 @@
 'use client';
 import DressThumb from '@/components/DressThumb';
+import { createPortal } from 'react-dom';
 import { downloadCatalogPdf } from '@/lib/dress-catalog-pdf';
 import { codeCandidates, miniPath } from '@/lib/dress-photos';
 import {usePermissions} from '@/lib/use-permissions';
@@ -13,7 +14,7 @@ import {
   Trash2, Plus, Filter, LayoutGrid, List as ListIcon, CheckCircle2, ChevronLeft, ShieldAlert, ChevronDown,
   X, FileText, TrendingUp, Clock, DollarSign, List, RotateCcw, Archive, ArchiveRestore, QrCode, Download
 } from 'lucide-react';
-import {downloadDressQr,dressLabelsPdf} from '@/lib/dress-qr';
+import {downloadDressQr,dressLabelsPdf,dressQrImage} from '@/lib/dress-qr';
 import { toast, Toaster } from 'sonner';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
@@ -66,6 +67,7 @@ export default function InventoryPage() {
   // -- Expediente de Prenda Dossier (New) --
   const [dossierOpen, setDossierOpen] = useState(false);
   const [selectedDressDossier, setSelectedDressDossier] = useState<any>(null);
+  const [qrView, setQrView] = useState('');
   const [activeDossierTab, setActiveDossierTab] = useState<'alquileres' | 'mantenimiento' | 'estadisticas' | 'traslados'>('alquileres');
   const [dossierRentals, setDossierRentals] = useState<any[]>([]);
   const [dossierMaintenance, setDossierMaintenance] = useState<any[]>([]);
@@ -1299,12 +1301,25 @@ export default function InventoryPage() {
                        <p className="text-rose-50 font-bold opacity-90 uppercase tracking-widest text-xs">{selectedDressDossier.nombre || 'VESTIDO SIN NOMBRE'}</p>
                     </div>
                     <button
-                      onClick={() => downloadDressQr(selectedDressDossier).catch(e => toast.error(e.message))}
+                      onClick={() => dressQrImage(selectedDressDossier).then(setQrView).catch(e => toast.error(e.message))}
                       className="absolute top-6 right-20 px-3 py-2 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all z-20 flex items-center gap-1 text-xs font-black"
-                      title="Descargar QR (PNG)"
+                      title="Ver QR"
                     >
                       <QrCode size={16} /> QR
                     </button>
+                    {qrView && createPortal(
+                      <div className="fixed inset-0 z-[300] bg-black/80 flex flex-col items-center justify-center gap-4 p-6" onClick={() => setQrView('')}>
+                        <div className="bg-white rounded-3xl p-5 w-full max-w-sm text-center" onClick={e => e.stopPropagation()}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={qrView} alt={`QR ${selectedDressDossier.codigo}`} className="w-full h-auto" />
+                          <p className="mt-2 text-2xl font-black text-gray-900">{selectedDressDossier.codigo}</p>
+                          <div className="mt-4 flex gap-2">
+                            <button type="button" onClick={() => downloadDressQr(selectedDressDossier).catch(e => toast.error(e.message))} className="flex-1 px-4 py-3 rounded-2xl border border-gray-200 text-xs font-black uppercase">Descargar</button>
+                            <button type="button" onClick={() => setQrView('')} className="flex-1 px-4 py-3 rounded-2xl bg-gray-900 text-white text-xs font-black uppercase">Cerrar</button>
+                          </div>
+                        </div>
+                      </div>, document.body
+                    )}
                     <button 
                       onClick={() => setDossierOpen(false)}
                       className="absolute top-6 right-6 p-2 bg-black/20 hover:bg-black/40 text-white rounded-full transition-all z-20"
