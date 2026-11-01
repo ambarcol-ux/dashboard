@@ -56,7 +56,11 @@ export async function POST(request:Request){
   const approved=f.vestido_id?pool.find(v=>String(v.id)===String(f.vestido_id)):null;
   const targets=approved?[approved]:byCode.get(code)||[];
   if(!targets.length){
-   const list=pool as unknown as DressRef[],candidatos=suggestDresses(String(f.name),list).length?suggestDresses(String(f.name),list):suggestDresses(String(f.carpeta||''),list);
+   // Dresses with their 3 photos full cannot receive more: they are not proposed.
+   const free=pool.filter(v=>PHOTO_FIELDS.some(k=>!v[k])) as unknown as DressRef[];
+   const all=pool as unknown as DressRef[],found=suggestDresses(String(f.name),all).length?suggestDresses(String(f.name),all):suggestDresses(String(f.carpeta||''),all);
+   const candidatos=found.filter(c=>free.some(d=>String(d.id)===c.id));
+   if(found.length&&!candidatos.length){resultados.push({archivo:label,tipo:'omitido',mensaje:`El vestido ${found[0].codigo} ya tiene sus 3 fotos.`});continue;}
    resultados.push(candidatos.length?{archivo:label,tipo:'sugerencia',mensaje:'Revisa y aprueba el vestido.',file:f,candidatos}:{archivo:label,tipo:'error',mensaje:`No hay vestido con la referencia «${code||'—'}» con estos filtros (sede, tipo y categoría). Revisa el nombre o el código en Inventario.`});
    continue;
   }
@@ -72,7 +76,7 @@ export async function POST(request:Request){
    for(const v of pending){
     const hint=slotFromName(String(f.name))||slotFromName(String(f.carpeta||''));
     const slot=hint&&!v[hint]?hint:PHOTO_FIELDS.find(k=>!v[k]);
-    if(!slot){avisos.push(`${v.codigo} ya tiene 3 fotos`);continue;}
+    if(!slot){avisos.push(`${v.codigo} ya tiene sus 3 fotos`);continue;}
     const path=`${v.id}/drive-${f.id}-${slot}.${type.split('/')[1].replace('jpeg','jpg')}`;
     const {error:ue}=await db.storage.from('vestidos_fotos').upload(path,bytes,{contentType:type});
     if(ue)throw Error(ue.message);
@@ -84,7 +88,7 @@ export async function POST(request:Request){
    }
    const precio=priceFromName(approved?String(f.name):source,approved?(String(f.name).match(/^[A-Za-z]{0,4}\d{3,}/)?.[0]||''):code),actual=Number(targets[0].precio_sugerido)||0;
    if(precio&&precio!==actual)avisos.push(`el precio del nombre (${precio.toLocaleString('es-CO')}) no coincide con el del inventario (${actual?actual.toLocaleString('es-CO'):'sin precio'})`);
-   resultados.push({archivo:label,tipo:hechos.length?(avisos.length?'aviso':'ok'):'error',mensaje:[hechos.join(' · '),...avisos].filter(Boolean).join(' · ')});
+   resultados.push({archivo:label,tipo:hechos.length?(avisos.length?'aviso':'ok'):avisos.some(a=>a.includes('ya tiene sus 3 fotos'))?'omitido':'error',mensaje:[hechos.join(' · '),...avisos].filter(Boolean).join(' · ')});
   }catch(e){resultados.push({archivo:label,tipo:'error',mensaje:e instanceof Error?e.message:'No se pudo subir.'});}
  }
  return reply({resultados});
@@ -96,11 +100,13 @@ async function walk(root:string,key?:string){
  while(queue.length&&seen<MAX_FOLDERS&&out.length<MAX_FILES){
   const folder=queue.shift()!;seen++;
   const items=key?await listWithKey(folder.id,key):await listPublic(folder.id,seen===1);
-  for(const it of items){if(it.folder)queue.push({id:it.id,name:it.name});else out.push({id:it.id,name:it.name,carpeta:folder.name});}
+  for(const it of items){if(it.folder)queue.push({id:it.id,name:it.name});else if(!NOT_IMAGE.test(it.name))out.push({id:it.id,name:it.name,carpeta:folder.name});}
  }
  return out;
 }
 type Item={id:string;name:string;folder:boolean};
+/** Files that are clearly not photos (documents, videos, archives) are left out. */
+const NOT_IMAGE=/\.(pdf|docx?|xlsx?|pptx?|txt|csv|zip|rar|mp4|mov|avi|mkv|m4v|3gp|gif|psd|ai)$/i;
 /** With an API key: Drive API v3 (folders and images). */
 async function listWithKey(folder:string,key:string){
  const items:Item[]=[];let token='';
