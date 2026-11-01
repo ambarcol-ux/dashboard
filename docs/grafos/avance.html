@@ -1,0 +1,71 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Avance del ERP</title>
+<style>body{font-family:system-ui,sans-serif;margin:16px;background:#fafaf9;color:#111}h1{font-size:20px}h2{font-size:16px;margin-top:24px}p,li{color:#444;font-size:13px}
+.mermaid{background:#fff;border:1px solid #eee;border-radius:12px;padding:12px;overflow:auto}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script></head><body translate="no">
+<h1>Avance del ERP · estado al 01/11/2026</h1>
+<p>Verde: hecho y en producción · Amarillo: pendiente o en espera · Naranja: CLAUDE.md desactualizado frente al sistema real · Azul: reglas vigentes.</p>
+
+<h2>1. Antes de la primera orden (Sergio)</h2>
+<div class="mermaid">
+flowchart LR
+  classDef ok fill:#dcfce7,stroke:#16a34a,color:#111
+  classDef pend fill:#fef3c7,stroke:#d97706,color:#111
+  P1["1. Regla de medición y regla de configuración en CLAUDE.md<br/>NO ESTÁN · falta el texto de las reglas"]:::pend
+  P2["2. Commit del estado actual<br/>HECHO · cada cambio fusionado en main"]:::ok
+  P3["3. docs/config/primeras-visitas.md<br/>HECHO · listas y valores cargados"]:::ok
+  P1 --> P2 --> P3
+</div>
+
+<h2>2. CLAUDE.md frente al sistema real</h2>
+<div class="mermaid">
+flowchart TB
+  classDef rule fill:#dbeafe,stroke:#2563eb,color:#111
+  classDef warn fill:#ffedd5,stroke:#c2410c,color:#7c2d12
+  R["Reglas (vigentes): respuestas mínimas · solo lo pedido · reutilizar · cambios aditivos y reversibles ·<br/>no romper contratos, primeras citas, aliados ni disponibilidad · 5% de aliados nunca visible"]:::rule
+  W1["Dice: código único por código + sede<br/>Real: único en TODO el inventario (trigger vestidos_validar_datos)"]:::warn
+  W2["Dice: no hay bucket de fotos ni sharp<br/>Real: bucket vestidos_fotos (10 MB, miniaturas mini/) y sharp instalado"]:::warn
+  W3["Dice: editar = canEditSavedRecords<br/>Real: inventario usa permiso inventario.editar, solo su sede (validado en la base)"]:::warn
+  W4["Dice: imagen_url y categoria vacías<br/>Real: categoria automática por precio; imagen_url = foto de frente"]:::warn
+  R --- W1 & W2 & W3 & W4
+</div>
+
+<h2>3. Módulos</h2>
+<div class="mermaid">
+flowchart LR
+  classDef ok fill:#dcfce7,stroke:#16a34a,color:#111
+  classDef pend fill:#fef3c7,stroke:#d97706,color:#111
+
+  subgraph CAT["Catálogo de vestidos"]
+    C1["Categorías automáticas (categorias_vestido)"]:::ok
+    C2["3 fotos por vestido · carga masiva · Drive por sede/tipo/categoría"]:::ok
+    C3["Optimizar fotos + miniaturas (gasto bajo)"]:::ok
+    C4["Página Catálogo · PDF 1 y 3 fotos"]:::ok
+    C5["Enlaces públicos /c/token (sin 5% aliado)"]:::ok
+    C6["Foto ampliada al tocar · QR ampliado"]:::ok
+  end
+  subgraph INV["Inventario"]
+    I1["Precios con miles · móvil con editar"]:::ok
+    I2["Permiso Editar inventario de su sede"]:::ok
+    I3["/admin abre por Roles y permisos"]:::ok
+  end
+  subgraph CFG["Configuración"]
+    G1["Listas · Parámetros · Formularios · Categorías · Historial"]:::ok
+    G2["Accesorios con cantidad · % aliado editables"]:::ok
+  end
+  subgraph PV["Primeras visitas y agenda"]
+    V1["Códigos CIT/VIT · visita obligatoria · vínculo con contratos"]:::ok
+    V2["Seguimientos con responsable"]:::ok
+    V3["Agenda por sede · lunes festivos · domingos manuales"]:::ok
+  end
+  subgraph PEN["Pendiente"]
+    X1["Siigo: respuestas de Sergio"]:::pend
+    X2["Módulo de Ventas mínimo: aprobación"]:::pend
+    X3["Informes y estadísticas: 5 ajustes"]:::pend
+    X4["CRM fijo"]:::pend
+    X5["Lote 3 líder de tienda: proveedores, metas, horarios"]:::pend
+    X6["Copia completa del esquema (SUPABASE_DB_URL)"]:::pend
+    X7["Reglas de medición y configuración en CLAUDE.md"]:::pend
+  end
+</div>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'loose',flowchart:{htmlLabels:true}});</script>
+</body></html>
