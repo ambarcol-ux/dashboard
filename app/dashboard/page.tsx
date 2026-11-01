@@ -2878,7 +2878,7 @@ export default function DashboardPage() {
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        {fotosVestidos(c).length > 0 && <div className="flex gap-1">{fotosVestidos(c).map((f, i) => <DressThumb key={i} src={f.url} alt={f.codigo} title={f.codigo} className="w-12 h-16 rounded-lg object-cover border border-gray-100" />)}</div>}
+                        {fotosVestidos(c).length > 0 && <div className="flex gap-1">{fotosVestidos(c).map((f, i) => <DressThumb key={i} src={f.url} alt={f.codigo} title={f.codigo} zoom className="w-12 h-16 rounded-lg object-cover border border-gray-100" />)}</div>}
                         <span className="text-xs font-bold text-gray-500 line-clamp-1 max-w-[100px]" title="Vestidos Atados">
                           Vestidos: {loading ? '(Cargando...)' : (c.vestidos_count || c.prendas?.length || 0)}
                         </span>
@@ -2968,7 +2968,7 @@ export default function DashboardPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-700">
-                        <div className="flex items-center gap-1">{fotosVestidos(c).map((f, i) => <DressThumb key={i} src={f.url} alt={f.codigo} title={f.codigo} className="w-9 h-12 rounded-md object-cover border border-gray-100" />)}<span className="ml-1">{c.vestidos_count || c.prendas?.length || 0}</span></div>
+                        <div className="flex items-center gap-1">{fotosVestidos(c).map((f, i) => <DressThumb key={i} src={f.url} alt={f.codigo} title={f.codigo} zoom className="w-9 h-12 rounded-md object-cover border border-gray-100" />)}<span className="ml-1">{c.vestidos_count || c.prendas?.length || 0}</span></div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{c.sede}</td>
                       <td className="px-6 py-4 whitespace-nowrap">
