@@ -696,7 +696,7 @@ export default function InventoryPage() {
           </div>
         </div>
 
-        {bulkOpen && <BulkPhotos vestidos={vestidos} sedes={sedes} sedeInicial={sedeFilter && sedeFilter !== 'none' ? sedeFilter : ''} onClose={() => { setBulkOpen(false); loadData(); }} />}
+        {bulkOpen && <BulkPhotos vestidos={vestidos} sedes={sedes} clasificaciones={clasificaciones} sedeInicial={sedeFilter && sedeFilter !== 'none' ? sedeFilter : ''} tipoInicial={clasificacionFilter && clasificacionFilter !== 'none' ? clasificacionFilter : ''} categoriaInicial={categoriaFilter && categoriaFilter !== 'none' ? categoriaFilter : ''} onClose={() => { setBulkOpen(false); loadData(); }} />}
         {editingDress && <EditDressModal dress={editingDress} clasificaciones={clasificaciones} onClose={() => setEditingDress(null)} onSaved={() => { setEditingDress(null); loadData(); }} />}
         {/* Modal Nuevo Vestido */}
         {isModalOpen && (
@@ -1597,14 +1597,18 @@ async function resizePhoto(file: File): Promise<Blob> {
 }
 /** Reference at the start of a file name: «1001 450000.jpg» → 1001; «QP8RJ1416-frente.png» → QP8RJ1416. */
 /** Bulk photo upload: each file goes to the dresses whose reference starts its name, in the first free slot (front, back, detail). */
-function BulkPhotos({ vestidos, sedes, sedeInicial, onClose }: { vestidos: Record<string, unknown>[]; sedes: { id: string; nombre: string }[]; sedeInicial: string; onClose: () => void }) {
-  const [sede, setSede] = useState(sedeInicial);
+function BulkPhotos({ vestidos, sedes, clasificaciones, sedeInicial, tipoInicial, categoriaInicial, onClose }: { vestidos: Record<string, unknown>[]; sedes: { id: string; nombre: string }[]; clasificaciones: { id: number; nombre: string }[]; sedeInicial: string; tipoInicial: string; categoriaInicial: string; onClose: () => void }) {
+  const [sede, setSede] = useState(sedeInicial), [tipo, setTipo] = useState(tipoInicial), [categoria, setCategoria] = useState(categoriaInicial);
+  // Dresses that may receive photos: chosen sede (required), type and category.
+  const inScope = (x: Record<string, unknown>) => x.sede_actual_id === sede && (!tipo || String(x.clasificacion_id) === tipo) && (!categoria || x.categoria === categoria);
+  const categorias = Array.from(new Set(vestidos.filter(x => x.sede_actual_id === sede && (!tipo || String(x.clasificacion_id) === tipo)).map(x => x.categoria).filter(Boolean))).sort() as string[];
   const [log, setLog] = useState<{ archivo: string; resultado: string; ok: boolean }[]>([]), [busy, setBusy] = useState(false), [done, setDone] = useState(0), [total, setTotal] = useState(0);
   const run = async (files: FileList | null) => {
     if (!files?.length) return;
     setBusy(true); setLog([]); setDone(0); setTotal(files.length);
     const byCode = new Map<string, Record<string, unknown>[]>();
-    for (const v of vestidos.filter(x => !sede || x.sede_actual_id === sede)) { const k = String(v.codigo || '').trim().toUpperCase(); if (k) byCode.set(k, [...(byCode.get(k) || []), { ...v }]); }
+    if (!sede) return;
+    for (const v of vestidos.filter(inScope)) { const k = String(v.codigo || '').trim().toUpperCase(); if (k) byCode.set(k, [...(byCode.get(k) || []), { ...v }]); }
     for (const file of Array.from(files)) {
       const cands = codeCandidates(file.name), code = cands.find(c => byCode.has(c)) || cands[cands.length - 1] || '', targets = byCode.get(code) || [];
       let resultado = '', ok = false;
@@ -1651,7 +1655,7 @@ function BulkPhotos({ vestidos, sedes, sedeInicial, onClose }: { vestidos: Recor
     const ok = sugs.filter(x => x.elegido); if (!ok.length) return;
     setBusy(true); setDriveError('');
     try {
-      for (let i = 0; i < ok.length; i += 8) addRows((await callDrive({ accion: 'importar', sede, archivos: ok.slice(i, i + 8).map(x => ({ ...x.file, vestido_id: x.elegido })) })).resultados || []);
+      for (let i = 0; i < ok.length; i += 8) addRows((await callDrive({ accion: 'importar', sede, tipo, categoria, archivos: ok.slice(i, i + 8).map(x => ({ ...x.file, vestido_id: x.elegido })) })).resultados || []);
       setSugs(p => p.filter(x => !x.elegido));
     } catch (e) { setDriveError(e instanceof Error ? e.message : 'No se pudo importar.'); } finally { setBusy(false); }
   };
@@ -1663,7 +1667,7 @@ function BulkPhotos({ vestidos, sedes, sedeInicial, onClose }: { vestidos: Recor
       if (!archivos.length) throw new Error('No se encontraron fotos en esa carpeta ni en sus subcarpetas. Revisa que esté compartida como «Cualquier persona con el enlace».');
       setTotal(archivos.length);
       for (let i = 0; i < archivos.length; i += 8) {
-        addRows((await callDrive({ accion: 'importar', sede, archivos: archivos.slice(i, i + 8) })).resultados || []);
+        addRows((await callDrive({ accion: 'importar', sede, tipo, categoria, archivos: archivos.slice(i, i + 8) })).resultados || []);
         setDone(Math.min(archivos.length, i + 8));
       }
     } catch (e) { setDriveError(e instanceof Error ? e.message : 'No se pudo importar.'); } finally { setBusy(false); }
@@ -1676,22 +1680,26 @@ function BulkPhotos({ vestidos, sedes, sedeInicial, onClose }: { vestidos: Recor
       <div className="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-4" onClick={e => e.stopPropagation()}>
         <h3 className="text-xl font-black text-gray-900">Carga masiva de fotos</h3>
         <p className="text-sm text-gray-600">Elige varias fotos a la vez. Cada archivo debe empezar con la referencia del vestido (por ejemplo <b>1001 450000.jpg</b>). Se guarda en el primer espacio libre: frente, espalda y detalle. Si la referencia está en varias sedes, la foto va a todas. Puedes traerlas directo de una carpeta de Google Drive o elegirlas del equipo.</p>
-        <label className="block text-sm font-black text-gray-900">Sede de los vestidos
-          <select value={sede} disabled={busy} onChange={e => setSede(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-bold">
-            <option value="">Todas las sedes (la referencia en varias sedes recibe la foto en todas)</option>
-            {sedes.map(x => <option key={x.id} value={x.id}>Solo {x.nombre}</option>)}
-          </select></label>
+        <div className="grid sm:grid-cols-3 gap-2">
+          <label className="text-xs font-black text-gray-900">Sede *<select value={sede} disabled={busy} onChange={e => { setSede(e.target.value); setCategoria(''); }} className="mt-1 block w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-bold">
+            <option value="">Elige la sede…</option>{sedes.map(x => <option key={x.id} value={x.id}>{x.nombre}</option>)}</select></label>
+          <label className="text-xs font-black text-gray-900">Tipo<select value={tipo} disabled={busy} onChange={e => { setTipo(e.target.value); setCategoria(''); }} className="mt-1 block w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-bold">
+            <option value="">Todos</option>{clasificaciones.map(x => <option key={x.id} value={String(x.id)}>{x.nombre}</option>)}</select></label>
+          <label className="text-xs font-black text-gray-900">Categoría<select value={categoria} disabled={busy} onChange={e => setCategoria(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-gray-200 rounded-xl text-sm font-bold">
+            <option value="">Todas</option>{categorias.map(x => <option key={x} value={x}>{x}</option>)}</select></label>
+        </div>
+        <p className="text-xs text-gray-500">Las fotos solo van a vestidos de esa sede{tipo ? ', ese tipo' : ''}{categoria ? ' y esa categoría' : ''}: nunca se cruzan entre sedes. {sede ? `${vestidos.filter(inScope).length} vestidos en el filtro.` : ''}</p>
         <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-2">
           <p className="text-sm font-black text-gray-900">Desde Google Drive</p>
           <p className="text-xs text-gray-600">Comparte la carpeta como «Cualquier persona con el enlace» (lector) y pega aquí el link. El sistema revisa referencia y precio de cada archivo y te dice cuáles corregir. Puedes repetirla: las fotos ya cargadas no se duplican.</p>
           <div className="flex flex-wrap gap-2"><input value={carpeta} onChange={e => setCarpeta(e.target.value)} placeholder="https://drive.google.com/drive/folders/…" className="flex-1 min-w-[220px] px-3 py-2 border border-gray-200 rounded-xl text-sm" />
-            <button type="button" disabled={busy || !carpeta.trim()} onClick={() => void runDrive()} className="px-4 py-2 rounded-xl bg-rose-500 text-white text-xs font-black uppercase disabled:opacity-50">Importar de Drive</button></div>
+            <button type="button" disabled={busy || !carpeta.trim() || !sede} onClick={() => void runDrive()} className="px-4 py-2 rounded-xl bg-rose-500 text-white text-xs font-black uppercase disabled:opacity-50">Importar de Drive</button></div>
           {driveError && <p role="alert" className="text-xs font-bold text-rose-700">{driveError}</p>}
         </div>
         <p className="text-sm font-black text-gray-900">O desde este equipo</p>
-        <label className={`inline-flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-black uppercase cursor-pointer ${busy ? 'bg-gray-200 text-gray-400' : 'bg-rose-500 text-white hover:bg-rose-600'}`}>
+        <label className={`inline-flex items-center gap-2 px-5 py-3 rounded-xl text-xs font-black uppercase cursor-pointer ${busy || !sede ? 'bg-gray-200 text-gray-400' : 'bg-rose-500 text-white hover:bg-rose-600'}`}>
           <Plus className="w-4 h-4" /> Elegir fotos del equipo
-          <input type="file" accept="image/*" multiple disabled={busy} onChange={e => void run(e.target.files)} className="hidden" />
+          <input type="file" accept="image/*" multiple disabled={busy || !sede} onChange={e => void run(e.target.files)} className="hidden" />
         </label>
         {total > 0 && <p className="font-bold text-gray-800">{busy ? `Revisando ${done} de ${total}…` : `Listo: ${log.filter(l => l.ok && !l.resultado.startsWith('↺')).length} subidas ahora · ${log.filter(l => l.resultado.startsWith('↺')).length} ya estaban · ${sugs.length} por aprobar · ${log.filter(l => !l.ok).length} por corregir (de ${total}).`}</p>}
         {sugs.length > 0 && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">

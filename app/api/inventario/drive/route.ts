@@ -14,7 +14,7 @@ export async function POST(request:Request){
  if(request.headers.get('origin')&&request.headers.get('origin')!==new URL(request.url).origin)return reply({error:'Solicitud no permitida.'},403);
  const bearer=request.headers.get('authorization')||'';
  if(!bearer.startsWith('Bearer '))return reply({error:'Inicia sesión.'},401);
- let body:{accion?:string;carpeta?:string;archivos?:DriveFile[];sede?:string};
+ let body:{accion?:string;carpeta?:string;archivos?:DriveFile[];sede?:string;tipo?:number|string;categoria?:string};
  try{body=JSON.parse((await request.text()).slice(0,200000)||'{}');}catch{return reply({error:'Datos no válidos.'},400);}
  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:auth}=await db.auth.getUser(bearer.slice(7));
@@ -31,11 +31,13 @@ export async function POST(request:Request){
  }
 
  const files=(Array.isArray(body.archivos)?body.archivos:[]).slice(0,BATCH).filter(f=>/^[A-Za-z0-9_-]{10,}$/.test(String(f?.id)));
- const {data:dresses,error:de}=await db.from('vestidos').select('id,codigo,nombre,color,precio_sugerido,foto_frente,foto_espalda,foto_detalle,sede_actual_id').eq('archivado',false);
+ const {data:dresses,error:de}=await db.from('vestidos').select('id,codigo,nombre,color,precio_sugerido,foto_frente,foto_espalda,foto_detalle,sede_actual_id,clasificacion_id,categoria').eq('archivado',false);
  if(de)return reply({error:'No se pudo leer el inventario.'},500);
- // Only the dresses of the chosen sede receive photos (all sedes when none is chosen).
+ // Only the dresses of the chosen sede (required) and, if given, type and category receive photos: never across sedes.
  const sede=/^[0-9a-f-]{36}$/i.test(String(body.sede||''))?String(body.sede):'';
- const pool=(dresses||[]).filter(v=>!sede||v.sede_actual_id===sede);
+ if(!sede)return reply({error:'Elige la sede de los vestidos.'},400);
+ const tipo=Number(body.tipo)||0,categoria=String(body.categoria||'');
+ const pool=(dresses||[]).filter(v=>v.sede_actual_id===sede&&(!tipo||v.clasificacion_id===tipo)&&(!categoria||v.categoria===categoria));
  const byCode=new Map<string,Record<string,unknown>[]>();
  for(const v of pool){const k=String(v.codigo||'').trim().toUpperCase();if(k)byCode.set(k,[...(byCode.get(k)||[]),v]);}
 
@@ -55,7 +57,7 @@ export async function POST(request:Request){
   const targets=approved?[approved]:byCode.get(code)||[];
   if(!targets.length){
    const list=pool as unknown as DressRef[],candidatos=suggestDresses(String(f.name),list).length?suggestDresses(String(f.name),list):suggestDresses(String(f.carpeta||''),list);
-   resultados.push(candidatos.length?{archivo:label,tipo:'sugerencia',mensaje:'Revisa y aprueba el vestido.',file:f,candidatos}:{archivo:label,tipo:'error',mensaje:`No hay vestido con la referencia «${code||'—'}»${sede?' en esta sede':''}. Revisa el nombre o el código en Inventario.`});
+   resultados.push(candidatos.length?{archivo:label,tipo:'sugerencia',mensaje:'Revisa y aprueba el vestido.',file:f,candidatos}:{archivo:label,tipo:'error',mensaje:`No hay vestido con la referencia «${code||'—'}» con estos filtros (sede, tipo y categoría). Revisa el nombre o el código en Inventario.`});
    continue;
   }
   const pending=targets.filter(v=>!PHOTO_FIELDS.some(k=>String(v[k]||'').includes(`drive-${f.id}`)));
