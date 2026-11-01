@@ -65,7 +65,7 @@ export async function POST(request:Request){
     const slot=hint&&!v[hint]?hint:PHOTO_FIELDS.find(k=>!v[k]);
     if(!slot){avisos.push(`${v.codigo} ya tiene 3 fotos`);continue;}
     const path=`${v.id}/drive-${f.id}-${slot}.${type.split('/')[1].replace('jpeg','jpg')}`;
-    const {error:ue}=await db.storage.from('vestidos_fotos').upload(path,bytes,{contentType:type,upsert:true});
+    const {error:ue}=await db.storage.from('vestidos_fotos').upload(path,bytes,{contentType:type});
     if(ue)throw Error(ue.message);
     const url=db.storage.from('vestidos_fotos').getPublicUrl(path).data.publicUrl;
     const patch:Record<string,string>={[slot]:url,...(slot==='foto_frente'?{imagen_url:url}:{})};
