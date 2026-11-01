@@ -1,4 +1,5 @@
 'use client';
+import DressThumb from '@/components/DressThumb';
 import {useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
 import {BookOpen,Download,Link2} from 'lucide-react';
@@ -76,7 +77,7 @@ function Catalog({profile}:{profile:ShellProfile}){
   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))',gap:14}}>
    {list.map(d=><article key={d.id} onClick={()=>setOpen(d)} style={{border:'1px solid #eee',borderRadius:16,overflow:'hidden',background:'#fff',cursor:'pointer'}}>
     <div style={{aspectRatio:'3/4',background:'#f6f6f6',display:'flex',alignItems:'center',justifyContent:'center',color:'#aaa',fontSize:12}}>
-     {cover(d)?<img src={cover(d)!} alt={d.nombre||d.codigo} loading="lazy" style={{width:'100%',height:'100%',objectFit:'cover'}}/>:'Sin foto'}</div>
+     {cover(d)?<DressThumb src={cover(d)!} alt={d.nombre||d.codigo} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:'Sin foto'}</div>
     <div style={{padding:10,fontSize:12,lineHeight:1.4}}>
      <b style={{fontSize:13}}>{d.codigo}</b><br/><span style={{color:'#be123c',fontWeight:700}}>{tipoNombre(d.clasificacion_id)}{d.categoria?` · ${d.categoria}`:''}</span>
      <br/>{d.nombre||'Sin descripción'}<br/>Talla {d.talla||'—'} · {d.color||'—'}<br/><b>{d.precio_sugerido?cop(d.precio_sugerido):'Sin precio'}</b> · {d.estado||'—'}

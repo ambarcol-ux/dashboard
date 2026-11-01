@@ -51,3 +51,8 @@ export function slotFromName(name:string){
  const t=fold(name);
  return /FRONT|FRENT/.test(t)?'foto_frente':/ESPAL|BACK|POSTER/.test(t)?'foto_espalda':/DETAL/.test(t)?'foto_detalle':null;
 }
+
+/** Light preview (≈400 px) of a stored dress photo: same file name inside «mini/». Only for the vestidos_fotos bucket. */
+export const miniUrl=(url:string|null|undefined)=>url&&url.includes('/vestidos_fotos/')?url.replace(/\/([^/?]+)(\?.*)?$/,'/mini/$1'):url||'';
+/** Storage path of the preview for a photo path («<dress>/<file>» → «<dress>/mini/<file>»). */
+export const miniPath=(path:string)=>path.replace(/\/([^/]+)$/,'/mini/$1');

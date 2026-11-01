@@ -1,6 +1,7 @@
 'use client';
+import DressThumb from '@/components/DressThumb';
 import { downloadCatalogPdf } from '@/lib/dress-catalog-pdf';
-import { codeCandidates } from '@/lib/dress-photos';
+import { codeCandidates, miniPath } from '@/lib/dress-photos';
 import {usePermissions} from '@/lib/use-permissions';
 import {canEditSavedRecords} from '@/lib/saved-record-editing';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
@@ -843,7 +844,7 @@ export default function InventoryPage() {
                             v.estado === 'Traslado' ? 'bg-amber-100 text-amber-600 animate-pulse' : 
                             'bg-rose-100 text-rose-500'
                           }`}>
-                            {fotoDe(v) ? <img src={fotoDe(v)!} alt="" loading="lazy" className="w-11 h-11 rounded-2xl object-cover" /> : v.estado === 'De Baja' ? 'X' : v.codigo.substring(0, 2)}
+                            {fotoDe(v) ? <DressThumb src={fotoDe(v)!} alt="" className="w-11 h-11 rounded-2xl object-cover" /> : v.estado === 'De Baja' ? 'X' : v.codigo.substring(0, 2)}
                           </div>
                           <div className="min-w-0">
                             <div className="font-black text-gray-900 text-base tracking-tighter uppercase leading-none mb-1 break-all">{v.codigo}</div>
@@ -1014,7 +1015,7 @@ export default function InventoryPage() {
                 onClick={() => openDossier(v)}
               >
                 <div className="flex justify-between items-start mb-4">
-                  {fotoDe(v) ? <img src={fotoDe(v)!} alt={v.nombre || v.codigo} loading="lazy" onClick={() => openDossier(v)} className="w-24 h-32 rounded-2xl object-cover shadow-sm border border-gray-100" />
+                  {fotoDe(v) ? <DressThumb src={fotoDe(v)!} alt={v.nombre || v.codigo} onClick={() => openDossier(v)} className="w-24 h-32 rounded-2xl object-cover shadow-sm border border-gray-100" />
                   : <div 
                     className="w-14 h-14 bg-rose-100 text-rose-500 rounded-3xl flex items-center justify-center text-xl font-black shadow-inner rotate-3 group-hover:rotate-0 transition-transform"
                     onClick={() => openDossier(v)}
@@ -1599,6 +1600,17 @@ async function resizePhoto(file: File): Promise<Blob> {
   canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
   return await new Promise((ok, fail) => canvas.toBlob(b => b ? ok(b) : fail(new Error('No se pudo procesar la foto.')), 'image/jpeg', 0.82));
 }
+/** Uploads the 400 px preview next to a photo (best effort: small views fall back to the full photo). */
+async function uploadMini(path: string, blob: Blob) {
+  try {
+    const img = await createImageBitmap(blob), scale = Math.min(1, 400 / Math.max(img.width, img.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(img.width * scale); canvas.height = Math.round(img.height * scale);
+    canvas.getContext('2d')!.drawImage(img, 0, 0, canvas.width, canvas.height);
+    const mini = await new Promise<Blob | null>(ok => canvas.toBlob(ok, 'image/jpeg', 0.7));
+    if (mini) await supabase.storage.from('vestidos_fotos').upload(miniPath(path), mini, { contentType: 'image/jpeg', upsert: true });
+  } catch { /* the full photo is used */ }
+}
 /** Reference at the start of a file name: «1001 450000.jpg» → 1001; «QP8RJ1416-frente.png» → QP8RJ1416. */
 /** Bulk photo upload: each file goes to the dresses whose reference starts its name, in the first free slot (front, back, detail). */
 function BulkPhotos({ vestidos, sedes, clasificaciones, sedeInicial, tipoInicial, categoriaInicial, onClose }: { vestidos: Record<string, unknown>[]; sedes: { id: string; nombre: string }[]; clasificaciones: { id: number; nombre: string }[]; sedeInicial: string; tipoInicial: string; categoriaInicial: string; onClose: () => void }) {
@@ -1625,6 +1637,7 @@ function BulkPhotos({ vestidos, sedes, clasificaciones, sedeInicial, tipoInicial
           const path = `${v.id}/${slot}-${Date.now()}.jpg`;
           const { error } = await supabase.storage.from('vestidos_fotos').upload(path, blob, { contentType: blob.type || 'image/jpeg' });
           if (error) throw error;
+          await uploadMini(path, blob);
           const url = supabase.storage.from('vestidos_fotos').getPublicUrl(path).data.publicUrl;
           const patch: Record<string, string> = { [slot]: url, ...(slot === 'foto_frente' ? { imagen_url: url } : {}) };
           const { error: e2 } = await supabase.from('vestidos').update(patch).eq('id', v.id);
@@ -1681,12 +1694,12 @@ function BulkPhotos({ vestidos, sedes, clasificaciones, sedeInicial, tipoInicial
   const optimize = async () => {
     if (!window.confirm('¿Optimizar todas las fotos ya subidas? Se reducen a 1600 px en JPG; cada vestido conserva sus mismas fotos.')) return;
     setBusy(true); setOpt('Revisando fotos…');
-    let desde: number | null = 0, n = 0, a = 0, d = 0, err = 0;
+    let desde: number | null = 0, n = 0, m = 0, a = 0, d = 0, err = 0;
     try {
       while (desde !== null) {
         const r = await callOptimize(desde);
-        n += r.optimizadas; a += r.antes; d += r.despues; err += r.errores.length;
-        setOpt(`Revisando ${Math.min(r.total, (desde || 0) + 6)} de ${r.total} vestidos · ${n} fotos optimizadas · ${Math.round((a - d) / 1048576)} MB ahorrados${err ? ` · ${err} con error` : ''}`);
+        n += r.optimizadas; m += r.miniaturas || 0; a += r.antes; d += r.despues; err += r.errores.length;
+        setOpt(`Revisando ${Math.min(r.total, (desde || 0) + 6)} de ${r.total} vestidos · ${n} fotos optimizadas · ${m} miniaturas · ${Math.round((a - d) / 1048576)} MB ahorrados${err ? ` · ${err} con error` : ''}`);
         desde = r.siguiente;
       }
       setOpt(o => 'Listo: ' + o.replace(/^Revisando \d+ de /, ''));
@@ -1697,7 +1710,7 @@ function BulkPhotos({ vestidos, sedes, clasificaciones, sedeInicial, tipoInicial
     const r = await fetch('/api/inventario/optimizar', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.session?.access_token || ''}` }, body: JSON.stringify({ desde }) });
     const x = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(x.error || 'No se pudo optimizar.');
-    return x as { optimizadas: number; antes: number; despues: number; errores: string[]; siguiente: number | null; total: number };
+    return x as { optimizadas: number; miniaturas?: number; antes: number; despues: number; errores: string[]; siguiente: number | null; total: number };
   };
   const errores = log.filter(l => !l.ok || l.resultado.startsWith('⚠'));
   const exportErrors = () => { const t = '\uFEFFArchivo;Detalle\n' + errores.map(l => `"${l.archivo.replace(/"/g, '""')}";"${l.resultado.replace(/"/g, '""')}"`).join('\n'); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([t], { type: 'text/csv;charset=utf-8' })); a.download = 'fotos-por-corregir.csv'; a.click(); URL.revokeObjectURL(a.href); };
@@ -1743,8 +1756,8 @@ function BulkPhotos({ vestidos, sedes, clasificaciones, sedeInicial, tipoInicial
         {!busy && errores.length > 0 && <button type="button" onClick={exportErrors} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase">Descargar lista por corregir ({errores.length})</button>}
         <ul className="text-xs space-y-1">{log.map((l, i) => <li key={i} className={l.ok ? 'text-emerald-700' : 'text-rose-700'}><b>{l.archivo}</b> → {l.resultado}</li>)}</ul>
         <div className="rounded-2xl border border-gray-100 p-3 space-y-2">
-          <p className="text-xs text-gray-600"><b>Optimizar fotos ya subidas</b> (solo Administración): reduce a 1600 px en JPG las fotos pesadas para ahorrar espacio; los vestidos conservan sus mismas fotos.</p>
-          <button type="button" disabled={busy} onClick={() => void optimize()} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase">Optimizar fotos</button>
+          <p className="text-xs text-gray-600"><b>Optimizar fotos ya subidas</b> (solo Administración): reduce a 1600 px en JPG las fotos pesadas y crea miniaturas livianas para las vistas pequeñas; los vestidos conservan sus mismas fotos.</p>
+          <button type="button" disabled={busy} onClick={() => void optimize()} className="px-4 py-2 rounded-xl border border-gray-200 text-xs font-black uppercase">Optimizar fotos y crear miniaturas</button>
           {opt && <p className="text-xs font-bold text-gray-800">{opt}</p>}
         </div>
         <button type="button" disabled={busy} onClick={onClose} className="px-5 py-3 rounded-xl bg-gray-900 text-white text-xs font-black uppercase">Cerrar</button>
@@ -1763,6 +1776,7 @@ function DressPhotos({ dress, canEdit, onSaved }: { dress: Record<string, unknow
       const blob = await resizePhoto(file);
       const { error } = await supabase.storage.from('vestidos_fotos').upload(path, blob, { contentType: blob.type || 'image/jpeg' });
       if (error) throw error;
+      await uploadMini(path, blob);
       const url = supabase.storage.from('vestidos_fotos').getPublicUrl(path).data.publicUrl;
       const patch: Record<string, string> = { [field]: url, ...(field === 'foto_frente' ? { imagen_url: url } : {}) };
       const { error: e2 } = await supabase.from('vestidos').update(patch).eq('id', dress.id);
