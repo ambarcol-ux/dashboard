@@ -36,9 +36,13 @@ export async function POST(request:Request){
  const byCode=new Map<string,Record<string,unknown>[]>();
  for(const v of dresses||[]){const k=String(v.codigo||'').trim().toUpperCase();if(k)byCode.set(k,[...(byCode.get(k)||[]),v]);}
 
+ // Drive files already imported (any dress), so a repeated import skips them, also the approved ones.
+ const imported=new Set<string>();
+ for(const v of dresses||[])for(const k of PHOTO_FIELDS){const m=String(v[k]||'').match(/drive-([A-Za-z0-9_-]{10,})-foto_/);if(m)imported.add(m[1]);}
  const resultados:Result[]=[];
  for(const f of files){
   const label=f.carpeta?`${f.carpeta} / ${f.name}`:f.name;
+  if(imported.has(f.id)){resultados.push({archivo:label,tipo:'omitido',mensaje:'Ya estaba cargada.'});continue;}
   // Reference from the file name; if it is not a known reference, from the folder name.
   const fromFile=codeCandidates(String(f.name)),fromFolder=codeCandidates(String(f.carpeta||''));
   const code=fromFile.find(c=>byCode.has(c))||fromFolder.find(c=>byCode.has(c))||fromFile.at(-1)||fromFolder.at(-1)||'';
