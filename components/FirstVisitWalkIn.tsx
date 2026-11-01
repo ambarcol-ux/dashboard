@@ -5,6 +5,8 @@ import {supabase} from '@/lib/supabase';
 import {emptyConfig,loadModuleConfig,minChars} from '@/lib/module-config';
 import {bogotaLocalToIso,nowBogotaLocal} from '@/lib/first-visits';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
+import DataAuthorization,{saveDataAuthorization} from '@/components/DataAuthorization';
+import type {AuthChoice,AuthState} from '@/lib/data-authorization';
 
 type Duplicates={visitas:{id:string;nombre:string;fecha:string;hora:string;sede:string;estado:string;origen:string;vinculable:boolean;pendiente:boolean}[];contratos:{id:string;numero_contrato:string;nombre:string;sede:string|null;fecha_evento:string|null}[];aliados?:{id:string;nombre:string;aliado:string|null;contrato:boolean}[];aviso?:string|null};
 type Props={profile:{id:string;sede_id:string|null};onClose:()=>void;onSaved:(message:string)=>void;alContratar?:boolean;onCreated?:(id:string)=>void};
@@ -18,6 +20,7 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
  const [sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[asesoras,setAsesoras]=useState<{id:string;nombre:string|null;email:string|null}[]>([]);
  const [dups,setDups]=useState<Duplicates|null>(null),[link,setLink]=useState(''),[asNew,setAsNew]=useState(false);
  const [saving,setSaving]=useState(false),[error,setError]=useState(''),[cfg,setCfg]=useState(emptyConfig);
+ const [auth,setAuth]=useState<AuthChoice>({tratamiento:false,comercial:false}),[authState,setAuthState]=useState<AuthState>(null);
  useEffect(()=>{void loadModuleConfig('primeras_visitas','pv_').then(setCfg);},[]);
  const min=minChars(cfg);
  useEffect(()=>{dialog.current?.showModal();},[]);
@@ -46,7 +49,10 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
   if(!sede||!f.tipo_evento||!f.resultado||!fecha_hora||!asesora)return setError('Completa los campos obligatorios (*).');
   if(f.resultado==='No cerró'&&f.motivo.trim().length<min)return setError(`Para no hacer seguimiento escribe el motivo (mínimo ${min} caracteres).`);
   if(hasDups&&!link&&!asNew)return setError('El teléfono o la cédula ya existen: vincula el registro existente o elige «Continuar como vitrina nueva».');
+  if(authState?.estado!=='autorizada'&&!auth.tratamiento)return setError('Marca la autorización de tratamiento de datos (obligatoria).');
   setSaving(true);
+  try{await saveDataAuthorization({documento:digits(f.documento),telefono:digits(f.telefono),nombre:f.nombre.trim(),email:f.email.trim(),sede,origen:'vitrina',choice:auth,state:authState});}
+  catch(e){setSaving(false);return setError(e instanceof Error?e.message:'No se pudo registrar la autorización de datos.');}
   const {data,error}=await supabase.rpc('registrar_vitrina',{p_datos:{...f,al_contratar:alContratar,telefono:digits(f.telefono),documento:digits(f.documento),sede_id:sede,fecha_hora,asesora_id:asesora,vincular_id:link||null,forzar:asNew,sin_seguimiento:f.resultado==='No cerró'}});
   setSaving(false);
   if(error)return setError(error.message.replace(/^DUPLICADO: /,''));
@@ -88,6 +94,7 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
    {!alContratar&&<label>¿Alquiló? *<select required value={f.resultado==='Cerrado'?'si':f.resultado?'no':''} onChange={e=>setF({...f,resultado:e.target.value==='si'?'Cerrado':e.target.value==='no'?'En seguimiento':''})}><option value="">Elige…</option><option value="si">Alquiló</option><option value="no">No alquiló</option></select></label>}
    {!alContratar&&f.resultado&&f.resultado!=='Cerrado'&&<label><input type="checkbox" checked={f.resultado==='No cerró'} onChange={e=>setF({...f,resultado:e.target.checked?'No cerró':'En seguimiento'})}/> No hacer seguimiento (motivo de mínimo {min} caracteres)</label>}
    <label>{f.resultado==='No cerró'?'Motivo *':'Observaciones'}<textarea maxLength={1000} value={f.motivo} onChange={set('motivo')} required={f.resultado==='No cerró'} minLength={f.resultado==='No cerró'?min:undefined}/></label>
+   <DataAuthorization documento={f.documento} telefono={f.telefono} value={auth} onChange={setAuth} onState={setAuthState}/>
   </fieldset>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   <div className={styles.actions} style={{marginTop:16,justifyContent:'flex-end'}}>

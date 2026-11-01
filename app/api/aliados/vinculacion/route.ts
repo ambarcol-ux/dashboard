@@ -2,6 +2,7 @@ import {publicServerClient,publicReply,validSignature} from '@/lib/public-db';
 import {allySignup} from '@/lib/direct-allies';
 import {agreementText,finishAllySigning,loadAgreement} from '@/lib/ally-signing';
 import {ALLY_CONTRACT_VERSION,DATA_AUTHORIZATION,type AllyProfile} from '@/lib/ally-contract-text';
+import {loadAuthTexts,registerAuthorization} from '@/lib/data-authorization';
 export const dynamic='force-dynamic';
 
 const CERT_TYPES:Record<string,string>={'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png','image/webp':'webp'};
@@ -11,10 +12,10 @@ const tiposActivos=(db:ReturnType<typeof publicServerClient>)=>db.from('tipos_al
 /** Public sign-up link (/aliados/vincular): types, agreement (fields shown as placeholders) and data authorization. */
 export async function GET(){
  try{
-  const db=publicServerClient(),[{data:tipos,error},agreement,{data:sedes}]=await Promise.all([tiposActivos(db),loadAgreement(db),sedesActivas(db)]);
+  const db=publicServerClient(),[{data:tipos,error},agreement,{data:sedes},textos]=await Promise.all([tiposActivos(db),loadAgreement(db),sedesActivas(db),loadAuthTexts(db)]);
   if(error)throw error;
   if(!agreement.ready)return publicReply({error:'La vinculación de aliados aún no está disponible. Intenta más tarde.'},409);
-  return publicReply({tipos,sedes:sedes||[],acuerdo:agreement.acuerdo?.secciones||null,config:agreement.acuerdo?null:agreement.config,autorizacion:DATA_AUTHORIZATION});
+  return publicReply({tipos,sedes:sedes||[],acuerdo:agreement.acuerdo?.secciones||null,config:agreement.acuerdo?null:agreement.config,autorizacion:DATA_AUTHORIZATION,comercial:textos.comercial?.texto||null});
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
 }
 
@@ -46,6 +47,9 @@ export async function POST(request:Request){
   const texto=agreementText(agreement,{...profile,tipo},now);
   const r=await finishAllySigning(db,{id:ally.id,nombre:d.nombre_completo,cedula:d.cedula,correo:d.correo,tipo},texto,firma,agreement.acuerdo?`Word v${agreement.acuerdo.version}`:ALLY_CONTRACT_VERSION,profile,request,now);
   if('error' in r)return publicReply({error:r.error},r.status);
+  // Data authorization of the person (once per person): processing accepted with the agreement text; commercial optional.
+  try{await registerAuthorization(db,{documento:d.cedula,telefono:d.celular,nombre:d.nombre_completo,email:d.correo,sede:d.sede_principal?String(d.sede_principal):null,origen:'vinculacion_aliado',tratamiento:true,comercial:form.get('comercial')==='true',pendiente:false,aliado:ally.id,versionTratamiento:`aliado:${ALLY_CONTRACT_VERSION}`});}
+  catch(e){console.error('Autorización de datos no registrada:',e);}
   return publicReply({ok:true,codigo:r.codigo});
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
 }

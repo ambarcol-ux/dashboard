@@ -5,7 +5,7 @@ import {CheckCircle,Eraser,Loader2,PenTool} from 'lucide-react';
 import AllyContractText from '@/components/AllyContractText';
 import {agreementDate,allyContractText,fillAgreement,type AllyContractConfig,type ContractSection} from '@/lib/ally-contract-text';
 
-type Info={tipos:{id:number;nombre:string}[];sedes:{id:string;nombre:string}[];acuerdo:ContractSection[]|null;config:AllyContractConfig|null;autorizacion:ContractSection};
+type Info={tipos:{id:number;nombre:string}[];sedes:{id:string;nombre:string}[];acuerdo:ContractSection[]|null;config:AllyContractConfig|null;autorizacion:ContractSection;comercial?:string|null};
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
 const FIELDS:[string,string,string?][]=[['nombre_completo','Nombre completo'],['cedula','Cédula','numeric'],['celular','Celular','tel'],['correo','Correo electrónico','email'],['direccion','Dirección'],['banco','Banco'],['numero_cuenta','Número de cuenta','numeric'],['titular_cuenta','Titular de la cuenta']];
 const EMPTY:Record<string,string>={nombre_completo:'',cedula:'',celular:'',correo:'',direccion:'',tipo_aliado_id:'',sede_principal:'',banco:'',tipo_cuenta:'',numero_cuenta:'',titular_cuenta:''};
@@ -13,7 +13,7 @@ const EMPTY:Record<string,string>={nombre_completo:'',cedula:'',celular:'',corre
 /** Public sign-up of Aliados Directos: form, data authorization, agreement signature; the request stays Pendiente. */
 export default function AllySignupPage(){
  const [info,setInfo]=useState<Info|null>(null),[datos,setDatos]=useState(EMPTY),[cert,setCert]=useState<File|null>(null);
- const [aceptaDatos,setAceptaDatos]=useState(false),[acepta,setAcepta]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[done,setDone]=useState<string|null>(null);
+ const [aceptaDatos,setAceptaDatos]=useState(false),[comercial,setComercial]=useState(false),[acepta,setAcepta]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[done,setDone]=useState<string|null>(null);
  const pad=useRef<SignatureCanvas>(null);
  useEffect(()=>{fetch('/api/aliados/vinculacion').then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo cargar el formulario.');setInfo(d);const sede=new URLSearchParams(window.location.search).get('sede');if(sede&&d.sedes?.some((s:{id:string})=>s.id===sede))setDatos(v=>({...v,sede_principal:sede}));}).catch(e=>setError(e.message));},[]);
  const tipo=info?.tipos.find(t=>String(t.id)===datos.tipo_aliado_id)?.nombre||'{tipo}';
@@ -31,7 +31,7 @@ export default function AllySignupPage(){
   if(!pad.current||pad.current.isEmpty())return setError('Dibuja tu firma en el recuadro.');
   setBusy(true);
   try{
-   const form=new FormData();form.append('datos',JSON.stringify(datos));form.append('certificacion',cert);form.append('acepta_datos','true');form.append('acepta','true');form.append('firma',pad.current.getTrimmedCanvas().toDataURL('image/png'));
+   const form=new FormData();form.append('datos',JSON.stringify(datos));form.append('certificacion',cert);form.append('acepta_datos','true');form.append('comercial',String(comercial));form.append('acepta','true');form.append('firma',pad.current.getTrimmedCanvas().toDataURL('image/png'));
    const r=await fetch('/api/aliados/vinculacion',{method:'POST',body:form}),d=await r.json().catch(()=>({}));
    if(!r.ok)throw Error(d.error||'No se pudo enviar tu solicitud.');
    setDone(d.codigo);window.scrollTo({top:0,behavior:'smooth'});
@@ -58,6 +58,8 @@ export default function AllySignupPage(){
     <section className={card}><h2 className="font-black text-gray-900 mb-3">2. Autorización de tratamiento de datos</h2>
      <AllyContractText sections={[info.autorizacion]}/>
      <label className="flex gap-2 items-start text-sm text-gray-700 mt-4"><input type="checkbox" className="mt-1" checked={aceptaDatos} onChange={e=>setAceptaDatos(e.target.checked)}/>Autorizo el tratamiento de mis datos personales según la Ley 1581 de 2012.</label>
+     {info.comercial&&<p className="text-xs text-gray-500 mt-4">{info.comercial}</p>}
+     <label className="flex gap-2 items-start text-sm text-gray-700 mt-2"><input type="checkbox" className="mt-1" checked={comercial} onChange={e=>setComercial(e.target.checked)}/>Acepto recibir información comercial (opcional)</label>
     </section>
     <section className={card}><h2 className="font-black text-gray-900 mb-4">3. Lee el acuerdo de vinculación</h2><div className="max-h-[60vh] overflow-y-auto pr-2">{preview&&<AllyContractText sections={preview}/>}</div></section>
     <section className={card+' space-y-4'}>

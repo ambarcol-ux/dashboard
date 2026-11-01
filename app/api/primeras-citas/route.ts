@@ -3,6 +3,7 @@ import {createHmac} from 'node:crypto';
 import {visitManagementLink} from '@/lib/first-visit-links';
 import {validateVisitInput} from '@/lib/first-visits';
 import {publicClosedLabel} from '@/lib/agenda';
+import {authLink,loadAuthTexts,registerAuthorization} from '@/lib/data-authorization';
 export const dynamic='force-dynamic';
 const reply=(body:unknown,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store'}});
 function client(){
@@ -22,8 +23,8 @@ export async function GET(request:Request){
    return reply({modalidades:d.modalidades,cerrados:Object.fromEntries(d.dias.filter(x=>!x.disponible).map(x=>[x.fecha,publicClosedLabel(x.motivo)]))});
   }
   if(!q.has('fecha')){
-   const {data,error}=await db.from('sedes').select('id,nombre').eq('activo',true).order('nombre');
-   if(error)throw error;return reply({sedes:data});
+   const [{data,error},t]=await Promise.all([db.from('sedes').select('id,nombre').eq('activo',true).order('nombre'),loadAuthTexts(db)]);
+   if(error)throw error;return reply({sedes:data,textos:{tratamiento:t.tratamiento,comercial:t.comercial}});
   }
   if(!/^\d{4}-\d{2}-\d{2}$/.test(q.get('fecha')||'')||!['presencial','virtual'].includes(q.get('modalidad')||'')||! /^[0-9a-f-]{36}$/i.test(q.get('sede')||''))return reply({error:'Selecciona fecha, sede y modalidad.'},400);
   const {data,error}=await db.rpc('disponibilidad_primera_cita',{p_fecha:q.get('fecha'),p_modalidad:q.get('modalidad'),p_sede:q.get('sede')});
@@ -46,6 +47,14 @@ export async function POST(request:Request){
   if(error)return reply({error:'No se pudo confirmar la reserva. Revisa tus datos y vuelve a consultar el horario.'},400);
   if(!data?.reservada&&data?.error==='Ya tienes una primera cita pendiente. Contacta a la sede para cambiarla.')return reply({error:'Ya tienes una primera cita pendiente. Puedes cambiar su fecha y horario desde aquí.',reprogramar:true},409);
   if(!data?.reservada)return reply({error:data?.error||'El horario ya no está disponible.'},409);
-   return reply({reservada:true,id:data.id,enlace:visitManagementLink(new URL(request.url).origin,data.id,Date.parse(input.fecha+'T23:59:59-05:00')+30*86400000,process.env.FIRST_VISIT_LINK_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY!)});
+  // Data authorization: booked by the person → registered; booked by the team (session) → pending until she accepts with her link.
+  let autorizacion:string|null=null;
+  try{
+   const session=request.headers.get('cookie')?.match(/(?:^|;\s*)sb-access-token=([^;]+)/)?.[1];
+   const staff=session?(await db.auth.getUser(decodeURIComponent(session))).data.user:null;
+   const a=await registerAuthorization(db,{documento:input.documento,telefono:input.telefono,nombre:input.nombre,email:input.email,sede:input.sede,origen:'agendamiento',tratamiento:!staff,comercial:!staff&&input.comercial,pendiente:!!staff,registradoPor:staff?.id||null});
+   if(a.estado!=='autorizada')autorizacion=authLink(new URL(request.url).origin,a.token);
+  }catch(e){console.error('Autorización de datos no registrada:',e);}
+   return reply({reservada:true,id:data.id,autorizacion,enlace:visitManagementLink(new URL(request.url).origin,data.id,Date.parse(input.fecha+'T23:59:59-05:00')+30*86400000,process.env.FIRST_VISIT_LINK_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY!)});
  }catch{return reply({error:'No se pudo confirmar la reserva. Reintenta con los mismos datos para comprobarla sin duplicarla.'},503);}
 }
