@@ -1687,7 +1687,7 @@ function BulkPhotos({ vestidos, onClose }: { vestidos: Record<string, unknown>[]
           <Plus className="w-4 h-4" /> Elegir fotos del equipo
           <input type="file" accept="image/*" multiple disabled={busy} onChange={e => void run(e.target.files)} className="hidden" />
         </label>
-        {total > 0 && <p className="font-bold text-gray-800">{busy ? `Subiendo ${done} de ${total}…` : `Listo: ${okCount} de ${total} fotos asignadas.`}</p>}
+        {total > 0 && <p className="font-bold text-gray-800">{busy ? `Revisando ${done} de ${total}…` : `Listo: ${log.filter(l => l.ok && !l.resultado.startsWith('↺')).length} subidas ahora · ${log.filter(l => l.resultado.startsWith('↺')).length} ya estaban · ${sugs.length} por aprobar · ${log.filter(l => !l.ok).length} por corregir (de ${total}).`}</p>}
         {sugs.length > 0 && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
           <p className="text-sm font-black text-amber-900">Por aprobar ({sugs.length}): el nombre no coincide exacto con la referencia</p>
           <p className="text-xs text-amber-800">Te proponemos el vestido más probable (mismos números iniciales, precio y color). Revisa, cambia si hace falta y aprueba.</p>
