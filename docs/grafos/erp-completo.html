@@ -1,0 +1,135 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ERP completo</title>
+<style>body{font-family:system-ui,sans-serif;margin:16px;background:#fafaf9;color:#111}h1{font-size:20px}h2{font-size:16px;margin-top:24px}p,li{color:#444;font-size:13px}
+.mermaid{background:#fff;border:1px solid #eee;border-radius:12px;padding:12px;overflow:auto}</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script></head><body translate="no">
+<h1>Ámbar Couture ERP · mapa completo al 01/11/2026</h1>
+<p>Rosa: pantallas internas (menú) · Morado: páginas públicas (clientas, aliados, proveedores) · Verde: APIs y lógica · Azul: datos · Gris: servicios externos · Amarillo: pendiente.</p>
+
+<h2>1. Arquitectura y acceso</h2>
+<div class="mermaid">
+flowchart LR
+  classDef ui fill:#ffe4e6,stroke:#e11d48,color:#111
+  classDef pub fill:#ede9fe,stroke:#7c3aed,color:#111
+  classDef code fill:#dcfce7,stroke:#16a34a,color:#111
+  classDef db fill:#dbeafe,stroke:#2563eb,color:#111
+  classDef ext fill:#f3f4f6,stroke:#6b7280,color:#111
+  classDef pend fill:#fef3c7,stroke:#d97706,color:#111
+  USR["Equipo: Administrador · Asesora líder · Asesora · Franquiciado · Contabilidad · Proveedor"]:::ui
+  USR --> LOGIN["/login (Supabase Auth)"]:::ui --> MW["middleware.ts: sesión + perfil + mis_permisos → panel permitido<br/>/dashboard /contratos /admin /perfil /disponibilidad /proveedor"]:::code
+  MW --> MENU["Menú (Sidebar · lib/panel-access.ts)"]:::ui
+  ACC["Roles y permisos (/admin/accesos): roles · permisos · roles_permisos · Ve todas las sedes"]:::ui --> MW
+  RLS["Base: RLS + funciones privadas (sedes_limitadas, tiene_permiso, es_admin) + triggers"]:::code
+  MENU --> RLS --> DB[("Supabase Postgres · proyecto topldhogulsqfppbvwjw")]:::db
+  PUB["Páginas públicas: API de servidor + token o enlace firmado; el navegador nunca lee la base"]:::pub --> DB
+  DB --- ST[("Storage: vestidos_fotos (fotos + mini/) y otros")]:::db
+  GH["GitHub ambarcol-ux/dashboard → Vercel (erp.ambarcouture.com)"]:::ext --> MENU
+  MAIL["Correos (citas, aliados, firmas)"]:::ext
+  WA["WhatsApp (guiones de primeras citas)"]:::ext
+  DRV["Google Drive (importar fotos)"]:::ext
+  SIIGO["Siigo · facturación electrónica"]:::pend
+</div>
+
+<h2>2. Módulos del menú</h2>
+<div class="mermaid">
+flowchart LR
+  classDef ui fill:#ffe4e6,stroke:#e11d48,color:#111
+  classDef db fill:#dbeafe,stroke:#2563eb,color:#111
+  classDef pend fill:#fef3c7,stroke:#d97706,color:#111
+
+  subgraph OPS["OPERACIONES"]
+    D["Dashboard de contratos /dashboard<br/>tarjetas, tabla, fotos, gestionar, pagos /dashboard/pago"]:::ui
+    NC["Nuevo contrato /contratos/nuevo<br/>visita obligatoria · accesorios · modo aliado"]:::ui
+    CAL["Calendario /dashboard/calendario · agenda 7 días · panel con fotos"]:::ui
+    PV["Primeras visitas /dashboard/primeras-citas<br/>CIT/VIT · vitrina · seguimientos · análisis · configuración"]:::ui
+    AG["Agenda de vestidos /disponibilidad"]:::ui
+    PE["Pedidos estrene"]:::ui
+    RET["Retablos + tipos"]:::ui
+    DEP["Depósitos y devoluciones"]:::ui
+    INV["Gestión de inventario /admin/inventory<br/>por sede/estado · fotos · Drive · QR · editar su sede"]:::ui
+    REP["Reportes y estadísticas /admin/reports"]:::ui
+  end
+  subgraph FIN["FINANZAS"]
+    CAJA["Cierres de caja por sede"]:::ui
+  end
+  subgraph PROV["PROVEEDORES"]
+    PC["Catálogo de proveedores"]:::ui
+    PG["Gestión de proveedores (admin)"]:::ui
+    PP["Pagos a proveedores (admin)"]:::ui
+  end
+  subgraph VTA["VENTAS Y CRM"]
+    MET["Metas y ventas /admin/metas"]:::ui
+    CATV["Catálogo de vestidos /dashboard/catalogo<br/>PDF 1 y 3 fotos · enlaces públicos"]:::ui
+    CRM["CRM fijo"]:::pend
+    VEN["Módulo de ventas mínimo"]:::pend
+  end
+  subgraph ALI["RED DE ALIADOS"]
+    AD["Aliados directos"]:::ui
+    GA["Gestión de aliados · escalas · liquidaciones"]:::ui
+  end
+  subgraph ADM["ADMINISTRACIÓN"]
+    EQ["Gestión de equipo /admin/users"]:::ui
+    HOR["Control de asistencia /dashboard/horarios"]:::ui
+    CFG["Configuración /admin/config<br/>Listas · Parámetros · Formularios · Categorías · Historial"]:::ui
+    CLA["Cláusulas del contrato"]:::ui
+    SG["Facturación por sede (Siigo)"]:::pend
+    ACC2["Accesos por perfil"]:::ui
+  end
+  MAN["Manual de usuario · Mi perfil"]:::ui
+</div>
+
+<h2>3. Páginas públicas</h2>
+<div class="mermaid">
+flowchart LR
+  classDef pub fill:#ede9fe,stroke:#7c3aed,color:#111
+  classDef code fill:#dcfce7,stroke:#16a34a,color:#111
+  A1["/agendar-primera-cita · /gestionar · /reprogramar-primera-cita"]:::pub --> X1["api/primeras-citas (+ gestionar, recuperar, procesar, correos, whatsapp, eventos-crm) · api/citas"]:::code
+  A2["/aliados/clientas · /aliados/disponibilidad · /aliados/medidas · /aliados/vincular · /unete · /recomendar/slug · /aliado-contrato"]:::pub --> X2["api/aliados/* (registro, clientas, disponibilidad, medidas, contrato, acuerdo, aprobación, vinculación, tarea diaria)"]:::code
+  A3["/firma/id · /entrega/id"]:::pub --> X3["api/firma · api/entrega (vestidos → Alquilado)"]:::code
+  A4["/c/token catálogo público"]:::pub --> X4["api/catalogo (sin 5% aliado)"]:::code
+  A5["/v/qr_token QR del vestido"]:::pub --> X5["api/v (disponibilidad por fecha, límite por IP)"]:::code
+  A6["/proveedor portal"]:::pub --> X6["api/proveedores/usuario"]:::code
+</div>
+
+<h2>4. Datos principales y relaciones</h2>
+<div class="mermaid">
+flowchart LR
+  classDef db fill:#dbeafe,stroke:#2563eb,color:#111
+  SED[("sedes · usuario_sedes")]:::db
+  PRO[("profiles · roles · permisos · roles_permisos")]:::db
+  VES[("vestidos: código único global · fotos · categoría · qr_token · archivado")]:::db
+  CLS[("clasificaciones_vestido · categorias_vestido")]:::db
+  HIS[("bitacora_vestidos · traslados_bitacora · mantenimiento_*")]:::db
+  CON[("contratos · contrato_items_vestidos · pagos · historial_cambios_contrato")]:::db
+  VIS[("primeras visitas / citas · seguimientos · agenda_* (horario, excepciones, festivos)")]:::db
+  ALD[("aliados · aliado_clientas · aliado_consultas · liquidaciones")]:::db
+  CFGT[("listas_contrato · config_parametros · config_formularios · config_historial")]:::db
+  MT[("metas · historial_metas")]:::db
+  CJ[("cierres de caja · depósitos")]:::db
+  PV2[("proveedores · pagos a proveedores")]:::db
+  CP[("catalogos_publicos")]:::db
+  PRO --> SED
+  VES --> SED
+  VES --> CLS
+  VES --> HIS
+  CON --> VES
+  CON --> SED
+  VIS --> CON
+  ALD --> CON
+  CFGT --> CON
+  CFGT --> VIS
+  MT --> CON
+  CJ --> CON
+  CP --> VES
+  PV2 --> SED
+</div>
+
+<h2>5. Pendientes</h2>
+<ul>
+<li>Siigo: respuestas de Sergio (producto genérico o por vestido, momento de facturar, credenciales).</li>
+<li>Módulo de ventas mínimo: aprobación.</li>
+<li>Informes y estadísticas: 5 ajustes.</li>
+<li>CRM fijo · Lote 3 líder de tienda (proveedores, metas, horarios por sede).</li>
+<li>Copia completa del esquema (SUPABASE_DB_URL) · reglas de medición y configuración en CLAUDE.md.</li>
+</ul>
+<script>mermaid.initialize({startOnLoad:true,securityLevel:'strict',flowchart:{htmlLabels:true}});</script>
+</body></html>
