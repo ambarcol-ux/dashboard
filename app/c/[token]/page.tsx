@@ -1,4 +1,5 @@
 'use client';
+import DressThumb from '@/components/DressThumb';
 import {useEffect,useState} from 'react';
 import {useParams} from 'next/navigation';
 import {Loader2} from 'lucide-react';
@@ -19,7 +20,7 @@ export default function PublicCatalogPage(){
    {!data&&!error&&<p className="flex items-center justify-center gap-2 text-gray-500"><Loader2 className="w-5 h-5 animate-spin"/> Cargando…</p>}
    {data&&<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
     {data.vestidos.map(v=><article key={v.codigo} onClick={()=>setOpen(v)} className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm cursor-pointer">
-     <div className="aspect-[3/4] bg-gray-100 flex items-center justify-center text-xs text-gray-400">{v.foto?<img src={v.foto} alt={v.nombre||v.codigo} loading="lazy" className="w-full h-full object-cover"/>:'Foto próximamente'}</div>
+     <div className="aspect-[3/4] bg-gray-100 flex items-center justify-center text-xs text-gray-400">{v.foto?<DressThumb src={v.foto} alt={v.nombre||v.codigo} className="w-full h-full object-cover"/>:'Foto próximamente'}</div>
      <div className="p-3 text-xs space-y-0.5"><p className="font-black text-gray-900 text-sm">{v.codigo}</p>
       <p className="font-bold text-rose-700">{v.tipo}{v.categoria?` · ${v.categoria}`:''}</p>
       <p className="text-gray-600">{v.nombre}</p><p className="text-gray-500">Talla {v.talla||'—'} · {v.color||'—'}</p>
