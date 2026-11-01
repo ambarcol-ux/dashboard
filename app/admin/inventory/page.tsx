@@ -59,6 +59,11 @@ export default function InventoryPage() {
   const [removalTarget, setRemovalTarget] = useState<{id: string; codigo: string} | null>(null);
   const [user, setUser] = useState<any>(null);
   const userPermissions = usePermissions(user?.id ? String(user.id) : null);
+  // «Editar inventario de su sede» (Roles y permisos): sedes whose dresses this user may create and edit.
+  const [sedesEditables, setSedesEditables] = useState<string[]>([]);
+  useEffect(() => { if (!user?.id) return; void supabase.rpc('sedes_inventario_editables').then(({ data }) => setSedesEditables(Array.isArray(data) ? data.map(String) : [])); }, [user?.id]);
+  const canEditInv = sedesEditables.length > 0;
+  const canEditDress = (v: { sede_actual_id?: unknown } | null | undefined) => !!v && sedesEditables.includes(String(v.sede_actual_id));
   const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal ('none' = sin sede)
   const [novedadFilter, setNovedadFilter] = useState<string>('');
   const [editState, setEditState] = useState<Record<number, any>>({}); // Estado local de edición por vestidoid
@@ -605,7 +610,7 @@ export default function InventoryPage() {
               <option value="none">Sin sede</option>
             </select>
           </div>
-          {canEditSavedRecords(user, userPermissions) && <div className="w-full md:w-auto">
+          {canEditInv && <div className="w-full md:w-auto">
             <select
               className="w-full md:w-auto md:min-w-[14rem] px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
               value={novedadFilter}
@@ -652,7 +657,7 @@ export default function InventoryPage() {
           >
             <QrCode className="w-4 h-4" /> Etiquetas QR
           </button>
-          {canEditSavedRecords(user, userPermissions) && <button
+          {canEditInv && <button
             onClick={() => {
               // No xlsx library in the project: CSV UTF-8 with BOM opens directly in Excel.
               const cell = (x: unknown) => { const t = String(x ?? ''); return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t; };
@@ -680,7 +685,7 @@ export default function InventoryPage() {
           >
             <Download className="w-4 h-4" /> {catalogBusy ? 'Generando…' : 'Catálogo PDF'}
           </button>
-          {canEditSavedRecords(user, userPermissions) && <button type="button" onClick={() => setBulkOpen(true)}
+          {canEditInv && <button type="button" onClick={() => setBulkOpen(true)}
             className="w-full md:w-auto px-5 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest border transition-all flex items-center justify-center gap-2 whitespace-nowrap bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100"
             title="Sube muchas fotos: la referencia al inicio del nombre del archivo indica el vestido">
             <Plus className="w-4 h-4" /> Carga masiva de fotos
@@ -689,7 +694,7 @@ export default function InventoryPage() {
              <div className="px-6 py-4 bg-gray-50 rounded-2xl text-gray-400 font-black text-[10px] uppercase tracking-widest border border-gray-100 italic whitespace-nowrap">
                {showArchived ? 'ARCHIVADOS' : 'TOTAL STOCK'}: {filtered.length}
              </div>
-             <button 
+             {canEditInv && <button
                onClick={() => {
                  loadData(); // Force database read
                  setIsModalOpen(true);
@@ -697,12 +702,12 @@ export default function InventoryPage() {
                className="flex-1 md:flex-none px-8 py-4 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-100 transition-all active:scale-95 flex items-center justify-center gap-2"
              >
                <Plus className="w-4 h-4" /> Nuevo Vestido
-             </button>
+             </button>}
           </div>
           </div>
         </div>
 
-        {bulkOpen && <BulkPhotos vestidos={vestidos} sedes={sedes} clasificaciones={clasificaciones} sedeInicial={sedeFilter && sedeFilter !== 'none' ? sedeFilter : ''} tipoInicial={clasificacionFilter && clasificacionFilter !== 'none' ? clasificacionFilter : ''} categoriaInicial={categoriaFilter && categoriaFilter !== 'none' ? categoriaFilter : ''} onClose={() => { setBulkOpen(false); loadData(); }} />}
+        {bulkOpen && <BulkPhotos vestidos={vestidos} sedes={sedes.filter(s => sedesEditables.includes(String(s.id)))} clasificaciones={clasificaciones} sedeInicial={sedeFilter && sedeFilter !== 'none' ? sedeFilter : ''} tipoInicial={clasificacionFilter && clasificacionFilter !== 'none' ? clasificacionFilter : ''} categoriaInicial={categoriaFilter && categoriaFilter !== 'none' ? categoriaFilter : ''} onClose={() => { setBulkOpen(false); loadData(); }} />}
         {editingDress && <EditDressModal dress={editingDress} clasificaciones={clasificaciones} onClose={() => setEditingDress(null)} onSaved={() => { setEditingDress(null); loadData(); }} />}
         {/* Modal Nuevo Vestido */}
         {isModalOpen && (
@@ -799,7 +804,7 @@ export default function InventoryPage() {
                       onChange={(e) => setNewDress({...newDress, sede_actual_id: e.target.value})}
                     >
                       <option value="">Selecciona...</option>
-                      {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                      {sedes.filter(s => sedesEditables.includes(String(s.id))).map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
                     </select>
                   </div>
                 </div>
@@ -851,7 +856,7 @@ export default function InventoryPage() {
                           <div className="min-w-0">
                             <div className="font-black text-gray-900 text-base tracking-tighter uppercase leading-none mb-1 break-all">{v.codigo}</div>
                             {v.archivado && <div className="mb-1 text-[10px] text-gray-500 normal-case">Archivado{v.archivado_at ? ` el ${new Date(v.archivado_at).toLocaleDateString('es-CO')}` : ''}: <b>{v.motivo_archivo || 'sin motivo'}</b></div>}
-                            {canEditSavedRecords(user, userPermissions) && !v.archivado && <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDress(v); }} className="mb-1 text-[9px] font-black uppercase tracking-widest text-rose-500 hover:underline">Editar todo</button>}
+                            {canEditDress(v) && !v.archivado && <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDress(v); }} className="mb-1 text-[9px] font-black uppercase tracking-widest text-rose-500 hover:underline">Editar todo</button>}
                             <input 
                               type="text"
                               value={editState[v.id]?.nombre !== undefined ? editState[v.id].nombre : (v.nombre || '')}
@@ -1029,7 +1034,7 @@ export default function InventoryPage() {
                 <h3 className="text-xl font-black text-gray-900 tracking-tighter uppercase mb-1">{v.codigo}</h3>
                 <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-6 italic">{clasificacionNombre(v.clasificacion_id) || 'Sin Clasificar'}{v.categoria ? ` · ${v.categoria}` : ''}{v.archivado ? ' · Archivado' : ''}</p>
                 <p className="text-sm font-bold text-gray-600 -mt-4 mb-2 break-words">{v.nombre || 'Sin descripción'}{v.talla || v.color ? ` · Talla ${v.talla || '—'} · ${v.color || '—'}` : ''}</p>
-                {canEditSavedRecords(user, userPermissions) && !v.archivado && <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDress(v); }} className="mb-4 px-4 py-2 rounded-xl bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-widest">Editar referencia y descripción</button>}
+                {canEditDress(v) && !v.archivado && <button type="button" onClick={(e) => { e.stopPropagation(); setEditingDress(v); }} className="mb-4 px-4 py-2 rounded-xl bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-widest">Editar referencia y descripción</button>}
                 
                 <div className="space-y-4 pt-4 border-t border-gray-50">
                   {v.estado === 'De Baja' && (
@@ -1338,7 +1343,7 @@ export default function InventoryPage() {
 
                  {/* Content Area */}
                  <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#f8fafc]">
-                    <DressPhotos dress={selectedDressDossier} canEdit={canEditSavedRecords(user, userPermissions)} onSaved={(patch) => { setSelectedDressDossier((d: Record<string, unknown>) => ({ ...d, ...patch })); setVestidos(prev => prev.map(v => v.id === selectedDressDossier.id ? { ...v, ...patch } : v)); }} />
+                    <DressPhotos dress={selectedDressDossier} canEdit={canEditDress(selectedDressDossier)} onSaved={(patch) => { setSelectedDressDossier((d: Record<string, unknown>) => ({ ...d, ...patch })); setVestidos(prev => prev.map(v => v.id === selectedDressDossier.id ? { ...v, ...patch } : v)); }} />
                     
                     {/* Atributos Quick View */}
                     <div className="grid grid-cols-4 gap-3 mb-8">
