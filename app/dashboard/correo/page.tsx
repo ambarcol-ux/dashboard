@@ -5,13 +5,30 @@ import SupplierShell,{type ShellProfile} from '@/components/suppliers/SupplierSh
 import {supabase} from '@/lib/supabase';
 import {PROMO_FIELDS,promoBenefit,promoState,type Promotion} from '@/lib/promotions';
 import styles from '@/app/dashboard/caja/caja.module.css';
+import {MailAutomations,MailCampaigns,MailFunnel,MailRules} from '@/components/MailMarketing';
 
-/** Ventas y CRM › Correo: promotions with benefit, validity, sedes, types, categories, code and conditions. */
+/** Ventas y CRM › Correo: promotions, automations, manual sends by segment, frequency rules and funnel. */
 export default function MailPage(){
- return <SupplierShell activePage="correo" crumb="Ventas y CRM / Correo" title="Promociones" icon={<Mail/>}
-  description="Se activan y terminan solas según su vigencia. Se eligen en la primera cita y en el contrato, y se muestran en el catálogo.">
-  {profile=><Promotions profile={profile}/>}
+ return <SupplierShell activePage="correo" crumb="Ventas y CRM / Correo" title="Correo" icon={<Mail/>}
+  description="Promociones, automatizaciones y envíos a personas con autorización comercial. Se envían por la conexión de Configuración › Integraciones.">
+  {profile=><MailTabs profile={profile}/>}
  </SupplierShell>;
+}
+
+const TABS=[['promociones','Promociones'],['automatizaciones','Automatizaciones'],['envios','Envíos'],['reglas','Reglas'],['embudo','Embudo']] as const;
+function MailTabs({profile}:{profile:ShellProfile}){
+ const admin=profile.rol==='admin';
+ const [tab,setTab]=useState<(typeof TABS)[number][0]>('promociones');
+ return <>
+  {admin&&<div className={styles.toolbar} style={{marginBottom:12}}>{TABS.map(([k,l])=><button key={k} type="button" className={tab===k?styles.primary:undefined} onClick={()=>setTab(k)}>{l}</button>)}</div>}
+  {tab==='promociones'&&<Promotions profile={profile}/>}
+  {admin&&tab!=='promociones'&&<section className={styles.card}>
+   {tab==='automatizaciones'&&<MailAutomations canEdit={admin}/>}
+   {tab==='envios'&&<MailCampaigns canEdit={admin}/>}
+   {tab==='reglas'&&<MailRules canEdit={admin}/>}
+   {tab==='embudo'&&<MailFunnel/>}
+  </section>}
+ </>;
 }
 
 type Form={id?:string;nombre:string;beneficio_tipo:Promotion['beneficio_tipo'];beneficio_valor:string;beneficio_detalle:string;desde:string;hasta:string;sede_ids:string[];clasificacion_ids:number[];categorias:string[];codigo:string;condiciones:string;activo:boolean};
