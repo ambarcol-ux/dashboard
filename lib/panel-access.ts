@@ -42,6 +42,7 @@ export const PANELS:Panel[]=[
  {id:'config',label:'Configuración base',href:'/admin/config',block:'ADMINISTRACIÓN',paths:['/admin/config'],grantable:false},
  {id:'clausulas',label:'Cláusulas del contrato',href:'/dashboard/admin/contratos',block:'ADMINISTRACIÓN',paths:['/dashboard/admin/contratos'],grantable:false},
  {id:'siigo',label:'Facturación por sede',href:'/admin/config/siigo',block:'ADMINISTRACIÓN',paths:['/admin/config/siigo'],grantable:false},
+ {id:'integraciones',label:'Integraciones',href:'/admin/config/integraciones',block:'ADMINISTRACIÓN',paths:['/admin/config/integraciones'],grantable:false},
  {id:'accesos',label:'Accesos por perfil',href:'/admin/accesos',block:'ADMINISTRACIÓN',paths:['/admin/accesos'],grantable:false},
  {id:'manual',label:'Manual de usuario',href:'/dashboard/manuales',block:'SOPORTE Y AYUDA',paths:['/dashboard/manuales'],staff:true,grantable:true},
 ];
