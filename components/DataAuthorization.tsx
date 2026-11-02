@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 import {AUTH_ORIGIN_LABEL,authLink,loadAuthTexts,type AuthChoice,type AuthState,type AuthTexts} from '@/lib/data-authorization';
 
-/** Team forms (vitrina, contrato): asks once per person. Already authorized → shows it; otherwise processing (required) and commercial (optional, unchecked). */
+/** Team forms (vitrina, contrato): asks once per person. Already authorized → shows it; otherwise processing (required) and commercial (required «Sí»/«No», none preselected). */
 export default function DataAuthorization({documento,telefono,value,onChange,onState}:{documento:string;telefono:string;value:AuthChoice;onChange:(v:AuthChoice)=>void;onState?:(s:AuthState)=>void}){
  const [texts,setTexts]=useState<AuthTexts|null>(null),[state,setState]=useState<AuthState>(null);
  useEffect(()=>{void loadAuthTexts(supabase).then(setTexts);},[]);
@@ -22,13 +22,15 @@ export default function DataAuthorization({documento,telefono,value,onChange,onS
    <label style={{display:'flex',gap:8,alignItems:'flex-start'}}><input type="checkbox" checked={value.tratamiento} onChange={e=>onChange({...value,tratamiento:e.target.checked})}/>La persona autoriza el tratamiento de sus datos (obligatorio)</label>
    {state?.estado==='pendiente'&&<p style={{margin:0,fontSize:12,color:'#92400e'}}>Tiene una autorización pendiente. <button type="button" style={{textDecoration:'underline'}} onClick={()=>void navigator.clipboard?.writeText(authLink(window.location.origin,state.token))}>Copiar su enlace</button></p>}</>}
   {!(ok&&state?.comercial)&&<>{texts?.comercial&&<p style={{margin:0,color:'#555',fontSize:12}}>{texts.comercial.texto}</p>}
-   <label style={{display:'flex',gap:8,alignItems:'flex-start'}}><input type="checkbox" checked={value.comercial} onChange={e=>onChange({...value,comercial:e.target.checked})}/>Acepta recibir información comercial (opcional)</label></>}
+   <div role="radiogroup" aria-label="Información comercial" style={{display:'flex',gap:16,flexWrap:'wrap'}}><span style={{fontWeight:700}}>Información comercial (obligatorio elegir):</span>
+    <label style={{display:'flex',gap:6}}><input type="radio" name="auth-comercial" checked={value.comercial===true} onChange={()=>onChange({...value,comercial:true})}/>Sí autoriza</label>
+    <label style={{display:'flex',gap:6}}><input type="radio" name="auth-comercial" checked={value.comercial===false} onChange={()=>onChange({...value,comercial:false})}/>No autoriza</label></div></>}
  </div>;
 }
 
 /** Saves the authorization chosen in a team form (skips when already authorized and nothing new was accepted). */
 export async function saveDataAuthorization(p:{documento:string;telefono:string;nombre:string;email?:string;sede:string|null;origen:'vitrina'|'contrato';choice:AuthChoice;state:AuthState}){
  if(p.state?.estado==='autorizada'&&(!p.choice.comercial||p.state.comercial))return;
- const {error}=await supabase.rpc('registrar_autorizacion',{p_documento:p.documento||null,p_telefono:p.telefono||null,p_nombre:p.nombre,p_email:p.email||null,p_sede:p.sede,p_origen:p.origen,p_tratamiento:p.state?.estado==='autorizada'||p.choice.tratamiento,p_comercial:p.choice.comercial});
+ const {error}=await supabase.rpc('registrar_autorizacion',{p_documento:p.documento||null,p_telefono:p.telefono||null,p_nombre:p.nombre,p_email:p.email||null,p_sede:p.sede,p_origen:p.origen,p_tratamiento:p.state?.estado==='autorizada'||p.choice.tratamiento,p_comercial:p.choice.comercial===true});
  if(error)throw new Error(error.message);
 }

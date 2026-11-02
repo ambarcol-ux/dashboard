@@ -13,7 +13,7 @@ const EMPTY:Record<string,string>={nombre_completo:'',cedula:'',celular:'',corre
 /** Public sign-up of Aliados Directos: form, data authorization, agreement signature; the request stays Pendiente. */
 export default function AllySignupPage(){
  const [info,setInfo]=useState<Info|null>(null),[datos,setDatos]=useState(EMPTY),[cert,setCert]=useState<File|null>(null);
- const [aceptaDatos,setAceptaDatos]=useState(false),[comercial,setComercial]=useState(false),[acepta,setAcepta]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[done,setDone]=useState<string|null>(null);
+ const [aceptaDatos,setAceptaDatos]=useState(false),[comercial,setComercial]=useState<boolean|null>(null),[acepta,setAcepta]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[done,setDone]=useState<string|null>(null);
  const pad=useRef<SignatureCanvas>(null);
  useEffect(()=>{fetch('/api/aliados/vinculacion').then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo cargar el formulario.');setInfo(d);const sede=new URLSearchParams(window.location.search).get('sede');if(sede&&d.sedes?.some((s:{id:string})=>s.id===sede))setDatos(v=>({...v,sede_principal:sede}));}).catch(e=>setError(e.message));},[]);
  const tipo=info?.tipos.find(t=>String(t.id)===datos.tipo_aliado_id)?.nombre||'{tipo}';
@@ -27,6 +27,7 @@ export default function AllySignupPage(){
   if(Object.values(datos).some(v=>!v.trim()))return setError('Completa todos tus datos.');
   if(!cert)return setError('Adjunta la certificación bancaria.');
   if(!aceptaDatos)return setError('Marca la autorización de tratamiento de datos.');
+  if(comercial===null)return setError('Elige si autorizas o no recibir información comercial.');
   if(!acepta)return setError('Marca la casilla para aceptar el acuerdo.');
   if(!pad.current||pad.current.isEmpty())return setError('Dibuja tu firma en el recuadro.');
   setBusy(true);
@@ -59,7 +60,8 @@ export default function AllySignupPage(){
      <AllyContractText sections={[info.autorizacion]}/>
      <label className="flex gap-2 items-start text-sm text-gray-700 mt-4"><input type="checkbox" className="mt-1" checked={aceptaDatos} onChange={e=>setAceptaDatos(e.target.checked)}/>Autorizo el tratamiento de mis datos personales según la Ley 1581 de 2012.</label>
      {info.comercial&&<p className="text-xs text-gray-500 mt-4">{info.comercial}</p>}
-     <label className="flex gap-2 items-start text-sm text-gray-700 mt-2"><input type="checkbox" className="mt-1" checked={comercial} onChange={e=>setComercial(e.target.checked)}/>Acepto recibir información comercial (opcional)</label>
+     <div className="text-sm text-gray-700 mt-2"><p className="mb-1">¿Aceptas recibir información comercial? (obligatorio elegir)</p>
+      <label className="mr-4"><input type="radio" name="comercial" checked={comercial===true} onChange={()=>setComercial(true)}/> Sí autorizo</label><label><input type="radio" name="comercial" checked={comercial===false} onChange={()=>setComercial(false)}/> No autorizo</label></div>
     </section>
     <section className={card}><h2 className="font-black text-gray-900 mb-4">3. Lee el acuerdo de vinculación</h2><div className="max-h-[60vh] overflow-y-auto pr-2">{preview&&<AllyContractText sections={preview}/>}</div></section>
     <section className={card+' space-y-4'}>

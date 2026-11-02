@@ -3,7 +3,11 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 /** Personal data authorizations (Ley 1581): processing (required) and commercial (optional, never pre-checked), once per person. */
 export type AuthTexts={tratamiento:{version:number;texto:string}|null;comercial:{version:number;texto:string}|null;declaracion_aliado:{version:number;texto:string}|null};
 export type AuthState={estado:'pendiente'|'autorizada'|'revocada';comercial:boolean;tratamiento_at:string|null;origen:string;token:string}|null;
-export type AuthChoice={tratamiento:boolean;comercial:boolean};
+/** comercial: null until the person answers «Sí autorizo» or «No autorizo» (both required to choose, neither preselected). */
+export type AuthChoice={tratamiento:boolean;comercial:boolean|null};
+/** True when the commercial question still needs an answer (people already authorized for it are not asked again). */
+export const commercialPending=(choice:AuthChoice,state:AuthState)=>choice.comercial===null&&!(state?.estado==='autorizada'&&state.comercial);
+export const COMMERCIAL_REQUIRED='Elige si la persona autoriza o no recibir información comercial.';
 
 export const AUTH_ORIGIN_LABEL:Record<string,string>={agendamiento:'Agendamiento',confirmacion:'Enlace de confirmación',vitrina:'Vitrina',contrato:'Contrato',vinculacion_aliado:'Vinculación de aliado',clienta_aliado:'Clienta de aliado'};
 export const authLink=(origin:string,token:string)=>`${origin.replace(/\/$/,'')}/autorizacion/${token}`;

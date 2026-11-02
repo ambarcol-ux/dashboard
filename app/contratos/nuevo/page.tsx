@@ -7,7 +7,7 @@ import {canEditSavedRecords} from '@/lib/saved-record-editing';
 import PreXvFields from '@/components/PreXvFields';
 import ContractVisitPicker from '@/components/ContractVisitPicker';
 import DataAuthorization, { saveDataAuthorization } from '@/components/DataAuthorization';
-import type { AuthChoice, AuthState } from '@/lib/data-authorization';
+import { commercialPending, COMMERCIAL_REQUIRED, type AuthChoice, type AuthState } from '@/lib/data-authorization';
 import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { initialDepositAmount } from '@/lib/initial-deposit';
 import { contractSuggestedDeposit } from '@/lib/deposit-rules';
@@ -91,7 +91,7 @@ export default function NuevoContratoPage() {
   const [vipAliado, setVipAliado] = useState('');
 
   // -- State Principal --
-  const [dataAuth, setDataAuth] = useState<AuthChoice>({ tratamiento: false, comercial: false });
+  const [dataAuth, setDataAuth] = useState<AuthChoice>({ tratamiento: false, comercial: null });
   const [dataAuthState, setDataAuthState] = useState<AuthState>(null);
   const [formData, setFormData] = useState({
     // Básicos
@@ -1436,6 +1436,7 @@ export default function NuevoContratoPage() {
     const abonoConSoporte = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
     // Autorización de datos (una vez por persona): obligatoria la de tratamiento en contratos nuevos.
     if (!isEditMode && dataAuthState?.estado !== 'autorizada' && !dataAuth.tratamiento) { toast.error('Marca la autorización de tratamiento de datos de la clienta (obligatoria).'); return; }
+    if (!isEditMode && commercialPending(dataAuth, dataAuthState)) { toast.error(COMMERCIAL_REQUIRED); return; }
     if (!isEditMode && abonoConSoporte > 0) {
       if (subiendoSoporte) { toast.error('Espera a que termine de subir el soporte del anticipo.'); return; }
       if (!anticipoSoportes.length) { toast.error('Falta el soporte de ingreso. Adjunta el comprobante del anticipo para poder guardar el contrato.'); return; }

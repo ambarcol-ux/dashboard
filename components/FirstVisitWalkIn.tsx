@@ -6,6 +6,7 @@ import {emptyConfig,loadModuleConfig,minChars} from '@/lib/module-config';
 import {bogotaLocalToIso,nowBogotaLocal} from '@/lib/first-visits';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
 import DataAuthorization,{saveDataAuthorization} from '@/components/DataAuthorization';
+import {commercialPending,COMMERCIAL_REQUIRED} from '@/lib/data-authorization';
 import type {AuthChoice,AuthState} from '@/lib/data-authorization';
 
 type Duplicates={visitas:{id:string;nombre:string;fecha:string;hora:string;sede:string;estado:string;origen:string;vinculable:boolean;pendiente:boolean}[];contratos:{id:string;numero_contrato:string;nombre:string;sede:string|null;fecha_evento:string|null}[];aliados?:{id:string;nombre:string;aliado:string|null;contrato:boolean}[];aviso?:string|null};
@@ -20,7 +21,7 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
  const [sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[asesoras,setAsesoras]=useState<{id:string;nombre:string|null;email:string|null}[]>([]);
  const [dups,setDups]=useState<Duplicates|null>(null),[link,setLink]=useState(''),[asNew,setAsNew]=useState(false);
  const [saving,setSaving]=useState(false),[error,setError]=useState(''),[cfg,setCfg]=useState(emptyConfig);
- const [auth,setAuth]=useState<AuthChoice>({tratamiento:false,comercial:false}),[authState,setAuthState]=useState<AuthState>(null);
+ const [auth,setAuth]=useState<AuthChoice>({tratamiento:false,comercial:null}),[authState,setAuthState]=useState<AuthState>(null);
  useEffect(()=>{void loadModuleConfig('primeras_visitas','pv_').then(setCfg);},[]);
  const min=minChars(cfg);
  useEffect(()=>{dialog.current?.showModal();},[]);
@@ -50,6 +51,7 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
   if(f.resultado==='No cerró'&&f.motivo.trim().length<min)return setError(`Para no hacer seguimiento escribe el motivo (mínimo ${min} caracteres).`);
   if(hasDups&&!link&&!asNew)return setError('El teléfono o la cédula ya existen: vincula el registro existente o elige «Continuar como vitrina nueva».');
   if(authState?.estado!=='autorizada'&&!auth.tratamiento)return setError('Marca la autorización de tratamiento de datos (obligatoria).');
+  if(commercialPending(auth,authState))return setError(COMMERCIAL_REQUIRED);
   setSaving(true);
   try{await saveDataAuthorization({documento:digits(f.documento),telefono:digits(f.telefono),nombre:f.nombre.trim(),email:f.email.trim(),sede,origen:'vitrina',choice:auth,state:authState});}
   catch(e){setSaving(false);return setError(e instanceof Error?e.message:'No se pudo registrar la autorización de datos.');}

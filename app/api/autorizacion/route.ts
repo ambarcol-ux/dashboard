@@ -22,6 +22,7 @@ export async function POST(request:Request){
  const token=String(b.token||''),accion=String(b.accion||'');
  if(!UUID_RE.test(token)||!['aceptar','revocar'].includes(accion))return publicReply({error:'Datos no válidos.'},400);
  if(accion==='aceptar'&&b.tratamiento!==true)return publicReply({error:'Para continuar marca la autorización de tratamiento de datos.'},400);
+ if(accion==='aceptar'&&typeof b.comercial!=='boolean')return publicReply({error:'Elige si autorizas o no recibir información comercial.'},400);
  try{
   const {data,error}=await publicServerClient().rpc('responder_autorizacion',{p_token:token,p_accion:accion,p_comercial:b.comercial===true});
   if(error)return publicReply({error:'El enlace no es válido.'},404);

@@ -10,7 +10,7 @@ const EMPTY={tipo_evento:'',categoria:'',rep_nombre:'',rep_cedula:'',rep_parente
 /** Public form where a representative or client registers with an ally (ally's private link or ally's code). */
 export default function AllyClientPage(){
  const [key,setKey]=useState<Key|null>(null),[codigo,setCodigo]=useState(''),[aliado,setAliado]=useState<{nombre:string;codigo:string}|null>(null),[categorias,setCategorias]=useState<AllyCategory[]>([]);
- const [f,setF]=useState(EMPTY),[menor,setMenor]=useState(false),[datos,setDatos]=useState(false),[publicidad,setPublicidad]=useState(false);
+ const [f,setF]=useState(EMPTY),[menor,setMenor]=useState(false),[datos,setDatos]=useState(false),[publicidad,setPublicidad]=useState<boolean|null>(null);
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[done,setDone]=useState<{id?:string;duplicado?:boolean;autorizacion?:string|null}|null>(null),[declaracion,setDeclaracion]=useState(''),[loading,setLoading]=useState(true);
  const open=async(k:Key)=>{setError('');setBusy(true);try{const d=await call({accion:'ver',...k});setKey(k);setAliado(d.aliado);setCategorias(d.categorias||[]);setDeclaracion(d.declaracion||'');}catch(e){setError(e instanceof Error?e.message:'');}finally{setBusy(false);setLoading(false);}};
  useEffect(()=>{
@@ -23,6 +23,7 @@ export default function AllyClientPage(){
  const send=async()=>{
   setError('');
   if(!datos)return setError('Debes autorizar el tratamiento de datos.');
+  if(publicidad===null)return setError('Elige si la clienta autoriza o no recibir publicidad.');
   if(!f.uso_imagen)return setError('Responde Sí o No al uso de imagen en redes.');
   setBusy(true);
   try{const d=await call({accion:'registrar',...key,datos:{...f,clienta_menor:rep,autoriza_datos:datos,publicidad}});setDone(d);window.scrollTo({top:0,behavior:'smooth'});}
@@ -58,7 +59,8 @@ export default function AllyClientPage(){
       <label className="flex gap-2 items-start text-sm text-gray-700"><input type="checkbox" className="mt-1" checked={datos} onChange={e=>setDatos(e.target.checked)}/>{declaracion||'Declaro que la clienta (o su representante) me autorizó a compartir sus datos con Ámbar Couture para registrarla.'} (obligatorio)</label>
       <div className="text-sm text-gray-700"><p className="mb-1">¿Autorizas el uso de imagen en redes sociales? (obligatorio)</p>
        {(['si','no'] as const).map(v=><label key={v} className="mr-4"><input type="radio" name="imagen" checked={f.uso_imagen===v} onChange={()=>setF({...f,uso_imagen:v})}/> {v==='si'?'Sí':'No'}</label>)}</div>
-      <label className="flex gap-2 items-start text-sm text-gray-700"><input type="checkbox" className="mt-1" checked={publicidad} onChange={e=>setPublicidad(e.target.checked)}/>Acepto recibir publicidad de Ámbar Couture (opcional).</label>
+      <div className="text-sm text-gray-700"><p className="mb-1">¿Acepta recibir publicidad de Ámbar Couture? (obligatorio elegir)</p>
+       <label className="mr-4"><input type="radio" name="publicidad" checked={publicidad===true} onChange={()=>setPublicidad(true)}/> Sí autorizo</label><label><input type="radio" name="publicidad" checked={publicidad===false} onChange={()=>setPublicidad(false)}/> No autorizo</label></div>
       <button disabled={busy} onClick={()=>void send()} className="w-full px-4 py-3 rounded-xl bg-gray-900 text-white text-sm font-black disabled:opacity-50">{busy?'Enviando…':'Registrar'}</button>
      </section>
     </>}
