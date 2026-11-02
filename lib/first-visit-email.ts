@@ -1,6 +1,6 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {visitManagementLink} from './first-visit-links';
-import {visitDate as plainDate,visitSite,visitTime} from './first-visit-sites';
+import {visitDate as plainDate,visitSite,visitTime,loadVisitSites,type VisitSite} from './first-visit-sites';
 export {visitTime} from './first-visit-sites';
 
 export type VisitEmailEvent='reserva'|'reprogramacion'|'cancelacion'|'confirmacion'|'enlace_virtual';
@@ -22,8 +22,8 @@ const headings:Record<VisitEmailEvent,[string,string]>={
 type Block={icon:string;label:string;value?:string;href?:string;note?:string};
 
 /** Booking, confirmation and reschedule email with the store's address, map, phone, WhatsApp and the reschedule page. */
-export function appointmentEmail(event:'reserva'|'confirmacion'|'reprogramacion',detail:VisitEmailDetail,name:string,rescheduleUrl:string){
- const virtual=detail.modalidad==='virtual',site=visitSite(detail.sede),siteName=site?.nombre||detail.sede||'';
+export function appointmentEmail(event:'reserva'|'confirmacion'|'reprogramacion',detail:VisitEmailDetail,name:string,rescheduleUrl:string,sites?:VisitSite[]){
+ const virtual=detail.modalidad==='virtual',site=visitSite(detail.sede,sites),siteName=site?.nombre||detail.sede||'';
  const where=virtual?'virtual con Ámbar Couture':`presencial en Ámbar Couture${siteName?' '+siteName:''}`;
  const moved=event==='reprogramacion';
  const intro=moved?`Tu cita ${where} fue reprogramada. ✨`:`Tu cita ${where} está confirmada. ✨`;
@@ -64,6 +64,8 @@ type Job={omitido?:boolean;correo:{id:string;evento:VisitEmailEvent;detalle:Visi
 /** Claims queued change emails and renders them for the Apps Script sender. */
 export async function claimVisitEmails(db:SupabaseClient,origin:string,linkSecret:string,limit=10){
  const emails:ClaimedVisitEmail[]=[];
+ // Store phone, WhatsApp, address and map from Configuración › Sedes (built-in values when missing).
+ const sites=await loadVisitSites(db);
  for(let i=0;i<limit;i++){
   const {data,error}=await db.rpc('tomar_correo_primera_cita',{p_cita:null});
   if(error)throw Error('No se pudo consultar la cola de correos.');
@@ -72,7 +74,7 @@ export async function claimVisitEmails(db:SupabaseClient,origin:string,linkSecre
   const {correo,cita}=job;
   const link=correo.evento==='cancelacion'?`${origin}/agendar-primera-cita`:visitManagementLink(origin,cita.id,Date.parse(cita.fecha+'T23:59:59-05:00')+30*86400000,linkSecret);
   const message=correo.evento==='reserva'||correo.evento==='confirmacion'||correo.evento==='reprogramacion'
-   ?appointmentEmail(correo.evento,correo.detalle,cita.cliente_nombre,`${origin}/reprogramar-primera-cita`)
+   ?appointmentEmail(correo.evento,correo.detalle,cita.cliente_nombre,`${origin}/reprogramar-primera-cita`,sites)
    :visitChangeEmail(correo.evento,correo.detalle,cita.cliente_nombre,link);
   emails.push({id:correo.id,para:cita.email,asunto:message.subject,texto:message.text,html:message.html});
  }

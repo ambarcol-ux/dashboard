@@ -20,6 +20,7 @@ import {
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import ConfigCenter from '@/components/ConfigCenter';
+import SedeContact from '@/components/SedeContact';
 
 export default function AdminConfigPage() {
   const readAccess = useVerifiedAccess();
@@ -248,6 +249,7 @@ export default function AdminConfigPage() {
                             <span className={`text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter ${s.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
                               {s.activo ? 'ACTIVO' : 'INACTIVO'}
                             </span>
+                            <SedeContact sede={s} onSaved={loadData} />
                          </div>
                       </div>
                       <button 

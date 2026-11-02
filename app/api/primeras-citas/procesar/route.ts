@@ -5,6 +5,8 @@ import {claimVisitEmails,deliverVisitEmails} from '@/lib/first-visit-email';
 import {Resend} from 'resend';
 import {capiEvent,DEFAULT_CAPI_DATASET,type CapiJob} from '@/lib/meta-capi';
 import {authorizedVisitWorker,visitWorkerConfiguration} from '@/lib/first-visit-worker-config';
+import {loadWhatsappSettings} from '@/lib/whatsapp-config';
+import {loadVisitSites} from '@/lib/first-visit-sites';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 export async function GET(request:Request){
@@ -23,9 +25,13 @@ export async function POST(request:Request){
  if(process.env.FIRST_VISIT_MESSAGES_ENABLED!=='true')return Response.json({activo:false,motivo:'Automatización desactivada'});
  const configuration=visitWorkerConfiguration();
  if(configuration.faltantes.length)return Response.json({error:'Completa la configuración antes de enviar mensajes.',faltantes:configuration.faltantes},{status:503});
- const {META_WA_TOKEN:token,META_WA_PHONE_NUMBER_ID:phone,META_GRAPH_VERSION:version,FIRST_VISIT_PUBLIC_ORIGIN:origin,SUPABASE_SERVICE_ROLE_KEY:key}=process.env;
- if(!token||!phone||!version||!/^v\d+\.0$/.test(version)||!origin||!origin.startsWith('https://')||!key)return Response.json({error:'Falta configurar WhatsApp, versión de Meta u origen público.'},{status:503});
+ const {META_GRAPH_VERSION:version,FIRST_VISIT_PUBLIC_ORIGIN:origin,SUPABASE_SERVICE_ROLE_KEY:key}=process.env;
+ if(!version||!/^v\d+\.0$/.test(version)||!origin||!origin.startsWith('https://')||!key)return Response.json({error:'Falta configurar la versión de Meta u origen público.'},{status:503});
  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,key,{auth:{persistSession:false,autoRefreshToken:false}});
+ // Number and token: Configuración › Integraciones › WhatsApp once tested, else the Vercel variables. Store contacts: Configuración › Sedes.
+ const wa=await loadWhatsappSettings(db),{token,phoneNumberId:phone}=wa;
+ if(!token||!phone)return Response.json({error:'Falta configurar WhatsApp.'},{status:503});
+ const sites=await loadVisitSites(db);
  let sent=0,review=0;
  for(let i=0;i<5;i++){
   const {data:job,error}=await db.rpc('tomar_mensaje_primera_cita');if(error)return Response.json({error:'No se pudo consultar la cola'},{status:503});if(!job)break;if(job.omitido)continue;
@@ -43,7 +49,7 @@ export async function POST(request:Request){
    }else{
     const link=visitManagementLink(origin,c.id,Date.parse(c.fecha+'T23:59:59-05:00')+30*86400000,process.env.FIRST_VISIT_LINK_SECRET||key);
     // Confirmations use the detailed per-store template; while Meta has not approved it, the short one goes out.
-    const payloads=[m.tipo==='confirmacion'?confirmationPayload(c,sede,process.env.META_WA_CONFIRMATION_LANG||'es'):null,whatsappPayload(m.tipo,c,sede,link,process.env.META_WA_TEMPLATE_LANG||'es_CO')].filter(p=>p!==null);
+    const payloads=[m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites):null,whatsappPayload(m.tipo,c,sede,link,wa.templateLang)].filter(p=>p!==null);
     for(const [n,payload] of payloads.entries()){
      const r=await fetch(`https://graph.facebook.com/${version}/${phone}/messages`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
      const d=await r.json();if(r.ok&&d.messages?.[0]?.id){state='enviado';providerId=d.messages[0].id;issue=null;template=(payload as {template?:{name?:string}}).template?.name||null;break;}
