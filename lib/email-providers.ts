@@ -71,7 +71,7 @@ export function parseEvents(proveedor:EmailProviderId,body:unknown):{evento:stri
  const list=Array.isArray(body)?body:[body];
  return list.filter(x=>x&&typeof x==='object').slice(0,500).map(raw=>{
   const x=raw as Record<string,unknown>,evento=String(x.event||x.Event||'desconocido').toLowerCase().slice(0,40),email=String(x.email||x.Email||'').trim().toLowerCase().slice(0,160)||null;
-  const baja=proveedor==='brevo'?['unsubscribed','spam','complaint'].includes(evento):proveedor==='mailjet'?['unsub','spam'].includes(evento):['unsubscribe','group_unsubscribe','spamreport'].includes(evento);
+  const baja=proveedor==='brevo'?['unsubscribed','unsubscribe','spam','complaint'].includes(evento):proveedor==='mailjet'?['unsub','spam'].includes(evento):['unsubscribe','group_unsubscribe','spamreport'].includes(evento);
   return {evento,email,baja,payload:raw};
  });
 }
