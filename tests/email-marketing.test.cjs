@@ -27,3 +27,10 @@ test('la baja y el spam de cada proveedor se reconocen',()=>{
  assert.equal(parseEvents('sendgrid',[{event:'unsubscribe',email:'a@x.com'},{event:'open',email:'a@x.com'}]).filter(e=>e.baja).length,1);
  assert.equal(parseEvents('mailjet',{event:'unsub',email:'a@x.com'})[0].baja,true);
 });
+
+test('la solicitud de autorización lleva su propio pie y el enlace para autorizar',()=>{
+ const m=renderMail('{nombre}, ¿quieres novedades?','Hola, {nombre}.\n\nAutoriza aquí:\n{enlace_autorizacion}',{nombre:'Ana',enlace_autorizacion:'https://erp.x/autorizacion/t'},'https://erp.x/autorizacion/t',true);
+ assert.match(m.texto,/Autoriza aquí:\nhttps:\/\/erp\.x\/autorizacion\/t/);
+ assert.match(m.texto,/único correo porque agendaste una cita/);
+ assert.doesNotMatch(m.html,/porque autorizaste/);
+});

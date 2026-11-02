@@ -2,7 +2,7 @@ import {publicServerClient} from '@/lib/public-db';
 import {authorizedVisitWorker} from '@/lib/first-visit-worker-config';
 import {authLink} from '@/lib/data-authorization';
 import {sendEmail,type EmailConnection} from '@/lib/email-providers';
-import {catalogLink,renderMail} from '@/lib/email-marketing';
+import {AUTH_REQUEST_ID,catalogLink,renderMail} from '@/lib/email-marketing';
 import {promoBenefit,type Promotion} from '@/lib/promotions';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -32,7 +32,9 @@ export async function POST(request:Request){
     const plantilla=j.automatizacion_id?(autos||[]).find(a=>a.id===j.automatizacion_id):(await db.from('correo_campanas').select('asunto,cuerpo').eq('id',j.campana_id!).single()).data;
     const {data:aut}=j.autorizacion_id?await db.from('autorizaciones_datos').select('token,estado,comercial').eq('id',j.autorizacion_id).single():{data:null};
     if(!plantilla)throw Error('Sin plantilla');
-    if(!aut||aut.estado!=='autorizada'||!aut.comercial){estadoFinal='omitido';motivo='Sin autorización comercial vigente';}
+    const solicitud=j.automatizacion_id===AUTH_REQUEST_ID;
+    // The request goes only to people who have not answered yet; everything else only with commercial authorization.
+    if(solicitud?(!aut||aut.estado==='revocada'||aut.comercial):(!aut||aut.estado!=='autorizada'||!aut.comercial)){estadoFinal='omitido';motivo=solicitud?'Ya respondió la autorización':'Sin autorización comercial vigente';}
     else{
      const o=`correo-${j.automatizacion_id||'campana'}`;
      const values:Record<string,string>={nombre:(j.nombre||'').split(/\s+/)[0]||'',sede:'',enlace_cita:`${origin}/agendar-primera-cita?o=${o}`,catalogo:'',promocion:'',beneficio:'',condiciones:'',vigencia:'',fecha_evento:''};
@@ -47,7 +49,8 @@ export async function POST(request:Request){
       const {data:p}=await db.from('promociones').select('*').eq('id',j.promocion_id).single();
       if(p)Object.assign(values,{promocion:p.nombre,beneficio:promoBenefit(p as Promotion),condiciones:p.condiciones||'',vigencia:dmy(p.hasta)});
      }
-     const mail=renderMail(plantilla.asunto,plantilla.cuerpo,values,authLink(origin,aut.token));
+     values.enlace_autorizacion=authLink(origin,aut!.token);
+     const mail=renderMail(plantilla.asunto,plantilla.cuerpo,values,authLink(origin,aut!.token),solicitud);
      asunto=mail.asunto;
      const r=await sendEmail(conn as EmailConnection,{to:j.email,nombre:j.nombre,...mail});
      if(r.ok){estadoFinal='enviado';providerId=r.detalle||null;enviados++;}

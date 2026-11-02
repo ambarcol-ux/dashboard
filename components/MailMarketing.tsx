@@ -1,7 +1,7 @@
 'use client';
 import {useCallback,useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
-import {FUNNEL_STAGES,MAIL_PLACEHOLDERS,MAIL_TRIGGER} from '@/lib/email-marketing';
+import {AUTH_REQUEST_ID,FUNNEL_STAGES,MAIL_PLACEHOLDERS,MAIL_TRIGGER} from '@/lib/email-marketing';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
 type Sede={id:string;nombre:string};
@@ -28,18 +28,19 @@ export function MailAutomations({canEdit}:{canEdit:boolean}){
   {msg&&<p role="status" style={{fontWeight:700}}>{msg}</p>}
   {rows.map(a=>edit?.id===a.id?<fieldset key={a.id} style={box}>
    <b>{a.nombre}</b>
+   {a.id===AUTH_REQUEST_ID?<p style={{fontSize:12}}>Se envía una sola vez desde Correo › Envíos. Usa {'{enlace_autorizacion}'} para el botón de autorizar; no incluyas promociones.</p>:<>
    <label><input type="checkbox" checked={edit.activo} onChange={e=>setEdit({...edit,activo:e.target.checked})}/> Encendida</label>
-   <label>Momento: <input type="number" min={0} max={8760} value={edit.momento_horas} onChange={e=>setEdit({...edit,momento_horas:Number(e.target.value)})} style={{width:90}}/> {MAIL_TRIGGER[a.disparador]}</label>
+   <label>Momento: <input type="number" min={0} max={8760} value={edit.momento_horas} onChange={e=>setEdit({...edit,momento_horas:Number(e.target.value)})} style={{width:90}}/> {MAIL_TRIGGER[a.disparador]}</label></>}
    <p style={{fontSize:12}}><b>Sedes</b> (ninguna = todas): {sedes.map(s=><label key={s.id} style={{marginRight:10}}><input type="checkbox" checked={(edit.sede_ids||[]).includes(s.id)} onChange={()=>setEdit({...edit,sede_ids:toggle(edit.sede_ids||[],s.id)})}/> {s.nombre}</label>)}</p>
    <label>Asunto<input value={edit.asunto} maxLength={160} onChange={e=>setEdit({...edit,asunto:e.target.value})}/></label>
    <label>Texto<textarea rows={9} value={edit.cuerpo} maxLength={5000} onChange={e=>setEdit({...edit,cuerpo:e.target.value})}/></label>
    <Help/>
    <div className={styles.toolbar}><button type="button" onClick={()=>setEdit(null)}>Cancelar</button><button type="button" className={styles.primary} disabled={edit.asunto.trim().length<2||edit.cuerpo.trim().length<10} onClick={()=>void save(edit)}>Guardar</button></div>
   </fieldset>:<article key={a.id} style={{...box,opacity:a.activo?1:.6}}>
-   <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><b>{a.orden}. {a.nombre}</b><b style={{color:a.activo?'#047857':'#6b7280'}}>{a.activo?'Encendida':'Apagada'}</b></div>
-   <span style={{fontSize:13}}>{a.momento_horas} {MAIL_TRIGGER[a.disparador]} · Sedes: {a.sede_ids?.length?a.sede_ids.map(id=>sedes.find(s=>s.id===id)?.nombre||'—').join(', '):'Todas'}</span>
+   <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><b>{a.id===AUTH_REQUEST_ID?'':`${a.orden}. `}{a.nombre}</b>{a.id!==AUTH_REQUEST_ID&&<b style={{color:a.activo?'#047857':'#6b7280'}}>{a.activo?'Encendida':'Apagada'}</b>}</div>
+   <span style={{fontSize:13}}>{a.id===AUTH_REQUEST_ID?'':a.momento_horas} {MAIL_TRIGGER[a.disparador]} · Sedes: {a.sede_ids?.length?a.sede_ids.map(id=>sedes.find(s=>s.id===id)?.nombre||'—').join(', '):'Todas'}</span>
    <span style={{fontSize:13}}><b>Asunto:</b> {a.asunto}</span>
-   {canEdit&&<div className={styles.toolbar}><button type="button" onClick={()=>setEdit(a)}>Editar</button><button type="button" onClick={()=>void save({...a,activo:!a.activo})}>{a.activo?'Apagar':'Encender'}</button></div>}
+   {canEdit&&<div className={styles.toolbar}><button type="button" onClick={()=>setEdit(a)}>Editar</button>{a.id!==AUTH_REQUEST_ID&&<button type="button" onClick={()=>void save({...a,activo:!a.activo})}>{a.activo?'Apagar':'Encender'}</button>}</div>}
   </article>)}
  </div>;
 }
@@ -61,6 +62,7 @@ export function MailCampaigns({canEdit}:{canEdit:boolean}){
   if(error){setMsg('No se pudo crear el envío: revisa nombre, asunto y texto.');return;}setMsg(`Envío creado para ${data?.total||0} personas.`);setCount(null);setF({nombre:'',asunto:'',cuerpo:''});void loadHist();};
  const set=(k:keyof Seg)=>(e:React.ChangeEvent<HTMLInputElement|HTMLSelectElement>)=>{setSeg({...seg,[k]:e.target.value});setCount(null);};
  return <div style={{display:'grid',gap:12}}>
+  {canEdit&&<AuthRequest/>}
   {canEdit&&<fieldset disabled={busy} style={box}>
    <b>Segmento</b>
    <div className={styles.toolbar}>
@@ -87,6 +89,23 @@ export function MailCampaigns({canEdit}:{canEdit:boolean}){
   {hist.map(h=><p key={h.id} style={{fontSize:13}}>{new Date(h.created_at).toLocaleDateString('es-CO')} · <b>{h.nombre}</b> · {h.total} personas</p>)}
   {!hist.length&&<p className={styles.empty}>Aún no hay envíos manuales.</p>}
  </div>;
+}
+
+/** One-time request for commercial authorization to people who booked and did not attend, or attended and did not rent. */
+function AuthRequest(){
+ const [c,setC]=useState<{no_asistio:number;asistio:number;total:number}|null>(null),[msg,setMsg]=useState(''),[busy,setBusy]=useState(false);
+ const count=useCallback(()=>supabase.rpc('correo_solicitud_autorizacion',{p_enviar:false}).then(({data,error})=>{if(!error)setC(data);}),[]);
+ useEffect(()=>{void count();},[count]);
+ const send=async()=>{if(!c?.total||!window.confirm(`¿Enviar la solicitud de autorización a ${c.total} personas? Es un único correo por persona, sin publicidad.`))return;
+  setBusy(true);const {data,error}=await supabase.rpc('correo_solicitud_autorizacion',{p_enviar:true});setBusy(false);
+  setMsg(error?'No se pudo crear el envío.':`Solicitud en cola para ${data?.encolados||0} personas. Saldrá dentro del horario y del cupo diario.`);void count();};
+ return <fieldset disabled={busy} style={{...box,background:'#fffbeb',borderColor:'#fde68a'}}>
+  <b>Solicitud de autorización comercial (envío único)</b>
+  <p style={{fontSize:13}}>Un solo correo, sin publicidad, con el enlace para autorizar novedades y promociones. Va a quienes agendaron y no asistieron, o asistieron y no alquilaron, y aún no han respondido. Nunca a quien alquiló o pidió no contactar. Quien autoriza entra a las automatizaciones; quien no, no vuelve a recibir publicidad. El texto se edita en Automatizaciones.</p>
+  {c&&<p style={{fontSize:13}}><b>{c.total}</b> personas: {c.no_asistio} agendaron y no asistieron · {c.asistio} asistieron y no alquilaron</p>}
+  <div className={styles.toolbar}><button type="button" className={styles.primary} disabled={!c?.total} onClick={()=>void send()}>Enviar solicitud</button></div>
+  {msg&&<p role="status" style={{fontWeight:700}}>{msg}</p>}
+ </fieldset>;
 }
 
 /** Frequency rules (one row). */

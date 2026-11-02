@@ -5,14 +5,14 @@
 -- Envía por la conexión activa de Configuración › Integraciones. El reloj (pg_cron) llama /api/correo/procesar cada 10 minutos.
 -- Revert: select cron.unschedule('correo-envios'); drop function public.correo_encolar_automatizaciones(),
 --   public.correo_tomar_envios(int), public.correo_segmento(jsonb), public.correo_crear_campana(text,text,text,jsonb),
---   public.correo_embudo(date,date), private.correo_persona(text,text,text), private.correo_etapa(text,text,text);
+--   public.correo_embudo(date,date), public.correo_solicitud_autorizacion(boolean), private.correo_persona(text,text,text), private.correo_etapa(text,text,text);
 --   drop table public.correo_envios, public.correo_campanas, public.correo_reglas, public.correo_automatizaciones.
 
 -- ── Automatizaciones ────────────────────────────────────────────────────────────────────────────
 create table if not exists public.correo_automatizaciones(
  id text primary key,
  nombre text not null,
- disparador text not null check (disparador in ('visita','no_asistio','evento','contrato','devolucion')),
+ disparador text not null check (disparador in ('visita','no_asistio','evento','contrato','devolucion','solicitud')),
  activo boolean not null default false,
  asunto text not null check (length(trim(asunto)) between 2 and 160),
  cuerpo text not null check (length(trim(cuerpo)) between 10 and 5000),
@@ -23,6 +23,8 @@ create table if not exists public.correo_automatizaciones(
  updated_at timestamptz not null default now()
 );
 insert into public.correo_automatizaciones(id,nombre,disparador,activo,momento_horas,orden,asunto,cuerpo) values
+('solicitud_autorizacion','Solicitud de autorización (envío único)','solicitud',false,0,0,'{nombre}, ¿quieres recibir novedades de Ámbar Couture?',
+ E'Hola, {nombre}.\n\nGracias por tu interés en Ámbar Couture. Queremos pedirte permiso para enviarte novedades, vestidos nuevos y promociones por correo y WhatsApp.\n\nSi te interesa, autorízalo aquí (toma menos de un minuto):\n{enlace_autorizacion}\n\nSi no respondes, no te enviaremos publicidad.'),
 ('gracias_visita','Gracias por tu visita','visita',false,2,1,'Gracias por visitarnos, {nombre}',
  E'Hola, {nombre}.\n\nGracias por visitarnos en Ámbar Couture {sede}. Fue un gusto acompañarte a buscar tu vestido.\n\nAquí tienes el catálogo para que sigas viendo opciones con calma:\n{catalogo}\n\nSi quieres volver a probarte algún vestido, agenda aquí:\n{enlace_cita}'),
 ('seguimiento','¿Ya elegiste tu vestido?','visita',false,72,2,'{nombre}, ¿ya elegiste tu vestido?',
@@ -89,6 +91,7 @@ create table if not exists public.correo_envios(
 create unique index if not exists correo_envios_auto_cita on public.correo_envios(automatizacion_id,cita_id) where automatizacion_id is not null and cita_id is not null;
 create unique index if not exists correo_envios_auto_contrato on public.correo_envios(automatizacion_id,contrato_id) where automatizacion_id is not null and contrato_id is not null;
 create unique index if not exists correo_envios_campana_email on public.correo_envios(campana_id,lower(email)) where campana_id is not null;
+create unique index if not exists correo_envios_solicitud_email on public.correo_envios(lower(email)) where automatizacion_id='solicitud_autorizacion';
 create index if not exists correo_envios_cola on public.correo_envios(programado_at) where estado in ('pendiente','enviando');
 create index if not exists correo_envios_email on public.correo_envios(lower(email),enviado_at) where estado='enviado';
 
@@ -148,7 +151,7 @@ create or replace function public.correo_encolar_automatizaciones() returns int 
 declare r public.correo_reglas; n int:=0; m int; a public.correo_automatizaciones; hoy date:=(now() at time zone 'America/Bogota')::date;
 begin
  select * into r from public.correo_reglas where id;
- for a in select * from public.correo_automatizaciones where activo order by orden loop
+ for a in select * from public.correo_automatizaciones where activo and disparador<>'solicitud' order by orden loop
   if a.disparador in ('visita','no_asistio','evento') then
    insert into public.correo_envios(automatizacion_id,cita_id,autorizacion_id,promocion_id,email,nombre,programado_at)
    select a.id,c.id,p.aut,pr.id,lower(trim(c.email)),c.cliente_nombre,now()
@@ -209,7 +212,12 @@ begin
  update public.correo_envios set estado='pendiente' where estado='enviando' and programado_at<now()-interval '15 minutes';
  -- Automatizaciones que la persona ya no debe recibir (retiró la autorización o alquiló).
  update public.correo_envios e set estado='omitido',motivo='Sin autorización comercial vigente'
-  where e.estado='pendiente' and e.autorizacion_id is not null and not exists(select 1 from public.autorizaciones_datos a where a.id=e.autorizacion_id and a.estado='autorizada' and a.comercial);
+  where e.estado='pendiente' and e.autorizacion_id is not null and e.automatizacion_id is distinct from 'solicitud_autorizacion'
+   and not exists(select 1 from public.autorizaciones_datos a where a.id=e.autorizacion_id and a.estado='autorizada' and a.comercial);
+ -- Solicitud de autorización: ya no hace falta si la persona autorizó o retiró su autorización.
+ update public.correo_envios e set estado='omitido',motivo='Ya respondió la autorización'
+  where e.estado='pendiente' and e.automatizacion_id='solicitud_autorizacion'
+   and exists(select 1 from public.autorizaciones_datos a where a.id=e.autorizacion_id and (a.comercial or a.estado='revocada'));
  update public.correo_envios e set estado='omitido',motivo='Ya alquiló'
   where e.estado='pendiente' and e.cita_id is not null and exists(select 1 from public.primeras_citas c where c.id=e.cita_id and (coalesce(c.alquilo,false)
    or exists(select 1 from public.contratos k where k.primera_cita_id=c.id and lower(coalesce(k.estado,'')) not in ('anulado','cancelado','rechazado','borrador'))));
@@ -272,6 +280,43 @@ begin
  return jsonb_build_object('id',cid,'total',n);
 end $$;
 
+-- ── Solicitud de autorización comercial (envío único, sin publicidad) ─────────────────────────
+-- Personas que agendaron y no asistieron, o asistieron y no alquilaron, sin autorización comercial ni respuesta previa.
+-- p_enviar=false solo cuenta; true crea su registro de autorización pendiente (mismo enlace /autorizacion/[token]) y encola un correo por persona, una sola vez.
+create or replace function public.correo_solicitud_autorizacion(p_enviar boolean) returns jsonb language plpgsql security definer set search_path='' as $$
+declare r record; reg jsonb; n int:=0; out jsonb;
+begin
+ if not public.es_admin() then raise exception 'Solo administración.' using errcode='42501'; end if;
+ create temp table if not exists _sol(cita_id uuid,email text,nombre text,doc text,tel text,sede uuid,grupo text) on commit drop;
+ truncate _sol;
+ insert into _sol
+ select c.id,c.email,c.cliente_nombre,c.cliente_documento,c.telefono,c.sede_id,case when c.estado='no_asistio' then 'no_asistio' else 'asistio' end
+ from (select distinct on (lower(trim(email))) id,lower(trim(email)) email,cliente_nombre,cliente_documento,telefono,sede_id,estado,alquilo,cierre_seguimiento
+   from public.primeras_citas where email ~ '^[^\s@]+@[^\s@]+\.[^\s@]+$' and estado<>'cancelada' order by lower(trim(email)),fecha desc,created_at desc) c
+ where c.estado in ('no_asistio','asistio','seguimiento','no_cerro')
+  and coalesce(c.alquilo,false)=false
+  and coalesce(c.cierre_seguimiento,'') !~* '^(alquil|no contactar)'
+  and not exists(select 1 from public.contratos k where lower(coalesce(k.estado,'')) not in ('anulado','cancelado','rechazado','borrador')
+   and (private.norm_mail(k.cliente_email)=private.norm_mail(c.email) or (private.norm_doc(c.cliente_documento) is not null and private.norm_doc(k.cliente_documento)=private.norm_doc(c.cliente_documento))))
+  and not exists(select 1 from public.autorizaciones_datos a where (a.comercial or a.estado='revocada' or a.comercial_revocada_at is not null)
+   and ((private.norm_doc(c.cliente_documento) is not null and private.norm_doc(a.documento)=private.norm_doc(c.cliente_documento))
+    or (private.norm_tel(c.telefono) is not null and private.norm_tel(a.telefono)=private.norm_tel(c.telefono))
+    or private.norm_mail(a.email)=private.norm_mail(c.email)))
+  and not exists(select 1 from public.correo_envios e where e.automatizacion_id='solicitud_autorizacion' and lower(e.email)=c.email)
+  and (private.norm_doc(c.cliente_documento) is not null or private.norm_tel(c.telefono) is not null);
+ if not p_enviar then
+  select jsonb_build_object('no_asistio',count(*) filter (where grupo='no_asistio'),'asistio',count(*) filter (where grupo='asistio'),'total',count(*)) into out from _sol;
+  return out;
+ end if;
+ for r in select * from _sol loop
+  reg:=private.registrar_autorizacion(r.doc,r.tel,r.nombre,r.email,r.sede,'agendamiento',false,false,true);
+  if coalesce((reg->>'comercial')::boolean,false) or reg->>'estado'='revocada' then continue; end if;
+  insert into public.correo_envios(automatizacion_id,cita_id,autorizacion_id,email,nombre) values('solicitud_autorizacion',r.cita_id,(reg->>'id')::uuid,r.email,r.nombre) on conflict do nothing;
+  if found then n:=n+1; end if;
+ end loop;
+ return jsonb_build_object('encolados',n);
+end $$;
+
 -- ── Embudo hasta contrato y resultado de cada automatización ───────────────────────────────────
 create or replace function public.correo_embudo(p_desde date,p_hasta date) returns jsonb language plpgsql stable security definer set search_path='' as $$
 begin
@@ -305,8 +350,8 @@ end $$;
 revoke all on function private.correo_persona(text,text,text),private.correo_tiene_contrato_vigente(text,text),private.correo_etapa(text,text,text) from public,anon,authenticated;
 revoke all on function public.correo_encolar_automatizaciones(),public.correo_tomar_envios(int) from public,anon,authenticated;
 grant execute on function public.correo_encolar_automatizaciones(),public.correo_tomar_envios(int) to service_role;
-revoke all on function public.correo_segmento(jsonb),public.correo_crear_campana(text,text,text,jsonb),public.correo_embudo(date,date) from public,anon;
-grant execute on function public.correo_segmento(jsonb),public.correo_crear_campana(text,text,text,jsonb),public.correo_embudo(date,date) to authenticated,service_role;
+revoke all on function public.correo_segmento(jsonb),public.correo_crear_campana(text,text,text,jsonb),public.correo_embudo(date,date),public.correo_solicitud_autorizacion(boolean) from public,anon;
+grant execute on function public.correo_segmento(jsonb),public.correo_crear_campana(text,text,text,jsonb),public.correo_embudo(date,date),public.correo_solicitud_autorizacion(boolean) to authenticated,service_role;
 
 -- ── Reloj: cada 10 minutos el ERP procesa la cola de correo ────────────────────────────────────
 select cron.schedule('correo-envios','*/10 * * * *',$$
