@@ -93,7 +93,7 @@ export function MailCampaigns({canEdit}:{canEdit:boolean}){
 
 /** One-time request for commercial authorization to people who booked and did not attend, or attended and did not rent. */
 function AuthRequest(){
- const [c,setC]=useState<{no_asistio:number;asistio:number;total:number}|null>(null),[msg,setMsg]=useState(''),[busy,setBusy]=useState(false);
+ const [c,setC]=useState<{no_asistio:number;asistio:number;otros:number;total:number}|null>(null),[msg,setMsg]=useState(''),[busy,setBusy]=useState(false);
  const count=useCallback(()=>supabase.rpc('correo_solicitud_autorizacion',{p_enviar:false}).then(({data,error})=>{if(!error)setC(data);}),[]);
  useEffect(()=>{void count();},[count]);
  const send=async()=>{if(!c?.total||!window.confirm(`¿Enviar la solicitud de autorización a ${c.total} personas? Es un único correo por persona, sin publicidad.`))return;
@@ -101,8 +101,8 @@ function AuthRequest(){
   setMsg(error?'No se pudo crear el envío.':`Solicitud en cola para ${data?.encolados||0} personas. Saldrá dentro del horario y del cupo diario.`);void count();};
  return <fieldset disabled={busy} style={{...box,background:'#fffbeb',borderColor:'#fde68a'}}>
   <b>Solicitud de autorización comercial (envío único)</b>
-  <p style={{fontSize:13}}>Un solo correo, sin publicidad, con el enlace para autorizar novedades y promociones. Va a quienes agendaron y no asistieron, o asistieron y no alquilaron, y aún no han respondido. Nunca a quien alquiló o pidió no contactar. Quien autoriza entra a las automatizaciones; quien no, no vuelve a recibir publicidad. El texto se edita en Automatizaciones.</p>
-  {c&&<p style={{fontSize:13}}><b>{c.total}</b> personas: {c.no_asistio} agendaron y no asistieron · {c.asistio} asistieron y no alquilaron</p>}
+  <p style={{fontSize:13}}>Un solo correo, sin publicidad, con el enlace para autorizar novedades y promociones, a todos los correos registrados (citas, contratos y clientas de aliados) que aún no han respondido. Primero salen quienes agendaron y no asistieron o asistieron y no alquilaron; luego el resto, hasta llenar el cupo diario. Nunca a quien pidió no contactar ni al equipo. Quien autoriza entra a las automatizaciones; quien no, no vuelve a recibir publicidad. El texto se edita en Automatizaciones.</p>
+  {c&&<p style={{fontSize:13}}><b>{c.total}</b> personas: primero {c.no_asistio} que agendaron y no asistieron y {c.asistio} que asistieron y no alquilaron; luego {c.otros} más (clientas y otros registros).</p>}
   <div className={styles.toolbar}><button type="button" className={styles.primary} disabled={!c?.total} onClick={()=>void send()}>Enviar solicitud</button></div>
   {msg&&<p role="status" style={{fontWeight:700}}>{msg}</p>}
  </fieldset>;

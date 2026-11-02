@@ -24,7 +24,7 @@ create table if not exists public.correo_automatizaciones(
 );
 insert into public.correo_automatizaciones(id,nombre,disparador,activo,momento_horas,orden,asunto,cuerpo) values
 ('solicitud_autorizacion','Solicitud de autorización (envío único)','solicitud',false,0,0,'{nombre}, ¿quieres recibir novedades de Ámbar Couture?',
- E'Hola, {nombre}.\n\nGracias por tu interés en Ámbar Couture. Queremos pedirte permiso para enviarte novedades, vestidos nuevos y promociones por correo y WhatsApp.\n\nSi te interesa, autorízalo aquí (toma menos de un minuto):\n{enlace_autorizacion}\n\nSi no respondes, no te enviaremos publicidad.'),
+ E'Hola, {nombre}.\n\nGracias por confiar en Ámbar Couture. Queremos pedirte permiso para enviarte novedades, vestidos nuevos y promociones por correo y WhatsApp.\n\nSi te interesa, autorízalo aquí (toma menos de un minuto):\n{enlace_autorizacion}\n\nSi no respondes, no te enviaremos publicidad.'),
 ('gracias_visita','Gracias por tu visita','visita',false,2,1,'Gracias por visitarnos, {nombre}',
  E'Hola, {nombre}.\n\nGracias por visitarnos en Ámbar Couture {sede}. Fue un gusto acompañarte a buscar tu vestido.\n\nAquí tienes el catálogo para que sigas viendo opciones con calma:\n{catalogo}\n\nSi quieres volver a probarte algún vestido, agenda aquí:\n{enlace_cita}'),
 ('seguimiento','¿Ya elegiste tu vestido?','visita',false,72,2,'{nombre}, ¿ya elegiste tu vestido?',
@@ -281,35 +281,48 @@ begin
 end $$;
 
 -- ── Solicitud de autorización comercial (envío único, sin publicidad) ─────────────────────────
--- Personas que agendaron y no asistieron, o asistieron y no alquilaron, sin autorización comercial ni respuesta previa.
--- p_enviar=false solo cuenta; true crea su registro de autorización pendiente (mismo enlace /autorizacion/[token]) y encola un correo por persona, una sola vez.
+-- Todos los correos registrados (citas, contratos y clientas de aliados) sin autorización comercial ni respuesta previa.
+-- Prioridad 1: agendaron y no asistieron, o asistieron y no alquilaron. Prioridad 2: el resto. La cola sale en ese orden.
+-- Excluye a quien autorizó, retiró la autorización o pidió no contactar, y los correos del equipo.
+-- p_enviar=false solo cuenta; true crea su autorización pendiente (mismo enlace /autorizacion/[token]) y encola un correo por persona, una sola vez.
 create or replace function public.correo_solicitud_autorizacion(p_enviar boolean) returns jsonb language plpgsql security definer set search_path='' as $$
 declare r record; reg jsonb; n int:=0; out jsonb;
 begin
  if not public.es_admin() then raise exception 'Solo administración.' using errcode='42501'; end if;
- create temp table if not exists _sol(cita_id uuid,email text,nombre text,doc text,tel text,sede uuid,grupo text) on commit drop;
+ create temp table if not exists _sol(prioridad int,grupo text,cita_id uuid,email text,nombre text,doc text,tel text,sede uuid,origen text) on commit drop;
  truncate _sol;
  insert into _sol
- select c.id,c.email,c.cliente_nombre,c.cliente_documento,c.telefono,c.sede_id,case when c.estado='no_asistio' then 'no_asistio' else 'asistio' end
- from (select distinct on (lower(trim(email))) id,lower(trim(email)) email,cliente_nombre,cliente_documento,telefono,sede_id,estado,alquilo,cierre_seguimiento
-   from public.primeras_citas where email ~ '^[^\s@]+@[^\s@]+\.[^\s@]+$' and estado<>'cancelada' order by lower(trim(email)),fecha desc,created_at desc) c
- where c.estado in ('no_asistio','asistio','seguimiento','no_cerro')
-  and coalesce(c.alquilo,false)=false
-  and coalesce(c.cierre_seguimiento,'') !~* '^(alquil|no contactar)'
-  and not exists(select 1 from public.contratos k where lower(coalesce(k.estado,'')) not in ('anulado','cancelado','rechazado','borrador')
-   and (private.norm_mail(k.cliente_email)=private.norm_mail(c.email) or (private.norm_doc(c.cliente_documento) is not null and private.norm_doc(k.cliente_documento)=private.norm_doc(c.cliente_documento))))
+ select distinct on (x.email) x.* from (
+  select case when c.estado in ('no_asistio','asistio','seguimiento','no_cerro') and not coalesce(c.alquilo,false) then 1 else 2 end prioridad,
+   case when c.estado='no_asistio' then 'no_asistio' when c.estado in ('asistio','seguimiento','no_cerro') and not coalesce(c.alquilo,false) then 'asistio' else 'otros' end grupo,
+   c.id cita_id,lower(trim(c.email)) email,c.cliente_nombre nombre,c.cliente_documento doc,c.telefono tel,c.sede_id sede,'agendamiento' origen
+  from public.primeras_citas c where c.estado<>'cancelada' and coalesce(c.cierre_seguimiento,'') !~* '^no contactar'
+  union all
+  select 2,'otros',null::uuid,lower(trim(k.cliente_email)),k.cliente_nombre,k.cliente_documento,coalesce(k.cliente_whatsapp,k.whatsapp),k.sede_id,'contrato'
+  from public.contratos k where lower(coalesce(k.estado,'')) not in ('anulado','borrador')
+  union all
+  select 2,'otros',null,lower(trim(coalesce(nullif(a.clienta_correo,''),a.rep_correo))),coalesce(nullif(a.clienta_nombre,''),a.rep_nombre),coalesce(nullif(a.clienta_documento,''),a.rep_cedula),coalesce(nullif(a.clienta_celular,''),a.rep_celular),null,'clienta_aliado'
+  from public.aliado_clientas a
+ ) x
+ where x.email ~ '^[^\s@]+@[^\s@]+\.[^\s@]+$'
+  and (private.norm_doc(x.doc) is not null or private.norm_tel(x.tel) is not null)
+  and not exists(select 1 from public.profiles p where private.norm_mail(p.email)=private.norm_mail(x.email))
+  and not exists(select 1 from public.primeras_citas c where private.norm_mail(c.email)=private.norm_mail(x.email) and coalesce(c.cierre_seguimiento,'') ~* '^no contactar')
   and not exists(select 1 from public.autorizaciones_datos a where (a.comercial or a.estado='revocada' or a.comercial_revocada_at is not null)
-   and ((private.norm_doc(c.cliente_documento) is not null and private.norm_doc(a.documento)=private.norm_doc(c.cliente_documento))
-    or (private.norm_tel(c.telefono) is not null and private.norm_tel(a.telefono)=private.norm_tel(c.telefono))
-    or private.norm_mail(a.email)=private.norm_mail(c.email)))
-  and not exists(select 1 from public.correo_envios e where e.automatizacion_id='solicitud_autorizacion' and lower(e.email)=c.email)
-  and (private.norm_doc(c.cliente_documento) is not null or private.norm_tel(c.telefono) is not null);
+   and ((private.norm_doc(x.doc) is not null and private.norm_doc(a.documento)=private.norm_doc(x.doc))
+    or (private.norm_tel(x.tel) is not null and private.norm_tel(a.telefono)=private.norm_tel(x.tel))
+    or private.norm_mail(a.email)=private.norm_mail(x.email)))
+  and not exists(select 1 from public.correo_envios e where e.automatizacion_id='solicitud_autorizacion' and lower(e.email)=x.email)
+ order by x.email,x.prioridad,x.cita_id is null;
+ -- Quien alquiló (contrato) no es «asistió y no alquiló».
+ update _sol s set prioridad=2,grupo='otros' where s.prioridad=1 and exists(select 1 from public.contratos k where lower(coalesce(k.estado,'')) not in ('anulado','cancelado','rechazado','borrador')
+  and (private.norm_mail(k.cliente_email)=s.email or (private.norm_doc(s.doc) is not null and private.norm_doc(k.cliente_documento)=private.norm_doc(s.doc))));
  if not p_enviar then
-  select jsonb_build_object('no_asistio',count(*) filter (where grupo='no_asistio'),'asistio',count(*) filter (where grupo='asistio'),'total',count(*)) into out from _sol;
+  select jsonb_build_object('no_asistio',count(*) filter (where grupo='no_asistio'),'asistio',count(*) filter (where grupo='asistio'),'otros',count(*) filter (where grupo='otros'),'total',count(*)) into out from _sol;
   return out;
  end if;
- for r in select * from _sol loop
-  reg:=private.registrar_autorizacion(r.doc,r.tel,r.nombre,r.email,r.sede,'agendamiento',false,false,true);
+ for r in select * from _sol order by prioridad,grupo desc,email loop
+  reg:=private.registrar_autorizacion(r.doc,r.tel,r.nombre,r.email,r.sede,r.origen,false,false,true);
   if coalesce((reg->>'comercial')::boolean,false) or reg->>'estado'='revocada' then continue; end if;
   insert into public.correo_envios(automatizacion_id,cita_id,autorizacion_id,email,nombre) values('solicitud_autorizacion',r.cita_id,(reg->>'id')::uuid,r.email,r.nombre) on conflict do nothing;
   if found then n:=n+1; end if;
