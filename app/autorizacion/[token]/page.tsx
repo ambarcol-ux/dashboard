@@ -7,8 +7,8 @@ type Info={nombre:string;estado:string;comercial:boolean;textos:{tratamiento:{te
 /** Public page: the person accepts (or revokes) her data authorization with her own link. */
 export default function AuthorizationPage(){
  const token=String(useParams<{token:string}>().token||'');
- const [info,setInfo]=useState<Info|null>(null),[error,setError]=useState(''),[trat,setTrat]=useState(false),[com,setCom]=useState(false),[busy,setBusy]=useState(false),[done,setDone]=useState('');
- useEffect(()=>{void fetch(`/api/autorizacion?token=${encodeURIComponent(token)}`).then(r=>r.json()).then(d=>{if(d.error)setError(d.error);else{setInfo(d);setTrat(d.estado==='autorizada');setCom(!!d.comercial);}}).catch(()=>setError('No pudimos cargar la autorización.'));},[token]);
+ const [info,setInfo]=useState<Info|null>(null),[error,setError]=useState(''),[trat,setTrat]=useState(false),[com,setCom]=useState<boolean|null>(null),[busy,setBusy]=useState(false),[done,setDone]=useState('');
+ useEffect(()=>{void fetch(`/api/autorizacion?token=${encodeURIComponent(token)}`).then(r=>r.json()).then(d=>{if(d.error)setError(d.error);else{setInfo(d);setTrat(d.estado==='autorizada');setCom(d.comercial?true:null);}}).catch(()=>setError('No pudimos cargar la autorización.'));},[token]);
  const send=async(accion:'aceptar'|'revocar')=>{
   setError('');if(accion==='aceptar'&&!trat)return setError('Para continuar marca la autorización de tratamiento de datos.');
   if(accion==='revocar'&&!window.confirm('¿Retirar tu autorización? Ámbar Couture dejará de usar tus datos salvo lo que exija la ley.'))return;
@@ -27,8 +27,10 @@ export default function AuthorizationPage(){
    {info.textos.tratamiento&&<p className="text-xs text-gray-600 leading-relaxed">{info.textos.tratamiento.texto}</p>}
    <label className="flex gap-2 items-start text-sm text-gray-800"><input type="checkbox" className="mt-1" checked={trat} disabled={info.estado==='autorizada'} onChange={e=>setTrat(e.target.checked)}/>Autorizo el tratamiento de mis datos personales (obligatorio)</label>
    {info.textos.comercial&&<p className="text-xs text-gray-600 leading-relaxed">{info.textos.comercial.texto}</p>}
-   <label className="flex gap-2 items-start text-sm text-gray-800"><input type="checkbox" className="mt-1" checked={com} onChange={e=>setCom(e.target.checked)}/>Acepto recibir información comercial (opcional)</label>
-   <button type="button" disabled={busy} onClick={()=>void send('aceptar')} className="w-full py-3 rounded-2xl bg-rose-500 text-white font-black text-sm">{busy?'Guardando…':'Guardar mi autorización'}</button>
+   <div role="radiogroup" aria-label="Información comercial" className="text-sm text-gray-800 space-y-1"><p className="font-bold">¿Quieres recibir novedades, vestidos nuevos y promociones? (elige una)</p>
+    <label className="flex gap-2 items-start"><input type="radio" name="comercial" className="mt-1" checked={com===true} onChange={()=>setCom(true)}/>Sí autorizo recibir información comercial</label>
+    <label className="flex gap-2 items-start"><input type="radio" name="comercial" className="mt-1" checked={com===false} onChange={()=>setCom(false)}/>No autorizo</label></div>
+   <button type="button" disabled={busy||com===null} onClick={()=>void send('aceptar')} className="w-full py-3 rounded-2xl bg-rose-500 text-white font-black text-sm">{busy?'Guardando…':'Guardar mi autorización'}</button>
    {info.estado==='autorizada'&&<button type="button" disabled={busy} onClick={()=>void send('revocar')} className="w-full py-2 text-xs font-bold text-gray-500 underline">Retirar mi autorización</button>}
   </>}
  </section></main>;
