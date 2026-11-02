@@ -25,24 +25,56 @@ export async function testConnection(c:EmailConnection):Promise<{ok:true;detalle
  }catch{return {ok:false,error:'Sin respuesta del proveedor. Revisa la conexión e intenta de nuevo.'};}
 }
 
-/** SMTP: greeting, EHLO and AUTH LOGIN with the saved user and password (no email is sent). */
-function smtpLogin(c:EmailConnection):Promise<{ok:true;detalle:string}|{ok:false;error:string}>{
- const host=String(c.config.host||'').trim(),port=Number(c.config.puerto||465);
+type Mail={to:string;nombre:string|null;asunto:string;texto:string;html:string};
+type Result={ok:true;detalle:string}|{ok:false;error:string};
+const smtpLogin=(c:EmailConnection)=>smtpSession(c,null);
+const b64=(v:string)=>Buffer.from(v,'utf8').toString('base64');
+const header=(v:string)=>`=?UTF-8?B?${b64(v)}?=`;
+
+/** SMTP: greeting, EHLO and AUTH LOGIN with the saved user and password; with a mail, also MAIL/RCPT/DATA. */
+function smtpSession(c:EmailConnection,mail:Mail|null):Promise<Result>{
+ const host=String(c.config.host||'').trim(),port=Number(c.config.puerto||465),from=String(c.config.remitente_email||c.config.usuario||'').trim();
  if(!/^[a-z0-9.-]+$/i.test(host)||!Number.isInteger(port))return Promise.resolve({ok:false,error:'Revisa el servidor y el puerto.'});
  return new Promise(resolve=>{
   const socket:Socket=port===465?tlsConnect({host,port,servername:host}):netConnect({host,port});let buf='';let step=0;
-  const done=(v:{ok:true;detalle:string}|{ok:false;error:string})=>{try{socket.end();}catch{}resolve(v);};
+  const done=(v:Result)=>{try{socket.end();}catch{}resolve(v);};
   const send=(l:string)=>socket.write(l+'\r\n');
   const onData=(chunk:Buffer)=>{buf+=chunk.toString();const lines=buf.split('\r\n').filter(Boolean);if(!buf.endsWith('\r\n')||!/^\d{3} /.test(lines[lines.length-1]||''))return;const code=Number(buf.slice(0,3)),text=buf;buf='';
    if(step===0){if(code!==220)return done({ok:false,error:'El servidor no respondió como SMTP.'});step=1;send('EHLO erp');}
    else if(step===1){if(code!==250)return done({ok:false,error:'El servidor rechazó el saludo.'});if(!/AUTH/i.test(text))return done({ok:false,error:'El servidor no ofrece inicio de sesión en este puerto (usa 465).'});step=2;send('AUTH LOGIN');}
-   else if(step===2){if(code!==334)return done({ok:false,error:'El servidor no acepta AUTH LOGIN.'});step=3;send(Buffer.from(String(c.config.usuario||'')).toString('base64'));}
-   else if(step===3){if(code!==334)return done({ok:false,error:'Usuario rechazado.'});step=4;send(Buffer.from(c.secreto).toString('base64'));}
-   else if(step===4){send('QUIT');done(code===235?{ok:true,detalle:`Servidor ${host}`}:{ok:false,error:'Usuario o contraseña incorrectos.'});}
+   else if(step===2){if(code!==334)return done({ok:false,error:'El servidor no acepta AUTH LOGIN.'});step=3;send(b64(String(c.config.usuario||'')));}
+   else if(step===3){if(code!==334)return done({ok:false,error:'Usuario rechazado.'});step=4;send(b64(c.secreto));}
+   else if(step===4){if(code!==235)return done({ok:false,error:'Usuario o contraseña incorrectos.'});if(!mail){send('QUIT');return done({ok:true,detalle:`Servidor ${host}`});}step=5;send(`MAIL FROM:<${from}>`);}
+   else if(step===5){if(code!==250)return done({ok:false,error:'El servidor rechazó el remitente.'});step=6;send(`RCPT TO:<${mail!.to}>`);}
+   else if(step===6){if(code!==250&&code!==251)return done({ok:false,error:'El servidor rechazó el destinatario.'});step=7;send('DATA');}
+   else if(step===7){if(code!==354)return done({ok:false,error:'El servidor no aceptó el mensaje.'});step=8;
+    const name=String(c.config.remitente_nombre||'').trim();
+    socket.write([`From: ${name?header(name)+' ':''}<${from}>`,`To: <${mail!.to}>`,`Subject: ${header(mail!.asunto)}`,'MIME-Version: 1.0','Content-Type: text/html; charset=UTF-8','Content-Transfer-Encoding: base64','',
+     (b64(mail!.html).match(/.{1,76}/g)||[]).join('\r\n'),'.',''].join('\r\n'));}
+   else if(step===8){send('QUIT');done(code===250?{ok:true,detalle:'smtp'}:{ok:false,error:'El servidor no entregó el mensaje.'});}
   };
   socket.setTimeout(15000,()=>done({ok:false,error:'El servidor no respondió a tiempo.'}));
   socket.on('data',onData);socket.on('error',()=>done({ok:false,error:'No se pudo conectar al servidor.'}));
  });
+}
+
+/** Sends one email through the active provider. Returns the provider's message id when it has one. */
+export async function sendEmail(c:EmailConnection,mail:Mail):Promise<Result>{
+ const from=String(c.config.remitente_email||'').trim(),name=String(c.config.remitente_nombre||'Ámbar Couture').trim();
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(from))return {ok:false,error:'Falta el correo del remitente en Integraciones.'};
+ try{
+  let r:Response;
+  if(c.proveedor==='brevo'){r=await fetch('https://api.brevo.com/v3/smtp/email',{method:'POST',headers:{'api-key':c.secreto,'content-type':'application/json',accept:'application/json'},signal:T(),
+   body:JSON.stringify({sender:{name,email:from},to:[{email:mail.to,...(mail.nombre?{name:mail.nombre}:{})}],subject:mail.asunto,htmlContent:mail.html,textContent:mail.texto})});
+   const d=await json(r);return r.ok?{ok:true,detalle:String(d.messageId||'')}:{ok:false,error:fail(r,d)};}
+  if(c.proveedor==='mailjet'){r=await fetch('https://api.mailjet.com/v3.1/send',{method:'POST',headers:{Authorization:basic(c.config.api_key||'',c.secreto),'content-type':'application/json'},signal:T(),
+   body:JSON.stringify({Messages:[{From:{Email:from,Name:name},To:[{Email:mail.to,Name:mail.nombre||''}],Subject:mail.asunto,TextPart:mail.texto,HTMLPart:mail.html}]})});
+   const d=await json(r);const m=(d.Messages as {To?:{MessageID?:number}[]}[]|undefined)?.[0]?.To?.[0]?.MessageID;return r.ok?{ok:true,detalle:String(m||'')}:{ok:false,error:fail(r,d)};}
+  if(c.proveedor==='sendgrid'){r=await fetch('https://api.sendgrid.com/v3/mail/send',{method:'POST',headers:{Authorization:`Bearer ${c.secreto}`,'content-type':'application/json'},signal:T(),
+   body:JSON.stringify({personalizations:[{to:[{email:mail.to,...(mail.nombre?{name:mail.nombre}:{})}]}],from:{email:from,name},subject:mail.asunto,content:[{type:'text/plain',value:mail.texto},{type:'text/html',value:mail.html}]})});
+   return r.ok?{ok:true,detalle:r.headers.get('x-message-id')||''}:{ok:false,error:fail(r,await json(r))};}
+  return await smtpSession(c,mail);
+ }catch{return {ok:false,error:'Sin respuesta del proveedor; se reintentará.'};}
 }
 
 /** Sends the authorized contacts to the provider's list (creates or updates). */
