@@ -6,23 +6,27 @@ import {collectPages} from '@/lib/collect-pages';
 import {commercialRows,commercialMetrics,type HistoricCRM,type AnalysisVisit} from '@/lib/crm-analysis';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
 import {FollowupAnalysis} from '@/components/FollowupSummary';
+import {cop} from '@/lib/rental-price';
+type PromoRow={nombre?:string;origen?:string;citas:number;contratos:number;valor:number;descuento:number};
 export default function CommercialAnalysis(){
  const year=new Intl.DateTimeFormat('en',{year:'numeric',timeZone:'America/Bogota'}).format(new Date());
  const [from,setFrom]=useState(year+'-01-01'),[to,setTo]=useState(year+'-12-31'),[site,setSite]=useState(''),[advisor,setAdvisor]=useState(''),[origin,setOrigin]=useState('');
  const [archive,setArchive]=useState<HistoricCRM[]>([]),[visits,setVisits]=useState<AnalysisVisit[]>([]),[sites,setSites]=useState<Record<string,string>>({}),[loading,setLoading]=useState(true),[error,setError]=useState('');
  const request=useRef(0);
+ const [promo,setPromo]=useState<{promociones:PromoRow[];origenes:PromoRow[]}>({promociones:[],origenes:[]});
  const load=useCallback(async()=>{
   const id=++request.current;setLoading(true);setError('');
   if(!from||!to||to<from||(Date.parse(to)-Date.parse(from))/86400000>366){setLoading(false);setError('Selecciona un periodo de hasta un año.');return;}
   try{
-   const [historical,native,locations,linked]=await Promise.all([
+   const [historical,native,locations,linked,promoData]=await Promise.all([
     collectPages<HistoricCRM>((a,b)=>supabase.from('crm_historico').select('id,hoja,fila,id_externo,sede_id,fecha,nombre,asesora,asistencia,alquilo,recuperada,motivo,incidencia').in('hoja',['CITAS','VITRINA']).order('id').range(a,b)),
     supabase.rpc('listar_primeras_citas',{p_desde:from,p_hasta:to}),
     supabase.from('sedes').select('id,nombre').eq('activo',true),
     collectPages<{crm_origen_id:string;fecha:string}>((a,b)=>supabase.from('primeras_citas').select('crm_origen_id,fecha').not('crm_origen_id','is',null).order('id').range(a,b)),
+    supabase.rpc('analisis_promociones_origen',{p_desde:from,p_hasta:to}),
    ]);
    if(native.error||locations.error)throw Error('No se pudo consultar el análisis.');
-   if(id===request.current){const dates=new Map(linked.map(c=>[c.crm_origen_id,c.fecha]));setArchive(historical.map(h=>dates.has(h.id)?{...h,fecha:dates.get(h.id)!}:h));setVisits(native.data||[]);setSites(Object.fromEntries((locations.data||[]).map(s=>[s.id,s.nombre])));}
+   if(id===request.current){const dates=new Map(linked.map(c=>[c.crm_origen_id,c.fecha]));setArchive(historical.map(h=>dates.has(h.id)?{...h,fecha:dates.get(h.id)!}:h));setVisits(native.data||[]);setSites(Object.fromEntries((locations.data||[]).map(s=>[s.id,s.nombre])));setPromo(promoData.error||!promoData.data?{promociones:[],origenes:[]}:promoData.data);}
   }catch{if(id===request.current){setArchive([]);setVisits([]);setError('No se pudo cargar el análisis comercial. Intenta actualizar.');}}
   finally{if(id===request.current)setLoading(false);}
  },[from,to]);
@@ -40,6 +44,7 @@ export default function CommercialAnalysis(){
  {error?<p role="alert" className={styles.error}>{error}</p>:loading?<p role="status">Cargando análisis…</p>:<><div className={styles.stats}>{[['Registros',metrics.registros],['Atendidas',metrics.atendidas],['Alquiler declarado',metrics.alquileres],['Alquiler recuperado',metrics.recuperados],['Contratos confirmados',metrics.contratos],['Conversión comercial',metrics.conversion+'%']].map(([label,value])=><div key={label}><strong>{value}</strong><span>{label}</span></div>)}</div>
  <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="py-3 text-left font-bold">Resultado por sede · {from} al {to}</caption><thead><tr>{['Sede','Registros','Atendidas','Alquiler declarado','Contratos confirmados','Conversión'].map(h=><th key={h} scope="col" className="p-2">{h}</th>)}</tr></thead><tbody>{grouped.map(g=><tr key={g.sede} className="border-t"><th scope="row" className="p-2">{g.sede}</th><td className="p-2">{g.registros}</td><td className="p-2">{g.atendidas}</td><td className="p-2">{g.alquileres}</td><td className="p-2">{g.contratos}</td><td className="p-2">{g.conversion}%</td></tr>)}</tbody></table></div>{!visible.length&&<p>No hay registros válidos para estos filtros.</p>}
  <div className="overflow-x-auto mt-6"><table className="w-full text-left text-sm"><caption className="py-3 text-left font-bold">Resultado por origen y sede · {from} al {to}</caption><thead><tr>{['Origen','Sede','Recibidas','Atendidas','Cerradas','Contratos confirmados','Conversión'].map(h=><th key={h} scope="col" className="p-2">{h}</th>)}</tr></thead><tbody>{byOrigin.map(g=><tr key={g.origen+g.sede} className="border-t"><th scope="row" className="p-2">{g.origen}</th><td className="p-2">{g.sede}</td><td className="p-2">{g.registros}</td><td className="p-2">{g.atendidas}</td><td className="p-2">{g.alquileres}</td><td className="p-2">{g.contratos}</td><td className="p-2">{g.conversion}%</td></tr>)}</tbody></table></div>
+ {([['Promoción','promociones','nombre'],['Origen del enlace (o=)','origenes','origen']] as const).map(([title,key,field])=><div key={key} className="overflow-x-auto mt-6"><table className="w-full text-left text-sm"><caption className="py-3 text-left font-bold">Resultado por {title.toLowerCase()} · {from} al {to}</caption><thead><tr>{[title,'Citas','Contratos','Valor contratos','Descuento otorgado'].map(h=><th key={h} scope="col" className="p-2">{h}</th>)}</tr></thead><tbody>{promo[key].map(g=><tr key={g[field]} className="border-t"><th scope="row" className="p-2">{g[field]}</th><td className="p-2">{g.citas}</td><td className="p-2">{g.contratos}</td><td className="p-2">{cop(Number(g.valor))}</td><td className="p-2">{cop(Number(g.descuento))}</td></tr>)}</tbody></table>{!promo[key].length&&<p>Sin registros en el periodo.</p>}</div>)}
  <details className="mt-6"><summary className="cursor-pointer font-bold">Datos del histórico por revisar ({issues.length})</summary><p className={styles.notice}>Incluye registros sin fecha, aunque no puedan ubicarse en el periodo seleccionado. Todos conservan la fila y los datos originales.</p>{issues.map(r=><article key={r.id} className={styles.row}><div><strong>{r.nombre||'Registro sin nombre'}</strong><p>{r.sede} · {r.origen} · Fila {r.fila}</p><p>{r.incidencia}</p></div></article>)}</details>
  <details className="mt-6"><summary className="cursor-pointer font-bold">Motivos de no alquiler</summary>{Array.from(new Set(visible.filter(r=>!r.alquilo&&r.motivo).map(r=>r.motivo))).sort().map(m=><p key={m} className="py-1">{m}: {visible.filter(r=>!r.alquilo&&r.motivo===m).length}</p>)}</details></>}
  <FollowupAnalysis/></section></main>;

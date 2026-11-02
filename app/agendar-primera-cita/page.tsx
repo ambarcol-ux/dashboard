@@ -20,7 +20,8 @@ export default function FirstBooking(){
   void fetch(`/api/primeras-citas?${new URLSearchParams({fecha:date,sede:site,modalidad:mode})}`,{signal:c.signal,cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error);setSlots(d.horarios);}).catch(e=>{if(!c.signal.aborted)setError(e.message);}).finally(()=>{if(!c.signal.aborted)setLoading(false);});return()=>c.abort();
  },[date,site,mode]);
  async function submit(e:React.FormEvent){e.preventDefault();if(busy.current)return;busy.current=true;setSaving(true);setError('');setCanReschedule(false);
-  const body={documento,fechaEvento,tipoVestido,nombre:name,telefono:phone,email,sede:site,modalidad:mode,fecha:date,hora:time,consentimiento:consent,comercial,website};
+  const origen=(new URLSearchParams(window.location.search).get('o')||'').replace(/[^A-Za-z0-9._-]/g,'').slice(0,60);
+  const body={documento,fechaEvento,tipoVestido,nombre:name,telefono:phone,email,sede:site,modalidad:mode,fecha:date,hora:time,consentimiento:consent,comercial,website,...(origen?{origen}:{})};
   const key=JSON.stringify(body);if(payloadKey.current!==key){payloadKey.current=key;requestId.current=crypto.randomUUID();}
   try{const r=await fetch('/api/primeras-citas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...body,id:requestId.current})});const d=await r.json();if(!r.ok){setCanReschedule(d.reprogramar===true);throw Error(d.error);}setManageLink(d.enlace);setAuthLink(d.autorizacion||'');setSaved(true);}catch(e){setError(e instanceof Error?e.message:'No pudimos confirmar la reserva. Reintenta.');}finally{busy.current=false;setSaving(false);}
  }

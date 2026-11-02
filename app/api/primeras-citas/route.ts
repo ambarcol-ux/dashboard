@@ -47,6 +47,8 @@ export async function POST(request:Request){
   if(error)return reply({error:'No se pudo confirmar la reserva. Revisa tus datos y vuelve a consultar el horario.'},400);
   if(!data?.reservada&&data?.error==='Ya tienes una primera cita pendiente. Contacta a la sede para cambiarla.')return reply({error:'Ya tienes una primera cita pendiente. Puedes cambiar su fecha y horario desde aquí.',reprogramar:true},409);
   if(!data?.reservada)return reply({error:data?.error||'El horario ya no está disponible.'},409);
+  // o= of the link that brought her (catalog or campaign): saved once on the booked visit.
+  if(input.origenEnlace){const {error:o}=await db.from('primeras_citas').update({origen_enlace:input.origenEnlace}).eq('id',data.id).is('origen_enlace',null);if(o)console.error('Origen de la cita no guardado:',o.message);}
   // Data authorization: booked by the person → registered; booked by the team (session) → pending until she accepts with her link.
   let autorizacion:string|null=null;
   try{

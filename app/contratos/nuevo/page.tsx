@@ -26,6 +26,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { saldoContrato } from '@/lib/saldo';
 import { cop } from '@/lib/rental-price';
+import { PROMO_FIELDS, promoApplies, promoBenefit, promoDiscount, type Promotion } from '@/lib/promotions';
 
 const MONEY_FIELDS = ['valor_total', 'servicios_adicionales', 'anticipo', 'valor_deposito'];
 const NUMERIC_DOCS = ['CC', 'TI', 'NIT'];
@@ -149,7 +150,7 @@ export default function NuevoContratoPage() {
   }); }, []);
   const descuentoAliado = aliadoModo.tiene ? Math.round(valorAlquilerNum * aliadoPct.descuento / 100) : 0;
   const aliadoModoError = () => isEditMode ? (aliadoModo.tiene && !aliadoModo.aliado ? 'En modo Aliado busca y carga el aliado.' : null)
-    : allyModeError(aliadoModo, Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0), parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, '')) || 0, aliadoPct.minimo);
+    : allyModeError(aliadoModo, Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado - descuentoPromo) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0), parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, '')) || 0, aliadoPct.minimo);
   const sendAllyMeasures = async (contratoId: string) => {
     if (!aliadoModo.tiene) return;
     const { data: s } = await supabase.auth.getSession();
@@ -208,6 +209,17 @@ export default function NuevoContratoPage() {
   // Catálogo Global
   const [vestidosMaestro, setVestidosMaestro] = useState<any[]>([]);
   const [clasificaciones, setClasificaciones] = useState<{ id: number; nombre: string }[]>([]);
+  // Promotion (Ventas y CRM › Correo): only on new contracts; active today, for the sede and the selected dresses' type and category.
+  const [promos, setPromos] = useState<Promotion[]>([]);
+  const [promoId, setPromoId] = useState('');
+  useEffect(() => { void supabase.from('promociones').select(PROMO_FIELDS).eq('activo', true).then(({ data }) => setPromos((data || []) as Promotion[])); }, []);
+  const promoDress = vestidos.map(v => vestidosMaestro.find(m => m.id === v.vestido_id)).filter(Boolean);
+  const promoFit = (p: Promotion) => promoApplies(p, { sede: formData.sede_id, tipos: promoDress.map(d => d.clasificacion_id), categorias: promoDress.map(d => d.categoria) });
+  const promoPicked = isEditMode ? null : promos.find(p => p.id === promoId) || null;
+  // Only an applicable promotion gives a discount and is saved on the contract.
+  const promoSel = promoPicked && promoFit(promoPicked) ? promoPicked : null;
+  const descuentoPromo = promoDiscount(promoSel, valorAlquilerNum);
+  const promoPayload = () => (promoSel ? { promocion_id: promoSel.id, descuento_promocion: descuentoPromo } : {});
   useEffect(() => {
     void supabase.from('clasificaciones_vestido').select('id, nombre').then(({ data }) => setClasificaciones(data || []));
   }, []);
@@ -236,14 +248,14 @@ export default function NuevoContratoPage() {
   const loadVisit=(id:string,isLive:()=>boolean=()=>true)=>{
     setFirstVisitLoading(true);setFirstVisitError('');
     return (async()=>{
-      const {data:c,error}=await supabase.from('primeras_citas').select('id,codigo,sede_id,cliente_nombre,telefono,email,cliente_documento,estado').eq('id',id).single();
+      const {data:c,error}=await supabase.from('primeras_citas').select('id,codigo,sede_id,cliente_nombre,telefono,email,cliente_documento,estado,promocion_id').eq('id',id).single();
       if(error||!c)throw new Error('No puedes acceder a esta primera cita. Vuelve al Calendario.');
       if(c.estado==='cancelada')throw new Error('La visita está cancelada.');
       const {data:existing,error:ce}=await supabase.from('contratos').select('id').eq('primera_cita_id',id).maybeSingle();
       if(ce)throw new Error('No se pudo verificar si la cita ya tiene contrato.');
       if(existing)throw new Error('Esta cita ya tiene un contrato. Ábrelo desde Calendario.');
       const site=sedesList.find(s=>s.id===c.sede_id);if(!site)throw new Error('La sede de la cita no está disponible.');
-      if(isLive()){setFirstVisit(c);setFormData(prev=>({...prev,cliente_nombre:c.cliente_nombre,whatsapp:c.telefono,cliente_email:c.email||'',cliente_documento:prev.cliente_documento||c.cliente_documento||'',sede_id:site.id,sede:site.nombre}));}
+      if(isLive()){setFirstVisit(c);if(c.promocion_id)setPromoId(prev=>prev||c.promocion_id);setFormData(prev=>({...prev,cliente_nombre:c.cliente_nombre,whatsapp:c.telefono,cliente_email:c.email||'',cliente_documento:prev.cliente_documento||c.cliente_documento||'',sede_id:site.id,sede:site.nombre}));}
     })().catch(e=>{if(isLive())setFirstVisitError(e.message);}).finally(()=>{if(isLive())setFirstVisitLoading(false);});
   };
   useEffect(()=>{
@@ -775,9 +787,9 @@ export default function NuevoContratoPage() {
     setTotalArreglos(sumArreglos);
 
     // Saldo Final Real = Valor Alquiler Base + Servicios Extra + Costo Arreglos - Descuento VIP - Abono Inicial
-    const nuevoSaldo = saldoContrato({ valor_total: Math.max(0, valorAlquiler - vipDiscount - descuentoAliado) + serviciosExtra, total_arreglos: sumArreglos, anticipo });
+    const nuevoSaldo = saldoContrato({ valor_total: Math.max(0, valorAlquiler - vipDiscount - descuentoAliado - descuentoPromo) + serviciosExtra, total_arreglos: sumArreglos, anticipo });
     setSaldoCalc(Math.max(0, nuevoSaldo));
-  }, [formData.valor_total, formData.servicios_adicionales, formData.anticipo, arreglos, vipDiscount, descuentoAliado]);
+  }, [formData.valor_total, formData.servicios_adicionales, formData.anticipo, arreglos, vipDiscount, descuentoAliado, descuentoPromo]);
 
 
   // -- Manejadores VIP --
@@ -1139,7 +1151,7 @@ export default function NuevoContratoPage() {
       const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
       const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
       
-      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado);
+      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado - descuentoPromo);
       const verdaderoValorTotal = valorAlquilerConDescuento + serviciosAdicionales;
 
       assertFirstVisitReady();
@@ -1178,6 +1190,7 @@ export default function NuevoContratoPage() {
         total_arreglos: totalArreglos,
         valor_deposito: depositoInicial,
         ...allyModePayload(aliadoModo, descuentoAliado),
+        ...promoPayload(),
 
         // Garantías/Depósitos
       banco_deposito: formData.deposito_banco || null,
@@ -1297,7 +1310,7 @@ export default function NuevoContratoPage() {
 
     const valorAlquilerBase = parseFloat(String(formData.valor_total).replace(/[^0-9.-]+/g, "")) || 0;
     const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
-    const verdaderoValorTotal = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado) + serviciosAdicionales;
+    const verdaderoValorTotal = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado - descuentoPromo) + serviciosAdicionales;
     const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
 
     const datos = {
@@ -1523,7 +1536,7 @@ export default function NuevoContratoPage() {
       const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
       const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
       
-      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado);
+      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado - descuentoPromo);
       const verdaderoValorTotal = valorAlquilerConDescuento + serviciosAdicionales;
 
       // 5. Inserción ERP: Mapeo Estricto de Columnas
@@ -1563,6 +1576,7 @@ export default function NuevoContratoPage() {
         total_arreglos: totalArreglos,
         valor_deposito: depositoInicial,
         ...allyModePayload(aliadoModo, descuentoAliado),
+        ...promoPayload(),
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
@@ -1805,7 +1819,7 @@ export default function NuevoContratoPage() {
 
           {!isEditMode&&!firstVisit&&!aliadoModo.tiene&&<ContractVisitPicker onPick={id=>{if(sedesList.length)void loadVisit(id);}}/>}
           <ContractAllyMode value={aliadoModo} onChange={setAliadoModo} descuento={descuentoAliado} descuentoPct={aliadoPct.descuento} minimoPct={aliadoPct.minimo} numero={editingContractNumber}
-            total={Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0)}
+            total={Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado - descuentoPromo) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0)}
             disabled={isEditMode && !['borrador','pendiente_admin'].includes(String(editingContractState).toLowerCase()) && String(userRole).toLowerCase() !== 'admin'}
             onAlly={a => setFormData(prev => ({ ...prev, cliente_nombre: a.nombre, cliente_documento: a.cedula, cliente_email: a.correo, whatsapp: a.celular, direccion: a.direccion }))}
             onClienta={c => setFormData(prev => ({ ...prev, quinceanera_name: c.clienta_nombre, fecha_evento: prev.fecha_evento || c.fecha_evento }))} />
@@ -2229,6 +2243,21 @@ export default function NuevoContratoPage() {
                     </div>
                   </div>
                 </div>
+
+                {!isEditMode && (() => {
+                  const eligible = promos.filter(p => p.id === promoId || promoFit(p));
+                  const off = promoPicked && !promoSel;
+                  return <div className="p-4 bg-white border border-rose-100 rounded-xl shadow-sm space-y-2">
+                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2"><Tag className="w-4 h-4 text-rose-500" /> Promoción</label>
+                    <select value={promoId} onChange={e => setPromoId(e.target.value)} className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-2.5 font-medium">
+                      <option value="">Sin promoción</option>
+                      {eligible.map(p => <option key={p.id} value={p.id}>{p.nombre} · {promoBenefit(p)}</option>)}
+                    </select>
+                    {promoSel && <p className="text-xs text-gray-600">{promoSel.condiciones}</p>}
+                    {off && <p className="text-xs font-bold text-amber-700">La promoción no aplica a la sede o a los vestidos seleccionados.</p>}
+                    {descuentoPromo > 0 && <p className="text-rose-600 text-[11px] font-bold uppercase tracking-wider">Descuento promoción: -{cop(descuentoPromo)}</p>}
+                  </div>;
+                })()}
 
                 {/* VIP Code Section - oculto */}
                 {false && !isEditMode && (

@@ -1,0 +1,123 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Meta y WhatsApp</title>
+<style>
+:root{--bg:#fafaf9;--card:#fff;--fg:#111;--muted:#555;--line:#e7e5e4;--bad:#e11d48;--ok:#047857;--warn:#b45309}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1c1917;--card:#292524;--fg:#f5f5f4;--muted:#a8a29e;--line:#44403c;--bad:#fb7185;--ok:#34d399;--warn:#fbbf24}}
+:root[data-theme="dark"]{--bg:#1c1917;--card:#292524;--fg:#f5f5f4;--muted:#a8a29e;--line:#44403c;--bad:#fb7185;--ok:#34d399;--warn:#fbbf24}
+body{font-family:system-ui,sans-serif;margin:0;padding:16px;background:var(--bg);color:var(--fg);max-width:1100px}
+h1{font-size:20px;margin:0 0 4px}h2{font-size:16px;margin:26px 0 8px}p,li{color:var(--muted);font-size:13px;line-height:1.5}
+.kpis{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}.k{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px;min-width:120px;font-size:12px}.k b{display:block;font-size:22px}.bad b{color:var(--bad)}
+.mermaid{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto}
+.wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:12.5px;background:var(--card)}th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}th{font-weight:700}
+.s-ok{color:var(--ok);font-weight:700}.s-bad{color:var(--bad);font-weight:700}.s-warn{color:var(--warn);font-weight:700}code{font-size:12px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script></head><body translate="no">
+<h1>Meta y WhatsApp en el ERP · estado al 02/11/2026</h1>
+<p>Todo lo que hoy usa WhatsApp Cloud API y Meta (Conversions API), dónde vive cada credencial y qué depende del número que envía.</p>
+<div class="kpis">
+ <div class="k"><b>2</b>caminos de envío (ERP directo o Apps Script)</div>
+ <div class="k"><b>7</b>tipos de mensaje automático</div>
+ <div class="k"><b>5</b>plantillas aprobadas en Meta</div>
+ <div class="k"><b>2</b>webhooks que filtran por número</div>
+ <div class="k bad"><b>5</b>números escritos en el código</div>
+ <div class="k bad"><b>2</b>lugares con credenciales (Vercel y Apps Script)</div>
+</div>
+<p>Rosa: pantallas y personas · Amarillo: envío y recepción · Azul: datos · Verde: Meta · Rojo: depende del número.</p>
+<div class="mermaid">
+flowchart LR
+  classDef ui fill:#ffe4e6,stroke:#e11d48,color:#111
+  classDef act fill:#fef3c7,stroke:#d97706,color:#111
+  classDef db fill:#dbeafe,stroke:#2563eb,color:#111
+  classDef meta fill:#dcfce7,stroke:#16a34a,color:#111
+  classDef num fill:#fee2e2,stroke:#dc2626,color:#111,stroke-width:2px
+
+  subgraph ORIGEN["Origen de los mensajes"]
+   AG["Agendar / reprogramar / gestionar cita (público)"]:::ui
+   PV["Primeras visitas: resultado, seguimientos"]:::ui
+  end
+  AG --> PC[("primeras_citas")]:::db
+  PV --> PC
+  PC -->|"trigger programa"| COLA[("primeras_citas_mensajes<br/>confirmacion · recordatorio24 · recordatorio2<br/>post_cita · pregunta_alquiler · pregunta_motivo · reagendar")]:::db
+  PC -->|"trigger"| CAPIQ[("primeras_citas_capi<br/>Schedule · AppointmentAttended · Purchase")]:::db
+
+  subgraph VERCEL["ERP en Vercel"]
+   PROC["/api/primeras-citas/procesar<br/>(cron, si FIRST_VISIT_MESSAGES_ENABLED=true)"]:::act
+   WH["/api/primeras-citas/whatsapp<br/>webhook: firma META_APP_SECRET"]:::act
+   RELAY["/api/primeras-citas/whatsapp-script<br/>cola para Apps Script (si ENABLED≠true)"]:::act
+   ENV["Variables Vercel<br/>META_WA_TOKEN · META_WA_PHONE_NUMBER_ID<br/>META_APP_SECRET · META_WA_VERIFY_TOKEN<br/>META_GRAPH_VERSION · META_WA_TEMPLATE_LANG<br/>META_WA_CONFIRMATION_LANG · META_CAPI_*"]:::num
+  end
+  COLA --> PROC
+  COLA --> RELAY
+  ENV -.-> PROC
+  ENV -.-> WH
+  CAPIQ --> PROC
+
+  subgraph GAS["Google Apps Script (CRM)"]
+   GWA["AMBAR_ERP_WHATSAPP.gs<br/>toma la cola y envía con su token"]:::act
+   GCRM["Codigo_CRM_ERP.gs<br/>entrada única de webhooks (Meta + Cal.com)<br/>envíos del CRM legado"]:::act
+   PROPS["Propiedades del script<br/>META_WA_TOKEN · META_WA_PHONE_NUMBER_ID<br/>META_WA_WABA_ID · META_WA_VERIFY_TOKEN<br/>hoja CONFIG_AUTOMATIZACION: PHONE_NUMBER_ID"]:::num
+  end
+  RELAY <-->|"tomar / reportar"| GWA
+  PROPS -.-> GWA
+  PROPS -.-> GCRM
+  GCRM -->|"reenvía eventos"| RELAY
+
+  subgraph META["Meta"]
+   NUM["Número que envía<br/>(phone_number_id)"]:::num
+   WABA["Cuenta WhatsApp Business (WABA)<br/>plantillas: ambar_confirmacion_cita · ambar_recordatorio_cita<br/>ambar_post_cita_asistencia · ambar_cita_confirmada_sede · ambar_cita_confirmada_virtual"]:::meta
+   DS["Dataset CAPI 1420256452930635"]:::meta
+  end
+  PROC -->|"POST /phone_number_id/messages"| NUM
+  GWA -->|"POST /phone_number_id/messages"| NUM
+  NUM --- WABA
+  NUM -->|"estados y botones<br/>(filtra por phone_number_id)"| WH
+  NUM -->|"webhook de la app"| GCRM
+  WH -->|"estado_whatsapp / respuesta_whatsapp"| COLA
+  PROC -->|"POST /dataset/events"| DS
+  GCRM -->|"eventos CRM"| DS
+
+  subgraph FIJOS["Números escritos en el código (wa.me y textos)"]
+   SEDES["lib/first-visit-sites.ts<br/>Bogotá 573058073210 · Pereira 573213473757<br/>Villavicencio 573214893891 · Barranquilla 573102119906"]:::num
+   ALI["lib/ally-emails.ts · pase VIP<br/>wa.me/573017307411"]:::num
+  end
+  SEDES -.->|"variables de plantilla y correos"| PROC
+  SEDES -.-> CORREO["Correos de cita (lib/first-visit-email.ts)"]:::ui
+
+  ASE["Asesoras: botones «Abrir en WhatsApp»<br/>(Dashboard, Primeras visitas, Aliados)<br/>abren el chat de la clienta desde su teléfono"]:::ui
+</div>
+
+<h2>Qué pasa si cambias el número que envía</h2>
+<div class="wrap"><table>
+<tr><th>Pieza</th><th>Dónde está</th><th>Si cambias de número…</th><th>Hoy</th></tr>
+<tr><td>ID del número (<code>phone_number_id</code>)</td><td>Vercel <code>META_WA_PHONE_NUMBER_ID</code> + Apps Script (propiedad y hoja CONFIG_AUTOMATIZACION)</td><td>Hay que cambiarlo en <b>3 lugares</b> a la vez; si queda uno viejo, se envía por el número viejo o se ignoran los eventos del nuevo.</td><td class="s-bad">Manual, repartido</td></tr>
+<tr><td>Token de Meta</td><td>Vercel <code>META_WA_TOKEN</code> + Apps Script</td><td>Si el número nuevo queda en otra cuenta o app de Meta, hay que cambiar el token en los dos lugares.</td><td class="s-bad">Manual, repartido</td></tr>
+<tr><td>Plantillas (5)</td><td>Cuenta de WhatsApp Business en Meta</td><td>Mismo WABA: siguen funcionando. <b>WABA nuevo: hay que crearlas y esperar aprobación</b>; mientras tanto fallan confirmaciones, recordatorios y post-cita.</td><td class="s-warn">Depende de la cuenta</td></tr>
+<tr><td>Webhook (estados y respuestas)</td><td>ERP <code>/api/primeras-citas/whatsapp</code> y Apps Script <code>doPost</code></td><td>Ambos descartan eventos que no traigan el <code>phone_number_id</code> configurado: sin actualizarlo se pierden «entregado/leído» y las respuestas de botones.</td><td class="s-bad">Filtra por número</td></tr>
+<tr><td>Secretos del webhook</td><td><code>META_APP_SECRET</code>, <code>META_WA_VERIFY_TOKEN</code></td><td>Solo cambian si cambia la app de Meta.</td><td class="s-warn">Depende de la app</td></tr>
+<tr><td>Idiomas de plantilla</td><td><code>META_WA_TEMPLATE_LANG</code> (es_CO), <code>META_WA_CONFIRMATION_LANG</code> (es)</td><td>Deben coincidir con el idioma con que se aprueben las plantillas en la cuenta nueva.</td><td class="s-warn">Variables</td></tr>
+<tr><td>Números de contacto por sede</td><td><code>lib/first-visit-sites.ts</code> (código)</td><td>Salen en la plantilla detallada, en los correos de cita y en wa.me; cambiarlos exige desplegar.</td><td class="s-bad">Escritos en el código</td></tr>
+<tr><td>Número del pase VIP de aliados</td><td><code>lib/ally-emails.ts</code></td><td>Igual: escrito en el código.</td><td class="s-bad">Escrito en el código</td></tr>
+<tr><td>Conversions API (dataset 1420256452930635)</td><td>Código + Vercel <code>META_CAPI_*</code> (usa el token de WhatsApp si no hay uno propio)</td><td>No depende del número. Si se cambia el token de WhatsApp y no hay <code>META_CAPI_ACCESS_TOKEN</code>, CAPI también se ve afectado.</td><td class="s-ok">Independiente del número</td></tr>
+<tr><td>Botones «Abrir en WhatsApp» de asesoras</td><td>Dashboard, Primeras visitas, Aliados</td><td>No dependen del número de la empresa (abren el chat de la clienta).</td><td class="s-ok">Sin cambio</td></tr>
+</table></div>
+
+<h2>Mensajes automáticos que hoy salen por WhatsApp</h2>
+<div class="wrap"><table>
+<tr><th>Tipo</th><th>Plantilla / formato</th><th>Cuándo</th></tr>
+<tr><td>confirmacion</td><td><code>ambar_cita_confirmada_sede</code> / <code>_virtual</code>; si no está aprobada, <code>ambar_confirmacion_cita</code></td><td>Al agendar</td></tr>
+<tr><td>recordatorio24 · recordatorio2</td><td><code>ambar_recordatorio_cita</code></td><td>24 h y 2 h antes</td></tr>
+<tr><td>post_cita</td><td><code>ambar_post_cita_asistencia</code> (botones Asistí / No asistí)</td><td>Después de la cita</td></tr>
+<tr><td>pregunta_alquiler · pregunta_motivo</td><td>Mensaje interactivo (botones y lista), dentro de la ventana de 24 h</td><td>Según la respuesta</td></tr>
+<tr><td>reagendar</td><td>Texto con enlace</td><td>Si no asistió</td></tr>
+</table></div>
+
+<h2>Lo que debe resolver la conexión de marca blanca</h2>
+<ul>
+<li><b>Un solo lugar</b> (Configuración › WhatsApp) para número visible, <code>phone_number_id</code>, WABA, idiomas y credenciales cifradas en Vault; Vercel y Apps Script dejan de tener su propia copia, y las variables META_* quedan solo como respaldo mientras la tabla esté vacía.</li>
+<li><b>Cambio de número en un paso</b>: se registra el número nuevo, «Probar conexión» verifica token, número y plantillas aprobadas, y solo entonces se activa. El número anterior queda en historial para seguir recibiendo estados de mensajes ya enviados.</li>
+<li><b>Webhook que acepta los números registrados</b> (actual y anterior) en vez de uno fijo.</li>
+<li><b>Revisión de plantillas</b>: la pantalla muestra cuáles de las 5 están aprobadas en la cuenta nueva y, mientras falten, mantiene el respaldo (confirmación corta) como ya hace hoy.</li>
+<li><b>Números de sede y de aliados</b> leídos de la tabla de sedes/configuración, no del código.</li>
+<li><b>Un solo camino de envío</b>: el ERP envía directo y Apps Script queda solo para lo que aún no se haya migrado.</li>
+</ul>
+<script>mermaid.initialize({startOnLoad:true,theme:'default',flowchart:{useMaxWidth:false}});</script>
+</body></html>

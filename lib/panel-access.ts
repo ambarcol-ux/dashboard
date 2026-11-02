@@ -34,6 +34,7 @@ export const PANELS:Panel[]=[
  {id:'proveedores-pagos',label:'Pagos a proveedores',href:'/dashboard/proveedores/pagos',block:'PROVEEDORES',paths:['/dashboard/proveedores/pagos'],grantable:false},
  {id:'metas',label:'Metas y ventas',href:'/admin/metas',block:'VENTAS & CRM',paths:['/admin/metas'],staff:true,grantable:true},
  {id:'catalogo',label:'Catálogo de vestidos',href:'/dashboard/catalogo',block:'VENTAS & CRM',paths:['/dashboard/catalogo'],staff:true,grantable:true},
+ {id:'correo',label:'Correo (promociones)',href:'/dashboard/correo',block:'VENTAS & CRM',paths:['/dashboard/correo'],staff:true,grantable:true},
  {id:'aliados_directos',label:'Aliados directos',href:'/dashboard/aliados-directos',block:'RED DE ALIADOS',paths:['/dashboard/aliados-directos'],staff:true,grantable:true},
  {id:'aliados_admin',label:'Gestión de aliados',href:'/dashboard/admin/aliados',block:'RED DE ALIADOS',paths:['/dashboard/admin/aliados'],grantable:true},
  {id:'users',label:'Gestión de equipo',href:'/admin/users',block:'ADMINISTRACIÓN',paths:['/admin/users'],grantable:false},
@@ -41,6 +42,7 @@ export const PANELS:Panel[]=[
  {id:'config',label:'Configuración base',href:'/admin/config',block:'ADMINISTRACIÓN',paths:['/admin/config'],grantable:false},
  {id:'clausulas',label:'Cláusulas del contrato',href:'/dashboard/admin/contratos',block:'ADMINISTRACIÓN',paths:['/dashboard/admin/contratos'],grantable:false},
  {id:'siigo',label:'Facturación por sede',href:'/admin/config/siigo',block:'ADMINISTRACIÓN',paths:['/admin/config/siigo'],grantable:false},
+ {id:'integraciones',label:'Integraciones',href:'/admin/config/integraciones',block:'ADMINISTRACIÓN',paths:['/admin/config/integraciones'],grantable:false},
  {id:'accesos',label:'Accesos por perfil',href:'/admin/accesos',block:'ADMINISTRACIÓN',paths:['/admin/accesos'],grantable:false},
  {id:'manual',label:'Manual de usuario',href:'/dashboard/manuales',block:'SOPORTE Y AYUDA',paths:['/dashboard/manuales'],staff:true,grantable:true},
 ];
