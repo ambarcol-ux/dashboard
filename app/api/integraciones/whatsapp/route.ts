@@ -18,6 +18,35 @@ export async function POST(request:Request){
   const {data:admin}=auth.user?await userDb.rpc('es_admin'):{data:false};
   if(admin!==true)return publicReply({error:'Solo administración puede usar las integraciones.'},403);
   const db=publicServerClient(),version=process.env.META_GRAPH_VERSION||'v21.0';
+  const body=await request.json().catch(()=>({})) as Record<string,unknown>;
+  // Coexistence (WhatsApp Business app number): Meta's Embedded Signup returns a code; exchange it, subscribe the app and save the number.
+  if(body.accion==='registro'){
+   const code=String(body.code||''),appId=String(body.app_id||''),secret=process.env.META_APP_SECRET||'';
+   const waba=String(body.waba_id||'');let phoneId=String(body.phone_number_id||'');
+   if(!code||!/^\d{5,30}$/.test(appId))return publicReply({error:'Falta el código de Meta o el ID de la app.'},400);
+   if(!secret)return publicReply({error:'Falta META_APP_SECRET en Vercel.'},503);
+   const ex=await fetch(`https://graph.facebook.com/${version}/oauth/access_token?${new URLSearchParams({client_id:appId,client_secret:secret,code})}`,{signal:AbortSignal.timeout(15000)});
+   const exd=await ex.json().catch(()=>({})) as {access_token?:string;error?:{message?:string}};
+   if(!ex.ok||!exd.access_token)return publicReply({error:`Meta no aceptó el código: ${String(exd.error?.message||'').slice(0,160)}. Revisa que el ID de la app corresponda a META_APP_SECRET.`},400);
+   const tk=exd.access_token,call=async(path:string,init?:RequestInit)=>{const r=await fetch(`https://graph.facebook.com/${version}/${path}`,{...init,headers:{Authorization:`Bearer ${tk}`,'Content-Type':'application/json'},signal:AbortSignal.timeout(15000)});return {ok:r.ok,d:await r.json().catch(()=>({})) as Record<string,unknown>};};
+   if(!/^\d+$/.test(waba))return publicReply({error:'Meta no devolvió la cuenta de WhatsApp Business. Repite la conexión.'},400);
+   if(!/^\d+$/.test(phoneId)){
+    const list=await call(`${waba}/phone_numbers?fields=id,display_phone_number`);
+    const nums=(list.d.data as {id:string;display_phone_number:string}[])||[];
+    const pick=nums.find(n=>n.display_phone_number.replace(/\D/g,'').endsWith(String(body.numero||'').replace(/\D/g,'').slice(-10)))||(nums.length===1?nums[0]:null);
+    if(!pick)return publicReply({error:'No se pudo identificar el número en la cuenta. Escribe el ID del número a mano.'},400);
+    phoneId=pick.id;
+   }
+   const sub=await call(`${waba}/subscribed_apps`,{method:'POST'});
+   if(!sub.ok)return publicReply({error:'No se pudo suscribir la app a la cuenta de WhatsApp Business.'},400);
+   // Brings the phone's contacts and recent chats into the platform (only allowed right after onboarding).
+   for(const sync_type of ['smb_app_state_sync','history'])await call(`${phoneId}/smb_app_data`,{method:'POST',body:JSON.stringify({messaging_product:'whatsapp',sync_type})}).catch(()=>null);
+   const {data:prev}=await db.rpc('integracion_whatsapp_servidor');
+   const pc=(prev?.config||{}) as Record<string,string>;
+   const {error:se}=await userDb.rpc('guardar_integracion_whatsapp',{p_config:{numero_visible:String(body.numero||pc.numero_visible||''),phone_number_id:phoneId,waba_id:waba,idioma_plantillas:pc.idioma_plantillas||process.env.META_WA_TEMPLATE_LANG||'es_CO',idioma_confirmacion:pc.idioma_confirmacion||process.env.META_WA_CONFIRMATION_LANG||'es',coexistencia:'si'},p_secreto:tk});
+   if(se)return publicReply({error:se.message},400);
+   return publicReply({ok:true,phone_number_id:phoneId,waba_id:waba});
+  }
   const {data:row}=await db.rpc('integracion_whatsapp_servidor');
   const cfg=(row?.config||{}) as Record<string,string>,token=String(row?.secreto||'');
   if(!token||!cfg.phone_number_id||!cfg.waba_id)return publicReply({error:'Primero guarda el número, la cuenta y el token.'},400);
