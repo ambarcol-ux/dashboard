@@ -1,7 +1,7 @@
 import {createHmac,timingSafeEqual} from 'node:crypto';
 import {Buffer} from 'node:buffer';
 import {whatsappPhone} from './first-visit-links';
-import {visitDate,visitSite,visitTime} from './first-visit-sites';
+import {visitDate,visitSite,visitTime,type VisitSite} from './first-visit-sites';
 export function validMetaSignature(raw:string,signature:string,secret:string){
  if(!secret||!/^sha256=[a-f0-9]{64}$/.test(signature))return false;
  const expected='sha256='+createHmac('sha256',secret).update(raw).digest('hex');
@@ -25,8 +25,8 @@ export function whatsappPayload(type:string,c:NotificationVisit,site:string,link
 /** Detailed confirmation templates (address, map, phone, WhatsApp and reschedule page). Created in WhatsApp Manager; see docs/plantillas-whatsapp.md. */
 export const CONFIRMATION_TEMPLATES={presencial:'ambar_cita_confirmada_sede',virtual:'ambar_cita_confirmada_virtual'};
 /** Detailed confirmation for one visit, or null when the store has no contact details (the short template is used then). */
-export function confirmationPayload(c:NotificationVisit,siteName:string,lang='es'){
- const site=visitSite(siteName);
+export function confirmationPayload(c:NotificationVisit,siteName:string,lang='es',sites?:VisitSite[]){
+ const site=visitSite(siteName,sites);
  if(!site)return null;
  const values=c.modalidad==='virtual'
   ?[c.cliente_nombre,visitDate(c.fecha),visitTime(c.hora),site.nombre,site.telefono,`https://wa.me/${site.whatsapp}`]
@@ -38,8 +38,10 @@ export function confirmationPayload(c:NotificationVisit,siteName:string,lang='es
 export const isTemplateError=(code:unknown)=>typeof code==='number'&&code>=132000&&code<133000;
 type EventDb={rpc:(name:string,args:Record<string,unknown>)=>PromiseLike<{error:unknown}>};
 /** Applies Meta delivery statuses and button/list replies. Returns false when the caller should ask Meta to retry. */
-export async function applyWhatsappEvents(db:EventDb,data:{entry?:{changes?:{value?:Record<string,any>}[]}[]},phoneNumberId?:string|null){ // eslint-disable-line @typescript-eslint/no-explicit-any
- for(const entry of data.entry||[])for(const change of entry.changes||[]){const v=change.value;if(!v||(phoneNumberId&&v.metadata?.phone_number_id!==phoneNumberId))continue;
+/** phoneNumberIds: the numbers whose events are accepted (current and previous); empty or null accepts any. */
+export async function applyWhatsappEvents(db:EventDb,data:{entry?:{changes?:{value?:Record<string,any>}[]}[]},phoneNumberIds?:string|string[]|null){ // eslint-disable-line @typescript-eslint/no-explicit-any
+ const accepted=(Array.isArray(phoneNumberIds)?phoneNumberIds:[phoneNumberIds]).filter(Boolean) as string[];
+ for(const entry of data.entry||[])for(const change of entry.changes||[]){const v=change.value;if(!v||(accepted.length&&!accepted.includes(String(v.metadata?.phone_number_id||''))))continue;
   for(const status of v.statuses||[]){if(!['sent','delivered','read','failed'].includes(status.status)||!/^\d+$/.test(String(status.timestamp)))continue;const date=new Date(Number(status.timestamp)*1000);if(!Number.isFinite(date.getTime()))continue;const {error}=await db.rpc('estado_whatsapp_primera_cita',{p_provider_id:status.id,p_telefono:status.recipient_id,p_estado:status.status,p_fecha:date.toISOString()});if(error)return false;}
   for(const message of v.messages||[]){const action=message.button?.payload||message.interactive?.button_reply?.id||message.interactive?.list_reply?.id;if(!action||!message.context?.id)continue;const {error}=await db.rpc('respuesta_whatsapp_primera_cita',{p_message_id:message.id,p_context_id:message.context.id,p_telefono:message.from,p_accion:action});if(error)return false;}
  }

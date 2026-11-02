@@ -10,8 +10,19 @@ const SITES:VisitSite[]=[
 
 const key=(value:string)=>value.normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase();
 
-/** Store details by name ("Bogota", "bogotá" and "Bogotá" match), or null for an unknown store. */
-export const visitSite=(name:string|null|undefined)=>name?SITES.find(s=>key(s.nombre)===key(name))||null:null;
+/** Store details by name ("Bogota", "bogotá" and "Bogotá" match), or null for an unknown store.
+ * sites: the stores' current details from Configuración › Sedes (see siteRows); falls back to the built-in ones. */
+export const visitSite=(name:string|null|undefined,sites:VisitSite[]=SITES)=>name?sites.find(s=>key(s.nombre)===key(name))||SITES.find(s=>key(s.nombre)===key(name))||null:null;
+export type SiteRow={nombre:string;telefono:string|null;whatsapp:string|null;direccion_clientes:string|null;mapa_url:string|null;mapa_etiqueta:string|null};
+export const SITE_COLUMNS='nombre,telefono,whatsapp,direccion_clientes,mapa_url,mapa_etiqueta';
+type SiteDb={from:(t:string)=>{select:(c:string)=>PromiseLike<{data:unknown}>}};
+/** Loads the stores' contact details; any failure keeps the built-in ones so messages always go out. */
+export async function loadVisitSites(db:unknown):Promise<VisitSite[]>{
+ try{const {data}=await (db as SiteDb).from('sedes').select(SITE_COLUMNS);return siteRows(data as SiteRow[]|null);}catch{return [];}
+}
+/** Stores with complete contact details in the database (others keep the built-in ones). */
+export const siteRows=(rows:SiteRow[]|null|undefined):VisitSite[]=>(rows||[]).filter(r=>r.telefono&&r.whatsapp&&r.direccion_clientes&&r.mapa_url)
+ .map(r=>({nombre:r.nombre,telefono:r.telefono!,whatsapp:r.whatsapp!,direccion:r.direccion_clientes!,mapa:r.mapa_url!,mapaEtiqueta:r.mapa_etiqueta||'Cómo llegar'}));
 
 /** "2026-10-15" → "15 de octubre de 2026" */
 export const visitDate=(day:string)=>new Date(day+'T12:00:00Z').toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
