@@ -63,6 +63,8 @@ export default function InventoryPage() {
   const [sedesEditables, setSedesEditables] = useState<string[]>([]);
   useEffect(() => { if (!user?.id) return; void supabase.rpc('sedes_inventario_editables').then(({ data }) => setSedesEditables(Array.isArray(data) ? data.map(String) : [])); }, [user?.id]);
   const canEditInv = sedesEditables.length > 0;
+  // Sede-limited roles (e.g. store leader) only see their own sedes in this list; dresses stay visible across sedes elsewhere (availability).
+  const misSedes = sedesEditables.length > 0 && sedes.length > 0 && sedesEditables.length < sedes.length ? sedes.filter(s => sedesEditables.includes(String(s.id))) : null;
   const canEditDress = (v: { sede_actual_id?: unknown } | null | undefined) => !!v && sedesEditables.includes(String(v.sede_actual_id));
   const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal ('none' = sin sede)
   const [novedadFilter, setNovedadFilter] = useState<string>('');
@@ -505,7 +507,7 @@ export default function InventoryPage() {
       (clasificacionNombre(v.clasificacion_id) || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
       (v.nombre && v.nombre.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    const sedeMatch = sedeFilter === '' || (sedeFilter === 'none' ? !sedeExiste(v.sede_actual_id) : v.sede_actual_id === sedeFilter);
+    const sedeMatch = (!misSedes || misSedes.some(s => s.id === v.sede_actual_id)) && (sedeFilter === '' || (sedeFilter === 'none' ? !sedeExiste(v.sede_actual_id) : v.sede_actual_id === sedeFilter));
     const novedadMatch = novedadFilter === '' || (novedadFilter === 'any' ? novedadesDe(v).length > 0 : novedadesDe(v).includes(novedadFilter));
     const clasificacionMatch = (clasificacionFilter === '' ||
       (clasificacionFilter === 'none' ? !v.clasificacion_id : String(v.clasificacion_id) === clasificacionFilter))
@@ -602,12 +604,17 @@ export default function InventoryPage() {
           <div className="w-full md:w-auto">
             <select 
               className="w-full md:w-auto md:min-w-[14rem] px-4 py-4 bg-gray-50 border-none rounded-2xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none transition-all"
-              value={sedeFilter}
+              value={misSedes?.length === 1 ? misSedes[0].id : sedeFilter}
               onChange={(e) => setSedeFilter(e.target.value)}
             >
-              <option value="">🏠 Todas las Sedes</option>
-              {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-              <option value="none">Sin sede</option>
+              {misSedes ? <>
+                {misSedes.length > 1 && <option value="">🏠 Mis sedes</option>}
+                {misSedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              </> : <>
+                <option value="">🏠 Todas las Sedes</option>
+                {sedes.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                <option value="none">Sin sede</option>
+              </>}
             </select>
           </div>
           {canEditInv && <div className="w-full md:w-auto">
