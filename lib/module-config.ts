@@ -23,6 +23,13 @@ export const minChars=(c:ModuleConfig)=>Number(c.params.min_caracteres)||30;
 /** Field state, 'obligatorio' when not configured. */
 export const fieldState=(c:ModuleConfig,form:string,field:string):FieldState=>c.forms[`${form}.${field}`]||'obligatorio';
 
+/** Whether a configurable form field is required (Configuración › Formularios); required until the setting loads or when missing. */
+export function useFieldRequired(formulario:string,campo:string){
+ const [estado,setEstado]=useState<FieldState>('obligatorio');
+ useEffect(()=>{let live=true;void supabase.from('config_formularios').select('estado').eq('formulario',formulario).eq('campo',campo).maybeSingle().then(({data})=>{if(live&&data)setEstado(data.estado as FieldState);});return()=>{live=false;};},[formulario,campo]);
+ return estado==='obligatorio'||estado==='bloqueado';
+}
+
 /** Active values of several Configuración lists (React hook for client pages). */
 export function useLists(names:string[]){
  const key=names.join('|');

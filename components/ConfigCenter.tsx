@@ -12,7 +12,7 @@ type Change={id:number;tabla:string;clave:string;accion:string;antes:Record<stri
 
 const LISTS:Record<string,string>={pv_canales:'Primeras visitas · Canales de contacto',pv_resultados_seguimiento:'Primeras visitas · Resultado del seguimiento',pv_motivos_cierre:'Primeras visitas · Motivos de cierre',
  pv_motivos_no_asistencia:'Primeras visitas · Motivos de no asistencia',pv_motivos_eliminar:'Primeras visitas · Motivos para eliminar cita',accesorios:'Contratos · Accesorios incluidos',banco:'Contratos · Bancos',contrato_medios_pago:'Contratos · Medios de pago',tipos_documento:'Contratos · Tipos de documento',pv_tipos_evento_vitrina:'Primeras visitas · Tipo de evento (vitrina)',pv_como_se_entero:'Primeras visitas · Cómo se enteró',prov_tipos_servicio:'Proveedores · Tipos de servicio',prov_tipos_documento:'Proveedores · Tipos de documento',prov_medios_pago:'Proveedores · Medios de pago',tipo_cuenta:'Contratos · Tipos de cuenta'};
-const FORMS:Record<string,string>={resultado_cita:'Resultado de la cita',registro_seguimiento:'Registro de seguimiento'};
+const FORMS:Record<string,string>={resultado_cita:'Resultado de la cita',registro_seguimiento:'Registro de seguimiento',cuenta_contrato:'Cuenta bancaria o llave · Contrato',cuenta_proveedor:'Cuenta bancaria o llave · Proveedores',cuenta_aliado_directo:'Cuenta bancaria o llave · Aliados Directos',cuenta_caja:'Cuenta bancaria o llave · Caja',cuenta_devolucion:'Cuenta bancaria o llave · Depósitos',cuenta_aliados:'Cuenta bancaria o llave · Aliados'};
 const TABLES:Record<string,string>={listas_contrato:'Lista',config_parametros:'Parámetro',config_formularios:'Formulario',categorias_vestido:'Categoría de vestido'};
 const box='bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm space-y-3';
 
@@ -56,7 +56,7 @@ export default function ConfigCenter(){
    {fields.filter(f=>f.formulario===form).map(f=><div key={f.campo} className="flex items-center gap-3 py-2 border-b border-gray-50 text-sm"><span className="flex-1">{f.etiqueta}</span>
     {f.estado==='bloqueado'?<span className="px-3 py-1 rounded-full bg-gray-100 text-gray-500 text-xs font-bold">Bloqueado</span>
      :<select value={f.estado} disabled={busy} className="px-3 py-2 border border-gray-200 rounded-xl" onChange={e=>void run(()=>supabase.from('config_formularios').update({estado:e.target.value}).eq('formulario',f.formulario).eq('campo',f.campo),'Formulario guardado.')}>
-      <option value="obligatorio">Obligatorio</option><option value="opcional">Opcional</option><option value="oculto">Oculto</option></select>}</div>)}
+      <option value="obligatorio">Obligatorio</option><option value="opcional">Opcional</option>{f.modulo!=='cuentas_bancarias'&&<option value="oculto">Oculto</option>}</select>}</div>)}
   </div>)}
 
   {tab==='categorias'&&<><p className="text-xs text-gray-500">La categoría de cada vestido se asigna sola por tipo y precio de alquiler: la primera cuyo tope cubre el precio (sin tope = el resto). Al guardar se recalculan todos los vestidos.</p>

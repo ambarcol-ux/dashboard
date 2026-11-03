@@ -8,6 +8,7 @@ import {openSupplierFile} from '@/components/suppliers/SupplierShell';
 import {bogotaDateTime,errorText,normalizePhone,sumMoney} from '@/lib/suppliers';
 import AccountTypeOptions from '@/components/AccountTypeOptions';
 import {accountInputMode,accountLabel,keyError} from '@/lib/bank-keys';
+import {useFieldRequired} from '@/lib/module-config';
 
 type Portal={proveedor:{id:string;codigo:string;nombre:string;tipo_servicio:string;celular:string|null;correo:string|null;banco:string|null;tipo_cuenta:string|null;numero_cuenta:string|null};
  servicios:{id:string;servicio:string;descripcion:string;recurso:string|null;fecha_servicio:string;estado:string;estado_pago:string;valor_empresa:number;numero_contrato:string;cliente:string;sede:string|null;lugar:string|null}[];
@@ -93,9 +94,11 @@ function ServiceCard({s,onConfirm}:{s:Portal['servicios'][number];onConfirm?:()=
 function MyData({data,onSaved,onError}:{data:Portal;onSaved:()=>void;onError:(m:string)=>void}){
  const p=data.proveedor;
  const [f,setF]=useState({celular:p.celular||'',correo:p.correo||'',banco:p.banco||'',tipo_cuenta:p.tipo_cuenta||'',numero_cuenta:p.numero_cuenta||''}),[busy,setBusy]=useState(false);
+ const cuentaObligatoria=useFieldRequired('cuenta_proveedor','cuenta');
  const save=async()=>{
   const celular=normalizePhone(f.celular);
   if(celular===undefined)return onError('El celular debe tener 10 dígitos.');
+  if(cuentaObligatoria&&(!f.banco.trim()||!f.tipo_cuenta.trim()||!f.numero_cuenta.trim()))return onError('Completa la cuenta bancaria o llave: banco, tipo y número.');
   const badKey=f.numero_cuenta.trim()?keyError(f.tipo_cuenta,f.numero_cuenta):null;if(badKey)return onError(badKey);
   setBusy(true);
   const {error}=await supabase.rpc('actualizar_datos_proveedor',{p_datos:{...f,celular}});

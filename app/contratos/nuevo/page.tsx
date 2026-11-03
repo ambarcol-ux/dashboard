@@ -28,6 +28,7 @@ import { saldoContrato } from '@/lib/saldo';
 import { cop } from '@/lib/rental-price';
 import AccountTypeOptions from '@/components/AccountTypeOptions';
 import { accountLabel, keyError } from '@/lib/bank-keys';
+import { useFieldRequired } from '@/lib/module-config';
 import { PROMO_FIELDS, promoApplies, promoBenefit, promoDiscount, type Promotion } from '@/lib/promotions';
 
 const MONEY_FIELDS = ['valor_total', 'servicios_adicionales', 'anticipo', 'valor_deposito'];
@@ -228,6 +229,7 @@ export default function NuevoContratoPage() {
   const [loadingVestidos, setLoadingVestidos] = useState(false);
   const [asesorasList, setAsesorasList] = useState<any[]>([]);
   const [misSedes, setMisSedes] = useState<string[]>([]);
+  const cuentaObligatoria = useFieldRequired('cuenta_contrato', 'cuenta');
   const [listas, setListas] = useState<{ banco: string[]; tipo_cuenta: string[]; accesorios: string[]; tipos_documento: string[]; contrato_medios_pago: string[] }>({ banco: [], tipo_cuenta: [], accesorios: [], tipos_documento: [], contrato_medios_pago: [] });
   const cargarListas = async () => {
     const { data } = await supabase.from('listas_contrato').select('lista, valor').eq('activo', true).order('orden');
@@ -1439,6 +1441,7 @@ export default function NuevoContratoPage() {
     // Autorización de datos (una vez por persona): obligatoria la de tratamiento en contratos nuevos.
     if (!isEditMode && dataAuthState?.estado !== 'autorizada' && !dataAuth.tratamiento) { toast.error('Marca la autorización de tratamiento de datos de la clienta (obligatoria).'); return; }
     if (!isEditMode && commercialPending(dataAuth, dataAuthState)) { toast.error(COMMERCIAL_REQUIRED); return; }
+    if (!isEditMode && cuentaObligatoria && Number(formData.valor_deposito || 0) > 0 && (!formData.deposito_banco || !formData.deposito_tipo_cuenta || !formData.deposito_numero.trim() || !formData.deposito_titular.trim())) { toast.error('Completa la cuenta o llave para devolver el depósito: banco, tipo, número y titular.'); return; }
     const llaveInvalida = formData.deposito_numero.trim() ? keyError(formData.deposito_tipo_cuenta, formData.deposito_numero) : null;
     if (llaveInvalida) { toast.error(llaveInvalida); return; }
     if (!isEditMode && abonoConSoporte > 0) {

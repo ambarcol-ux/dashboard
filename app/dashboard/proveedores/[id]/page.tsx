@@ -13,6 +13,7 @@ import {bogotaDateTime,defaultVisibility,errorText,isLossTariff,nextCode,normali
 import styles from '@/app/dashboard/caja/caja.module.css';
 import AccountTypeOptions from '@/components/AccountTypeOptions';
 import {accountLabel,keyError} from '@/lib/bank-keys';
+import {useFieldRequired} from '@/lib/module-config';
 
 type Sede={id:string;nombre:string};
 type Service={id:string;servicio:string;fecha_servicio:string;estado:string;estado_pago:string;valor_empresa:number;valor_cliente:number;recurso:string|null;contratos:{numero_contrato:string;cliente_nombre:string}|null};
@@ -112,11 +113,13 @@ function DataTab({supplier,sedes,mySedes,onDone,onError}:{supplier:Supplier;sede
  const [f,setF]=useState({nombre:supplier.nombre,tipo_servicio:supplier.tipo_servicio,celular:supplier.celular||'',celular_2:supplier.celular_2||'',correo:supplier.correo||'',documento:supplier.documento||'',
   banco:supplier.banco||'',tipo_cuenta:supplier.tipo_cuenta||'',numero_cuenta:supplier.numero_cuenta||'',estado:supplier.estado,notas:supplier.notas||''});
  const [selected,setSelected]=useState(mySedes),[busy,setBusy]=useState(false);
+ const cuentaObligatoria=useFieldRequired('cuenta_proveedor','cuenta');
  const set=(k:keyof typeof f)=>(e:{target:{value:string}})=>setF({...f,[k]:e.target.value});
  const save=async()=>{
   const celular=normalizePhone(f.celular),celular_2=normalizePhone(f.celular_2);
   if(celular===undefined||celular_2===undefined)return onError('Los celulares deben tener 10 dígitos.');
   if(!selected.length)return onError('Elige al menos una sede.');
+  if(cuentaObligatoria&&(!f.banco.trim()||!f.tipo_cuenta.trim()||!f.numero_cuenta.trim()))return onError('Completa la cuenta bancaria o llave: banco, tipo y número.');
   const badKey=f.numero_cuenta.trim()?keyError(f.tipo_cuenta,f.numero_cuenta):null;if(badKey)return onError(badKey);
   setBusy(true);
   const {error}=await supabase.from('proveedores').update({nombre:f.nombre.trim(),tipo_servicio:f.tipo_servicio,celular,celular_2,correo:f.correo.trim()||null,documento:f.documento.trim()||null,

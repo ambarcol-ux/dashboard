@@ -6,6 +6,7 @@ import {money} from '@/lib/deposits';
 import {ACCOUNT_TYPES,CASH_CATEGORIES,CASH_METHODS,accountLabel,accountsFor,needsAccount,parseCashAmount,type CashAccount,type CashDay,type CashMovement,type CashStart,type DepositSummary,type WhereIsMoney} from '@/lib/cash';
 import Link from 'next/link';
 import styles from '@/app/dashboard/caja/caja.module.css';
+import {useFieldRequired} from '@/lib/module-config';
 
 const TYPE_ICON:Record<string,string>={efectivo:'💵',banco:'🏦',billetera:'📱',sin_cuenta:'❔'};
 
@@ -111,6 +112,7 @@ const EMPTY={id:'',nombre:'',tipo:'banco' as CashAccount['tipo'],banco:'',numero
 
 /** Accounts and petty cash: admins add banks and wallets, rename the petty cash of each site and deactivate old accounts. */
 export function AccountsAdmin({sites,isAdmin}:{sites:Site[];isAdmin:boolean}){
+ const cuentaObligatoria=useFieldRequired('cuenta_caja','cuenta');
  const [rows,setRows]=useState<CashAccount[]|null>(null),[form,setForm]=useState(EMPTY),[error,setError]=useState(''),[notice,setNotice]=useState(''),[saving,setSaving]=useState(false),[version,setVersion]=useState(0);
  useEffect(()=>{
   let live=true;
@@ -123,6 +125,7 @@ export function AccountsAdmin({sites,isAdmin}:{sites:Site[];isAdmin:boolean}){
   if(form.nombre.trim().length<2){setError('Escribe el nombre de la cuenta.');return;}
   if(form.tipo==='efectivo'&&!form.sede_id){setError('La caja menor debe pertenecer a una sede.');return;}
   if(form.tipo==='banco'&&!form.banco.trim()){setError('Escribe el banco.');return;}
+  if(cuentaObligatoria&&form.tipo!=='efectivo'&&!form.numero.trim()){setError('Escribe el número de cuenta o la llave.');return;}
   setSaving(true);
   const {error:re}=await supabase.rpc('guardar_cuenta_dinero',{p_datos:{...form,id:form.id||null,sede_id:form.sede_id||null}});
   setSaving(false);

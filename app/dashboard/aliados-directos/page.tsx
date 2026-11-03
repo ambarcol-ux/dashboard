@@ -13,6 +13,7 @@ import {ALLY_STATUS,allyLinks,onlyDigits,type AllyType,type DirectAlly} from '@/
 import styles from '@/app/dashboard/caja/caja.module.css';
 import AccountTypeOptions from '@/components/AccountTypeOptions';
 import {accountLabel,keyError} from '@/lib/bank-keys';
+import {useFieldRequired} from '@/lib/module-config';
 
 type Tab='perfiles'|'clientas'|'medidas'|'envios'|'estadisticas'|'config';
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
@@ -91,10 +92,12 @@ function AllyForm({ally,types,sedes,onClose,onSaved}:{ally:DirectAlly|null;types
  const [f,setF]=useState({nombre_completo:ally?.nombre||'',cedula:ally?.cedula||'',celular:ally?.celular||'',correo:ally?.correo||'',direccion:ally?.direccion||'',tipo_aliado_id:String(ally?.tipo_aliado_id||''),sede_principal:ally?.sede_principal||(sedes.length===1?sedes[0].id:''),
   banco:ally?.banco||'',tipo_cuenta:ally?.tipo_cuenta||'',numero_cuenta:ally?.numero_cuenta||'',titular_cuenta:ally?.titular_cuenta||'',estado:ally?.estado||'pendiente_firma'});
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[cert,setCert]=useState<File|null>(null);
+ const cuentaObligatoria=useFieldRequired('cuenta_aliado_directo','cuenta');
  const set=(k:keyof typeof f)=>(e:{target:{value:string}})=>setF({...f,[k]:e.target.value});
  const save=async()=>{
   setError('');
   if(f.nombre_completo.trim().length<3||onlyDigits(f.cedula).length<5||onlyDigits(f.celular).length<7||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.correo.trim())||f.direccion.trim().length<5||!f.tipo_aliado_id)return setError('Completa nombre, cédula, celular, correo, dirección y tipo de aliado.');
+  if(cuentaObligatoria&&!f.numero_cuenta.trim())return setError('Completa la cuenta bancaria o llave: banco, tipo, número y titular.');
   if(f.numero_cuenta&&(!f.banco||!f.tipo_cuenta||!f.titular_cuenta))return setError('Completa banco, tipo y titular de la cuenta.');
   const badKey=f.numero_cuenta?keyError(f.tipo_cuenta,f.numero_cuenta):null;if(badKey)return setError(badKey);
   const bankChanged=!!ally?.numero_cuenta&&(f.numero_cuenta!==ally.numero_cuenta||f.banco!==ally.banco||f.tipo_cuenta!==ally.tipo_cuenta||f.titular_cuenta!==ally.titular_cuenta);
