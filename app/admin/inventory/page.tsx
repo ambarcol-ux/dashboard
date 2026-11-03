@@ -711,13 +711,13 @@ export default function InventoryPage() {
         {editingDress && <EditDressModal dress={editingDress} clasificaciones={clasificaciones} onClose={() => setEditingDress(null)} onSaved={() => { setEditingDress(null); loadData(); }} />}
         {/* Modal Nuevo Vestido */}
         {isModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-300">
+          <div onClick={() => setIsModalOpen(false)} onKeyDown={e => { if (e.key === 'Escape') setIsModalOpen(false); }} className="fixed inset-0 z-[100] flex items-start justify-center p-4 overflow-y-auto bg-gray-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div role="dialog" aria-modal="true" aria-label="Registrar prenda" onClick={e => e.stopPropagation()} className="bg-white w-full max-w-xl my-auto rounded-[3rem] shadow-2xl border border-gray-100 overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="bg-rose-500 p-8 text-center relative">
                  <h2 className="text-2xl font-black text-white tracking-tight uppercase">Registrar Prenda V2</h2>
                  <p className="text-rose-100 text-[10px] font-bold uppercase tracking-widest mt-1">Conexión Directa con Sedes</p>
-                 <button onClick={() => setIsModalOpen(false)} className="absolute top-6 right-6 text-white/80 hover:text-white transition-colors">
-                   <Trash2 className="w-6 h-6 rotate-45" />
+                 <button type="button" autoFocus aria-label="Cerrar sin guardar" onClick={() => setIsModalOpen(false)} className="absolute top-5 right-5 p-2 rounded-full bg-white/20 text-white hover:bg-white/30 transition-colors">
+                   <X className="w-6 h-6" />
                  </button>
               </div>
               
@@ -816,6 +816,9 @@ export default function InventoryPage() {
                 >
                   {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
                   GUARDAR EN INVENTARIO
+                </button>
+                <button type="button" onClick={() => setIsModalOpen(false)} className="w-full py-3 text-gray-500 hover:text-gray-800 font-black text-xs uppercase tracking-widest">
+                  Cancelar
                 </button>
               </div>
             </div>
