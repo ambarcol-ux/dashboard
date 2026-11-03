@@ -30,15 +30,20 @@ function Catalog({profile}:{profile:ShellProfile}){
  const [open,setOpen]=useState<Dress|null>(null);
  const [rows,setRows]=useState<Dress[]>([]),[tipos,setTipos]=useState<{id:number;nombre:string}[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]);
  const [tipo,setTipo]=useState(''),[categoria,setCategoria]=useState(''),[sede,setSede]=useState(''),[q,setQ]=useState(''),[soloFoto,setSoloFoto]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ // Sede-limited roles (e.g. store leader) only see their own sedes here (reuses sedes_inventario_editables).
+ const [limite,setLimite]=useState<string[]|null>(null);
  useEffect(()=>{void Promise.all([
   supabase.from('vestidos').select('id,codigo,nombre,talla,color,precio_sugerido,estado,categoria,clasificacion_id,sede_actual_id,foto_frente,foto_espalda,foto_detalle,imagen_url').eq('archivado',false).order('codigo'),
-  supabase.from('clasificaciones_vestido').select('id,nombre').eq('activo',true).order('orden'),supabase.from('sedes').select('id,nombre').eq('activo',true).order('nombre')]).then(([v,c,s])=>{
+  supabase.from('clasificaciones_vestido').select('id,nombre').eq('activo',true).order('orden'),supabase.from('sedes').select('id,nombre').eq('activo',true).order('nombre'),supabase.rpc('sedes_inventario_editables')]).then(([v,c,s,m])=>{
   if(v.error)setError('No se pudo cargar el catálogo.');
-  setRows(((v.data||[]) as Dress[]).filter(d=>!NO_CATALOGO.includes(String(d.estado||'').toLowerCase())));setTipos(c.data||[]);setSedes(s.data||[]);});},[]);
+  setRows(((v.data||[]) as Dress[]).filter(d=>!NO_CATALOGO.includes(String(d.estado||'').toLowerCase())));setTipos(c.data||[]);
+  const all=(s.data||[]) as {id:string;nombre:string}[],mias=Array.isArray(m.data)?m.data.map(String):[];
+  const lim=mias.length>0&&mias.length<all.length?all.filter(x=>mias.includes(x.id)):null;
+  setSedes(lim||all);setLimite(lim?lim.map(x=>x.id):null);if(lim?.length===1)setSede(lim[0].id);});},[]);
  const tipoNombre=(id:number|null)=>tipos.find(t=>t.id===id)?.nombre||'Sin tipo';
  const text=q.trim().toLowerCase();
- const list=useMemo(()=>rows.filter(d=>(!tipo||String(d.clasificacion_id)===tipo)&&(!categoria||d.categoria===categoria)&&(!sede||d.sede_actual_id===sede)
-  &&(!soloFoto||!!cover(d))&&(!text||`${d.codigo} ${d.nombre} ${d.color}`.toLowerCase().includes(text))),[rows,tipo,categoria,sede,soloFoto,text]);
+ const list=useMemo(()=>rows.filter(d=>(!limite||limite.includes(String(d.sede_actual_id)))&&(!tipo||String(d.clasificacion_id)===tipo)&&(!categoria||d.categoria===categoria)&&(!sede||d.sede_actual_id===sede)
+  &&(!soloFoto||!!cover(d))&&(!text||`${d.codigo} ${d.nombre} ${d.color}`.toLowerCase().includes(text))),[rows,limite,tipo,categoria,sede,soloFoto,text]);
  const categorias=[...new Set(rows.filter(d=>!tipo||String(d.clasificacion_id)===tipo).map(d=>d.categoria).filter(Boolean))].sort() as string[];
  const canEdit=profile.rol==='admin';
  // Public links of the current filter (tipo, categoría, sede): /c/[token], always up to date with the inventory.
@@ -67,7 +72,7 @@ function Catalog({profile}:{profile:ShellProfile}){
   <div className={styles.toolbar} style={{marginBottom:14}}>
    <label>Tipo<select value={tipo} onChange={e=>{setTipo(e.target.value);setCategoria('');}}><option value="">Todos</option>{tipos.map(t=><option key={t.id} value={t.id}>{t.nombre}</option>)}</select></label>
    <label>Categoría<select value={categoria} onChange={e=>setCategoria(e.target.value)}><option value="">Todas</option>{categorias.map(c=><option key={c}>{c}</option>)}</select></label>
-   <label>Sede<select value={sede} onChange={e=>setSede(e.target.value)}><option value="">Todas</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
+   <label>Sede<select value={sede} onChange={e=>setSede(e.target.value)}>{limite?.length!==1&&<option value="">{limite?'Mis sedes':'Todas'}</option>}{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
    <label>Buscar<input value={q} onChange={e=>setQ(e.target.value)} placeholder="Código, nombre o color"/></label>
    <label><input type="checkbox" checked={soloFoto} onChange={e=>setSoloFoto(e.target.checked)}/> Solo con foto</label>
    <button type="button" disabled={busy||!list.length} onClick={()=>pdf()} className={styles.primary}><Download size={14}/> {busy?'Generando…':`Catálogo PDF (${list.length})`}</button>
