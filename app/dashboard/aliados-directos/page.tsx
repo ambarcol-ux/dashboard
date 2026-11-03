@@ -11,6 +11,9 @@ import {AllyMeasures,AllyShipments,AllyStats,MeasureSettings} from '@/components
 import {CLIENT_STATES,clientId,type AllyClient} from '@/lib/ally-clients';
 import {ALLY_STATUS,allyLinks,onlyDigits,type AllyType,type DirectAlly} from '@/lib/direct-allies';
 import styles from '@/app/dashboard/caja/caja.module.css';
+import AccountTypeOptions from '@/components/AccountTypeOptions';
+import {accountLabel,keyError} from '@/lib/bank-keys';
+import {useFieldRequired} from '@/lib/module-config';
 
 type Tab='perfiles'|'clientas'|'medidas'|'envios'|'estadisticas'|'config';
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
@@ -89,11 +92,14 @@ function AllyForm({ally,types,sedes,onClose,onSaved}:{ally:DirectAlly|null;types
  const [f,setF]=useState({nombre_completo:ally?.nombre||'',cedula:ally?.cedula||'',celular:ally?.celular||'',correo:ally?.correo||'',direccion:ally?.direccion||'',tipo_aliado_id:String(ally?.tipo_aliado_id||''),sede_principal:ally?.sede_principal||(sedes.length===1?sedes[0].id:''),
   banco:ally?.banco||'',tipo_cuenta:ally?.tipo_cuenta||'',numero_cuenta:ally?.numero_cuenta||'',titular_cuenta:ally?.titular_cuenta||'',estado:ally?.estado||'pendiente_firma'});
  const [busy,setBusy]=useState(false),[error,setError]=useState(''),[cert,setCert]=useState<File|null>(null);
+ const cuentaObligatoria=useFieldRequired('cuenta_aliado_directo','cuenta');
  const set=(k:keyof typeof f)=>(e:{target:{value:string}})=>setF({...f,[k]:e.target.value});
  const save=async()=>{
   setError('');
   if(f.nombre_completo.trim().length<3||onlyDigits(f.cedula).length<5||onlyDigits(f.celular).length<7||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(f.correo.trim())||f.direccion.trim().length<5||!f.tipo_aliado_id)return setError('Completa nombre, cédula, celular, correo, dirección y tipo de aliado.');
+  if(cuentaObligatoria&&!f.numero_cuenta.trim())return setError('Completa la cuenta bancaria o llave: banco, tipo, número y titular.');
   if(f.numero_cuenta&&(!f.banco||!f.tipo_cuenta||!f.titular_cuenta))return setError('Completa banco, tipo y titular de la cuenta.');
+  const badKey=f.numero_cuenta?keyError(f.tipo_cuenta,f.numero_cuenta):null;if(badKey)return setError(badKey);
   const bankChanged=!!ally?.numero_cuenta&&(f.numero_cuenta!==ally.numero_cuenta||f.banco!==ally.banco||f.tipo_cuenta!==ally.tipo_cuenta||f.titular_cuenta!==ally.titular_cuenta);
   if(bankChanged&&!cert)return setError('Adjunta la certificación bancaria de la nueva cuenta.');
   setBusy(true);
@@ -114,8 +120,8 @@ function AllyForm({ally,types,sedes,onClose,onSaved}:{ally:DirectAlly|null;types
    <div className={styles.row}><label>Tipo de aliado<select value={f.tipo_aliado_id} onChange={set('tipo_aliado_id')}><option value="">Selecciona…</option>{types.filter(t=>t.activo||String(t.id)===f.tipo_aliado_id).map(t=><option key={t.id} value={t.id}>{t.nombre}</option>)}</select></label>
     <label>Sede principal<select value={f.sede_principal} onChange={set('sede_principal')}><option value="">Sin sede</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label></div>
    <p className={styles.help}><b>Cuenta bancaria</b>{ally?.numero_cuenta?' · un cambio queda pendiente hasta que Contabilidad lo apruebe':''}</p>
-   <div className={styles.row}><label>Banco<input value={f.banco} onChange={set('banco')}/></label><label>Tipo de cuenta<select value={f.tipo_cuenta} onChange={set('tipo_cuenta')}><option value="">Selecciona…</option>{ACCOUNT_TYPES.map(t=><option key={t}>{t}</option>)}</select></label></div>
-   <div className={styles.row}><label>Número de cuenta<input value={f.numero_cuenta} onChange={set('numero_cuenta')}/></label><label>Titular<input value={f.titular_cuenta} onChange={set('titular_cuenta')}/></label></div>
+   <div className={styles.row}><label>Banco<input value={f.banco} onChange={set('banco')}/></label><label>Tipo de cuenta o llave<select value={f.tipo_cuenta} onChange={set('tipo_cuenta')}><option value="">Selecciona…</option><AccountTypeOptions base={ACCOUNT_TYPES} current={f.tipo_cuenta}/></select></label></div>
+   <div className={styles.row}><label>{accountLabel(f.tipo_cuenta)}<input value={f.numero_cuenta} onChange={set('numero_cuenta')}/></label><label>Titular<input value={f.titular_cuenta} onChange={set('titular_cuenta')}/></label></div>
    {ally&&<label>Certificación bancaria{ally.numero_cuenta?' (obligatoria si cambias la cuenta)':''}<input type="file" accept="application/pdf,image/*" onChange={e=>setCert(e.target.files?.[0]||null)}/></label>}
    {ally&&['activo','inactivo'].includes(ally.estado)&&<label>Estado<select value={f.estado} onChange={set('estado')}><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></label>}
   </div>

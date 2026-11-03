@@ -4,6 +4,8 @@ import SignatureCanvas from 'react-signature-canvas';
 import {CheckCircle,Eraser,Loader2,PenTool} from 'lucide-react';
 import AllyContractText from '@/components/AllyContractText';
 import {DATA_AUTHORIZATION,allyContractText,type AllyContractConfig,type AllyProfile,type ContractSection} from '@/lib/ally-contract-text';
+import AccountTypeOptions from '@/components/AccountTypeOptions';
+import {accountInputMode,accountLabel} from '@/lib/bank-keys';
 
 type View={firmado:true;texto:ContractSection[];firma:string;firmado_at:string;nombre:string;codigo?:string}|{firmado:false;directo?:boolean;config:AllyContractConfig;aliado:AllyProfile;acuerdo?:ContractSection[]|null};
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
@@ -52,8 +54,8 @@ export default function AllyContractPage(){
      <h2 className="font-black text-gray-900 mb-1">1. {directo?'Revisa tus datos':'Tus datos'}</h2><p className="text-xs text-gray-500 mb-4">{directo?'Ámbar Couture registró estos datos en tu perfil. Si algo está mal, avísale antes de firmar.':'Se usan en el contrato y quedan guardados en tu perfil de aliado.'}</p>
      {directo?<dl className="grid sm:grid-cols-2 gap-3 text-sm">{([['nombre','Nombre completo'],['cedula','Cédula'],['celular','Celular'],['correo','Correo'],['direccion','Dirección']] as [keyof AllyProfile,string][]).map(([k,l])=><div key={k} className="bg-gray-50 rounded-xl px-3 py-2"><dt className="text-[11px] font-bold text-gray-500">{l}</dt><dd className="font-bold text-gray-900">{datos[k]}</dd></div>)}</dl>:
      <div className="grid sm:grid-cols-2 gap-3">
-      {FIELDS.map(([k,label,type])=><label key={k} className="text-xs font-bold text-gray-600">{label}<input className={input} inputMode={type==='numeric'?'numeric':undefined} type={type==='email'?'email':type==='tel'?'tel':'text'} value={datos[k]} onChange={e=>setDatos({...datos,[k]:e.target.value})}/></label>)}
-      <label className="text-xs font-bold text-gray-600">Tipo de cuenta<select className={input} value={datos.tipo_cuenta} onChange={e=>setDatos({...datos,tipo_cuenta:e.target.value})}><option value="">Selecciona…</option>{ACCOUNT_TYPES.map(t=><option key={t}>{t}</option>)}</select></label>
+      {FIELDS.map(([k,label,type])=><label key={k} className="text-xs font-bold text-gray-600">{k==='numero_cuenta'?accountLabel(datos.tipo_cuenta,label):label}<input className={input} inputMode={k==='numero_cuenta'?accountInputMode(datos.tipo_cuenta):type==='numeric'?'numeric':undefined} type={type==='email'?'email':type==='tel'?'tel':'text'} value={datos[k]} onChange={e=>setDatos({...datos,[k]:e.target.value})}/></label>)}
+      <label className="text-xs font-bold text-gray-600">Tipo de cuenta o llave<select className={input} value={datos.tipo_cuenta} onChange={e=>setDatos({...datos,tipo_cuenta:e.target.value})}><option value="">Selecciona…</option><AccountTypeOptions base={ACCOUNT_TYPES} current={datos.tipo_cuenta}/></select></label>
      </div>}
     </section>
     <section className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm"><h2 className="font-black text-gray-900 mb-4">2. Lee el contrato</h2><div className="max-h-[60vh] overflow-y-auto pr-2">{preview&&<AllyContractText sections={preview}/>}</div></section>

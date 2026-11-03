@@ -6,6 +6,7 @@ import {money} from '@/lib/deposits';
 import {ACCOUNT_TYPES,CASH_CATEGORIES,CASH_METHODS,accountLabel,accountsFor,needsAccount,parseCashAmount,type CashAccount,type CashDay,type CashMovement,type CashStart,type DepositSummary,type WhereIsMoney} from '@/lib/cash';
 import Link from 'next/link';
 import styles from '@/app/dashboard/caja/caja.module.css';
+import {useFieldRequired} from '@/lib/module-config';
 
 const TYPE_ICON:Record<string,string>={efectivo:'💵',banco:'🏦',billetera:'📱',sin_cuenta:'❔'};
 
@@ -111,6 +112,7 @@ const EMPTY={id:'',nombre:'',tipo:'banco' as CashAccount['tipo'],banco:'',numero
 
 /** Accounts and petty cash: admins add banks and wallets, rename the petty cash of each site and deactivate old accounts. */
 export function AccountsAdmin({sites,isAdmin}:{sites:Site[];isAdmin:boolean}){
+ const cuentaObligatoria=useFieldRequired('cuenta_caja','cuenta');
  const [rows,setRows]=useState<CashAccount[]|null>(null),[form,setForm]=useState(EMPTY),[error,setError]=useState(''),[notice,setNotice]=useState(''),[saving,setSaving]=useState(false),[version,setVersion]=useState(0);
  useEffect(()=>{
   let live=true;
@@ -123,6 +125,7 @@ export function AccountsAdmin({sites,isAdmin}:{sites:Site[];isAdmin:boolean}){
   if(form.nombre.trim().length<2){setError('Escribe el nombre de la cuenta.');return;}
   if(form.tipo==='efectivo'&&!form.sede_id){setError('La caja menor debe pertenecer a una sede.');return;}
   if(form.tipo==='banco'&&!form.banco.trim()){setError('Escribe el banco.');return;}
+  if(cuentaObligatoria&&form.tipo!=='efectivo'&&!form.numero.trim()){setError('Escribe el número de cuenta o la llave.');return;}
   setSaving(true);
   const {error:re}=await supabase.rpc('guardar_cuenta_dinero',{p_datos:{...form,id:form.id||null,sede_id:form.sede_id||null}});
   setSaving(false);
@@ -144,7 +147,7 @@ export function AccountsAdmin({sites,isAdmin}:{sites:Site[];isAdmin:boolean}){
     <div className={styles.row}><label>Tipo<select value={form.tipo} onChange={e=>set('tipo',e.target.value)}>{Object.entries(ACCOUNT_TYPES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
      <label>Nombre<input maxLength={80} value={form.nombre} onChange={e=>set('nombre',e.target.value)} placeholder={form.tipo==='efectivo'?'Caja menor Bogotá':form.tipo==='banco'?'Bancolombia ahorros principal':'Nequi Pereira'}/></label></div>
     {form.tipo!=='efectivo'&&<div className={styles.row}><label>Banco o plataforma{form.tipo==='banco'?' (obligatorio)':''}<input maxLength={60} value={form.banco} onChange={e=>set('banco',e.target.value)} placeholder="Bancolombia, Davivienda, Nequi…"/></label>
-     <label>Número de cuenta<input maxLength={40} value={form.numero} onChange={e=>set('numero',e.target.value)}/></label></div>}
+     <label>Número de cuenta o llave<input maxLength={40} value={form.numero} onChange={e=>set('numero',e.target.value)}/></label></div>}
     <div className={styles.row}>{form.tipo!=='efectivo'&&<label>Titular<input maxLength={120} value={form.titular} onChange={e=>set('titular',e.target.value)}/></label>}
      <label>Sede<select value={form.sede_id} onChange={e=>set('sede_id',e.target.value)}>{form.tipo!=='efectivo'&&<option value="">Todas las sedes</option>}{form.tipo==='efectivo'&&<option value="">Elige la sede</option>}{sites.map(s=><option key={s.sede_id} value={s.sede_id}>{s.sede}</option>)}</select></label></div>
     <label className={styles.check}><input type="checkbox" checked={form.activo} onChange={e=>set('activo',e.target.checked)}/> Activa (se puede elegir al registrar movimientos)</label>

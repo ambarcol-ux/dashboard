@@ -1,3 +1,4 @@
+import {KEY_TYPES,keyError} from './bank-keys';
 // Ally contract text and data validation (shared by the signing page and the server).
 /** Version of the clause text; a signed copy keeps the exact text it was signed with. */
 export const ALLY_CONTRACT_VERSION='2026-10-14';
@@ -67,7 +68,8 @@ export function allyProfile(input:Record<string,unknown>):AllyProfile{
  if(p.correo.length>160||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.correo))throw Error('Escribe un correo válido.');
  if(p.direccion.length<5||p.direccion.length>200)throw Error('Escribe tu dirección.');
  if(p.ciudad.length<3||p.ciudad.length>80)throw Error('Escribe tu ciudad.');
- if(p.banco.length<2||p.banco.length>80||p.numero_cuenta.length<4||p.numero_cuenta.length>40||!['Ahorros','Corriente','Nequi / Daviplata','Otra'].includes(p.tipo_cuenta))throw Error('Completa los datos de la cuenta bancaria.');
+ if(p.banco.length<2||p.banco.length>80||p.numero_cuenta.length<4||p.numero_cuenta.length>40||![...['Ahorros','Corriente','Nequi / Daviplata','Otra'],...KEY_TYPES].includes(p.tipo_cuenta))throw Error('Completa los datos de la cuenta bancaria.');
+ const llave=keyError(p.tipo_cuenta,p.numero_cuenta);if(llave)throw Error(llave);
  if(p.representante.length>140)throw Error('El nombre del representante es demasiado largo.');
  return p;
 }
