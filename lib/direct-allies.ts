@@ -1,3 +1,4 @@
+import {isKeyType,keyError} from './bank-keys';
 /** Aliados Directos: types and display rules of the module page (no commissions). */
 export type AllyType={id:number;nombre:string;activo:boolean};
 export type DirectAlly={id:string;nombre:string;cedula:string;celular:string;correo:string;direccion:string;tipo_aliado_id:number;tipo:string;sede_principal:string|null;sede:string|null;
@@ -29,6 +30,6 @@ export function allySignup(input:Record<string,unknown>,tipos:number[],sedes?:st
  if(d.direccion.length<5)throw Error('Escribe tu dirección.');
  if(!tipos.includes(d.tipo_aliado_id))throw Error('Elige qué tipo de aliado eres.');
  if(sedes&&!sedes.includes(String(d.sede_principal)))throw Error('Elige la sede con la que trabajas.');
- if(!d.banco||!d.tipo_cuenta||!/^[0-9-]{4,30}$/.test(d.numero_cuenta)||d.titular_cuenta.length<3)throw Error('Completa banco, tipo, número y titular de la cuenta.');
+ if(!d.banco||!d.tipo_cuenta||!(isKeyType(d.tipo_cuenta)?!keyError(d.tipo_cuenta,d.numero_cuenta):/^[0-9-]{4,30}$/.test(d.numero_cuenta))||d.titular_cuenta.length<3)throw Error(keyError(d.tipo_cuenta,d.numero_cuenta)||'Completa banco, tipo, número y titular de la cuenta.');
  return d;
 }

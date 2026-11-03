@@ -26,6 +26,8 @@ import {
 import { useRouter } from 'next/navigation';
 import { saldoContrato } from '@/lib/saldo';
 import { cop } from '@/lib/rental-price';
+import AccountTypeOptions from '@/components/AccountTypeOptions';
+import { accountLabel, keyError } from '@/lib/bank-keys';
 import { PROMO_FIELDS, promoApplies, promoBenefit, promoDiscount, type Promotion } from '@/lib/promotions';
 
 const MONEY_FIELDS = ['valor_total', 'servicios_adicionales', 'anticipo', 'valor_deposito'];
@@ -1437,6 +1439,8 @@ export default function NuevoContratoPage() {
     // Autorización de datos (una vez por persona): obligatoria la de tratamiento en contratos nuevos.
     if (!isEditMode && dataAuthState?.estado !== 'autorizada' && !dataAuth.tratamiento) { toast.error('Marca la autorización de tratamiento de datos de la clienta (obligatoria).'); return; }
     if (!isEditMode && commercialPending(dataAuth, dataAuthState)) { toast.error(COMMERCIAL_REQUIRED); return; }
+    const llaveInvalida = formData.deposito_numero.trim() ? keyError(formData.deposito_tipo_cuenta, formData.deposito_numero) : null;
+    if (llaveInvalida) { toast.error(llaveInvalida); return; }
     if (!isEditMode && abonoConSoporte > 0) {
       if (subiendoSoporte) { toast.error('Espera a que termine de subir el soporte del anticipo.'); return; }
       if (!anticipoSoportes.length) { toast.error('Falta el soporte de ingreso. Adjunta el comprobante del anticipo para poder guardar el contrato.'); return; }
@@ -2384,12 +2388,12 @@ export default function NuevoContratoPage() {
                         </label>
                         <select value={formData[field]} onChange={e => setFormData(prev => ({ ...prev, [field]: e.target.value }))} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-rose-300">
                           <option value="">Selecciona…</option>
-                          {opciones.map(o => <option key={o}>{o}</option>)}
+                          {lista === 'tipo_cuenta' ? <AccountTypeOptions base={listas.tipo_cuenta} current={formData[field]} /> : opciones.map(o => <option key={o}>{o}</option>)}
                         </select>
                       </div>
                     );
                   })}
-                  {renderTextInput("N° Cuenta", "deposito_numero", null, "text", false, "bg-white")}
+                  {renderTextInput(accountLabel(formData.deposito_tipo_cuenta, "N° Cuenta"), "deposito_numero", null, "text", false, "bg-white")}
                   <div className="space-y-1">
                     <label className="text-sm font-semibold text-gray-700">Tipo de documento del titular</label>
                     <select value={formData.tipo_documento_titular} onChange={e => setFormData(prev => ({ ...prev, tipo_documento_titular: e.target.value, documento_titular: NUMERIC_DOCS.includes(e.target.value) ? onlyDigits(prev.documento_titular) : prev.documento_titular }))} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-rose-300">

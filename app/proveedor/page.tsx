@@ -6,6 +6,8 @@ import {supabase} from '@/lib/supabase';
 import {money} from '@/lib/deposits';
 import {openSupplierFile} from '@/components/suppliers/SupplierShell';
 import {bogotaDateTime,errorText,normalizePhone,sumMoney} from '@/lib/suppliers';
+import AccountTypeOptions from '@/components/AccountTypeOptions';
+import {accountInputMode,accountLabel,keyError} from '@/lib/bank-keys';
 
 type Portal={proveedor:{id:string;codigo:string;nombre:string;tipo_servicio:string;celular:string|null;correo:string|null;banco:string|null;tipo_cuenta:string|null;numero_cuenta:string|null};
  servicios:{id:string;servicio:string;descripcion:string;recurso:string|null;fecha_servicio:string;estado:string;estado_pago:string;valor_empresa:number;numero_contrato:string;cliente:string;sede:string|null;lugar:string|null}[];
@@ -94,6 +96,7 @@ function MyData({data,onSaved,onError}:{data:Portal;onSaved:()=>void;onError:(m:
  const save=async()=>{
   const celular=normalizePhone(f.celular);
   if(celular===undefined)return onError('El celular debe tener 10 dígitos.');
+  const badKey=f.numero_cuenta.trim()?keyError(f.tipo_cuenta,f.numero_cuenta):null;if(badKey)return onError(badKey);
   setBusy(true);
   const {error}=await supabase.rpc('actualizar_datos_proveedor',{p_datos:{...f,celular}});
   setBusy(false);
@@ -103,8 +106,9 @@ function MyData({data,onSaved,onError}:{data:Portal;onSaved:()=>void;onError:(m:
  return <div className="space-y-4">
   <div className={`${card} space-y-3`}>
    <p className="text-xs text-gray-500">Puedes actualizar tu celular, correo y datos bancarios para recibir los pagos.</p>
-   {(['celular','correo','banco','tipo_cuenta','numero_cuenta'] as const).map(k=><label key={k} className="block"><span className="text-[10px] font-black uppercase text-gray-500">{k.replace('_',' ')}</span>
-    <input className={input} value={f[k]} inputMode={k==='celular'||k==='numero_cuenta'?'numeric':undefined} onChange={e=>setF({...f,[k]:e.target.value})}/></label>)}
+   {(['celular','correo','banco','tipo_cuenta','numero_cuenta'] as const).map(k=><label key={k} className="block"><span className="text-[10px] font-black uppercase text-gray-500">{k==='tipo_cuenta'?'Tipo de cuenta o llave':k==='numero_cuenta'?accountLabel(f.tipo_cuenta):k.replace('_',' ')}</span>
+    {k==='tipo_cuenta'?<select className={input} value={f.tipo_cuenta} onChange={e=>setF({...f,tipo_cuenta:e.target.value})}><option value="">Selecciona…</option><AccountTypeOptions base={['Ahorros','Corriente']} current={f.tipo_cuenta}/></select>:
+    <input className={input} value={f[k]} inputMode={k==='celular'?'numeric':k==='numero_cuenta'?accountInputMode(f.tipo_cuenta):undefined} onChange={e=>setF({...f,[k]:e.target.value})}/>}</label>)}
    <button disabled={busy} onClick={save} className="w-full py-3 rounded-xl bg-rose-500 disabled:opacity-50 text-white text-xs font-black uppercase">{busy?'Guardando…':'Guardar'}</button>
   </div>
   {data.tarifas.length>0&&<div className={`${card} space-y-2`}><h2 className="text-xs font-black text-gray-500 uppercase">Mis tarifas</h2>

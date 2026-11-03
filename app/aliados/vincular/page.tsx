@@ -4,6 +4,8 @@ import SignatureCanvas from 'react-signature-canvas';
 import {CheckCircle,Eraser,Loader2,PenTool} from 'lucide-react';
 import AllyContractText from '@/components/AllyContractText';
 import {agreementDate,allyContractText,fillAgreement,type AllyContractConfig,type ContractSection} from '@/lib/ally-contract-text';
+import AccountTypeOptions from '@/components/AccountTypeOptions';
+import {accountInputMode,accountLabel} from '@/lib/bank-keys';
 
 type Info={tipos:{id:number;nombre:string}[];sedes:{id:string;nombre:string}[];acuerdo:ContractSection[]|null;config:AllyContractConfig|null;autorizacion:ContractSection;comercial?:string|null};
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
@@ -51,8 +53,8 @@ export default function AllySignupPage(){
      <div className="grid sm:grid-cols-2 gap-3">
       <label className="text-xs font-bold text-gray-600 sm:col-span-2">Tipo de aliado<select className={input} value={datos.tipo_aliado_id} onChange={e=>setDatos({...datos,tipo_aliado_id:e.target.value})}><option value="">Selecciona…</option>{info.tipos.map(t=><option key={t.id} value={t.id}>{t.nombre}</option>)}</select></label>
       <label className="text-xs font-bold text-gray-600 sm:col-span-2">Sede de Ámbar Couture con la que trabajas<select className={input} value={datos.sede_principal} onChange={e=>setDatos({...datos,sede_principal:e.target.value})}><option value="">Selecciona…</option>{info.sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
-      {FIELDS.map(([k,label,type])=><label key={k} className="text-xs font-bold text-gray-600">{label}<input className={input} inputMode={type==='numeric'?'numeric':undefined} type={type==='email'?'email':type==='tel'?'tel':'text'} value={datos[k]} onChange={e=>setDatos({...datos,[k]:e.target.value})}/></label>)}
-      <label className="text-xs font-bold text-gray-600">Tipo de cuenta<select className={input} value={datos.tipo_cuenta} onChange={e=>setDatos({...datos,tipo_cuenta:e.target.value})}><option value="">Selecciona…</option>{ACCOUNT_TYPES.map(t=><option key={t}>{t}</option>)}</select></label>
+      {FIELDS.map(([k,label,type])=><label key={k} className="text-xs font-bold text-gray-600">{k==='numero_cuenta'?accountLabel(datos.tipo_cuenta,label):label}<input className={input} inputMode={k==='numero_cuenta'?accountInputMode(datos.tipo_cuenta):type==='numeric'?'numeric':undefined} type={type==='email'?'email':type==='tel'?'tel':'text'} value={datos[k]} onChange={e=>setDatos({...datos,[k]:e.target.value})}/></label>)}
+      <label className="text-xs font-bold text-gray-600">Tipo de cuenta o llave<select className={input} value={datos.tipo_cuenta} onChange={e=>setDatos({...datos,tipo_cuenta:e.target.value})}><option value="">Selecciona…</option><AccountTypeOptions base={ACCOUNT_TYPES} current={datos.tipo_cuenta}/></select></label>
       <label className="text-xs font-bold text-gray-600 sm:col-span-2">Certificación bancaria (PDF o foto, obligatoria)<input className={input} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setCert(e.target.files?.[0]||null)}/></label>
      </div>
     </section>

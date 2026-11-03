@@ -11,6 +11,8 @@ import {parseCashAmount} from '@/lib/cash';
 import {bogotaDay} from '@/lib/contract-calendar';
 import {bogotaDateTime,defaultVisibility,errorText,isLossTariff,nextCode,normalizePhone,supplierFilePath,sumMoney,tariffMargin,type Supplier,type Tariff} from '@/lib/suppliers';
 import styles from '@/app/dashboard/caja/caja.module.css';
+import AccountTypeOptions from '@/components/AccountTypeOptions';
+import {accountLabel,keyError} from '@/lib/bank-keys';
 
 type Sede={id:string;nombre:string};
 type Service={id:string;servicio:string;fecha_servicio:string;estado:string;estado_pago:string;valor_empresa:number;valor_cliente:number;recurso:string|null;contratos:{numero_contrato:string;cliente_nombre:string}|null};
@@ -115,6 +117,7 @@ function DataTab({supplier,sedes,mySedes,onDone,onError}:{supplier:Supplier;sede
   const celular=normalizePhone(f.celular),celular_2=normalizePhone(f.celular_2);
   if(celular===undefined||celular_2===undefined)return onError('Los celulares deben tener 10 dígitos.');
   if(!selected.length)return onError('Elige al menos una sede.');
+  const badKey=f.numero_cuenta.trim()?keyError(f.tipo_cuenta,f.numero_cuenta):null;if(badKey)return onError(badKey);
   setBusy(true);
   const {error}=await supabase.from('proveedores').update({nombre:f.nombre.trim(),tipo_servicio:f.tipo_servicio,celular,celular_2,correo:f.correo.trim()||null,documento:f.documento.trim()||null,
    banco:f.banco.trim()||null,tipo_cuenta:f.tipo_cuenta.trim()||null,numero_cuenta:f.numero_cuenta.trim()||null,estado:f.estado,notas:f.notas.trim()||null}).eq('id',supplier.id);
@@ -128,8 +131,8 @@ function DataTab({supplier,sedes,mySedes,onDone,onError}:{supplier:Supplier;sede
    <label>Tipo de servicio<select value={f.tipo_servicio} onChange={set('tipo_servicio')}><ListOptions lista="prov_tipos_servicio" keep={[f.tipo_servicio]}/></select></label></div>
   <div className={styles.row}><label>Celular<input inputMode="numeric" value={f.celular} onChange={set('celular')}/></label><label>Celular 2<input inputMode="numeric" value={f.celular_2} onChange={set('celular_2')}/></label></div>
   <div className={styles.row}><label>Correo (para su usuario)<input type="email" value={f.correo} onChange={set('correo')}/></label><label>Cédula o NIT<input value={f.documento} onChange={set('documento')}/></label></div>
-  <div className={styles.row}><label>Banco<input value={f.banco} onChange={set('banco')}/></label><label>Tipo de cuenta<input value={f.tipo_cuenta} onChange={set('tipo_cuenta')} placeholder="Ahorros / Corriente"/></label></div>
-  <div className={styles.row}><label>Número de cuenta<input value={f.numero_cuenta} onChange={set('numero_cuenta')}/></label>
+  <div className={styles.row}><label>Banco<input value={f.banco} onChange={set('banco')}/></label><label>Tipo de cuenta o llave<select value={f.tipo_cuenta} onChange={set('tipo_cuenta')}><option value="">Selecciona…</option><AccountTypeOptions base={['Ahorros','Corriente']} current={f.tipo_cuenta}/></select></label></div>
+  <div className={styles.row}><label>{accountLabel(f.tipo_cuenta)}<input value={f.numero_cuenta} onChange={set('numero_cuenta')}/></label>
    <label>Estado<select value={f.estado} onChange={set('estado')}><option>Activo</option><option>Inactivo</option></select></label></div>
   <div><p className={styles.help}>Sedes donde trabaja</p><div className={styles.actions}>{sedes.map(s=><label key={s.id} className={styles.check}><input type="checkbox" checked={selected.includes(s.id)} onChange={e=>setSelected(e.target.checked?[...selected,s.id]:selected.filter(x=>x!==s.id))}/>{s.nombre}</label>)}</div></div>
   <label>Notas<textarea rows={3} value={f.notas} onChange={set('notas')}/></label>
