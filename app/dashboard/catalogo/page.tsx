@@ -11,7 +11,7 @@ import {allySlug} from '@/lib/ally-validation';
 import {PROMO_FIELDS,promoApplies,promoBenefit,type Promotion} from '@/lib/promotions';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Dress={id:string;codigo:string;nombre:string|null;talla:string|null;color:string|null;precio_sugerido:number|null;estado:string|null;categoria:string|null;clasificacion_id:number|null;sede_actual_id:string|null;foto_frente:string|null;foto_espalda:string|null;foto_detalle:string|null;imagen_url:string|null};
+type Dress={id:string;codigo:string;nombre:string|null;talla:string|null;color:string|null;precio_sugerido:number|null;precio_venta?:number|null;para_alquiler?:boolean|null;para_venta?:boolean|null;estado:string|null;categoria:string|null;clasificacion_id:number|null;sede_actual_id:string|null;foto_frente:string|null;foto_espalda:string|null;foto_detalle:string|null;imagen_url:string|null};
 const NO_CATALOGO=['vendido','de baja','dañado/baja'];
 
 /** Catálogo de vestidos: what the store offers, by type and category, with photo and rental price (built on the inventory). */
@@ -33,7 +33,7 @@ function Catalog({profile}:{profile:ShellProfile}){
  // Sede-limited roles (e.g. store leader) only see their own sedes here (reuses sedes_inventario_editables).
  const [limite,setLimite]=useState<string[]|null>(null);
  useEffect(()=>{void Promise.all([
-  supabase.from('vestidos').select('id,codigo,nombre,talla,color,precio_sugerido,estado,categoria,clasificacion_id,sede_actual_id,foto_frente,foto_espalda,foto_detalle,imagen_url').eq('archivado',false).order('codigo'),
+  supabase.from('vestidos').select('id,codigo,nombre,talla,color,precio_sugerido,precio_venta,para_alquiler,para_venta,estado,categoria,clasificacion_id,sede_actual_id,foto_frente,foto_espalda,foto_detalle,imagen_url').eq('archivado',false).order('codigo'),
   supabase.from('clasificaciones_vestido').select('id,nombre').eq('activo',true).order('orden'),supabase.from('sedes').select('id,nombre').eq('activo',true).order('nombre'),supabase.rpc('sedes_inventario_editables')]).then(([v,c,s,m])=>{
   if(v.error)setError('No se pudo cargar el catálogo.');
   setRows(((v.data||[]) as Dress[]).filter(d=>!NO_CATALOGO.includes(String(d.estado||'').toLowerCase())));setTipos(c.data||[]);
@@ -96,7 +96,7 @@ function Catalog({profile}:{profile:ShellProfile}){
      {cover(d)?<DressThumb src={cover(d)!} alt={d.nombre||d.codigo} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:'Sin foto'}</div>
     <div style={{padding:10,fontSize:12,lineHeight:1.4}}>
      <b style={{fontSize:13}}>{d.codigo}</b><br/><span style={{color:'#be123c',fontWeight:700}}>{tipoNombre(d.clasificacion_id)}{d.categoria?` · ${d.categoria}`:''}</span>
-     <br/>{d.nombre||'Sin descripción'}<br/>Talla {d.talla||'—'} · {d.color||'—'}<br/><b>{d.precio_sugerido?cop(d.precio_sugerido):'Sin precio'}</b> · {d.estado||'—'}
+     <br/>{d.nombre||'Sin descripción'}<br/>Talla {d.talla||'—'} · {d.color||'—'}<br/><b>{d.para_alquiler===false?'Solo venta':d.precio_sugerido?cop(d.precio_sugerido):'Sin precio'}</b>{d.para_venta&&d.precio_venta?<> · <b style={{color:'#047857'}}>Venta {cop(d.precio_venta)}</b></>:null} · {d.estado||'—'}
      {canEdit&&<><br/><Link href={`/admin/inventory?q=${encodeURIComponent(d.codigo.trim())}`} style={{color:'#be123c',fontWeight:700}}>Editar en inventario</Link></>}
     </div></article>)}
   </div>
