@@ -58,7 +58,15 @@ export async function POST(request:Request){
    const src=await call(`${origen}/message_templates?fields=name,language,category,components,status&limit=200`);
    if(!src.ok)return publicReply({error:`No se pudieron leer las plantillas de la cuenta de origen: ${msg(src.d)}`},400);
    const dst=await call(`${destino}/message_templates?fields=name,language,status&limit=200`);
-   if(!dst.ok)return publicReply({error:`El token no tiene acceso a la cuenta de destino: ${msg(dst.d)}`},400);
+   if(!dst.ok){
+    // Diagnosis: which WhatsApp Business accounts the token was granted (Meta's debug_token, app credentials; the token itself is never returned).
+    let cuentas='';
+    const secret=process.env.META_APP_SECRET||'',appId=/^\d{5,30}$/.test(String(body.app_id||''))?String(body.app_id):'1368813161329466';
+    if(secret){const dbg=await fetch(`https://graph.facebook.com/${version}/debug_token?${new URLSearchParams({input_token:tk,access_token:`${appId}|${secret}`})}`,{signal:AbortSignal.timeout(15000)}).then(r=>r.json()).catch(()=>null) as {data?:{app_id?:string;granular_scopes?:{scope:string;target_ids?:string[]}[]}}|null;
+     const ids=[...new Set((dbg?.data?.granular_scopes||[]).filter(s=>s.scope.startsWith('whatsapp_business')).flatMap(s=>s.target_ids||[]))];
+     if(dbg?.data)cuentas=` El token es de la app ${dbg.data.app_id||'—'} y tiene acceso a: ${ids.length?ids.join(', '):'ninguna cuenta específica'}.`;}
+    return publicReply({error:`El token no tiene acceso a la cuenta de destino.${cuentas} Detalle de Meta: ${msg(dst.d)}`},400);
+   }
    const have=new Set(((dst.d.data as {name:string;language:string}[])||[]).map(t=>`${t.name}|${t.language}`));
    const wanted=new Set([...REQUIRED,...OPTIONAL]);
    type Tpl={name:string;language:string;category:string;status:string;components:Record<string,unknown>[]};
