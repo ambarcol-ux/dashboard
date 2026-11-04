@@ -25,6 +25,7 @@ import 'react-day-picker/dist/style.css';
 import { es } from 'date-fns/locale';
 import { isWithinInterval, startOfDay, endOfDay, format, subDays, parseISO } from 'date-fns';
 import { generateBlockedRanges, isCurrentlyOccupied, ContractBlock } from '@/lib/availability';
+import { can, usePermissions } from '@/lib/use-permissions';
 
 const DRESS_FIELDS='id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sede_principal_id, clasificacion_id, precio_sugerido';
 
@@ -53,6 +54,7 @@ export default function AvailabilityPage() {
   const [possibleDresses, setPossibleDresses] = useState<any[]>([]);
   const [history, setHistory] = useState<any[]>([]);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const perms = usePermissions(userProfile?.id ? String(userProfile.id) : null);
   
   // Deactivate Modal state
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
@@ -461,6 +463,11 @@ export default function AvailabilityPage() {
                       {dress.ubicacion_nombre && ` · Ahora en ${dress.ubicacion_nombre}`}
                       {[dress.clasificacion, dress.talla?.trim() && `Talla ${dress.talla.trim()}`].filter(Boolean).map(x => ` • ${x}`).join('')}
                     </p>
+                    {can(perms, 'traslados.solicitar') && (
+                      <Link href={`/dashboard/traslados?vestido=${dress.id}`} className="inline-block mt-3 px-4 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-xs font-black uppercase tracking-widest">
+                        Pedir traslado / préstamo
+                      </Link>
+                    )}
                   </div>
                 </div>
                 
