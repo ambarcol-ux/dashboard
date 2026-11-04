@@ -1,5 +1,6 @@
 import {hasPrexv, prexvPending} from './prexv';
 import {saldoContrato} from './saldo';
+import {totalPorCobrar, type Cobro} from './cobros';
 type Row = Record<string, any>;
 export const CONTRACT_PAGE_SIZE = 30;
 export type DashboardFilters = {
@@ -207,7 +208,8 @@ export function summarizeDashboard(contratos: Row[], sedes: Row[], filters: Dash
  return {filtered, summary: {
    tabCounts, alerts,
    total: filtered.length,
-   totalPendiente: filtered.reduce((sum,c) => sum + saldoContrato(c) + (Number(c.total_multas)||0), 0),
+   // Same figure as Cuentas por cobrar for the selected sede (does not depend on the open tab).
+   totalPendiente: totalPorCobrar(branchContracts as Cobro[]),
    monthCount: branchContracts.filter(c => {const t=Date.parse(c.created_at); return t>=filters.monthStart && t<filters.monthEnd;}).length,
    pendingInvoices: contratos.filter(c => !c.numero_factura && Date.parse(c.created_at)<filters.dayStart).length,
    prexvCount: contratos.filter(hasPrexv).length,

@@ -23,5 +23,9 @@ export function plazoCobro(c:Cobro,hoy=hoyBogota()):Plazo{
 }
 /** Balance to collect: contract balance plus penalties. */
 export const porCobrar=(c:Cobro)=>Math.max(0,saldoContrato(c))+Math.max(0,Number(c.total_multas)||0);
+/** Same rule everywhere: active contracts only (not cancelled, annulled, draft, finished…). */
+export const cobroActivo=(estado:unknown)=>!COBRO_EXCLUIDOS.includes(String(estado||'').trim().toLowerCase());
+/** Total to collect over any list of contracts, with the Cuentas por cobrar rule. */
+export const totalPorCobrar=(rows:Cobro[])=>rows.filter(c=>cobroActivo(c.estado)).reduce((a,c)=>a+porCobrar(c),0);
 /** Needs attention now: not delivered and due within 7 days (or overdue). */
 export const urgente=(c:Cobro,hoy=hoyBogota())=>porCobrar(c)>0&&['vencido','tres','siete'].includes(plazoCobro(c,hoy));

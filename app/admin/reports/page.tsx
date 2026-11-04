@@ -1,5 +1,6 @@
 'use client';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
+import { totalPorCobrar, type Cobro } from '@/lib/cobros';
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -138,8 +139,7 @@ export default function ReportsPage() {
 
       let pendingFinanceQuery = supabase
         .from('contratos')
-        .select('saldo, total_multas')
-        .neq('estado', 'cancelado')
+        .select('estado, valor_total, total_arreglos, anticipo, saldo, total_multas')
         .gte('created_at', startDate)
         .lte('created_at', endDate);
 
@@ -195,7 +195,7 @@ export default function ReportsPage() {
       // Process Finance
       const totalFacturadoGlobal = (globalRes.data || []).reduce((acc, c) => acc + (Number(c.valor_total) || 0), 0);
       const totalFacturadoMes = (monthlyRes.data || []).reduce((acc, c) => acc + (Number(c.valor_total) || 0), 0);
-      const totalPendienteDb = (pendingRes.data || []).reduce((acc, c) => acc + (Number(c.saldo) || 0) + (Number(c.total_multas) || 0), 0);
+      const totalPendienteDb = totalPorCobrar((pendingRes.data || []) as Cobro[]);
 
       setFinanceStats({
         facturadoTotal: totalFacturadoGlobal,

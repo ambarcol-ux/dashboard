@@ -19,7 +19,8 @@ assert.equal(crypto.createHash('sha256').update(JSON.stringify(outputs)).digest(
 assert.equal(filterDashboardContracts(rows,sedes,{...base,searchTerm:'global',filtroSede:'pereira'},now).length,rows.length);
 const sample=summarizeDashboard(rows,sedes,base,now);
 assert.equal(sample.summary.total,sample.filtered.length);
-assert.equal(sample.summary.totalPendiente,sample.filtered.reduce((n,c)=>n+Number(c.saldo)+Number(c.total_multas),0));
+const EXCL=['cancelado','cancelada','anulado','anulada','rechazado','borrador','finalizado','liquidado','historial'];
+assert.equal(sample.summary.totalPendiente,rows.filter(c=>!EXCL.includes(String(c.estado||'').trim().toLowerCase())).reduce((n,c)=>n+Math.max(0,Number(c.saldo)||0)+Math.max(0,Number(c.total_multas)||0),0));
 assert.equal(summarizeDashboard(rows,sedes,{...base,filtroSede:'pereira'},now).summary.tabCounts.en_evento,0);
 const contracts=Array.from({length:625},(_,i)=>({id:'c'+i,numero_contrato:'CON-'+i,estado:'confirmado',sede_id:i<75?'barranquilla':'bogota',saldo:100,total_multas:5,created_at:'2026-09-15T15:00:00Z'}));
 const calls=[];let fail=false;
