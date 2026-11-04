@@ -206,7 +206,7 @@ function UserRoles({person,data,onSaved,onError}:{person:Person;data:RoleData;on
 /** Commission model panels retired from the menu and the grid. */
 const RETIRED=['panel.comisiones','panel.liquidaciones'];
 /** «Ver» permissions that can be opened to every site (read-only, without client data). */
-const ALL_SITES=['panel.disponibilidad'];
+const ALL_SITES=['panel.disponibilidad','panel.inventory'];
 
 /** Catalog of every permission of every module; the Administrator marks them on any role. */
 function RolesManager({data,onSaved,onError}:{data:RoleData;onSaved:(msg:string)=>Promise<void>;onError:(m:string)=>void}){
