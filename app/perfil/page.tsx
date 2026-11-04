@@ -44,13 +44,16 @@ export default function ProfileSettingsPage() {
           rol, 
           nombre, 
           sede_id,
-          sedes:sede_id(nombre)
+          rol_id,
+          roles:rol_id(nombre)
         `)
         .eq('id', user.id)
         .maybeSingle();
 
       if (pErr) throw pErr;
-      setProfile(pData || { email: user.email, rol: 'asesora', nombre: 'Usuario' });
+      // profiles.sede_id has no foreign key to sedes, so the site name is read apart; the role shown is the assigned one (rol_id).
+      const { data: sData } = pData?.sede_id ? await supabase.from('sedes').select('nombre').eq('id', pData.sede_id).maybeSingle() : { data: null };
+      setProfile(pData ? { ...pData, sedes: sData } : { email: user.email, rol: 'asesora', nombre: 'Usuario' });
 
     } catch (err: any) {
       toast.error('Error al cargar perfil: ' + err.message);
@@ -129,7 +132,7 @@ export default function ProfileSettingsPage() {
                 <div>
                    <h2 className="text-3xl font-black tracking-tight">{profile?.nombre || 'Mi Perfil'}</h2>
                    <p className="text-rose-100 font-medium opacity-90 flex items-center gap-2 mt-1">
-                     <Shield className="w-4 h-4" /> Rol: <span className="uppercase tracking-widest text-xs font-black">{profile?.rol || 'asesora'}</span>
+                     <Shield className="w-4 h-4" /> Rol: <span className="uppercase tracking-widest text-xs font-black">{profile?.roles?.nombre || profile?.rol || 'asesora'}</span>
                    </p>
                 </div>
              </div>
