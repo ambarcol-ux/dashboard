@@ -21,6 +21,7 @@ import Sidebar from '@/components/Sidebar';
 import InventoryByStatus from '@/components/InventoryByStatus';
 import DressRemovalDialog from '@/components/DressRemovalDialog';
 import {CLASSIFICATION_STYLES, UNCLASSIFIED_STYLE, type DressClassification} from '@/lib/inventory';
+import DressSaleDialog from '@/components/DressSaleDialog';
 
 // Pesos colombianos with thousands separator in price inputs (3.500.000); only digits are saved.
 const soloDigitos = (t: string) => t.replace(/\D/g, '');
@@ -48,7 +49,9 @@ export default function InventoryPage() {
     color: '',
     precio: '',
     precio_venta: '',
-    sede_actual_id: ''
+    sede_actual_id: '',
+    para_alquiler: true,
+    para_venta: false
   });
   const [clasificaciones, setClasificaciones] = useState<DressClassification[]>([]);
   const [clasificacionFilter, setClasificacionFilter] = useState<string>(''); // '' todas, 'none' sin clasificar, o id
@@ -83,6 +86,7 @@ export default function InventoryPage() {
   const [dossierLoading, setDossierLoading] = useState(false);
 
   const [editingDress, setEditingDress] = useState<EditableDress | null>(null);
+  const [sellingDress, setSellingDress] = useState<{ id: number; codigo: string; nombre: string | null; precio_venta?: number | null; sede_actual_id?: string | null } | null>(null);
   // -- Modal de Traslado --
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferVestido, setTransferVestido] = useState<any>(null);
@@ -141,8 +145,10 @@ export default function InventoryPage() {
         nombre: newDress.nombre.trim(),
         talla: newDress.talla.trim().toUpperCase(),
         color: newDress.color.trim().toUpperCase(),
-        precio_sugerido: Number(newDress.precio),
+        precio_sugerido: newDress.precio ? Number(newDress.precio) : null,
         precio_venta: newDress.precio_venta ? Number(newDress.precio_venta) : null,
+        para_alquiler: newDress.para_alquiler,
+        para_venta: newDress.para_venta,
         clasificacion_id: Number(newDress.clasificacion_id),
         sede_principal_id: newDress.sede_actual_id,
         sede_actual_id: newDress.sede_actual_id,
@@ -165,7 +171,9 @@ export default function InventoryPage() {
         color: '', 
         precio: '', 
         precio_venta: '', 
-        sede_actual_id: '' 
+        sede_actual_id: '',
+        para_alquiler: true,
+        para_venta: false
       });
       loadData();
     } catch (err: any) {
@@ -178,7 +186,14 @@ export default function InventoryPage() {
 
   const handleDeBajaVestido = async (id: number, codigo: string) => {
     const motivo = confirm(`¿Dar de BAJA el vestido ${codigo} por DAÑO? OK para DAÑO, Cancelar para VENTA.`);
-    const nuevoEstado = motivo ? 'Dañado/Baja' : 'Vendido';
+    if (!motivo) {
+      // Sale: registered with its invoice data and cash income (only dresses marked «Venta»).
+      const v = vestidos.find(x => x.id === id);
+      if (!v?.para_venta) { toast.error(`El vestido ${codigo} no está marcado para venta. Edítalo, marca «Venta» y escribe su precio de venta.`); return; }
+      setSellingDress(v);
+      return;
+    }
+    const nuevoEstado = 'Dañado/Baja';
     
     setUpdatingId(id);
     try {
@@ -223,7 +238,7 @@ export default function InventoryPage() {
     try {
       const { data, error } = await supabase
         .from('vestidos')
-        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, stock_total, clasificacion_id, categoria, archivado, archivado_at, motivo_archivo, qr_token, imagen_url, foto_frente, foto_espalda, foto_detalle')
+        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, para_alquiler, para_venta, stock_total, clasificacion_id, categoria, archivado, archivado_at, motivo_archivo, qr_token, imagen_url, foto_frente, foto_espalda, foto_detalle')
         .order('codigo', { ascending: true });
       
       if (error) {
@@ -715,6 +730,7 @@ export default function InventoryPage() {
         </div>
 
         {bulkOpen && <BulkPhotos vestidos={vestidos} sedes={sedes.filter(s => sedesEditables.includes(String(s.id)))} clasificaciones={clasificaciones} sedeInicial={sedeFilter && sedeFilter !== 'none' ? sedeFilter : ''} tipoInicial={clasificacionFilter && clasificacionFilter !== 'none' ? clasificacionFilter : ''} categoriaInicial={categoriaFilter && categoriaFilter !== 'none' ? categoriaFilter : ''} onClose={() => { setBulkOpen(false); loadData(); }} />}
+        {sellingDress && <DressSaleDialog dress={sellingDress} onClose={() => setSellingDress(null)} onSaved={() => { setSellingDress(null); loadData(); }} />}
         {editingDress && <EditDressModal dress={editingDress} clasificaciones={clasificaciones} onClose={() => setEditingDress(null)} onSaved={() => { setEditingDress(null); loadData(); }} />}
         {/* Modal Nuevo Vestido */}
         {isModalOpen && (
@@ -785,8 +801,15 @@ export default function InventoryPage() {
                       onChange={(e) => setNewDress({...newDress, color: e.target.value})}
                     />
                   </div>
+                  <div className="space-y-1 col-span-full">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Disponible para *</span>
+                    <div className="flex gap-4 px-1 py-2 text-sm font-bold text-gray-700">
+                      <label className="flex items-center gap-2"><input type="checkbox" checked={newDress.para_alquiler} onChange={(e) => setNewDress({...newDress, para_alquiler: e.target.checked})} /> Alquiler</label>
+                      <label className="flex items-center gap-2"><input type="checkbox" checked={newDress.para_venta} onChange={(e) => setNewDress({...newDress, para_venta: e.target.checked})} /> Venta</label>
+                    </div>
+                  </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">6. Precio de alquiler *</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">6. Precio de alquiler {newDress.para_alquiler ? '*' : '(opcional)'}</label>
                     <input 
                       type="text" inputMode="numeric" min="1" step="1000"
                       placeholder="Ej: 1500000"
@@ -795,10 +818,10 @@ export default function InventoryPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Precio de venta sugerido</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Precio de venta {newDress.para_venta ? '*' : 'sugerido'}</label>
                     <input 
                       type="text" inputMode="numeric"
-                      placeholder="Opcional"
+                      placeholder={newDress.para_venta ? 'Obligatorio para vender' : 'Opcional'}
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none"
                       value={miles(newDress.precio_venta)} onChange={(e) => setNewDress({...newDress, precio_venta: soloDigitos(e.target.value)})}
                     />
@@ -1557,14 +1580,15 @@ export default function InventoryPage() {
 /** Dress code: uppercase letters, numbers and dashes only (no spaces or descriptions). */
 function cleanDressCode(v: string) { return v.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20); }
 /** Required fields of a new dress, in the form order. */
-function dressMissing(d: { codigo: string; clasificacion_id: string; nombre: string; talla: string; color: string; precio: string; sede_actual_id: string }) {
-  return ([['Código', d.codigo.length >= 2], ['Clasificación', !!d.clasificacion_id], ['Nombre', d.nombre.trim().length >= 3], ['Talla', !!d.talla.trim()], ['Color', !!d.color.trim()], ['Precio de alquiler', Number(d.precio) > 0], ['Sede base', !!d.sede_actual_id]] as [string, boolean][]).filter(([, ok]) => !ok).map(([l]) => l);
+function dressMissing(d: { codigo: string; clasificacion_id: string; nombre: string; talla: string; color: string; precio: string; sede_actual_id: string; precio_venta?: string; para_alquiler?: boolean; para_venta?: boolean }) {
+  const alquiler = d.para_alquiler !== false, venta = !!d.para_venta;
+  return ([['Código', d.codigo.length >= 2], ['Clasificación', !!d.clasificacion_id], ['Nombre', d.nombre.trim().length >= 3], ['Talla', !!d.talla.trim()], ['Color', !!d.color.trim()], ['Disponible para (alquiler o venta)', alquiler || venta], ['Precio de alquiler', !alquiler || Number(d.precio) > 0], ['Precio de venta', !venta || Number(d.precio_venta) > 0], ['Sede base', !!d.sede_actual_id]] as [string, boolean][]).filter(([, ok]) => !ok).map(([l]) => l);
 }
 
-type EditableDress = { id: number; codigo: string; nombre: string | null; clasificacion_id: number | null; talla: string | null; color: string | null; precio_sugerido: number | null; precio_venta?: number | null };
+type EditableDress = { id: number; codigo: string; nombre: string | null; clasificacion_id: number | null; talla: string | null; color: string | null; precio_sugerido: number | null; precio_venta?: number | null; para_alquiler?: boolean | null; para_venta?: boolean | null };
 /** Edit every data field of an existing dress (same rules as a new one; sede and estado keep their own flows). */
 function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: EditableDress; clasificaciones: { id: number; nombre: string; activo: boolean }[]; onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({ codigo: dress.codigo.trim(), clasificacion_id: dress.clasificacion_id ? String(dress.clasificacion_id) : '', nombre: dress.nombre || '', talla: dress.talla || '', color: dress.color || '', precio: dress.precio_sugerido ? String(dress.precio_sugerido) : '', precio_venta: dress.precio_venta ? String(dress.precio_venta) : '', sede_actual_id: 'x' });
+  const [f, setF] = useState({ codigo: dress.codigo.trim(), clasificacion_id: dress.clasificacion_id ? String(dress.clasificacion_id) : '', nombre: dress.nombre || '', talla: dress.talla || '', color: dress.color || '', precio: dress.precio_sugerido ? String(dress.precio_sugerido) : '', precio_venta: dress.precio_venta ? String(dress.precio_venta) : '', sede_actual_id: 'x', para_alquiler: dress.para_alquiler !== false, para_venta: !!dress.para_venta });
   const [saving, setSaving] = useState(false);
   const faltan = dressMissing(f);
   const save = async () => {
@@ -1577,7 +1601,9 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
     if (Number(f.clasificacion_id) !== dress.clasificacion_id) changes.clasificacion_id = Number(f.clasificacion_id);
     if (f.talla.trim().toUpperCase() !== (dress.talla || '')) changes.talla = f.talla;
     if (f.color.trim().toUpperCase() !== (dress.color || '')) changes.color = f.color;
-    if (Number(f.precio) !== Number(dress.precio_sugerido || 0)) changes.precio_sugerido = Number(f.precio);
+    if (Number(f.precio) !== Number(dress.precio_sugerido || 0)) changes.precio_sugerido = f.precio ? Number(f.precio) : null;
+    if (f.para_alquiler !== (dress.para_alquiler !== false)) changes.para_alquiler = f.para_alquiler;
+    if (f.para_venta !== !!dress.para_venta) changes.para_venta = f.para_venta;
     if ((f.precio_venta ? Number(f.precio_venta) : null) !== (dress.precio_venta ?? null)) changes.precio_venta = f.precio_venta ? Number(f.precio_venta) : null;
     if (!Object.keys(changes).length) { setSaving(false); onClose(); return; }
     const { error } = await supabase.from('vestidos').update(changes).eq('id', dress.id);
@@ -1599,8 +1625,9 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
       <div className="grid grid-cols-3 gap-4">
         <label className={label}>4. Talla *<input className={input} value={f.talla} onChange={(e) => setF({ ...f, talla: e.target.value.toUpperCase() })} /></label>
         <label className={label}>5. Color *<input className={input} value={f.color} onChange={(e) => setF({ ...f, color: e.target.value.toUpperCase() })} /></label>
-        <label className={label}>6. Precio de alquiler *<input type="text" inputMode="numeric" className={input} value={miles(f.precio)} onChange={(e) => setF({ ...f, precio: soloDigitos(e.target.value) })} /></label>
-        <label className={label}>Precio de venta sugerido<input type="text" inputMode="numeric" placeholder="Opcional" className={input} value={miles(f.precio_venta)} onChange={(e) => setF({ ...f, precio_venta: soloDigitos(e.target.value) })} /></label>
+        <div className={`${label} col-span-3`}>Disponible para *<div className="flex gap-4 py-2 text-sm font-bold text-gray-700 normal-case tracking-normal"><label className="flex items-center gap-2"><input type="checkbox" checked={f.para_alquiler} onChange={(e) => setF({ ...f, para_alquiler: e.target.checked })} /> Alquiler</label><label className="flex items-center gap-2"><input type="checkbox" checked={f.para_venta} onChange={(e) => setF({ ...f, para_venta: e.target.checked })} /> Venta</label></div></div>
+        <label className={label}>6. Precio de alquiler {f.para_alquiler ? '*' : '(opcional)'}<input type="text" inputMode="numeric" className={input} value={miles(f.precio)} onChange={(e) => setF({ ...f, precio: soloDigitos(e.target.value) })} /></label>
+        <label className={label}>Precio de venta {f.para_venta ? '*' : 'sugerido'}<input type="text" inputMode="numeric" placeholder="Opcional" className={input} value={miles(f.precio_venta)} onChange={(e) => setF({ ...f, precio_venta: soloDigitos(e.target.value) })} /></label>
       </div>
       <p className="text-[11px] text-gray-400">La sede se cambia con la lista «Sede actual» de la fila (traslado) y el estado con sus botones de siempre.</p>
       <div className="flex gap-3 justify-end"><button onClick={onClose} disabled={saving} className="px-5 py-3 rounded-xl border font-bold text-sm">Cancelar</button>

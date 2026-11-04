@@ -28,7 +28,7 @@ import { generateBlockedRanges, isCurrentlyOccupied, ContractBlock } from '@/lib
 import { can, usePermissions } from '@/lib/use-permissions';
 import DressThumb from '@/components/DressThumb';
 
-const DRESS_FIELDS='id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sede_principal_id, clasificacion_id, precio_sugerido, foto_frente, foto_espalda, foto_detalle, imagen_url';
+const DRESS_FIELDS='id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sede_principal_id, clasificacion_id, precio_sugerido, precio_venta, para_alquiler, para_venta, foto_frente, foto_espalda, foto_detalle, imagen_url';
 /** Dress photos (front first), for the card and the result list; tap to see them full screen. */
 const dressPhotos=(d:{foto_frente?:string|null;foto_espalda?:string|null;foto_detalle?:string|null;imagen_url?:string|null})=>[d.foto_frente||d.imagen_url,d.foto_espalda,d.foto_detalle].filter((u):u is string=>!!u);
 
@@ -463,7 +463,7 @@ export default function AvailabilityPage() {
                   <div>
                     <h2 className="text-4xl font-black tracking-tight">Ref. {dress.codigo?.trim()}</h2>
                     <p className="text-lg font-black uppercase mt-1">{dress.nombre?.trim() || 'Sin nombre en inventario'}</p>
-                    <p className="text-sm font-bold mt-1 opacity-90">Precio lista: {rentalPrice(null, dress.precio_sugerido, false).text}</p>
+                    <p className="text-sm font-bold mt-1 opacity-90">{dress.para_alquiler === false ? 'Solo venta: no se alquila' : `Precio lista: ${rentalPrice(null, dress.precio_sugerido, false).text}`}{dress.para_venta && dress.precio_venta ? ` · Venta: $${Number(dress.precio_venta).toLocaleString('es-CO')}` : ''}</p>
                     <p className="text-sm font-bold uppercase tracking-widest opacity-80 mt-1">
                       {dress.sede_nombre ? `Sede ${dress.sede_nombre}` : 'Sede sin asignar'}
                       {dress.ubicacion_nombre && ` · Ahora en ${dress.ubicacion_nombre}`}
