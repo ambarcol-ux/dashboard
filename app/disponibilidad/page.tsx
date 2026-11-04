@@ -178,15 +178,22 @@ export default function AvailabilityPage() {
 
       if (specialLocksError) throw specialLocksError;
 
+      // Reservas de vestidos de otras sedes (rol con «Todas las sedes» en Agenda de vestidos): fechas y contrato, sin datos de la clienta.
+      const { data: otherSites } = await supabase.rpc('disponibilidad_contratos_vestido', { p_vestido: dressId });
+      const idOf = (c: unknown) => (c as { id?: string } | null)?.id;
+      const seen = new Set([...(contracts || []).map(i => idOf(i.contratos)), ...(legacyContracts || []).map(idOf), ...(specialLocks || []).map(idOf)]);
+      const extra = (Array.isArray(otherSites) ? otherSites as { id: string }[] : []).filter(c => !seen.has(c.id));
+
       // Todas las reservas, incluido el legado, usan el mismo cálculo.
       const rawBlocks = generateBlockedRanges([
         ...(contracts || []),
         ...(legacyContracts || []),
-        ...(specialLocks || []).map((lock: any) => ({ vestido_id: dressId, contratos: lock }))
+        ...(specialLocks || []).map((lock: any) => ({ vestido_id: dressId, contratos: lock })),
+        ...extra.map(c => ({ vestido_id: dressId, contratos: c }))
       ]);
       setBlocks(Array.from(new Map(rawBlocks.map(block => [block.id, block])).values()));
       // Precio pactado en cada contrato (valor del alquiler), para la tarjeta y el detalle de cada reserva.
-      setContractPrices(Object.fromEntries([...(contracts || []).map((item: any) => item.contratos), ...(legacyContracts || []), ...(specialLocks || [])]
+      setContractPrices(Object.fromEntries([...(contracts || []).map((item: any) => item.contratos), ...(legacyContracts || []), ...(specialLocks || []), ...extra]
         .filter(Boolean).map((c: any) => [c.id, c.valor_total == null ? null : Number(c.valor_total)])));
 
       // 2. Fetch Bitácora Local
