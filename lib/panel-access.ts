@@ -29,6 +29,7 @@ export const PANELS:Panel[]=[
  {id:'traslados',label:'Traslados',href:'/dashboard/traslados',block:'OPERACIONES',paths:['/dashboard/traslados'],staff:true,grantable:true},
  {id:'inventory',label:'Gestión de inventario',href:'/admin/inventory',block:'OPERACIONES',paths:['/admin/inventory'],grantable:true},
  {id:'reports',label:'Reportes y estadísticas',href:'/admin/reports',block:'OPERACIONES',paths:['/admin/reports'],grantable:true},
+ {id:'cobros',label:'Cuentas por cobrar',href:'/dashboard/cuentas-por-cobrar',block:'FINANZAS',paths:['/dashboard/cuentas-por-cobrar'],staff:true,grantable:true},
  {id:'caja',label:'Cierres de caja',href:'/dashboard/caja',block:'FINANZAS',paths:['/dashboard/caja'],staff:true,grantable:true},
  {id:'proveedores-catalogo',label:'Catálogo de proveedores',href:'/dashboard/proveedores/catalogo',block:'PROVEEDORES',paths:['/dashboard/proveedores/catalogo'],staff:true,grantable:true},
  {id:'proveedores',label:'Gestión de proveedores',href:'/dashboard/proveedores',block:'PROVEEDORES',paths:['/dashboard/proveedores'],grantable:false},

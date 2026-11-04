@@ -11,6 +11,7 @@ import PreXvFields from '@/components/PreXvFields';
 import { prexvFields, includedPrexv, prexvSummary, hasPrexv, type PrexvData } from '@/lib/prexv';
 import styles from './calendar.module.css';
 import {saldoContrato} from '@/lib/saldo';
+import {diasParaEntrega,type Cobro} from '@/lib/cobros';
 import {cop} from '@/lib/rental-price';
 
 const labels:Record<string,string>={
@@ -230,7 +231,7 @@ export default function ContractPanel({
         <p>Referencias del contrato: {refsLabel}</p>
         {fotos.length>0&&<div style={{display:'flex',gap:8,flexWrap:'wrap',margin:'6px 0'}}>{fotos.map((f,i)=><a key={i} href={f.url} target="_blank" rel="noopener noreferrer" title={f.codigo} style={{textAlign:'center',fontSize:11,fontWeight:700,color:'inherit',textDecoration:'none'}}><DressThumb src={f.url} alt={f.codigo} style={{width:72,height:96,objectFit:'cover',borderRadius:10,border:'1px solid #eee',display:'block'}}/>{f.codigo}</a>)}</div>}
         <p>Valor: {cop(Number(contract.valor_total||0))}</p>
-        <p>Saldo: {cop(saldoContrato(contract))}</p>
+        <p>Saldo: {cop(saldoContrato(contract))}{saldoContrato(contract)>0&&(()=>{const d=diasParaEntrega(contract as unknown as Cobro);return d!=null&&d<=7?<strong style={{marginLeft:8,color:d<=3?'#b91c1c':'#a16207'}}>⚠️ {d<0?'entrega vencida':d===0?'se entrega hoy':`se entrega en ${d} día${d===1?'':'s'}`} y aún debe</strong>:null;})()}</p>
       </div>
     </details>
 
