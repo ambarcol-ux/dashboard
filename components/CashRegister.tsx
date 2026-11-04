@@ -43,12 +43,28 @@ function AttachSupport({sedeId,pagoId,onDone,onError}:{sedeId:string;pagoId:stri
   <input ref={input} type="file" accept={SUPPORT_ACCEPT} hidden onChange={e=>{void upload(e.target.files?.[0]);e.target.value='';}}/></>;
 }
 
+type PendingPayment={sede_id:string;sede:string;fecha:string;numero_contrato:string|null;cliente:string|null;valor:number;medio:string|null;cerrado:boolean};
+
+/** Contract payments not yet in the cash register: one warning with the list and a button to open each day. */
+function PendingPayments({rows,onOpen}:{rows:PendingPayment[];onOpen:(p:PendingPayment)=>void}){
+ if(!rows.length)return null;
+ const total=rows.reduce((a,p)=>a+(Number(p.valor)||0),0);
+ return <details className={styles.card} style={{borderColor:'#f59e0b',background:'#fffbeb',marginBottom:18}}>
+  <summary style={{cursor:'pointer',fontWeight:800}}>⚠️ {rows.length} abonos de contratos sin pasar a caja · {money(total)} · Pulsa para ver y confirmar cada uno en su día</summary>
+  <p style={{fontSize:12,margin:'8px 0'}}>Confírmalos desde la sugerencia del día; no los escribas a mano para no contarlos dos veces. Si el día ya está cerrado, reábrelo primero.</p>
+  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Día</th><th>Sede</th><th>Contrato</th><th>Valor</th><th>Medio</th><th></th></tr></thead>
+   <tbody>{rows.map((p,i)=><tr key={i}><td>{p.fecha}</td><td>{p.sede}</td><td><strong>{p.numero_contrato}</strong><br/><small>{p.cliente}</small></td><td>{money(p.valor)}</td><td>{p.medio||'—'}</td>
+    <td><button className={styles.button} onClick={()=>onOpen(p)}>{p.cerrado?'Ir al día (cerrado: reabrir)':'Ir al día'}</button></td></tr>)}</tbody></table></div>
+ </details>;
+}
+
 /** Cash closings: daily income and expenses per site, the closing count, and a view of every site. */
 export default function CashRegister({profile}:{profile:Profile}){
  const today=bogotaDay(new Date().toISOString())!;
  const role=profile.rol.toLowerCase(),seesAll=role==='admin'||role==='contabilidad',isAdmin=role==='admin';
  const [sites,setSites]=useState<CashSiteSummary[]>([]),[sede,setSede]=useState(seesAll?ALL:(profile.sede_id||'')),[fecha,setFecha]=useState(today),[desde,setDesde]=useState(today);
  const [day,setDay]=useState<CashDay|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const [pending,setPending]=useState<PendingPayment[]>([]);
  const request=useRef(0),[view,setView]=useState<'caja'|'plata'|'depositos'|'cuentas'>('caja');
 
  const load=useCallback(async()=>{
@@ -59,6 +75,7 @@ export default function CashRegister({profile}:{profile:Profile}){
    const rows=(summary.data||[]) as CashSiteSummary[];
    if(id!==request.current)return;
    setSites(rows);
+   void supabase.rpc('caja_abonos_pendientes').then(({data})=>{if(id===request.current)setPending((data||[]) as PendingPayment[]);});
    const target=sede===ALL?null:(sede||rows[0]?.sede_id||'');
    if(sede!==ALL&&!sede&&target){setSede(target);return;}
    if(target){
@@ -90,6 +107,7 @@ export default function CashRegister({profile}:{profile:Profile}){
   </div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
+  <PendingPayments rows={sede===ALL?pending:pending.filter(p=>p.sede_id===sede)} onOpen={p=>{setLoading(true);setNotice('');setSede(p.sede_id);setFecha(p.fecha);if(p.fecha<desde)setDesde(p.fecha);}}/>
   {sede===ALL?<AllSites rows={sites} loading={loading} onPick={id=>{setLoading(true);setSede(id);}}/>:day?<SiteDay key={`${day.sede_id}:${day.fecha}`} day={day} siteName={siteName} isAdmin={isAdmin} onDone={done} onError={setError}/>:!error&&<p className={styles.empty}>{loading?'Cargando caja…':'No tienes una sede asignada para manejar caja.'}</p>}
  </>;
 }
