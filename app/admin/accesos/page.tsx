@@ -23,7 +23,7 @@ const CHOICE_LABEL:Record<Choice,string>={defecto:'Según su rol',permitido:'Per
 const name=(p?:Person|null)=>p?(p.nombre||p.email||'Sin nombre'):'—';
 type Permission={codigo:string;modulo:string;accion:string;descripcion:string;solo_admin:boolean;orden:number};
 type Role={id:string;nombre:string;descripcion:string;sistema:boolean;ve_todas_sedes?:boolean};
-type RoleData={permisos:Permission[];roles:Role[];rolePerms:Record<string,string[]>;userRoles:Record<string,string[]>};
+type RoleData={permisos:Permission[];roles:Role[];rolePerms:Record<string,string[]>;userRoles:Record<string,string[]>;allSites?:Record<string,string[]>};
 /** Same rule as private.permisos_usuario: profile role + assigned roles; administrators have everything. */
 function permsOf(person:Person,data:RoleData){
  const base=String(person.rol||'').trim().toLowerCase();
@@ -60,7 +60,7 @@ function AccessManager({selfId}:{selfId:string}){
     supabase.from('accesos_paneles_bitacora').select('*').order('cambiado_at',{ascending:false}).limit(100),
     supabase.from('permisos').select('*').order('orden'),
     supabase.from('roles').select('*').order('nombre'),
-    supabase.from('roles_permisos').select('rol_id,permiso').eq('activo',true),
+    supabase.from('roles_permisos').select('rol_id,permiso,todas_sedes').eq('activo',true),
     supabase.from('usuarios_roles').select('usuario_id,rol_id').eq('activo',true),
     supabase.from('roles_bitacora').select('*').order('fecha_hora',{ascending:false}).limit(50),
     supabase.from('usuario_sedes').select('usuario_id,sede_id').eq('activo',true),
@@ -68,7 +68,7 @@ function AccessManager({selfId}:{selfId:string}){
    ]);
    const failed=[p,s,a,l,pe,ro,rp,ur,rl,us,eb].find(r=>r.error);if(failed?.error)throw failed.error;
    const group=(rows:{[k:string]:string}[]|null,key:string,val:string)=>{const out:Record<string,string[]>={};for(const r of rows||[])(out[r[key]]||=[]).push(r[val]);return out;};
-   setRoleData({permisos:(pe.data||[]) as Permission[],roles:(ro.data||[]) as Role[],rolePerms:group(rp.data,'rol_id','permiso'),userRoles:group(ur.data,'usuario_id','rol_id')});
+   setRoleData({permisos:(pe.data||[]) as Permission[],roles:(ro.data||[]) as Role[],rolePerms:group(rp.data,'rol_id','permiso'),userRoles:group(ur.data,'usuario_id','rol_id'),allSites:group((rp.data||[]).filter(r=>r.todas_sedes),'rol_id','permiso')});
    setRoleLog((rl.data||[]) as typeof roleLog);setUserSedes(group(us.data,'usuario_id','sede_id'));setTeamLog((eb.data||[]) as typeof teamLog);
    const map:Record<string,PanelOverrides>={};
    for(const r of a.data||[])if(r.estado==='permitido'||r.estado==='bloqueado')(map[r.usuario_id]||={})[r.panel]=r.estado;
@@ -205,6 +205,8 @@ function UserRoles({person,data,onSaved,onError}:{person:Person;data:RoleData;on
 
 /** Commission model panels retired from the menu and the grid. */
 const RETIRED=['panel.comisiones','panel.liquidaciones'];
+/** «Ver» permissions that can be opened to every site (read-only, without client data). */
+const ALL_SITES=['panel.disponibilidad'];
 
 /** Catalog of every permission of every module; the Administrator marks them on any role. */
 function RolesManager({data,onSaved,onError}:{data:RoleData;onSaved:(msg:string)=>Promise<void>;onError:(m:string)=>void}){
@@ -226,7 +228,8 @@ function RolesManager({data,onSaved,onError}:{data:RoleData;onSaved:(msg:string)
   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Permiso</th><th>Detalle</th><th style={{width:90}}>Activo</th></tr></thead>
    <tbody>{modules.filter(m=>data.permisos.some(p=>p.modulo===m&&!RETIRED.includes(p.codigo))).map(m=>[<tr key={m}><td colSpan={3} style={{background:'#f8fafc',fontWeight:800,fontSize:11,letterSpacing:'.05em',color:'#64748b'}}>{m.toUpperCase()}</td></tr>,
     ...data.permisos.filter(p=>p.modulo===m&&!RETIRED.includes(p.codigo)).map(p=><tr key={p.codigo}><td><b>{p.accion}</b><small>{p.codigo}</small></td><td className={styles.help}>{p.solo_admin?'Solo el rol Administrador (para dárselo a alguien, asígnale el rol Administrador en Gestión de equipo). ':''}{p.descripcion}</td>
-     <td><input type="checkbox" aria-label={p.accion} disabled={isAdminRole||p.solo_admin} checked={isAdminRole||current.includes(p.codigo)} onChange={e=>toggle(p.codigo,e.target.checked)}/></td></tr>)])}</tbody></table></div>
+     <td><input type="checkbox" aria-label={p.accion} disabled={isAdminRole||p.solo_admin} checked={isAdminRole||current.includes(p.codigo)} onChange={e=>toggle(p.codigo,e.target.checked)}/>
+      {ALL_SITES.includes(p.codigo)&&!isAdminRole&&current.includes(p.codigo)&&<label className={styles.check} style={{marginTop:6,fontSize:11}} title="Consulta las reservas de los vestidos de todas las sedes (fechas y contrato, sin datos de la clienta). Lo demás sigue limitado a sus sedes."><input type="checkbox" disabled={busy||draft!==null} checked={!!data.allSites?.[roleId]?.includes(p.codigo)} onChange={async e=>{setBusy(true);const {error}=await supabase.rpc('guardar_permiso_todas_sedes',{p_rol:roleId,p_permiso:p.codigo,p_todas:e.target.checked});setBusy(false);if(error)onError(error.message);else await onSaved(`${p.accion} (${role?.nombre}): ${e.target.checked?'todas las sedes':'solo sus sedes'}.`);}}/>Todas las sedes</label>}</td></tr>)])}</tbody></table></div>
   {!isAdminRole&&<div className={styles.actions} style={{marginTop:14}}><button className={`${styles.button} ${styles.primary}`} disabled={busy||draft===null} onClick={()=>void save()}>{busy?'Guardando…':'Guardar permisos del rol'}</button>{draft!==null&&<button className={styles.button} onClick={()=>setDraft(null)}>Descartar</button>}</div>}
  </section>;
 }
