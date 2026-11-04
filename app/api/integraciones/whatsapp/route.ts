@@ -48,6 +48,31 @@ export async function POST(request:Request){
    return publicReply({ok:true,phone_number_id:phoneId,waba_id:waba});
   }
   const {data:row}=await db.rpc('integracion_whatsapp_servidor');
+  // Number change to another WhatsApp Business account: copies the ERP templates (same name, language, category and content) from one account to the other.
+  if(body.accion==='copiar_plantillas'){
+   const origen=String(body.origen||''),destino=String(body.destino||''),tk=String(row?.secreto||process.env.META_WA_TOKEN||'');
+   if(!/^\d{5,30}$/.test(origen)||!/^\d{5,30}$/.test(destino)||origen===destino)return publicReply({error:'Escribe el ID de la cuenta de origen y el de la cuenta de destino (solo números, distintos).'},400);
+   if(!tk)return publicReply({error:'No hay token de WhatsApp configurado.'},503);
+   const call=async(path:string,init?:RequestInit)=>{const r=await fetch(`https://graph.facebook.com/${version}/${path}`,{...init,headers:{Authorization:`Bearer ${tk}`,'Content-Type':'application/json'},signal:AbortSignal.timeout(15000)});return {ok:r.ok,d:await r.json().catch(()=>({})) as Record<string,unknown>};};
+   const msg=(d:Record<string,unknown>)=>String((d.error as {error_user_msg?:string;message?:string})?.error_user_msg||(d.error as {message?:string})?.message||'').slice(0,200);
+   const src=await call(`${origen}/message_templates?fields=name,language,category,components,status&limit=200`);
+   if(!src.ok)return publicReply({error:`No se pudieron leer las plantillas de la cuenta de origen: ${msg(src.d)}`},400);
+   const dst=await call(`${destino}/message_templates?fields=name,language,status&limit=200`);
+   if(!dst.ok)return publicReply({error:`El token no tiene acceso a la cuenta de destino: ${msg(dst.d)}`},400);
+   const have=new Set(((dst.d.data as {name:string;language:string}[])||[]).map(t=>`${t.name}|${t.language}`));
+   const wanted=new Set([...REQUIRED,...OPTIONAL]);
+   type Tpl={name:string;language:string;category:string;status:string;components:Record<string,unknown>[]};
+   const list=((src.d.data as Tpl[])||[]).filter(t=>wanted.has(t.name)&&t.status==='APPROVED');
+   const resultado:{plantilla:string;estado:string}[]=[];
+   for(const t of list){
+    const key=`${t.name} (${t.language})`;
+    if(have.has(`${t.name}|${t.language}`)){resultado.push({plantilla:key,estado:'Ya existía'});continue;}
+    const r=await call(`${destino}/message_templates`,{method:'POST',body:JSON.stringify({name:t.name,language:t.language,category:t.category,allow_category_change:true,components:t.components})});
+    resultado.push({plantilla:key,estado:r.ok?`Enviada a revisión (${String(r.d.status||'PENDING')})`:`Error: ${msg(r.d)}`});
+   }
+   const faltan=[...wanted].filter(n=>!list.some(t=>t.name===n));
+   return publicReply({ok:true,resultado,sin_origen:faltan});
+  }
   const cfg=(row?.config||{}) as Record<string,string>,token=String(row?.secreto||'');
   if(!token||!cfg.phone_number_id||!cfg.waba_id)return publicReply({error:'Primero guarda el número, la cuenta y el token.'},400);
   const get=async(path:string)=>{const r=await fetch(`https://graph.facebook.com/${version}/${path}`,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(15000)});const d=await r.json().catch(()=>({}));return {ok:r.ok,d:d as Record<string,unknown>};};
