@@ -206,6 +206,7 @@ export default function DashboardPage() {
   const [isEditGlobalMetaOpen, setIsEditGlobalMetaOpen] = useState(false);
   const [editGlobalMetaInput, setEditGlobalMetaInput] = useState('');
   const [pagosMesActual, setPagosMesActual] = useState<any[]>([]);
+  const [metasSedes, setMetasSedes] = useState<{ sede_id: string; meta: number; vendido: number }[]>([]);
 
   const getPendingInvoicesCount = () => {
     return summary?.pendingInvoices ?? 0;
@@ -2119,34 +2120,11 @@ export default function DashboardPage() {
 
   const fetchDashboardMetas = async () => {
     try {
-      // Fetch Global Meta
-      const { data: metaData } = await supabase
-        .from('metas')
-        .select('*')
-        .eq('tipo', 'global')
-        .maybeSingle();
-      
-      if (metaData) {
-        setGlobalMetaId(metaData.id);
-        setGlobalMetaVal(Number(metaData.monto_meta) || 120000000);
-      } else {
-        const now = new Date();
-        const { data: newMeta } = await supabase
-          .from('metas')
-          .insert({
-            tipo: 'global',
-            nombre_objetivo: 'Meta Global',
-            monto_meta: 120000000,
-            mes: now.getMonth() + 1,
-            anio: now.getFullYear()
-          })
-          .select()
-          .single();
-        if (newMeta) {
-          setGlobalMetaId(newMeta.id);
-          setGlobalMetaVal(120000000);
-        }
-      }
+      // Goal and sold amount: same source as Metas y Ventas (goal per sede, sold = contracts of the month).
+      const hoyMeta = new Date();
+      await supabase.rpc('asegurar_metas_mes', { p_mes: hoyMeta.getMonth() + 1, p_anio: hoyMeta.getFullYear() });
+      const { data: panel } = await supabase.rpc('metas_panel', { p_sede: null, p_mes: hoyMeta.getMonth() + 1, p_anio: hoyMeta.getFullYear() });
+      setMetasSedes(((panel || []) as { sede_id: string; meta: number | null; vendido: number | null }[]).map(g => ({ sede_id: String(g.sede_id), meta: Number(g.meta) || 0, vendido: Number(g.vendido) || 0 })));
 
       // Fetch Pagos for Recaudo Real
       const now = new Date();
@@ -2156,11 +2134,12 @@ export default function DashboardPage() {
       const { data: pagos } = await supabase
         .from('pagos')
         .select('valor_pagado, fecha_pago, contratos!inner(sede_id, estado)')
+        .is('anulado_at', null)
         .gte('fecha_pago', firstDay)
         .lte('fecha_pago', lastDay);
       const validPagos = (pagos || []).filter((p: any) => {
         const est = p.contratos?.estado?.toLowerCase() || '';
-        return !['cancelado', 'borrador', 'anulado'].includes(est);
+        return !['cancelado', 'borrador', 'anulado', 'rechazado'].includes(est);
       });
       setPagosMesActual(validPagos);
     } catch (err) {
@@ -2278,16 +2257,18 @@ export default function DashboardPage() {
 
       console.log(`[VERIFICACIÓN] Sede Filtro: ${filtroSede} | Contratos: ${count} | Recaudo: ${recaudado}`);
 
+      const metas = filtroSede && filtroSede !== 'Todas' ? metasSedes.filter(m => m.sede_id === String(filtroSede)) : metasSedes;
       return {
          recaudado,
          count,
-         goal: globalMetaVal
+         goal: metas.reduce((a, m) => a + m.meta, 0),
+         vendido: metas.reduce((a, m) => a + m.vendido, 0)
       };
     } catch (err) {
       console.error("Error in salesStats useMemo:", err);
-      return { recaudado: 0, count: 0, goal: globalMetaVal };
+      return { recaudado: 0, count: 0, goal: 0, vendido: 0 };
     }
-  }, [summary, filtroSede, globalMetaVal, pagosMesActual, sedes]);
+  }, [summary, filtroSede, metasSedes, pagosMesActual, sedes]);
 
 
   const renderLogisticsDate = (contrato: any, label: string, dateString: string | null, stateField: string, stateValue: string, dateField: string) => {
@@ -2486,15 +2467,16 @@ export default function DashboardPage() {
               </div>
            </div>
 
-           <div className="bg-white p-6 rounded-3xl shadow-sm border-2 border-emerald-100 flex items-center gap-5 group hover:bg-emerald-50 transition-all bg-emerald-50/20">
+           <Link href="/dashboard/cuentas-por-cobrar" title="Ver el detalle en Cuentas por cobrar" className="bg-white p-6 rounded-3xl shadow-sm border-2 border-emerald-100 flex items-center gap-5 group hover:bg-emerald-50 transition-all bg-emerald-50/20">
               <div className="p-4 bg-emerald-500 rounded-2xl text-white shadow-lg shadow-emerald-100 group-hover:scale-110 transition-transform">
                  <DollarSign className="w-6 h-6" />
               </div>
               <div>
                  <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-1">Pendiente por Recaudar</p>
                  <h3 className="text-2xl font-black text-gray-900 leading-none tracking-tighter">{formatCurrency(stats.totalPendiente)}</h3>
+                 <p className="text-[10px] font-bold text-emerald-700 mt-1">Ver detalle en Cuentas por cobrar →</p>
               </div>
-           </div>
+           </Link>
         </div>
 
         {/* NEW: KPI QUICK VIEW (Imagen 5 Request) */}
@@ -2540,12 +2522,9 @@ export default function DashboardPage() {
           {filtroSede === 'Todas' && isAdmin && (
             <div className="absolute top-6 right-6 z-10">
               <button 
-                onClick={() => {
-                  setEditGlobalMetaInput(globalMetaVal.toString());
-                  setIsEditGlobalMetaOpen(true);
-                }}
+                onClick={() => router.push('/admin/metas')}
                 className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                title="Editar Meta Global"
+                title="Configurar metas en Metas y Ventas"
               >
                 <MoreVertical className="w-5 h-5 text-gray-400" />
               </button>
@@ -2567,19 +2546,17 @@ export default function DashboardPage() {
                <h3 className="text-3xl font-black text-gray-900 leading-none tracking-tighter">
                  {formatCurrency(salesStats.recaudado)}
                </h3>
-               {filtroSede === 'Todas' && (
-                 <p className="text-xs text-gray-400 font-bold mt-1">
-                   Meta: {formatCurrency(salesStats.goal)}
-                 </p>
-               )}
+               <p className="text-xs text-gray-400 font-bold mt-1">
+                 Vendido: {formatCurrency(salesStats.vendido)} · Meta: {formatCurrency(salesStats.goal)}
+               </p>
              </div>
           </div>
 
           {/* Barra de Progreso Dinámica (Solo Global) */}
-          {filtroSede === 'Todas' && (
+          {salesStats.goal > 0 && (
             <div className="mt-4">
                {(() => {
-                 const pct = Math.min(100, Math.round((salesStats.recaudado / salesStats.goal) * 100));
+                 const pct = Math.min(100, Math.round((salesStats.vendido / salesStats.goal) * 1000) / 10);
                  let colorClass = "bg-red-500";
                  if (pct > 50 && pct <= 99) colorClass = "bg-yellow-500";
                  if (pct >= 100) colorClass = "bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.5)]";
@@ -2587,7 +2564,7 @@ export default function DashboardPage() {
                  return (
                    <div className="relative">
                      <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1">
-                       <span>Progreso de Meta</span>
+                       <span>Progreso de Meta (vendido del mes, igual que Metas y Ventas)</span>
                        <span className={pct >= 100 ? 'text-green-500 font-black' : ''}>{pct}%</span>
                      </div>
                      <div className="h-4 bg-gray-100 rounded-full overflow-hidden relative">
