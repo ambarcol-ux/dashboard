@@ -63,7 +63,7 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
  async function copy(reschedule=false){const link=reschedule?`${window.location.origin}/reprogramar-primera-cita`:`${window.location.origin}/agendar-primera-cita${site?'?sede='+encodeURIComponent(site):''}`;try{await navigator.clipboard.writeText(link);setNotice('Enlace copiado. Puedes compartirlo con tus clientes.');}catch{setNotice(`Enlace para compartir: ${link}`);}}
  async function remove(){if(!selected||busy.current||!window.confirm(`¿Eliminar definitivamente la cita de ${selected.cliente_nombre} (${selected.fecha} · ${selected.hora.slice(0,5)})? No se puede deshacer.`))return;busy.current=true;setSaving(true);setError('');try{const {data:session}=await supabase.auth.getSession();const r=await fetch('/api/primeras-citas/gestionar',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.session?.access_token||''}`},body:JSON.stringify({accion:'eliminar',id:selected.id,motivo:deleteReason,version:selected.updated_at})});const d=await r.json();if(!r.ok)throw Error(d.error||'No se pudo eliminar la cita.');setSelected(null);setNotice('Cita eliminada.');await load();}catch(e){setError(e instanceof Error?e.message:'No se pudo eliminar.');}finally{busy.current=false;setSaving(false);}}
  const yesNo=(b:boolean|null|undefined)=>b===true?'si':b===false?'no':'';
- function open(v:FirstVisit){const a=visitAttendance(v);setDeleteReason('');setSelected(v);setResult(v.estado==='confirmada'?'cancelada':'confirmada');setReason('');setNote('');setError('');
+ function open(v:FirstVisit){const a=visitAttendance(v);setDeleteReason('');setSelected(v);setResult('confirmada');setReason('');setNote('');setError('');
   setAttended(a==='asistio'?'si':a==='no_asistio'?'no':'');setNoShow('');setEventDate(v.fecha_evento||'');setRented(a==='asistio'?yesNo(visitRented(v)):'');setFollowup(v.posible_seguimiento===false?'no':'');}
  async function saveResult(e:React.FormEvent){e.preventDefault();if(!selected||busy.current)return;
   if(!attended){setError('Elige si asistió o no asistió.');return;}
@@ -122,10 +122,10 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
   <div className={styles.actions}><button className={styles.primary} disabled={saving}>{saving?'Guardando…':'Guardar resultado'}</button></div>
  </fieldset></form>}
  {!walk&&!cancelled&&a!=='asistio'&&<form onSubmit={save} className={styles.form}><fieldset disabled={saving}>
-  <h4>Reserva</h4>
-  <label>Acción<select value={result} onChange={e=>setResult(e.target.value)}>{selected.estado!=='confirmada'&&<option value="confirmada">Confirmar la cita</option>}<option value="cancelada">Cancelar la cita</option></select></label>
-  {result==='cancelada'&&<label>Motivo de la cancelación<textarea maxLength={1000} required minLength={5} value={reason} onChange={e=>setReason(e.target.value)}/></label>}
-  <div className={styles.actions}><button disabled={saving}>{result==='cancelada'?'Cancelar la cita':'Confirmar la cita'}</button></div>
+  {result!=='cancelada'?<div className={styles.actions}><button type="button" className={styles.danger} onClick={()=>setResult('cancelada')}>Cancelar cita</button></div>:<>
+  <h4>Cancelar cita</h4>
+  <label>Motivo de la cancelación<textarea maxLength={1000} required minLength={5} value={reason} onChange={e=>setReason(e.target.value)}/></label>
+  <div className={styles.actions}><button disabled={saving}>Confirmar cancelación</button><button type="button" disabled={saving} onClick={()=>setResult('confirmada')}>Volver</button></div></>}
  </fieldset></form>}
  {cancelled&&<p className={styles.notice}>Esta cita está cancelada.</p>}
  {error&&<p role="alert" className={styles.error}>{error}</p>}
