@@ -82,6 +82,9 @@ export async function POST(request:Request){
   const numbers=await get(`${cfg.waba_id}/phone_numbers?fields=id`);
   if(!numbers.ok)return fail('El token no tiene acceso a esa cuenta de WhatsApp Business.');
   if(!((numbers.d.data as {id:string}[])||[]).some(n=>n.id===cfg.phone_number_id))return fail('Ese número no pertenece a esa cuenta de WhatsApp Business.');
+  // Delivery statuses and button replies reach the ERP only if the account is subscribed to the token's app (idempotent).
+  const sub=await fetch(`https://graph.facebook.com/${version}/${cfg.waba_id}/subscribed_apps`,{method:'POST',headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(15000)}).then(r=>r.ok).catch(()=>false);
+  if(!sub)return fail('No se pudo suscribir la app a esa cuenta de WhatsApp Business (las respuestas no llegarían al ERP).');
   const templates=await get(`${cfg.waba_id}/message_templates?fields=name,status,language&limit=200`);
   if(!templates.ok)return fail('No se pudieron leer las plantillas de la cuenta.');
   const approved=new Set(((templates.d.data as {name:string;status:string}[])||[]).filter(t=>t.status==='APPROVED').map(t=>t.name));
