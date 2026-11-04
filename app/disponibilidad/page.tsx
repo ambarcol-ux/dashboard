@@ -26,8 +26,11 @@ import { es } from 'date-fns/locale';
 import { isWithinInterval, startOfDay, endOfDay, format, subDays, parseISO } from 'date-fns';
 import { generateBlockedRanges, isCurrentlyOccupied, ContractBlock } from '@/lib/availability';
 import { can, usePermissions } from '@/lib/use-permissions';
+import DressThumb from '@/components/DressThumb';
 
-const DRESS_FIELDS='id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sede_principal_id, clasificacion_id, precio_sugerido';
+const DRESS_FIELDS='id, codigo, nombre, categoria, talla, color, estado, sede_actual_id, sede_principal_id, clasificacion_id, precio_sugerido, foto_frente, foto_espalda, foto_detalle, imagen_url';
+/** Dress photos (front first), for the card and the result list; tap to see them full screen. */
+const dressPhotos=(d:{foto_frente?:string|null;foto_espalda?:string|null;foto_detalle?:string|null;imagen_url?:string|null})=>[d.foto_frente||d.imagen_url,d.foto_espalda,d.foto_detalle].filter((u):u is string=>!!u);
 
 /** Adds the store names (where the dress belongs and where it is now) and its classification, so similar references can be told apart. */
 async function withDressDetails<T extends {sede_actual_id?:string|null;sede_principal_id?:string|null;clasificacion_id?:string|null}>(rows:T[]){
@@ -419,9 +422,9 @@ export default function AvailabilityPage() {
                     className="flex items-center justify-between p-6 bg-gray-50 border border-gray-100 rounded-3xl hover:bg-rose-50 hover:border-rose-100 transition-all group"
                    >
                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center font-black text-gray-900 border border-gray-100 group-hover:bg-rose-500 group-hover:text-white transition-colors">
+                        {dressPhotos(d)[0] ? <DressThumb src={dressPhotos(d)[0]} alt={`Ref. ${d.codigo?.trim()}`} title={`Ref. ${d.codigo?.trim()}`} zoom className="w-12 h-16 rounded-xl object-cover border border-gray-100 shrink-0" /> : <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center font-black text-gray-900 border border-gray-100 group-hover:bg-rose-500 group-hover:text-white transition-colors">
                           {d.codigo?.trim().substring(0,2)}
-                        </div>
+                        </div>}
                         <div className="text-left min-w-0">
                           <p className="font-black text-gray-900 uppercase">Ref. {d.codigo?.trim()}</p>
                           <p className="text-sm font-bold text-gray-700 uppercase break-words">{d.nombre?.trim() || 'Sin nombre en inventario'}</p>
@@ -449,11 +452,14 @@ export default function AvailabilityPage() {
                   : 'bg-emerald-500 border-emerald-600 text-white'
               }`}>
                 <div className="flex items-center gap-6">
-                  <div className={`w-20 h-20 rounded-[1.5rem] flex items-center justify-center font-black text-3xl shadow-inner ${
+                  {dressPhotos(dress).length ? <div className="flex flex-col items-center gap-2 shrink-0">
+                    <DressThumb src={dressPhotos(dress)[0]} alt={`Ref. ${dress.codigo?.trim()}`} title={`Ref. ${dress.codigo?.trim()}`} zoom className="w-28 h-36 rounded-2xl object-cover border-4 border-white/40 shadow-lg bg-white" />
+                    {dressPhotos(dress).length > 1 && <div className="flex gap-1">{dressPhotos(dress).slice(1).map((u, i) => <DressThumb key={u} src={u} alt={`Ref. ${dress.codigo?.trim()} foto ${i + 2}`} title={`Ref. ${dress.codigo?.trim()}`} zoom className="w-10 h-12 rounded-lg object-cover border-2 border-white/40 bg-white" />)}</div>}
+                  </div> : <div className={`w-20 h-20 rounded-[1.5rem] flex items-center justify-center font-black text-3xl shadow-inner ${
                     unavailableNow ? 'bg-rose-700 text-rose-100' : 'bg-emerald-600 text-emerald-50'
                   }`}>
                      {dress.codigo?.trim().substring(0, 2)}
-                  </div>
+                  </div>}
                   <div>
                     <h2 className="text-4xl font-black tracking-tight">Ref. {dress.codigo?.trim()}</h2>
                     <p className="text-lg font-black uppercase mt-1">{dress.nombre?.trim() || 'Sin nombre en inventario'}</p>
