@@ -5,7 +5,7 @@ import {supabase} from '@/lib/supabase';
 import {useCobrosUrgentes} from '@/components/CobrosAlert';
 
 type Server={caja_abonos:number;caja_sin_cerrar:number;caja_diferencias:number;pagos_sin_soporte:number;traslados_por_aprobar:number;prestamos_vencidos:number;
- mantenimiento_demorado:number;agenda_hoy:number;agenda_manana:number;ventas_sin_factura:number;incoherentes:{numero:string;sede:string|null;problema:string}[]};
+ mantenimiento_demorado:number;agenda_hoy:number;estrene_riesgo:number;proveedores_por_pagar:number;agenda_manana:number;ventas_sin_factura:number;incoherentes:{numero:string;sede:string|null;problema:string}[]};
 type Tile={key:string;label:string;count:number;color:string;panel:string;href?:string;onClick?:()=>void;active?:boolean};
 
 /** Inicio: one strip with every pending item, each with its own color; tap to go to the module. Only items with something pending show. */
@@ -46,6 +46,8 @@ export default function DashboardAlerts({canSee,pendingDeposits,entregas,borrado
   {key:'tra',label:'Traslados por aprobar',count:d?.traslados_por_aprobar||0,color:'bg-indigo-50 border-indigo-200 text-indigo-700',panel:'traslados',href:'/dashboard/traslados'},
   {key:'pre',label:'Préstamos de vestido vencidos',count:d?.prestamos_vencidos||0,color:'bg-purple-50 border-purple-200 text-purple-700',panel:'traslados',href:'/dashboard/traslados'},
   {key:'man7',label:'Mantenimiento demorado (+7 días)',count:d?.mantenimiento_demorado||0,color:'bg-blue-50 border-blue-200 text-blue-700',panel:'inventory',href:'/admin/inventory'},
+  {key:'est',label:'Pedidos de estrene en riesgo (no alcanzan)',count:d?.estrene_riesgo||0,color:'bg-red-100 border-red-300 text-red-800',panel:'pedidos_estrene',href:'/dashboard/pedidos-estrene'},
+  {key:'prov',label:'Servicios de proveedores por pagar',count:d?.proveedores_por_pagar||0,color:'bg-gray-50 border-gray-300 text-gray-700',panel:'proveedores-pagos',href:'/dashboard/proveedores/pagos'},
   {key:'ven',label:'Ventas de vestido sin factura',count:d?.ventas_sin_factura||0,color:'bg-pink-50 border-pink-200 text-pink-700',panel:'inventory',href:'/admin/inventory'},
   {key:'inc',label:'Contratos con datos por revisar',count:d?.incoherentes.length||0,color:'bg-slate-50 border-slate-300 text-slate-700',panel:'cobros',onClick:()=>setVer(v=>!v),active:ver},
  ].filter(t=>t.count>0&&canSee(t.panel));
