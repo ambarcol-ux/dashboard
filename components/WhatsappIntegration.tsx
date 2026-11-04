@@ -48,6 +48,12 @@ const connect=async()=>{
    },{config_id:coex.config_id,response_type:'code',override_default_response_type:true,extras:{setup:{},featureType:'whatsapp_business_app_onboarding',sessionInfoVersion:'3'}});
   }catch(e){setBusy('');toast.error(e instanceof Error?e.message:'No se pudo abrir Meta.');}
  };
+ // Copy the ERP templates to another WhatsApp Business account (number change).
+ const [copia,setCopia]=useState({origen:'1276534877505186',destino:''}),[copiaRes,setCopiaRes]=useState<{plantilla:string;estado:string}[]|null>(null);
+ const copyTemplates=async()=>{setBusy('copiar');setCopiaRes(null);try{const {data}=await supabase.auth.getSession();
+  const r=await fetch('/api/integraciones/whatsapp',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${data.session?.access_token||''}`},body:JSON.stringify({accion:'copiar_plantillas',origen:copia.origen.trim(),destino:copia.destino.trim()})});
+  const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudieron copiar.');setCopiaRes(d.resultado||[]);
+  toast.success(d.sin_origen?.length?`Listo. No estaban aprobadas en el origen: ${d.sin_origen.join(', ')}.`:'Plantillas enviadas a la cuenta de destino.');}catch(e){toast.error(e instanceof Error?e.message:'No se pudieron copiar.');}setBusy('');};
  const input='w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm';
  const field=(k:keyof typeof f,label:string,ph?:string)=><label className="text-sm font-bold text-gray-700">{label}<input className={input} value={f[k]} placeholder={ph} onChange={e=>setF({...f,[k]:e.target.value})}/></label>;
  const anteriores=Array.isArray(row?.config?.anteriores)?(row!.config.anteriores as string[]):[];
@@ -76,6 +82,15 @@ const connect=async()=>{
     <label className="text-sm font-bold text-gray-700">Número a conectar<input className={input} value={coex.numero} onChange={e=>setCoex({...coex,numero:e.target.value})}/></label>
    </div>
    <button type="button" disabled={!!busy} onClick={()=>void connect()} className="mt-3 px-4 py-2.5 rounded-xl bg-[#1877f2] text-white text-sm font-black disabled:opacity-40">{busy==='conectar'?'Conectando…':'Conectar con Meta'}</button>
+  </details>
+  <details className="border border-gray-200 bg-gray-50/50 rounded-2xl p-4"><summary className="cursor-pointer font-black text-sm">Copiar plantillas a otra cuenta de WhatsApp Business</summary>
+   <p className="text-sm text-gray-600 mt-2">Si el nuevo número está en otra cuenta, copia ahí las plantillas que usa el ERP (mismo nombre, idioma y texto). Meta las revisa de nuevo; las que ya existan no se tocan.</p>
+   <div className="grid md:grid-cols-2 gap-3 mt-3">
+    <label className="text-sm font-bold text-gray-700">ID de la cuenta de origen<input className={input} value={copia.origen} onChange={e=>setCopia({...copia,origen:e.target.value})}/></label>
+    <label className="text-sm font-bold text-gray-700">ID de la cuenta de destino<input className={input} value={copia.destino} placeholder="Solo números" onChange={e=>setCopia({...copia,destino:e.target.value})}/></label>
+   </div>
+   <button type="button" disabled={!!busy||!copia.destino.trim()} onClick={()=>void copyTemplates()} className="mt-3 px-4 py-2.5 rounded-xl bg-gray-900 text-white text-sm font-black disabled:opacity-40">{busy==='copiar'?'Copiando…':'Copiar plantillas'}</button>
+   {copiaRes&&<ul className="mt-3 text-sm space-y-1">{copiaRes.length?copiaRes.map(r=><li key={r.plantilla}><b>{r.plantilla}:</b> {r.estado}</li>):<li>No había plantillas aprobadas para copiar.</li>}</ul>}
   </details>
   {row&&<dl className="grid sm:grid-cols-2 gap-3 text-sm">
    <div className="bg-gray-50 rounded-xl p-3"><dt className="text-xs font-bold text-gray-500">Última prueba</dt><dd className="font-bold">{when(row.probado_at)}</dd>{row.ultimo_error&&<dd className={`text-xs mt-1 ${row.estado==='error'?'text-rose-600':'text-amber-700'}`}>{row.ultimo_error}</dd>}</div>
