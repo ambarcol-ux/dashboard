@@ -67,7 +67,12 @@ export default function InventoryPage() {
   useEffect(() => { if (!user?.id) return; void supabase.rpc('sedes_inventario_editables').then(({ data }) => setSedesEditables(Array.isArray(data) ? data.map(String) : [])); }, [user?.id]);
   const canEditInv = sedesEditables.length > 0;
   // Sede-limited roles (e.g. store leader) only see their own sedes in this list; dresses stay visible across sedes elsewhere (availability).
-  const misSedes = sedesEditables.length > 0 && sedes.length > 0 && sedesEditables.length < sedes.length ? sedes.filter(s => sedesEditables.includes(String(s.id))) : null;
+  // Roles with «Todas las sedes» on «Ver Gestión de inventario» see every site, but only edit their own.
+  const [verTodasSedes, setVerTodasSedes] = useState(false);
+  useEffect(() => { if (!user?.id) return; void supabase.rpc('mi_permiso_todas_sedes', { p_permiso: 'panel.inventory' }).then(({ data }) => setVerTodasSedes(data === true)); }, [user?.id]);
+  const misSedes = !verTodasSedes && sedesEditables.length > 0 && sedes.length > 0 && sedesEditables.length < sedes.length ? sedes.filter(s => sedesEditables.includes(String(s.id))) : null;
+  /** Dresses of other sites are view only for users limited to their sites. */
+  const soloVer = (id: unknown) => { const v = vestidos.find(x => String(x.id) === String(id)); if (sedesEditables.length > 0 && !canEditDress(v)) { toast.error(`${v?.codigo || 'Este vestido'} es de otra sede: solo puedes verlo.`); return true; } return false; };
   const canEditDress = (v: { sede_actual_id?: unknown } | null | undefined) => !!v && sedesEditables.includes(String(v.sede_actual_id));
   const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal ('none' = sin sede)
   const [novedadFilter, setNovedadFilter] = useState<string>('');
@@ -185,6 +190,7 @@ export default function InventoryPage() {
   };
 
   const handleDeBajaVestido = async (id: number, codigo: string) => {
+    if (soloVer(id)) return;
     const motivo = confirm(`¿Dar de BAJA el vestido ${codigo} por DAÑO? OK para DAÑO, Cancelar para VENTA.`);
     if (!motivo) {
       // Sale: registered with its invoice data and cash income (only dresses marked «Venta»).
@@ -282,6 +288,7 @@ export default function InventoryPage() {
   };
 
   const handleEditChange = (id: number, field: string, value: any) => {
+    if (soloVer(id)) return;
     setEditState(prev => ({
       ...prev,
       [id]: { 
@@ -292,6 +299,7 @@ export default function InventoryPage() {
   };
 
   const handleSaveVestido = async (id: number) => {
+    if (soloVer(id)) return;
     const changes = editState[id];
     if (!changes) return;
 
@@ -322,6 +330,7 @@ export default function InventoryPage() {
 
   // A dress whose sede no longer exists gets its sede assigned directly (state unchanged, logged); otherwise it is a transfer.
   const changeSede = async (v: { id: number; codigo: string; sede_actual_id: string | null }, newSedeId: string) => {
+    if (soloVer(v.id)) return;
     if (!newSedeId || sedes.some(s => s.id === v.sede_actual_id)) return handleTransfer(v, newSedeId);
     setUpdatingId(v.id);
     try {
@@ -394,9 +403,10 @@ export default function InventoryPage() {
     }
   };
 
-  const handleDeleteVestido = (id: string, codigo: string) => setRemovalTarget({ id, codigo });
+  const handleDeleteVestido = (id: string, codigo: string) => { if (!soloVer(id)) setRemovalTarget({ id, codigo }); };
 
   const handleRestoreVestido = async (id: string, codigo: string) => {
+    if (soloVer(id)) return;
     setUpdatingId(id);
     const { error } = await supabase.rpc('restaurar_vestido', { p_id: id });
     setUpdatingId(null);
@@ -423,6 +433,7 @@ export default function InventoryPage() {
 
   const confirmRollback = async () => {
     if (!rollbackDress) return;
+    if (soloVer(rollbackDress.id)) return;
     setRollbackLoading(true);
     try {
       const { error } = await supabase
