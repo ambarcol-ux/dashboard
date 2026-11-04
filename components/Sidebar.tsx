@@ -4,6 +4,7 @@ import { usePermissions } from '@/lib/use-permissions';
 import React, { useState } from 'react';
 import Link from 'next/link';
 import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
+import CobrosAlert from '@/components/CobrosAlert';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
 import {
   FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight
@@ -13,7 +14,7 @@ interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros';
 }
 
 export default function Sidebar({ user, handleLogout, activePage, pendingDeposits }: SidebarProps) {
@@ -93,6 +94,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       title: 'FINANZAS Y CONTABILIDAD',
       adminOnly: false,
       items: [
+        { id: 'cobros', label: 'CUENTAS POR COBRAR', icon: HandCoins, href: '/dashboard/cuentas-por-cobrar', color: 'amber' },
         { id: 'caja', label: 'CIERRES DE CAJA', icon: Wallet, href: '/dashboard/caja', color: 'emerald' },
         { id: 'depositos', label: 'DEPÓSITOS Y DEVOLUCIONES', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
         { id: 'proveedores-pagos', label: 'PAGOS A PROVEEDORES', icon: Banknote, href: '/dashboard/proveedores/pagos', color: 'violet', adminOnly: true },
@@ -131,7 +133,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
     'INVENTARIO': ['MANTENIMIENTO Y ARREGLOS', 'TOMA FÍSICA'],
     'OPERACIONES Y LOGÍSTICA': ['ENTREGAS Y DEVOLUCIONES', 'ADAPTACIONES Y CONFECCIÓN'],
     'COMPRAS Y PROVEEDORES': ['ÓRDENES DE COMPRA'],
-    'FINANZAS Y CONTABILIDAD': ['CUENTAS POR COBRAR', 'GASTOS Y PRESUPUESTO', 'CONCILIACIÓN BANCARIA', 'CONCILIACIÓN CON SIIGO'],
+    'FINANZAS Y CONTABILIDAD': ['GASTOS Y PRESUPUESTO', 'CONCILIACIÓN BANCARIA', 'CONCILIACIÓN CON SIIGO'],
     'RECURSOS HUMANOS': ['NÓMINA', 'CONTRATOS LABORALES', 'VACACIONES E INCAPACIDADES'],
     'REPORTES E INDICADORES': ['ESTADO DE RESULTADOS POR SEDE', 'RENTABILIDAD POR VESTIDO', 'TABLEROS POR MÓDULO'],
   };
@@ -170,6 +172,7 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
 
       <nav className="flex-1 p-4 space-y-6 overflow-y-auto overflow-x-hidden custom-scrollbar pb-10">
         <DepositAlert count={depositCount}/>
+        {canSee('cobros') && <CobrosAlert/>}
         {blocksWithSoon.map((block, blockIndex) => {
           if (!block.items.some(item => !item.disabled && canSee(item.panel || item.id))) return null;
           const open = isBlockOpen(block);
