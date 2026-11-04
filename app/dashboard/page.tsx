@@ -12,7 +12,8 @@ import { generateBlockedRanges, rangesOverlap } from '@/lib/availability';
 import { saveCalendarContract } from '@/lib/save-calendar-contract';
 import { hasPrexv, includedPrexv, prexvPending, prexvSummary, prexvFields, type PrexvData } from '@/lib/prexv';
 import { dateInput } from '@/lib/calendar-edit';
-import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
+import {useDepositCount} from '@/components/DepositAlert';
+import DashboardAlerts from '@/components/DashboardAlerts';
 
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -68,7 +69,6 @@ import {
 import Link from 'next/link';
 import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
 import Sidebar from '@/components/Sidebar';
-import FollowupSummary from '@/components/FollowupSummary';
 import ContractSuppliers from '@/components/suppliers/ContractSuppliers';
 import { panelAccess } from '@/lib/panel-access';
 
@@ -2401,8 +2401,9 @@ export default function DashboardPage() {
       <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-8">
         
-        {String(user?.rol || '').toLowerCase() === 'admin' && <DepositAlert count={pendingDeposits}/>}
-        {user && <FollowupSummary mode="panel" />}
+        {user && <DashboardAlerts canSee={id => panelAccess(id, user || {}, null, userPermissions)} pendingDeposits={pendingDeposits}
+          entregas={alerts.entregasOmitidasCount} borradores={alerts.borradoresVencidosCount} prexv={summary?.prexvIncomplete ?? 0}
+          filtroAlerta={filtroAlerta} onAlerta={f => setFiltroAlerta(f as typeof filtroAlerta)} onPrexv={() => setFiltroTipoEvento('PREXV')} />}
         {contractsError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">{contractsError}</div>}
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-rose-100">
@@ -2580,47 +2581,11 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* ALERTAS DE CONTROL OPERATIVO */}
-        {(alerts.entregasOmitidasCount > 0 || alerts.borradoresVencidosCount > 0) && (
-          <div className="flex flex-wrap gap-4 p-4 bg-white rounded-2xl border border-rose-100 shadow-sm animate-in fade-in duration-500">
-            <span className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center mr-2 self-center">
-              ⚠️ Alertas de Control:
-            </span>
-            
-            {alerts.entregasOmitidasCount > 0 && (
-              <button
-                onClick={() => setFiltroAlerta(filtroAlerta === 'entregas_omitidas' ? 'ninguna' : 'entregas_omitidas')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 border uppercase tracking-tighter ${
-                  filtroAlerta === 'entregas_omitidas'
-                    ? 'bg-rose-600 border-rose-700 text-white shadow-md shadow-rose-200 animate-pulse'
-                    : 'bg-rose-50 border-rose-100 text-rose-600 hover:bg-rose-100'
-                }`}
-              >
-                ⚠️ {alerts.entregasOmitidasCount} Entregas pendientes por registrar (fechas vencidas)
-              </button>
-            )}
-
-            {alerts.borradoresVencidosCount > 0 && (
-              <button
-                onClick={() => setFiltroAlerta(filtroAlerta === 'borradores_sin_firmar' ? 'ninguna' : 'borradores_sin_firmar')}
-                className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 border uppercase tracking-tighter ${
-                  filtroAlerta === 'borradores_sin_firmar'
-                    ? 'bg-amber-500 border-amber-600 text-white shadow-md shadow-amber-100 animate-pulse'
-                    : 'bg-amber-50 border-amber-100 text-amber-600 hover:bg-amber-100'
-                }`}
-              >
-                📝 {alerts.borradoresVencidosCount} Contratos en borrador pendientes por firmar
-              </button>
-            )}
-
-            {filtroAlerta !== 'ninguna' && (
-              <button
-                onClick={() => setFiltroAlerta('ninguna')}
-                className="ml-auto px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 bg-gray-50 border border-gray-200 rounded-xl transition-all"
-              >
-                Mostrar Todos
-              </button>
-            )}
+        {filtroAlerta !== 'ninguna' && (
+          <div className="flex justify-end">
+            <button onClick={() => setFiltroAlerta('ninguna')} className="px-3 py-2 text-xs font-bold text-gray-500 hover:text-gray-700 bg-gray-50 border border-gray-200 rounded-xl transition-all">
+              Quitar filtro de alerta · Mostrar todos
+            </button>
           </div>
         )}
 
@@ -2747,7 +2712,7 @@ export default function DashboardPage() {
             </div>
           
           <div className="overflow-x-visible pb-32">
-            <OutsideDressAlerts />
+            <div id="vestidos-fuera"><OutsideDressAlerts /></div>
             
             <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-gray-100" aria-label="Paginación de contratos">
               <span className="text-sm text-gray-500" aria-live="polite">
