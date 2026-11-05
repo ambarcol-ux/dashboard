@@ -11,6 +11,7 @@ export type ContractExtras = {
   servicios_contrato?: { nombre: string; valor: number }[];
   retablo_valor?: number | null;
   metodos_pago_lista?: string[];
+  medio_deposito?: string | null;
 };
 /** Embeds to add to a contratos select so the extras travel with the contract. */
 export const CONTRACT_EXTRAS_SELECT = 'servicios_contrato:contrato_servicios(servicio,descripcion,valor_cliente,estado),retablos_contrato:retablos(valor_cliente,estado)';
@@ -31,5 +32,6 @@ export function contractExtras(c: Row): ContractExtras {
     servicios_contrato: servicios,
     retablo_valor: retablo ? n(retablo.valor_cliente) : c.lleva_retablo ? 0 : null,
     metodos_pago_lista: metodos,
+    medio_deposito: (c.medio_deposito as string) || null,
   };
 }

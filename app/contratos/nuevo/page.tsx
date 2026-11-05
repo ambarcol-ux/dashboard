@@ -32,6 +32,8 @@ import { useFieldRequired } from '@/lib/module-config';
 import { PROMO_FIELDS, promoApplies, promoBenefit, promoDiscount, type Promotion } from '@/lib/promotions';
 
 const MONEY_FIELDS = ['valor_total', 'servicios_adicionales', 'anticipo', 'valor_deposito'];
+// Deposit returned in cash at the store (instead of a bank account or key).
+const DEVOLUCION_EFECTIVO = 'Efectivo';
 const NUMERIC_DOCS = ['CC', 'TI', 'NIT'];
 // Accessories come from Configuración › Listas (lista 'accesorios'); saved as "Nombre: cantidad".
 const ACCESORIO_ALIAS: Record<string, string> = { 'Aro/Gitana': 'Cancán / Aro', 'Cancán': 'Cancán / Aro' };
@@ -130,6 +132,7 @@ export default function NuevoContratoPage() {
     // Depósito
     valor_deposito: '',
     deposito_banco: '',
+    deposito_medio: '',
     deposito_tipo_cuenta: '',
     deposito_numero: '',
     deposito_titular: '',
@@ -433,6 +436,7 @@ export default function NuevoContratoPage() {
           anticipo: contract.anticipo == null ? '' : String(contract.anticipo),
           valor_deposito: contract.valor_deposito == null ? '' : String(contract.valor_deposito),
           deposito_banco: contract.banco_deposito || '',
+          deposito_medio: contract.medio_deposito || '',
           deposito_tipo_cuenta: contract.tipo_cuenta_deposito || '',
           deposito_numero: contract.numero_cuenta_deposito || '',
           deposito_titular: contract.titular_cuenta_deposito || '',
@@ -1198,6 +1202,7 @@ export default function NuevoContratoPage() {
 
         // Garantías/Depósitos
       banco_deposito: formData.deposito_banco || null,
+        medio_deposito: formData.deposito_medio || null,
         tipo_cuenta_deposito: formData.deposito_tipo_cuenta || null,
         numero_cuenta_deposito: formData.deposito_numero || null,
         titular_cuenta_deposito: formData.deposito_titular || null,
@@ -1343,6 +1348,7 @@ export default function NuevoContratoPage() {
       total_arreglos: totalArreglos,
       ...allyModePayload(aliadoModo, descuentoAliado),
       banco_deposito: formData.deposito_banco || null,
+        medio_deposito: formData.deposito_medio || null,
       tipo_cuenta_deposito: formData.deposito_tipo_cuenta || null,
       numero_cuenta_deposito: formData.deposito_numero || null,
       titular_cuenta_deposito: formData.deposito_titular || null,
@@ -1441,7 +1447,9 @@ export default function NuevoContratoPage() {
     // Autorización de datos (una vez por persona): obligatoria la de tratamiento en contratos nuevos.
     if (!isEditMode && dataAuthState?.estado !== 'autorizada' && !dataAuth.tratamiento) { toast.error('Marca la autorización de tratamiento de datos de la clienta (obligatoria).'); return; }
     if (!isEditMode && commercialPending(dataAuth, dataAuthState)) { toast.error(COMMERCIAL_REQUIRED); return; }
-    if (!isEditMode && cuentaObligatoria && Number(formData.valor_deposito || 0) > 0 && (!formData.deposito_banco || !formData.deposito_tipo_cuenta || !formData.deposito_numero.trim() || !formData.deposito_titular.trim())) { toast.error('Completa la cuenta o llave para devolver el depósito: banco, tipo, número y titular.'); return; }
+    if (!isEditMode && Number(formData.valor_deposito || 0) > 0 && !formData.deposito_medio) { toast.error('Elige cómo pagó la clienta el depósito: efectivo, transferencia, tarjeta u otro.'); return; }
+    // «Efectivo» = the deposit is returned in cash at the store: no bank account is needed.
+    if (!isEditMode && cuentaObligatoria && formData.deposito_banco !== DEVOLUCION_EFECTIVO && Number(formData.valor_deposito || 0) > 0 && (!formData.deposito_banco || !formData.deposito_tipo_cuenta || !formData.deposito_numero.trim() || !formData.deposito_titular.trim())) { toast.error('Completa la cuenta o llave para devolver el depósito: banco, tipo, número y titular.'); return; }
     const llaveInvalida = formData.deposito_numero.trim() ? keyError(formData.deposito_tipo_cuenta, formData.deposito_numero) : null;
     if (llaveInvalida) { toast.error(llaveInvalida); return; }
     if (!isEditMode && abonoConSoporte > 0) {
@@ -1588,6 +1596,7 @@ export default function NuevoContratoPage() {
 
         // Garantías/Depósitos
         banco_deposito: formData.deposito_banco || null,
+        medio_deposito: formData.deposito_medio || null,
         tipo_cuenta_deposito: formData.deposito_tipo_cuenta || null,
         numero_cuenta_deposito: formData.deposito_numero || null,
         titular_cuenta_deposito: formData.deposito_titular || null,
@@ -2381,7 +2390,21 @@ export default function NuevoContratoPage() {
                     )}
                     <p className="text-sm text-emerald-700">Registra el depósito recibido. No se suma al alquiler ni al abono. Adjunta su comprobante en Depósitos y devoluciones, sin registrar nuevamente el ingreso.</p>
                   </div>
-                  {(['banco', 'tipo_cuenta'] as const).map(lista => {
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-gray-700">¿Cómo pagó el depósito?{Number(formData.valor_deposito || 0) > 0 && !isEditMode ? ' *' : ''}</label>
+                    <select value={formData.deposito_medio} onChange={e => setFormData(prev => ({ ...prev, deposito_medio: e.target.value }))} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-medium">
+                      <option value="">Selecciona…</option>
+                      {['Efectivo', 'Transferencia', 'Tarjeta', 'Otro'].map(m => <option key={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-semibold text-gray-700">¿Cómo se devuelve?</label>
+                    <select value={formData.deposito_banco === DEVOLUCION_EFECTIVO ? 'efectivo' : 'cuenta'} onChange={e => setFormData(prev => ({ ...prev, deposito_banco: e.target.value === 'efectivo' ? DEVOLUCION_EFECTIVO : '', deposito_tipo_cuenta: e.target.value === 'efectivo' ? '' : prev.deposito_tipo_cuenta, deposito_numero: e.target.value === 'efectivo' ? '' : prev.deposito_numero }))} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-medium">
+                      <option value="cuenta">A una cuenta o llave</option>
+                      <option value="efectivo">En efectivo en la tienda</option>
+                    </select>
+                  </div>
+                  {formData.deposito_banco !== DEVOLUCION_EFECTIVO && (['banco', 'tipo_cuenta'] as const).map(lista => {
                     const field = lista === 'banco' ? 'deposito_banco' : 'deposito_tipo_cuenta';
                     const opciones = [...listas[lista], ...(formData[field] && !listas[lista].includes(formData[field]) ? [formData[field]] : [])];
                     return (
@@ -2396,7 +2419,7 @@ export default function NuevoContratoPage() {
                       </div>
                     );
                   })}
-                  {renderTextInput(accountLabel(formData.deposito_tipo_cuenta, "N° Cuenta"), "deposito_numero", null, "text", false, "bg-white")}
+                  {formData.deposito_banco !== DEVOLUCION_EFECTIVO && renderTextInput(accountLabel(formData.deposito_tipo_cuenta, "N° Cuenta"), "deposito_numero", null, "text", false, "bg-white")}
                   <div className="space-y-1">
                     <label className="text-sm font-semibold text-gray-700">Tipo de documento del titular</label>
                     <select value={formData.tipo_documento_titular} onChange={e => setFormData(prev => ({ ...prev, tipo_documento_titular: e.target.value, documento_titular: NUMERIC_DOCS.includes(e.target.value) ? onlyDigits(prev.documento_titular) : prev.documento_titular }))} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-medium focus:ring-2 focus:ring-rose-300">
