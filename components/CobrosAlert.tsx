@@ -5,7 +5,7 @@ import {supabase} from '@/lib/supabase';
 import {COBRO_EXCLUIDOS,COBRO_FIELDS,hoyBogota,porCobrar,plazoCobro,urgente,type Cobro} from '@/lib/cobros';
 
 /** Menu reminder: contracts of the user's sites delivered within 7 days (or overdue) that still owe money. Refreshes every 5 minutes. */
-export function useCobrosUrgentes(enabled=true){
+export function useCobrosUrgentes(enabled=true,sedeId:string|null=null){
  const [n,setN]=useState<{total:number;tres:number}|null>(null);
  useEffect(()=>{
   let live=true;
@@ -15,13 +15,13 @@ export function useCobrosUrgentes(enabled=true){
    const {data,error}=await supabase.from('contratos').select(COBRO_FIELDS).not('estado','in',`(${COBRO_EXCLUIDOS.join(',')})`)
     .or(`fecha_entrega_envio.lte.${limite},and(fecha_entrega_envio.is.null,fecha_evento.lte.${limite})`).limit(1000);
    if(!live||error)return;
-   const rows=((data||[]) as Cobro[]).filter(c=>urgente(c,hoy)&&porCobrar(c)>0);
+   const rows=((data||[]) as Cobro[]).filter(c=>(!sedeId||c.sede_id===sedeId)&&urgente(c,hoy)&&porCobrar(c)>0);
    setN({total:rows.length,tres:rows.filter(c=>plazoCobro(c,hoy)!=='siete').length});
   };
   if(!enabled)return;
   void load();const t=setInterval(()=>void load(),300000);
   return()=>{live=false;clearInterval(t);};
- },[enabled]);
+ },[enabled,sedeId]);
  return n;
 }
 

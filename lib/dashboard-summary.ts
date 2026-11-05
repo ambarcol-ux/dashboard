@@ -24,7 +24,11 @@ export function filterDashboardContracts(contratos: Row[], sedes: Row[], filters
       result = result.filter(c => hasPrexv(c));
     }
 
-    // Apply administrative alert filters and return immediately — must mirror badge logic exactly.
+    // Apply administrative alert filters and return immediately — must mirror badge logic exactly
+    // (the badges count only the selected sede, so the alert list is limited to it too).
+    if (filtroAlerta !== 'ninguna' && filtroSede !== 'Todas') {
+      result = result.filter(c => filtroSede === 'unassigned' ? !c.sede_id || !sedes.some(s => s.id === c.sede_id) : c.sede_id === filtroSede);
+    }
     if (filtroAlerta === 'entregas_omitidas') {
       const todayStr = new Date(now).toISOString().split('T')[0];
       const ESTADOS_EXCLUIDOS_ENTREGA = [
@@ -182,7 +186,7 @@ export function summarizeDashboard(contratos: Row[], sedes: Row[], filters: Dash
       'mantenimiento', 'entregado', 'evento',
       'liquidado', 'historial'
     ];
-    const entregasOmitidasCount = contratos.filter(c => {
+    const entregasOmitidasCount = branchContracts.filter(c => {
       if (!c.fecha_entrega_envio) return false;
       const estadoContrato = c.estado?.toLowerCase() || '';
       if (ESTADOS_EXCLUIDOS_ENTREGA.includes(estadoContrato)) return false;
@@ -195,7 +199,7 @@ export function summarizeDashboard(contratos: Row[], sedes: Row[], filters: Dash
     }).length;
 
     // FIX 2: Borradores — ALL drafts older than 48 h, no balance restriction whatsoever.
-    const borradoresVencidosCount = contratos.filter(c => {
+    const borradoresVencidosCount = branchContracts.filter(c => {
       const estadoLower = c.estado?.toLowerCase();
       return (estadoLower === 'borrador' || estadoLower === 'draft') && new Date(c.created_at) < fortyEightHoursAgo;
     }).length;
@@ -212,8 +216,8 @@ export function summarizeDashboard(contratos: Row[], sedes: Row[], filters: Dash
    totalPendiente: totalPorCobrar(branchContracts as Cobro[]),
    monthCount: branchContracts.filter(c => {const t=Date.parse(c.created_at); return t>=filters.monthStart && t<filters.monthEnd;}).length,
    pendingInvoices: contratos.filter(c => !c.numero_factura && Date.parse(c.created_at)<filters.dayStart).length,
-   prexvCount: contratos.filter(hasPrexv).length,
-   prexvIncomplete: contratos.filter(c => hasPrexv(c) && !['cancelado','rechazado','finalizado'].includes(c.estado?.toLowerCase()) && prexvPending(c).length>0).length,
+   prexvCount: branchContracts.filter(hasPrexv).length,
+   prexvIncomplete: branchContracts.filter(c => hasPrexv(c) && !['cancelado','rechazado','finalizado'].includes(c.estado?.toLowerCase()) && prexvPending(c).length>0).length,
    hasUnassigned: contratos.some(c => !c.sede_id || !sedes.some(s => s.id===c.sede_id)),
  }};
 }
