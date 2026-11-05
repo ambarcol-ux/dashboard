@@ -32,7 +32,9 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
  const [tab,setTab]=useState<'citas'|'seguimientos'>('citas'),[segRows,setSegRows]=useState<FirstVisit[]>([]),[segInfo,setSegInfo]=useState<Record<string,SegInfo>>({}),[names,setNames]=useState<Record<string,string>>({});
  const [pick,setPick]=useState<string[]>([]),[targets,setTargets]=useState<{id:string;nombre:string}[]>([]),[target,setTarget]=useState(''),[segReload,setSegReload]=useState(0);
  // Opened from an alert: ?tab=seguimientos&estado=pendientes shows only what is due today or overdue.
- useEffect(()=>{const p=new URLSearchParams(window.location.search);if(p.get('tab')==='seguimientos')setTab('seguimientos');const e=p.get('estado');if(e)setFEstado(e);},[]);
+ useEffect(()=>{const p=new URLSearchParams(window.location.search);if(p.get('tab')==='seguimientos')setTab('seguimientos');const e=p.get('estado');if(e)setFEstado(e);
+  // ?dia=YYYY-MM-DD: citas of that day only (from the «Primeras citas de hoy» alert).
+  const dia=p.get('dia');if(dia&&/^\d{4}-\d{2}-\d{2}$/.test(dia)){setCustomFrom(dia);setCustomTo(dia);}},[]);
  const [fSede,setFSede]=useState(''),[fTipo,setFTipo]=useState(''),[fEstado,setFEstado]=useState(''),[fAsesora,setFAsesora]=useState(''),[fBuscar,setFBuscar]=useState('');
  const [rows,setRows]=useState<FirstVisit[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
  // Next follow-up and last registration of each listed visit.

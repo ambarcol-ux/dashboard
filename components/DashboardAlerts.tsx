@@ -6,11 +6,11 @@ import {useCobrosUrgentes} from '@/components/CobrosAlert';
 import {hoyBogota} from '@/lib/cobros';
 
 type Server={caja_abonos:number;caja_sin_cerrar:number;caja_diferencias:number;pagos_sin_soporte:number;traslados_por_aprobar:number;prestamos_vencidos:number;
- mantenimiento_demorado:number;agenda_hoy:number;estrene_riesgo:number;proveedores_por_pagar:number;agenda_manana:number;ventas_sin_factura:number;incoherentes:{numero:string;sede:string|null;problema:string}[]};
+ mantenimiento_demorado:number;agenda_hoy:number;citas_hoy:number;estrene_riesgo:number;proveedores_por_pagar:number;agenda_manana:number;ventas_sin_factura:number;incoherentes:{numero:string;sede:string|null;problema:string}[]};
 type Tile={key:string;label:string;count:number;color:string;panel:string;href?:string;onClick?:()=>void;active?:boolean};
 
 /** Inicio: one strip with every pending item, each with its own color; tap to go to the module. Only items with something pending show. */
-export default function DashboardAlerts({canSee,pendingDeposits,entregas,borradores,prexv,filtroAlerta,onAlerta,onPrexv,sedeId=null,sedeNombre=null}:{
+export default function DashboardAlerts({canSee,pendingDeposits,entregas,borradores,prexv,filtroAlerta,onAlerta,sedeId=null,sedeNombre=null}:{
  sedeId?:string|null;sedeNombre?:string|null;
  canSee:(panel:string)=>boolean;pendingDeposits:number|null;entregas:number;borradores:number;prexv:number;
  filtroAlerta:string;onAlerta:(f:string)=>void;onPrexv:()=>void}){
@@ -42,19 +42,20 @@ export default function DashboardAlerts({canSee,pendingDeposits,entregas,borrado
   {key:'dep',label:'Depósitos por devolver',count:(sedeId?depSede:pendingDeposits)||0,color:'bg-rose-50 border-rose-200 text-rose-700',panel:'depositos',href:'/dashboard/devoluciones-depositos#pendientes'},
   {key:'cob',label:cobros?.tres?`Saldos por cobrar (7 días) · ${cobros.tres} urgentes`:'Saldos por cobrar (7 días)',count:cobros?.total||0,color:'bg-amber-50 border-amber-200 text-amber-800',panel:'cobros',href:'/dashboard/cuentas-por-cobrar'},
   {key:'seg',label:`Seguimientos · ${seg?.hoy||0} hoy · ${seg?.vencidos||0} vencidos`,count:(seg?.hoy||0)+(seg?.vencidos||0),color:'bg-yellow-50 border-yellow-300 text-yellow-800',panel:'primeras-citas',href:'/dashboard/primeras-citas?tab=seguimientos&estado=pendientes'},
-  {key:'hoy',label:'Agenda de hoy (citas, pruebas, entregas)',count:d?.agenda_hoy||0,color:'bg-sky-50 border-sky-200 text-sky-800',panel:'calendario',href:`/dashboard/calendario?dia=${hoy}`},
+  {key:'cit',label:'Primeras citas de hoy',count:d?.citas_hoy||0,color:'bg-amber-100 border-amber-300 text-amber-900',panel:'primeras-citas',href:`/dashboard/primeras-citas?dia=${hoy}`},
+  {key:'hoy',label:'Agenda de hoy (medidas, pruebas, entregas)',count:d?.agenda_hoy||0,color:'bg-sky-50 border-sky-200 text-sky-800',panel:'calendario',href:`/dashboard/calendario?dia=${hoy}`},
   {key:'man',label:'Agenda de mañana',count:d?.agenda_manana||0,color:'bg-cyan-50 border-cyan-200 text-cyan-800',panel:'calendario',href:`/dashboard/calendario?dia=${manana}`},
   {key:'ent',label:'Entregas sin registrar (fecha pasada)',count:entregas,color:'bg-red-50 border-red-200 text-red-700',panel:'dashboard',onClick:()=>toggle('entregas_omitidas'),active:filtroAlerta==='entregas_omitidas'},
   {key:'bor',label:'Borradores sin firmar (+48 h)',count:borradores,color:'bg-orange-50 border-orange-200 text-orange-700',panel:'dashboard',onClick:()=>toggle('borradores_sin_firmar'),active:filtroAlerta==='borradores_sin_firmar'},
   {key:'fue',label:'Vestidos fuera de tienda en alerta',count:fuera,color:'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700',panel:'dashboard',href:'#vestidos-fuera'},
-  {key:'pxv',label:'Pre-XV incompletos',count:prexv,color:'bg-violet-50 border-violet-200 text-violet-700',panel:'dashboard',onClick:()=>{onPrexv();verLista();}},
+  {key:'pxv',label:'Pre-XV incompletos',count:prexv,color:'bg-violet-50 border-violet-200 text-violet-700',panel:'dashboard',onClick:()=>toggle('prexv_incompletos'),active:filtroAlerta==='prexv_incompletos'},
   {key:'abo',label:'Abonos sin pasar a caja',count:d?.caja_abonos||0,color:'bg-emerald-50 border-emerald-200 text-emerald-800',panel:'caja',href:'/dashboard/caja?ver=abonos'},
   {key:'cie',label:'Días de caja sin cerrar',count:d?.caja_sin_cerrar||0,color:'bg-teal-50 border-teal-200 text-teal-800',panel:'caja',href:'/dashboard/caja?ver=sedes'},
   {key:'dif',label:'Cierres con diferencia (30 días)',count:d?.caja_diferencias||0,color:'bg-lime-50 border-lime-300 text-lime-800',panel:'caja',href:'/dashboard/caja?ver=sedes'},
   {key:'sop',label:'Abonos sin soporte (30 días)',count:d?.pagos_sin_soporte||0,color:'bg-stone-50 border-stone-300 text-stone-700',panel:'caja',href:'/dashboard/caja'},
   {key:'tra',label:'Traslados por aprobar',count:d?.traslados_por_aprobar||0,color:'bg-indigo-50 border-indigo-200 text-indigo-700',panel:'traslados',href:'/dashboard/traslados'},
   {key:'pre',label:'Préstamos de vestido vencidos',count:d?.prestamos_vencidos||0,color:'bg-purple-50 border-purple-200 text-purple-700',panel:'traslados',href:'/dashboard/traslados'},
-  {key:'man7',label:'Mantenimiento demorado (+7 días)',count:d?.mantenimiento_demorado||0,color:'bg-blue-50 border-blue-200 text-blue-700',panel:'inventory',href:'/admin/inventory?vista=estado'},
+  {key:'man7',label:'Mantenimiento demorado (+7 días)',count:d?.mantenimiento_demorado||0,color:'bg-blue-50 border-blue-200 text-blue-700',panel:'inventory',href:'/admin/inventory?vista=demorados'},
   {key:'est',label:'Pedidos de estrene en riesgo (no alcanzan)',count:d?.estrene_riesgo||0,color:'bg-red-100 border-red-300 text-red-800',panel:'pedidos_estrene',href:'/dashboard/pedidos-estrene'},
   {key:'prov',label:'Servicios de proveedores por pagar',count:d?.proveedores_por_pagar||0,color:'bg-gray-50 border-gray-300 text-gray-700',panel:'proveedores-pagos',href:'/dashboard/proveedores/pagos'},
   {key:'ven',label:'Ventas de vestido sin factura',count:d?.ventas_sin_factura||0,color:'bg-pink-50 border-pink-200 text-pink-700',panel:'dashboard',href:'/dashboard/ventas'},
