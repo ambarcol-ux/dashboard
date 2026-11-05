@@ -1,8 +1,9 @@
 import { includedPrexv, type PrexvData } from '@/lib/prexv';
+import type { ContractExtras } from '@/lib/contract-extras';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 
-export interface ContractData extends PrexvData {
+interface ContractDataBase extends PrexvData {
   numero_contrato: string;
   numero_factura?: string | null;
   sede: string;
@@ -44,6 +45,11 @@ export interface ContractData extends PrexvData {
   bloqueo_especial_fecha?: string | null;
   fechas_bloqueo_especial?: string[] | null;
 }
+// Document type, deposit, discounts, services, retablo and payment methods also go in the signed contract.
+export type ContractData = ContractDataBase & ContractExtras;
+const DOC_NOMBRE: Record<string, string> = { CC: 'cédula de ciudadanía', TI: 'tarjeta de identidad', CE: 'cédula de extranjería', PA: 'pasaporte', PP: 'pasaporte', PPT: 'permiso por protección temporal', NIT: 'NIT' };
+const docNombre = (t?: string | null) => DOC_NOMBRE[String(t || 'CC').toUpperCase()] || String(t);
+const docSigla = (t?: string | null) => String(t || 'CC').toUpperCase();
 
 interface ContractTemplateProps {
   data: ContractData;
@@ -178,8 +184,8 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
         <p className="mb-6 text-base md:text-lg">
           Entre los suscritos, de una parte, <strong>AMBAR COUTURE</strong>, sociedad legalmente constituida,
           con domicilio en Villavicencio, Meta, Colombia, de aquí en adelante llamada <strong>EL PRESTADOR/ARRENDADOR</strong>,
-          y de la otra, <strong>{data.cliente_nombre.toUpperCase()}</strong>, identificado(a) con cédula
-          de ciudadanía No. <strong>{data.cliente_documento}</strong>, con domicilio en <strong>{data.cliente_direccion}</strong>,
+          y de la otra, <strong>{data.cliente_nombre.toUpperCase()}</strong>, identificado(a) con
+          {docNombre(data.tipo_documento_cliente)} No. <strong>{data.cliente_documento}</strong>, con domicilio en <strong>{data.cliente_direccion}</strong>,
           de aquí en adelante llamado(a) <strong>EL CONTRATANTE/ARRENDATARIO</strong>, hemos acordado celebrar este contrato mixto.
           Este se regirá por las siguientes cláusulas y, en lo que no esté aquí previsto, por lo que dice el Código Civil Colombiano sobre
           el arriendo de cosas muebles y las normas generales de los contratos:
@@ -283,9 +289,30 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
                 <strong className="text-gray-900 font-bold">Modificaciones Aprobadas:</strong> {data.arreglos.map((a: any) => `${a.tipo || '—'} (${a.cm ? a.cm + 'cm' : '—'} → $${a.precio || 0})`).join(' | ')}
               </div>
             )}
-            {(data.banco_deposito || data.numero_cuenta_deposito) && (
-              <div className="col-span-2 mt-2 text-xs italic text-gray-600 font-medium border-t border-gray-200 pt-1">
-                * Depósito de garantía asociado a {data.banco_deposito || '—'} {data.tipo_cuenta_deposito || '—'} {data.numero_cuenta_deposito || '—'} ({data.titular_cuenta_deposito || '—'}).
+            {((data.descuento_promocion || 0) > 0 || (data.descuento_aliado || 0) > 0) && (
+              <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-gray-400 text-xs text-gray-800">
+                <strong className="text-gray-900 font-bold">Descuentos aplicados (ya incluidos en el valor):</strong>{' '}
+                {[(data.descuento_promocion || 0) > 0 ? `Promoción ${formatCurrency(data.descuento_promocion || 0)}` : null, (data.descuento_aliado || 0) > 0 ? `Aliado ${formatCurrency(data.descuento_aliado || 0)}` : null].filter(Boolean).join(' | ')}
+              </div>
+            )}
+            {((data.servicios_contrato && data.servicios_contrato.length > 0) || data.retablo_valor != null) && (
+              <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-gray-400 text-xs text-gray-800">
+                <strong className="text-gray-900 font-bold">Servicios adicionales:</strong>{' '}
+                {[...(data.servicios_contrato || []).map(s => `${s.nombre} ${formatCurrency(s.valor)}`), data.retablo_valor != null ? `Retablo ${data.retablo_valor ? formatCurrency(data.retablo_valor) : ''}`.trim() : null].filter(Boolean).join(' | ')}
+              </div>
+            )}
+            {data.metodos_pago_lista && data.metodos_pago_lista.length > 0 && (
+              <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-gray-400 text-xs text-gray-800">
+                <strong className="text-gray-900 font-bold">Medio de pago del abono:</strong> {data.metodos_pago_lista.join(', ')}
+              </div>
+            )}
+            {((data.valor_deposito || 0) > 0 || data.banco_deposito || data.numero_cuenta_deposito) && (
+              <div className="col-span-2 mt-3 p-3 border border-gray-400 rounded text-xs text-gray-800">
+                <strong className="text-gray-900 font-bold uppercase">Depósito de garantía</strong><br />
+                <strong>Valor recibido:</strong> {formatCurrency(data.valor_deposito || 0)} (no hace parte del valor del alquiler ni del abono).<br />
+                <strong>Cuenta o llave para la devolución:</strong> {data.banco_deposito || '—'} · {data.tipo_cuenta_deposito || '—'} · {data.numero_cuenta_deposito || '—'}<br />
+                <strong>Titular:</strong> {data.titular_cuenta_deposito || '—'}{data.documento_titular ? ` · ${docSigla(data.tipo_documento_titular)} ${data.documento_titular}` : ''}<br />
+                La devolución se programa dentro de las 72 horas siguientes a la devolución del vestido, previa inspección; de ella se descuentan los daños o la mora según las cláusulas de este contrato.
               </div>
             )}
           </div>
@@ -307,7 +334,7 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
             </div>
             <div>
               <span className="font-semibold block text-gray-700">Documento de Identidad:</span>
-              <span className="text-gray-900">{data.cliente_documento || '—'}</span>
+              <span className="text-gray-900">{docSigla(data.tipo_documento_cliente)} {data.cliente_documento || '—'}</span>
             </div>
             <div>
               <span className="font-semibold block text-gray-700">Celular / WhatsApp:</span>
@@ -389,7 +416,7 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
             <div className="border-t-2 border-black pt-2">
               <p className="font-extrabold text-sm uppercase leading-none mb-1">FIRMA DEL CONTRATANTE</p>
               <p className="font-bold text-sm uppercase tracking-tight">{data.cliente_nombre}</p>
-              <p className="text-xs">C.C. {data.cliente_documento}</p>
+              <p className="text-xs">{docSigla(data.tipo_documento_cliente)} {data.cliente_documento}</p>
             </div>
           </div>
         </div>

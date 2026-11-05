@@ -68,6 +68,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
+import { CONTRACT_EXTRAS_SELECT, contractExtras } from '@/lib/contract-extras';
 import Sidebar from '@/components/Sidebar';
 import ContractSuppliers from '@/components/suppliers/ContractSuppliers';
 import { panelAccess } from '@/lib/panel-access';
@@ -310,7 +311,10 @@ export default function DashboardPage() {
     let signature;
     try { signature = await loadContractSignature(supabase, contrato.id); }
     catch { toast.error('No se pudo cargar la firma. Reintenta generar el PDF.'); setPdfGeneratingId(null); return; }
+    // Deposit, discounts, services and retablo also go in the PDF.
+    const { data: extra } = await supabase.from('contratos').select(`tipo_documento_cliente,valor_deposito,tipo_documento_titular,documento_titular,descuento_promocion,descuento_aliado,lleva_retablo,metodos_pago,${CONTRACT_EXTRAS_SELECT}`).eq('id', contrato.id).maybeSingle();
     const mappedData: ContractData = {
+      ...contractExtras({ ...contrato, ...(extra || {}) }),
       numero_contrato: contrato.numero_contrato,
       numero_factura: numeroFactura,
       sede: contrato.sede,

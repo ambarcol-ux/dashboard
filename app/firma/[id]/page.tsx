@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { requireInvoice, INVOICE_REQUIRED_MESSAGE } from '@/lib/invoice-validation';
 import ContractTemplate, { ContractData } from '@/components/ContractTemplate';
+import { contractExtras } from '@/lib/contract-extras';
 import SignatureCanvas from 'react-signature-canvas';
 import { Toaster, toast } from 'sonner';
 import { Loader2, Eraser, PenTool, CheckCircle, AlertCircle } from 'lucide-react';
@@ -45,6 +46,7 @@ export default function FirmaPage() {
 
   const mapToContractData = (dbData: any): ContractData => {
     return {
+      ...contractExtras(dbData),
       numero_contrato: dbData.numero_contrato,
       numero_factura: dbData.numero_factura,
       sede: dbData.sede,

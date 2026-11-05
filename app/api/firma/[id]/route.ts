@@ -1,7 +1,8 @@
 import {publicServerClient,publicReply,readJson,UUID_RE,validSignature} from '@/lib/public-db';
 import {INVOICE_REQUIRED_MESSAGE} from '@/lib/invoice-validation';
+import {CONTRACT_EXTRAS_SELECT} from '@/lib/contract-extras';
 export const dynamic='force-dynamic';
-const CONTRACT=`*, quinceanera_name, arreglos(*), vestidos:contrato_items_vestidos(*, vestido:vestidos(*))`;
+const CONTRACT=`*, quinceanera_name, arreglos(*), vestidos:contrato_items_vestidos(*, vestido:vestidos(*)), ${CONTRACT_EXTRAS_SELECT}`;
 
 // The signing link carries the contract id; the browser no longer reads or writes contracts directly.
 export async function GET(_request:Request,{params}:{params:Promise<{id:string}>}){
