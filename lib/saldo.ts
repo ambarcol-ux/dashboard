@@ -11,6 +11,13 @@ export function saldoContrato(c:SaldoInput){
 
 /** What the client still owes: contract balance plus penalties (a penalty is paid as an abono, so it may leave the balance negative). */
 export const porPagarContrato=(c:SaldoInput)=>Math.round((saldoContrato(c)+n(c.total_multas))*100)/100;
+/** Names what is owed by its name: «multa», «saldo» or both (balance and penalty given apart). */
+export function pendienteTexto(saldo:unknown,multas:unknown){
+ const total=n(saldo)+n(multas),multa=Math.min(n(multas),Math.max(0,total)),resto=Math.max(0,total-multa);
+ const cop=(v:number)=>`$${v.toLocaleString('es-CO')}`;
+ if(multa>0&&resto>0)return `saldo de ${cop(resto)} y MULTA de ${cop(multa)}`;
+ return multa>0?`MULTA pendiente de ${cop(multa)}`:`saldo pendiente de ${cop(resto)}`;
+}
 /** Registrar Abono is blocked only when there is nothing left to pay (balance and penalties). */
 export const puedeAbonar=(c:SaldoInput)=>porPagarContrato(c)>0;
 /** Registrar Entrega is allowed only when the balance is paid. */

@@ -3,6 +3,7 @@ import {useEffect,useRef,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 import {money,depositSummary,type DepositReturn,type DepositContract} from '@/lib/deposits';
 import {closingAmounts} from '@/lib/finalize-deposit';
+import {pendienteTexto} from '@/lib/saldo';
 import {collectPages} from '@/lib/collect-pages';
 import styles from '@/app/dashboard/devoluciones-depositos/deposits.module.css';
 export default function FinalizeContractDialog({contract,onClose,onSaved}:{contract:{id:string;numero_contrato:string};onClose:()=>void;onSaved:()=>void}) {
@@ -19,7 +20,7 @@ export default function FinalizeContractDialog({contract,onClose,onSaved}:{contr
    ]);
    if(c.error||requests.error)throw new Error('No se pudo consultar el depósito. Cierra y vuelve a intentar.');
    if(!c.data||c.data.estado?.toLowerCase()!=='mantenimiento')throw new Error('Actualiza el contrato: debe estar en mantenimiento.');
-   if(Number(c.data.saldo||0)+Number(c.data.total_multas||0)>0)throw new Error('El contrato tiene saldo pendiente y no puede finalizarse.');
+   if(Number(c.data.saldo||0)+Number(c.data.total_multas||0)>0)throw new Error(`El contrato tiene ${pendienteTexto(c.data.saldo,c.data.total_multas)} y no puede finalizarse.`);
    const available=depositSummary(c.data as unknown as DepositContract,returns).available;
    if(available<0)throw new Error('Revisa el saldo del depósito antes de finalizar.');
    if(live)setPreview({available,request:requests.data?.[0]??null});
