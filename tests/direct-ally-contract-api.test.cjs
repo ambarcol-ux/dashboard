@@ -21,13 +21,13 @@ const firma='data:image/png;base64,AAAA';
  state={ally:{id,nombre_completo:'Laura Méndez',cedula:'1121845230',celular:'3105550123',correo:'l@x.co',direccion:'Calle 38',estado:'pendiente_firma',sedes:{nombre:'Villavicencio'}},signed:null,config};
  let r=await api.POST(req({token,accion:'ver'}));let d=await r.json();assert.equal(d.directo,true);assert.equal(d.aliado.cedula,'1121845230');
  assert.equal((await api.POST(req({token,accion:'firmar',firma,acepta:true,acepta_datos:false}))).status,400);
- r=await api.POST(req({token,accion:'firmar',firma,acepta:true,acepta_datos:true,datos:{nombre:'Otro nombre'}}));d=await r.json();
+ r=await api.POST(req({token,accion:'firmar',firma,acepta:true,acepta_datos:true,comercial:true,datos:{nombre:'Otro nombre'}}));d=await r.json();
  assert.equal(r.status,200);assert.equal(state.signed.datos.nombre,'Laura Méndez','profile comes from the ERP, not the browser');
  assert.match(state.signed.hash,/^[0-9a-f]{64}$/);assert(JSON.stringify(state.signed.texto).includes('Ley 1581'));assert.equal(state.updated.estado,'pendiente','after signing the ally waits for approval');assert(state.pdf.path.endsWith('.pdf'));assert.match(state.pie,/Laura Méndez/);assert.equal(JSON.stringify(sent.map(x=>x.adjuntos)),'[1,0]','PDF to the ally, notice to administration');assert.equal(d.codigo.length,12);
  r=await api.POST(req({token,accion:'ver'}));d=await r.json();assert.equal(d.firmado,true);
  // With an uploaded Word agreement, its text (fields filled) is what the ally signs.
  state={ally:{...state.ally,estado:'pendiente_firma',tipos_aliado:{nombre:'Fotógrafos'}},signed:null,config:null,acuerdo:{version:2,secciones:[{titulo:'Partes',parrafos:['Aliado {nombre}, C.C. {cédula}, {tipo}']}]}};
  d=await (await api.POST(req({token,accion:'ver'}))).json();assert.equal(d.acuerdo[0].parrafos[0],'Aliado Laura Méndez, C.C. 1121845230, Fotógrafos');
- r=await api.POST(req({token,accion:'firmar',firma,acepta:true,acepta_datos:true}));assert.equal(r.status,200);assert.equal(state.signed.version,'Word v2');assert(JSON.stringify(state.signed.texto).includes('Ley 1581'));
+ r=await api.POST(req({token,accion:'firmar',firma,acepta:true,acepta_datos:true,comercial:true}));assert.equal(r.status,200);assert.equal(state.signed.version,'Word v2');assert(JSON.stringify(state.signed.texto).includes('Ley 1581'));
  console.log('PASS: direct ally signs once (profile from ERP, Ley 1581 authorization, hash) waits for approval with the signed PDF');
 })().catch(e=>{console.error(e);process.exitCode=1});

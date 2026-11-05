@@ -10,7 +10,9 @@ assert.throws(()=>allyRegistration({marca:'Marca',contacto:'Ana',telefono:'abc',
 assert.throws(()=>allyRegistration({marca:'!!!',contacto:'Ana',telefono:'3001234567',correo:'a@x.co',aceptaTerminos:true}));
 assert.equal(allySlug('--Hola  Mundo--'),'hola-mundo');
 // VIP pass request
-assert.equal(vipPassRequest({nombre:'Sofía',telefono:'3001234567',correo:'s@x.co',fechaEvento:'2027-01-10'},'2026-10-14').fecha,'2027-01-10');
+assert.equal(vipPassRequest({nombre:'Sofía',telefono:'3001234567',correo:'s@x.co',fechaEvento:'2027-01-10',consentimiento:true,comercial:false},'2026-10-14').fecha,'2027-01-10');
+assert.throws(()=>vipPassRequest({nombre:'Sofía',telefono:'3001234567',correo:'s@x.co',fechaEvento:'2027-01-10'},'2026-10-14'),/autorización/);
+assert.throws(()=>vipPassRequest({nombre:'Sofía',telefono:'3001234567',correo:'s@x.co',fechaEvento:'2027-01-10',consentimiento:true},'2026-10-14'),/comercial/);
 assert.throws(()=>vipPassRequest({nombre:'Sofía',telefono:'3001234567',correo:'s@x.co',fechaEvento:'2026-01-10'},'2026-10-14'));
 assert.throws(()=>vipPassRequest({nombre:'S',telefono:'3001234567',correo:'s@x.co',fechaEvento:'2027-01-10'},'2026-10-14'));
 // signatures and ids

@@ -10,6 +10,7 @@ interface Referidor {
   nombre_aliado: string;
   slug_unico: string;
   estado?: string;
+  textos?: { tratamiento: string | null; comercial: string | null };
 }
 
 export default function RecomendarPage() {
@@ -23,6 +24,9 @@ export default function RecomendarPage() {
   const [telefono, setTelefono] = useState('');
   const [correo, setCorreo] = useState('');
   const [fechaEvento, setFechaEvento] = useState('');
+  // Data authorization: processing required, commercial «Sí/No» required (same as citas and contratos).
+  const [consentimiento, setConsentimiento] = useState(false);
+  const [comercial, setComercial] = useState<boolean | null>(null);
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [codigoGenerado, setCodigoGenerado] = useState<string | null>(null);
@@ -57,6 +61,8 @@ export default function RecomendarPage() {
       toast.error('Por favor, completa todos los campos.');
       return;
     }
+    if (!consentimiento) { toast.error('Marca la autorización de tratamiento de datos para continuar.'); return; }
+    if (comercial === null) { toast.error('Elige si autorizas o no recibir información comercial.'); return; }
 
     setIsSubmitting(true);
 
@@ -64,7 +70,7 @@ export default function RecomendarPage() {
       const response = await fetch(`/api/aliados/${encodeURIComponent(String(slug))}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: nombre.trim(), telefono: telefono.trim(), correo: correo.trim(), fechaEvento })
+        body: JSON.stringify({ nombre: nombre.trim(), telefono: telefono.trim(), correo: correo.trim(), fechaEvento, consentimiento, comercial })
       });
       const result = await response.json();
       if (!response.ok) {
@@ -265,8 +271,18 @@ export default function RecomendarPage() {
             />
           </div>
 
-          <button 
-            type="submit" 
+          <div className="space-y-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-600">
+            {referidor?.textos?.tratamiento && <p>{referidor.textos.tratamiento}</p>}
+            <label className="flex gap-2 items-start"><input type="checkbox" className="mt-0.5" checked={consentimiento} onChange={(e) => setConsentimiento(e.target.checked)} />Autorizo el tratamiento de mis datos personales (obligatorio).</label>
+            {referidor?.textos?.comercial && <p>{referidor.textos.comercial}</p>}
+            <div role="radiogroup" aria-label="Información comercial" className="flex flex-wrap gap-4"><span className="font-bold">Información comercial y publicidad (obligatorio elegir):</span>
+              <label className="flex gap-2 items-center"><input type="radio" name="comercial" checked={comercial === true} onChange={() => setComercial(true)} />Sí autorizo</label>
+              <label className="flex gap-2 items-center"><input type="radio" name="comercial" checked={comercial === false} onChange={() => setComercial(false)} />No autorizo</label>
+            </div>
+          </div>
+
+          <button
+            type="submit"
             disabled={isSubmitting}
             className="w-full mt-4 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-amber-950 rounded-xl py-4 font-black tracking-wide text-sm flex items-center justify-center gap-2 transition-all disabled:opacity-70 shadow-xl shadow-amber-500/20"
           >
