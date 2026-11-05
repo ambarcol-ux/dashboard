@@ -2141,7 +2141,14 @@ export default function DashboardPage() {
         const est = p.contratos?.estado?.toLowerCase() || '';
         return !['cancelado', 'borrador', 'anulado', 'rechazado'].includes(est);
       });
-      setPagosMesActual(validPagos);
+      // Cash sales of dresses also count as collected (same rule as Metas y Ventas).
+      const { data: ventasMes } = await supabase
+        .from('ventas_vestidos')
+        .select('total, sede_id')
+        .eq('estado', 'registrada')
+        .gte('fecha', firstDay)
+        .lte('fecha', lastDay);
+      setPagosMesActual([...validPagos, ...(ventasMes || []).map((v: any) => ({ valor_pagado: v.total, contratos: { sede_id: v.sede_id } }))]);
     } catch (err) {
       console.error(err);
     }
