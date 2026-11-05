@@ -2,6 +2,7 @@ import {randomInt} from 'node:crypto';
 import {publicServerClient,publicReply,readJson} from '@/lib/public-db';
 import {vipPassRequest} from '@/lib/ally-validation';
 import {sendAllyEmail,vipPassEmail} from '@/lib/ally-emails';
+import {loadAuthTexts,registerAuthorization} from '@/lib/data-authorization';
 export const dynamic='force-dynamic';
 const SLUG_RE=/^[a-z0-9-]{2,140}$/;
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).format(new Date());
@@ -17,7 +18,7 @@ async function findAlly(slug:string){
 export async function GET(_request:Request,{params}:{params:Promise<{slug:string}>}){
  const {slug}=await params;
  if(!SLUG_RE.test(slug))return publicReply({error:'Enlace inválido.'},404);
- try{const ally=await findAlly(slug);if(!ally)return publicReply({error:'Aliado no encontrado.'},404);return publicReply({nombre_aliado:ally.nombre_aliado,slug_unico:ally.slug_unico,estado:ally.estado});}
+ try{const ally=await findAlly(slug);if(!ally)return publicReply({error:'Aliado no encontrado.'},404);const t=await loadAuthTexts(publicServerClient()).catch(()=>null);return publicReply({nombre_aliado:ally.nombre_aliado,slug_unico:ally.slug_unico,estado:ally.estado,textos:{tratamiento:t?.tratamiento?.texto||null,comercial:t?.comercial?.texto||null}});}
  catch{return publicReply({error:'El servicio no está disponible.'},503);}
 }
 
@@ -33,7 +34,8 @@ export async function POST(request:Request,{params}:{params:Promise<{slug:string
   for(let attempt=0;attempt<4;attempt++){
    const code=newCode();
    const {error}=await db.from('codigos_descuento').insert({codigo_seguridad:code,referidor_id:ally.id,nombre_quinceanera:pass.nombre,telefono_quinceanera:pass.telefono,correo_quinceanera:pass.correo,fecha_evento:pass.fecha,usado:false});
-   if(!error){await sendAllyEmail(pass.correo,vipPassEmail(pass.nombre,code,ally.nombre_aliado));return publicReply({codigo:code});}
+   if(!error){try{await registerAuthorization(db,{telefono:pass.telefono,nombre:pass.nombre,email:pass.correo,origen:'referido',tratamiento:true,comercial:pass.comercial,pendiente:false});}catch(e){console.error('Autorización de datos no registrada:',e);}
+    await sendAllyEmail(pass.correo,vipPassEmail(pass.nombre,code,ally.nombre_aliado));return publicReply({codigo:code});}
    if(error.code!=='23505')return publicReply({error:'Ocurrió un error inesperado al procesar tu invitación. Intenta nuevamente.'},400);
   }
   return publicReply({error:'Hubo un problema de colisión, intenta de nuevo.'},409);

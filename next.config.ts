@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
       // Commission model retired: its screens go back to the Panel.
       { source: '/dashboard/admin/escalas', destination: '/dashboard', permanent: false },
       { source: '/dashboard/admin/liquidaciones', destination: '/dashboard', permanent: false },
+      // Old ally sign-up form (no data authorization): replaced by Vinculación de aliados, which asks both authorizations.
+      { source: '/unete', destination: '/aliados/vincular', permanent: false },
     ];
   },
 };

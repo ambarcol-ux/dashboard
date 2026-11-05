@@ -1,4 +1,5 @@
 import {publicServerClient,publicReply,readJson,validSignature} from '@/lib/public-db';
+import {registerAuthorization} from '@/lib/data-authorization';
 import {agreementText,finishAllySigning,loadAgreement} from '@/lib/ally-signing';
 import {ALLY_CONTRACT_VERSION,CONFIG_FIELDS,allyContractText,allyProfile,missingConfig,verifyAllyContractToken,type AllyContractConfig,type AllyProfile} from '@/lib/ally-contract';
 export const dynamic='force-dynamic';
@@ -30,12 +31,14 @@ export async function POST(request:Request){
   try{profile=allyProfile((body.datos||{}) as Record<string,unknown>);}catch(e){return publicReply({error:e instanceof Error?e.message:'Revisa tus datos.'},400);}
   if(!validSignature(body.firma))return publicReply({error:'Dibuja tu firma en el recuadro.'},400);
   if(body.acepta!==true)return publicReply({error:'Debes aceptar el contrato para firmarlo.'},400);
+  if(body.acepta_datos!==true||typeof body.comercial!=='boolean')return publicReply({error:'Marca la autorización de tratamiento de datos y elige si autorizas información comercial.'},400);
   const now=new Date(),texto=allyContractText(config as AllyContractConfig,profile,now);
   const {error:insertError}=await db.from('aliados_contratos_firmados').insert({referidor_id:ally.id,version:ALLY_CONTRACT_VERSION,texto,datos_aliado:profile,firma_base64:body.firma,firmado_at:now.toISOString(),
    ip:(request.headers.get('x-forwarded-for')||'').split(',')[0].trim().slice(0,60)||null,user_agent:(request.headers.get('user-agent')||'').slice(0,300)||null});
   if(insertError)return insertError.code==='23505'?publicReply({error:'Este contrato ya fue firmado.'},409):publicReply({error:'No se pudo guardar la firma. Intenta nuevamente.'},503);
   // The signed data becomes the ally's profile in the ERP.
   await db.from('referidores').update({cedula:profile.cedula,direccion:profile.direccion,ciudad:profile.ciudad,telefono:profile.celular,banco_nombre:profile.banco,tipo_cuenta:profile.tipo_cuenta,numero_cuenta:profile.numero_cuenta,contacto_nombre:profile.representante||profile.nombre}).eq('id',ally.id);
+  try{await registerAuthorization(db,{documento:profile.cedula,telefono:profile.celular,nombre:profile.nombre,email:profile.correo,origen:'vinculacion_aliado',tratamiento:true,comercial:body.comercial===true,pendiente:false});}catch(e){console.error('Autorización de datos del aliado no registrada:',e);}
   return publicReply({firmado:true,texto,firma:body.firma,firmado_at:now.toISOString(),nombre:profile.nombre});
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
 }
@@ -59,8 +62,10 @@ async function directAlly(db:ReturnType<typeof publicServerClient>,id:string,bod
  if(body.accion!=='firmar')return publicReply({firmado:false,directo:true,config:configView(agreement.config),aliado:profile,acuerdo:agreement.acuerdo?agreementText(agreement,{...profile,tipo},new Date()):null});
  if(!validSignature(body.firma))return publicReply({error:'Dibuja tu firma en el recuadro.'},400);
  if(body.acepta!==true||body.acepta_datos!==true)return publicReply({error:'Debes aceptar el contrato y la autorización de tratamiento de datos para firmar.'},400);
+ if(typeof body.comercial!=='boolean')return publicReply({error:'Elige si autorizas o no recibir información comercial.'},400);
  const now=new Date(),texto=agreementText(agreement,{...profile,tipo},now);
  const r=await finishAllySigning(db,{id:ally.id,nombre:ally.nombre_completo,cedula:ally.cedula,correo:ally.correo,tipo},texto,body.firma,agreement.acuerdo?`Word v${agreement.acuerdo.version}`:ALLY_CONTRACT_VERSION,profile,request,now);
  if('error' in r)return publicReply({error:r.error},r.status);
+ try{await registerAuthorization(db,{documento:ally.cedula,telefono:ally.celular,nombre:ally.nombre_completo,email:ally.correo,origen:'vinculacion_aliado',tratamiento:true,comercial:body.comercial===true,pendiente:false,aliado:ally.id});}catch(e){console.error('Autorización de datos del aliado no registrada:',e);}
  return publicReply({firmado:true,texto,firma:body.firma,firmado_at:now.toISOString(),nombre:profile.nombre,codigo:r.codigo});
 }

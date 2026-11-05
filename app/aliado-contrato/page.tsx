@@ -16,7 +16,7 @@ const call=async(body:Record<string,unknown>)=>{const r=await fetch('/api/aliado
 /** Private page where an ally completes their profile and signs the alliance contract once. */
 export default function AllyContractPage(){
  const [token,setToken]=useState(''),[view,setView]=useState<View|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false);
- const [datos,setDatos]=useState<AllyProfile|null>(null),[acepta,setAcepta]=useState(false),[aceptaDatos,setAceptaDatos]=useState(false);
+ const [datos,setDatos]=useState<AllyProfile|null>(null),[acepta,setAcepta]=useState(false),[aceptaDatos,setAceptaDatos]=useState(false),[comercial,setComercial]=useState<boolean|null>(null);
  const pad=useRef<SignatureCanvas>(null);
  useEffect(()=>{
   const t=decodeURIComponent(window.location.hash.slice(1));
@@ -31,10 +31,11 @@ export default function AllyContractPage(){
   setError('');
   if(!datos)return;
   if(!acepta)return setError('Marca la casilla para aceptar el contrato.');
-  if(directo&&!aceptaDatos)return setError('Marca la casilla de autorización de tratamiento de datos.');
+  if(!aceptaDatos)return setError('Marca la casilla de autorización de tratamiento de datos (obligatoria).');
+  if(comercial===null)return setError('Elige si autorizas o no recibir información comercial y publicidad de Ámbar Couture.');
   if(!pad.current||pad.current.isEmpty())return setError('Dibuja tu firma en el recuadro.');
   setBusy(true);
-  try{const d=await call({token,accion:'firmar',datos,acepta,acepta_datos:aceptaDatos,firma:pad.current.getTrimmedCanvas().toDataURL('image/png')});setView(d);window.scrollTo({top:0,behavior:'smooth'});}
+  try{const d=await call({token,accion:'firmar',datos,acepta,acepta_datos:aceptaDatos,comercial,firma:pad.current.getTrimmedCanvas().toDataURL('image/png')});setView(d);window.scrollTo({top:0,behavior:'smooth'});}
   catch(e){setError(e instanceof Error?e.message:'No se pudo firmar.');}
   finally{setBusy(false);}
  };
@@ -62,7 +63,10 @@ export default function AllyContractPage(){
     <section className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm space-y-4">
      <h2 className="font-black text-gray-900 flex items-center gap-2"><PenTool className="w-5 h-5 text-rose-500"/> 3. Firma</h2>
      <label className="flex gap-2 items-start text-sm text-gray-700"><input type="checkbox" className="mt-1" checked={acepta} onChange={e=>setAcepta(e.target.checked)}/>He leído y acepto el Contrato de Alianza Comercial – Préstamo de Vestidos de Ámbar Couture. Entiendo que se firma una sola vez y aplica a todos mis préstamos.</label>
-     {directo&&<label className="flex gap-2 items-start text-sm text-gray-700"><input type="checkbox" className="mt-1" checked={aceptaDatos} onChange={e=>setAceptaDatos(e.target.checked)}/>Autorizo el tratamiento de mis datos personales según la Ley 1581 de 2012, en los términos de la cláusula de autorización del contrato.</label>}
+     <label className="flex gap-2 items-start text-sm text-gray-700"><input type="checkbox" className="mt-1" checked={aceptaDatos} onChange={e=>setAceptaDatos(e.target.checked)}/>Autorizo el tratamiento de mis datos personales según la Ley 1581 de 2012{directo?', en los términos de la cláusula de autorización del contrato':''} (obligatorio).</label>
+     <div role="radiogroup" aria-label="Información comercial" className="flex flex-wrap gap-4 text-sm text-gray-700"><span className="font-bold">¿Autorizas recibir información comercial y publicidad de Ámbar Couture? (obligatorio elegir)</span>
+      <label className="flex gap-2 items-center"><input type="radio" name="comercial" checked={comercial===true} onChange={()=>setComercial(true)}/>Sí autorizo</label>
+      <label className="flex gap-2 items-center"><input type="radio" name="comercial" checked={comercial===false} onChange={()=>setComercial(false)}/>No autorizo</label></div>
      <div className="border-2 border-rose-200 rounded-2xl bg-[#fafafa] relative" style={{touchAction:'none'}}>
       <span className="absolute top-3 left-3 text-gray-400 text-xs flex items-center gap-1 pointer-events-none"><Eraser className="w-3 h-3"/> Dibuja aquí tu firma</span>
       <SignatureCanvas ref={pad} penColor="#0f172a" canvasProps={{className:'w-full h-56'}}/>

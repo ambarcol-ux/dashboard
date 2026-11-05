@@ -29,7 +29,7 @@ export default function DataAuthorization({documento,telefono,value,onChange,onS
 }
 
 /** Saves the authorization chosen in a team form (skips when already authorized and nothing new was accepted). */
-export async function saveDataAuthorization(p:{documento:string;telefono:string;nombre:string;email?:string;sede:string|null;origen:'vitrina'|'contrato';choice:AuthChoice;state:AuthState}){
+export async function saveDataAuthorization(p:{documento:string;telefono:string;nombre:string;email?:string;sede:string|null;origen:'vitrina'|'contrato'|'venta';choice:AuthChoice;state:AuthState}){
  if(p.state?.estado==='autorizada'&&(!p.choice.comercial||p.state.comercial))return;
  const {error}=await supabase.rpc('registrar_autorizacion',{p_documento:p.documento||null,p_telefono:p.telefono||null,p_nombre:p.nombre,p_email:p.email||null,p_sede:p.sede,p_origen:p.origen,p_tratamiento:p.state?.estado==='autorizada'||p.choice.tratamiento,p_comercial:p.choice.comercial===true});
  if(error)throw new Error(error.message);

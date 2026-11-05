@@ -9,7 +9,7 @@ export type AuthChoice={tratamiento:boolean;comercial:boolean|null};
 export const commercialPending=(choice:AuthChoice,state:AuthState)=>choice.comercial===null&&!(state?.estado==='autorizada'&&state.comercial);
 export const COMMERCIAL_REQUIRED='Elige si la persona autoriza o no recibir información comercial.';
 
-export const AUTH_ORIGIN_LABEL:Record<string,string>={agendamiento:'Agendamiento',confirmacion:'Enlace de confirmación',vitrina:'Vitrina',contrato:'Contrato',vinculacion_aliado:'Vinculación de aliado',clienta_aliado:'Clienta de aliado'};
+export const AUTH_ORIGIN_LABEL:Record<string,string>={agendamiento:'Agendamiento',confirmacion:'Enlace de confirmación',vitrina:'Vitrina',contrato:'Contrato',vinculacion_aliado:'Vinculación de aliado',clienta_aliado:'Clienta de aliado',venta:'Venta de vestido',referido:'Enlace de referido'};
 export const authLink=(origin:string,token:string)=>`${origin.replace(/\/$/,'')}/autorizacion/${token}`;
 
 /** Latest version of each configured text (Configuración › Autorizaciones). */

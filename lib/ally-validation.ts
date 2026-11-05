@@ -15,5 +15,7 @@ export function allyRegistration(input:Record<string,unknown>){
 export function vipPassRequest(input:Record<string,unknown>,today:string){
  const nombre=text(input.nombre,120),telefono=text(input.telefono,20),correo=text(input.correo,160).toLowerCase(),fecha=text(input.fechaEvento,10);
  if(nombre.length<2||nombre.length>120||!validPhone(telefono)||!validEmail(correo)||!/^\d{4}-\d{2}-\d{2}$/.test(fecha)||fecha<today)throw Error('Por favor, completa todos los campos correctamente.');
- return {nombre,telefono,correo,fecha};
+ if(input.consentimiento!==true)throw Error('Marca la autorización de tratamiento de datos para continuar.');
+ if(typeof input.comercial!=='boolean')throw Error('Elige si autorizas o no recibir información comercial.');
+ return {nombre,telefono,correo,fecha,comercial:input.comercial===true};
 }

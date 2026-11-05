@@ -3,6 +3,8 @@ import {useEffect,useState} from 'react';
 import {toast} from 'sonner';
 import {supabase} from '@/lib/supabase';
 import {accountLabel,accountsFor,CASH_METHODS,needsAccount,type CashAccount} from '@/lib/cash';
+import DataAuthorization,{saveDataAuthorization} from '@/components/DataAuthorization';
+import {commercialPending,type AuthChoice,type AuthState} from '@/lib/data-authorization';
 
 type SaleDress={id:string|number;codigo:string;nombre?:string|null;precio_venta?:number|null;sede_actual_id?:string|null};
 const money=(n:number)=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(n);
@@ -14,15 +16,20 @@ export default function DressSaleDialog({dress,onClose,onSaved}:{dress:SaleDress
  const precio=Number(dress.precio_venta)||0;
  const [f,setF]=useState({descuento:'',motivo_descuento:'',medio_pago:'Efectivo',cuenta_id:'',cliente_nombre:'',cliente_documento:'',cliente_telefono:'',cliente_email:'',numero_factura:''}),[busy,setBusy]=useState(false);
  const [cuentas,setCuentas]=useState<CashAccount[]>([]);
+ // Data authorization of the buyer: processing required, commercial «Sí/No» required (same as citas and contratos).
+ const [auth,setAuth]=useState<AuthChoice>({tratamiento:false,comercial:null}),[authState,setAuthState]=useState<AuthState>(null);
+ const faltaAutorizacion=(authState?.estado!=='autorizada'&&!auth.tratamiento)||commercialPending(auth,authState);
  useEffect(()=>{let live=true;void supabase.rpc('cuentas_dinero_lista').then(({data})=>{if(live)setCuentas((data||[]) as CashAccount[]);});return()=>{live=false;};},[]);
  const dto=Number(f.descuento)||0,total=Math.max(0,precio-dto);
  const opciones=accountsFor(f.medio_pago,cuentas,String(dress.sede_actual_id||''));
  const faltaCuenta=needsAccount(f.medio_pago,opciones)&&!f.cuenta_id;
- const invalido=!precio||dto>=precio||(dto>0&&f.motivo_descuento.trim().length<5)||f.cliente_nombre.trim().length<3||!/^[0-9A-Za-z-]{5,20}$/.test(f.cliente_documento.replace(/[\s.]/g,''))||faltaCuenta;
+ const invalido=!precio||dto>=precio||(dto>0&&f.motivo_descuento.trim().length<5)||f.cliente_nombre.trim().length<3||!/^[0-9A-Za-z-]{5,20}$/.test(f.cliente_documento.replace(/[\s.]/g,''))||faltaCuenta||faltaAutorizacion;
  const save=async()=>{setBusy(true);
   const {data,error}=await supabase.rpc('registrar_venta_vestido',{p_datos:{vestido_id:dress.id,...f,descuento:String(dto)}});
   setBusy(false);
   if(error){toast.error(error.message);return;}
+  try{await saveDataAuthorization({documento:f.cliente_documento.replace(/[\s.]/g,''),telefono:f.cliente_telefono,nombre:f.cliente_nombre.trim(),email:f.cliente_email.trim(),sede:dress.sede_actual_id?String(dress.sede_actual_id):null,origen:'venta',choice:auth,state:authState});}
+  catch(e){toast.error('Venta registrada, pero no se guardó la autorización de datos: '+(e instanceof Error?e.message:''));}
   toast.success(`Venta registrada: ${dress.codigo} por ${money(total)}. Entró a la caja de hoy.`);onSaved(data?String(data):undefined);};
  const input='w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none';
  const label='block text-[10px] font-black text-gray-400 uppercase tracking-widest';
@@ -48,6 +55,8 @@ export default function DressSaleDialog({dress,onClose,onSaved}:{dress:SaleDress
     <label className={label}>Correo<input className={input} type="email" maxLength={160} value={f.cliente_email} onChange={e=>setF({...f,cliente_email:e.target.value})}/></label>
     <label className={label}>N° de factura (si ya existe)<input className={input} maxLength={40} value={f.numero_factura} onChange={e=>setF({...f,numero_factura:e.target.value})}/></label>
    </div>
+   <DataAuthorization documento={f.cliente_documento} telefono={f.cliente_telefono} value={auth} onChange={setAuth} onState={setAuthState}/>
+   {faltaAutorizacion&&<p className="text-xs font-bold text-amber-700">Falta la autorización de datos: marca el tratamiento (obligatorio) y elige Sí o No en información comercial.</p>}
    <div className="flex gap-3 justify-end pt-2"><button onClick={onClose} disabled={busy} className="px-5 py-3 rounded-xl border font-bold text-sm">Cancelar</button>
     <button onClick={()=>void save()} disabled={busy||invalido} className="px-5 py-3 rounded-xl bg-emerald-600 text-white font-black text-sm disabled:opacity-50">{busy?'Registrando…':`Registrar venta · ${money(total)}`}</button></div>
   </div>
