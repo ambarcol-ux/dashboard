@@ -58,7 +58,7 @@ export default function InventoryPage() {
   const [categoriaFilter, setCategoriaFilter] = useState<string>('');
   const [catalogBusy, setCatalogBusy] = useState(false), [bulkOpen, setBulkOpen] = useState(false); // '' todas, 'none' sin categoría, o nombre
   const [showArchived, setShowArchived] = useState(false);
-  const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado'>('bandeja');
+  const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado'>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('vista') === 'estado' ? 'estado' : 'bandeja');
   const [removalTarget, setRemovalTarget] = useState<{id: string; codigo: string} | null>(null);
   const [user, setUser] = useState<any>(null);
   const userPermissions = usePermissions(user?.id ? String(user.id) : null);

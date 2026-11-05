@@ -31,6 +31,8 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
  const [segs,setSegs]=useState<Record<string,SegInfo>>({});
  const [tab,setTab]=useState<'citas'|'seguimientos'>('citas'),[segRows,setSegRows]=useState<FirstVisit[]>([]),[segInfo,setSegInfo]=useState<Record<string,SegInfo>>({}),[names,setNames]=useState<Record<string,string>>({});
  const [pick,setPick]=useState<string[]>([]),[targets,setTargets]=useState<{id:string;nombre:string}[]>([]),[target,setTarget]=useState(''),[segReload,setSegReload]=useState(0);
+ // Opened from an alert: ?tab=seguimientos&estado=pendientes shows only what is due today or overdue.
+ useEffect(()=>{const p=new URLSearchParams(window.location.search);if(p.get('tab')==='seguimientos')setTab('seguimientos');const e=p.get('estado');if(e)setFEstado(e);},[]);
  const [fSede,setFSede]=useState(''),[fTipo,setFTipo]=useState(''),[fEstado,setFEstado]=useState(''),[fAsesora,setFAsesora]=useState(''),[fBuscar,setFBuscar]=useState('');
  const [rows,setRows]=useState<FirstVisit[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
  // Next follow-up and last registration of each listed visit.
@@ -93,13 +95,13 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
   const est=(v:FirstVisit)=>segEstado(v,segInfo[v.id]);
   const q=fBuscar.trim().toLocaleLowerCase('es'),qd=q.replace(/\D/g,'');
   const lista=segRows.filter(v=>(!q||`${v.cliente_nombre} ${v.cliente_documento||''} ${v.telefono} ${v.numero_contrato||''}`.toLocaleLowerCase('es').includes(q)||(qd.length>=4&&`${v.telefono||''} ${v.cliente_documento||''}`.replace(/\D/g,'').includes(qd)))&&(!fSede||v.sede_id===fSede)&&(!fTipo||v.tipo_seguimiento===fTipo)&&(!fAsesora||segInfo[v.id]?.asignado===fAsesora)
-   &&(!fEstado||(fEstado==='cerrados'?est(v)==='Cerrado':fEstado==='hoy'?est(v)==='Hoy':fEstado==='vencidos'?est(v)==='Vencido':est(v)==='Al día')));
+   &&(!fEstado||(fEstado==='pendientes'?['Hoy','Vencido'].includes(est(v)):fEstado==='cerrados'?est(v)==='Cerrado':fEstado==='hoy'?est(v)==='Hoy':fEstado==='vencidos'?est(v)==='Vencido':est(v)==='Al día')));
   const abiertas=lista.filter(v=>est(v)!=='Cerrado');
   return <><div className={styles.controls}>
    <label>Buscar<input placeholder="Nombre, celular, cédula o contrato" value={fBuscar} onChange={e=>setFBuscar(e.target.value)}/></label>
    <label>Sede<select value={fSede} onChange={e=>setFSede(e.target.value)}><option value="">Todas las disponibles</option>{Array.from(new Map(segRows.map(v=>[v.sede_id,v.sede]))).map(([id,n])=><option key={id} value={id}>{n}</option>)}</select></label>
    <label>Tipo<select value={fTipo} onChange={e=>setFTipo(e.target.value)}><option value="">Todos</option>{Object.entries(followupTypeLabel).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label>
-   <label>Estado<select value={fEstado} onChange={e=>setFEstado(e.target.value)}><option value="">Todos</option><option value="hoy">Hoy</option><option value="vencidos">Vencidos</option><option value="aldia">Al día</option><option value="cerrados">Cerrados</option></select></label>
+   <label>Estado<select value={fEstado} onChange={e=>setFEstado(e.target.value)}><option value="">Todos</option><option value="pendientes">Hoy y vencidos</option><option value="hoy">Hoy</option><option value="vencidos">Vencidos</option><option value="aldia">Al día</option><option value="cerrados">Cerrados</option></select></label>
    <label>Asesora<select value={fAsesora} onChange={e=>setFAsesora(e.target.value)}><option value="">Todas</option>{Object.entries(names).map(([id,n])=><option key={id} value={id}>{n}</option>)}</select></label>
   </div>
   {targets.length>0&&<div className={styles.controls}><label>Reasignar a…<select value={target} onChange={e=>setTarget(e.target.value)}><option value="">Elige asesora</option>{targets.map(t=><option key={t.id} value={t.id}>{t.nombre}</option>)}</select></label><button type="button" disabled={!pick.length||!target} onClick={()=>void reassign()}>Reasignar {pick.length} seleccionadas</button></div>}

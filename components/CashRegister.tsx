@@ -47,10 +47,10 @@ function AttachSupport({sedeId,pagoId,onDone,onError}:{sedeId:string;pagoId:stri
 type PendingPayment={sede_id:string;sede:string;fecha:string;numero_contrato:string|null;cliente:string|null;valor:number;medio:string|null;cerrado:boolean};
 
 /** Contract payments not yet in the cash register: one warning with the list and a button to open each day. */
-function PendingPayments({rows,onOpen}:{rows:PendingPayment[];onOpen:(p:PendingPayment)=>void}){
+function PendingPayments({rows,onOpen,abierto=false}:{rows:PendingPayment[];onOpen:(p:PendingPayment)=>void;abierto?:boolean}){
  if(!rows.length)return null;
  const total=rows.reduce((a,p)=>a+(Number(p.valor)||0),0);
- return <details className={styles.card} style={{borderColor:'#f59e0b',background:'#fffbeb',marginBottom:18}}>
+ return <details open={abierto||undefined} className={styles.card} style={{borderColor:'#f59e0b',background:'#fffbeb',marginBottom:18}}>
   <summary style={{cursor:'pointer',fontWeight:800}}>⚠️ {rows.length} abonos de contratos sin pasar a caja · {money(total)} · Pulsa para ver y confirmar cada uno en su día</summary>
   <p style={{fontSize:12,margin:'8px 0'}}>Confírmalos desde la sugerencia del día; no los escribas a mano para no contarlos dos veces. Si el día ya está cerrado, reábrelo primero.</p>
   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Día</th><th>Sede</th><th>Contrato</th><th>Valor</th><th>Medio</th><th></th></tr></thead>
@@ -65,7 +65,8 @@ export default function CashRegister({profile}:{profile:Profile}){
  const role=profile.rol.toLowerCase(),seesAll=role==='admin'||role==='contabilidad',isAdmin=role==='admin';
  // Contabilidad has the same financial powers as administration; leaders and franchisees get them for their own site through Roles.
  const finanzas=seesAll,perms=usePermissions(profile.id),puedeCorregir=finanzas||can(perms,'caja.editar'),puedeReabrir=finanzas||can(perms,'caja.reabrir'),puedeCuentas=finanzas||can(perms,'caja.cuentas');
- const [sites,setSites]=useState<CashSiteSummary[]>([]),[sede,setSede]=useState(seesAll?ALL:(profile.sede_id||'')),[fecha,setFecha]=useState(today),[desde,setDesde]=useState(today);
+ const ver=typeof window==='undefined'?'':new URLSearchParams(window.location.search).get('ver')||'';
+ const [sites,setSites]=useState<CashSiteSummary[]>([]),[sede,setSede]=useState(seesAll&&ver?ALL:seesAll?ALL:(profile.sede_id||'')),[fecha,setFecha]=useState(today),[desde,setDesde]=useState(()=>ver==='sedes'?new Date(Date.parse(today+'T12:00:00Z')-30*86400000).toISOString().slice(0,10):today);
  const [day,setDay]=useState<CashDay|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [pending,setPending]=useState<PendingPayment[]>([]);
  const request=useRef(0),[view,setView]=useState<'caja'|'plata'|'depositos'|'cuentas'>('caja');
@@ -110,7 +111,7 @@ export default function CashRegister({profile}:{profile:Profile}){
   </div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
-  <PendingPayments rows={sede===ALL?pending:pending.filter(p=>p.sede_id===sede)} onOpen={p=>{setLoading(true);setNotice('');setSede(p.sede_id);setFecha(p.fecha);if(p.fecha<desde)setDesde(p.fecha);}}/>
+  <PendingPayments abierto={ver==='abonos'} rows={sede===ALL?pending:pending.filter(p=>p.sede_id===sede)} onOpen={p=>{setLoading(true);setNotice('');setSede(p.sede_id);setFecha(p.fecha);if(p.fecha<desde)setDesde(p.fecha);}}/>
   {sede===ALL?<AllSites rows={sites} loading={loading} onPick={id=>{setLoading(true);setSede(id);}}/>:day?<SiteDay key={`${day.sede_id}:${day.fecha}`} day={day} siteName={siteName} isAdmin={isAdmin} finanzas={finanzas} canFix={puedeCorregir} canReopen={puedeReabrir} onDone={done} onError={setError}/>:!error&&<p className={styles.empty}>{loading?'Cargando caja…':'No tienes una sede asignada para manejar caja.'}</p>}
  </>;
 }
