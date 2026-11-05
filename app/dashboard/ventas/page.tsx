@@ -17,6 +17,6 @@ export default function SalesPage(){
  const logout=async()=>{await supabase.auth.signOut();document.cookie='sb-access-token=; path=/; max-age=0';router.replace('/login');};
  return <div className={styles.shell}><Toaster richColors position="top-right"/><Sidebar user={profile} handleLogout={logout} activePage="caja"/><main className={styles.main}>
   <header className={styles.header}><div><Link href="/contratos/nuevo" className={styles.back}>Nuevo contrato / Venta</Link><h1><ShoppingBag/> Venta de vestidos</h1><p>Venta de contado sin contrato: entra a la caja del día, cuenta en Metas y Ventas y queda pendiente para la factura electrónica en Siigo (código del vestido + V).</p></div></header>
-  {error?<p role="alert" className={styles.error}>{error}</p>:profile?<SalesModule isAdmin={String(profile.rol||'').toLowerCase()==='admin'}/>:<p role="status" className={styles.empty}>Validando acceso…</p>}
+  {error?<p role="alert" className={styles.error}>{error}</p>:profile?<SalesModule isAdmin={['admin','contabilidad'].includes(String(profile.rol||'').toLowerCase())}/>:<p role="status" className={styles.empty}>Validando acceso…</p>}
  </main></div>;
 }

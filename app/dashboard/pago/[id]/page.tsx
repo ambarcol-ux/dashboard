@@ -35,7 +35,7 @@ export default function RegistrarPagoPage() {
   const [esAdmin, setEsAdmin] = useState(false);
   const [condonar, setCondonar] = useState<{ valor: string; motivo: string } | null>(null);
   const [condonando, setCondonando] = useState(false);
-  useEffect(() => { void supabase.rpc('es_admin').then(({ data }) => setEsAdmin(data === true)); }, []);
+  useEffect(() => { void supabase.rpc('es_finanzas').then(({ data }) => setEsAdmin(data === true)); }, []);
 
   const [formData, setFormData] = useState({
     valor_pagado: '',

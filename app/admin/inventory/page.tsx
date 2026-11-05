@@ -72,8 +72,10 @@ export default function InventoryPage() {
   useEffect(() => { if (!user?.id) return; void supabase.rpc('mi_permiso_todas_sedes', { p_permiso: 'panel.inventory' }).then(({ data }) => setVerTodasSedes(data === true)); }, [user?.id]);
   const misSedes = !verTodasSedes && sedesEditables.length > 0 && sedes.length > 0 && sedesEditables.length < sedes.length ? sedes.filter(s => sedesEditables.includes(String(s.id))) : null;
   /** Dresses of other sites are view only for users limited to their sites. */
-  const soloVer = (id: unknown) => { const v = vestidos.find(x => String(x.id) === String(id)); if (sedesEditables.length > 0 && !canEditDress(v)) { toast.error(`${v?.codigo || 'Este vestido'} es de otra sede: solo puedes verlo.`); return true; } return false; };
-  const canEditDress = (v: { sede_actual_id?: unknown } | null | undefined) => !!v && sedesEditables.includes(String(v.sede_actual_id));
+  const soloVer = (id: unknown) => { const v = vestidos.find(x => String(x.id) === String(id)); if (sedesEditables.length > 0 && !canEditDress(v)) { toast.error(sinSede(v) ? `${v?.codigo || 'Este vestido'} no tiene una sede válida: administración debe asignarle la sede.` : `${v?.codigo || 'Este vestido'} es de otra sede: solo puedes verlo.`); return true; } return false; };
+  /** A dress whose site was deleted (or never set) has no valid site; administration can fix it (assign the site and its data). */
+  const sinSede = (v: { sede_actual_id?: unknown } | null | undefined) => !!v && !sedes.some(s => String(s.id) === String(v.sede_actual_id));
+  const canEditDress = (v: { sede_actual_id?: unknown } | null | undefined) => !!v && (sedesEditables.includes(String(v.sede_actual_id)) || (sinSede(v) && String(user?.rol || '').toLowerCase() === 'admin'));
   const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal ('none' = sin sede)
   const [novedadFilter, setNovedadFilter] = useState<string>('');
   const [editState, setEditState] = useState<Record<number, any>>({}); // Estado local de edición por vestidoid
