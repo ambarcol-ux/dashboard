@@ -22,7 +22,8 @@ export function plazoCobro(c:Cobro,hoy=hoyBogota()):Plazo{
  return d<0?'vencido':d<=3?'tres':d<=7?'siete':'despues';
 }
 /** Balance to collect: contract balance plus penalties. */
-export const porCobrar=(c:Cobro)=>Math.max(0,saldoContrato(c))+Math.max(0,Number(c.total_multas)||0);
+// A paid penalty leaves the balance negative by the same amount, so both are added before clamping.
+export const porCobrar=(c:Cobro)=>Math.max(0,saldoContrato(c)+Math.max(0,Number(c.total_multas)||0));
 /** Same rule everywhere: active contracts only (not cancelled, annulled, draft, finished…). */
 export const cobroActivo=(estado:unknown)=>!COBRO_EXCLUIDOS.includes(String(estado||'').trim().toLowerCase());
 /** Total to collect over any list of contracts, with the Cuentas por cobrar rule. */
