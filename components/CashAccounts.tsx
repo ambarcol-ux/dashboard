@@ -22,7 +22,7 @@ export function AccountSelect({medio,cuentas,sedeId,value,onChange}:{medio:strin
 }
 
 /** Admin-only editor: method, destination account, amount, category and description, with a mandatory reason. */
-export function EditMovement({day,movement,onClose,onDone}:{day:CashDay;movement:CashMovement;onClose:()=>void;onDone:(m:string)=>void}){
+export function EditMovement({day,movement,onClose,onDone,soloCuenta=false}:{day:CashDay;movement:CashMovement;onClose:()=>void;onDone:(m:string)=>void;soloCuenta?:boolean}){
  const fromErp=movement.origen==='pago'||movement.origen==='deposito'||movement.origen==='devolucion',deposit=movement.origen==='deposito'||movement.origen==='devolucion';
  const [medio,setMedio]=useState(movement.medio),[cuenta,setCuenta]=useState(movement.medio==='Efectivo'?'':movement.cuenta_id||''),[valor,setValor]=useState(String(movement.valor));
  const [categoria,setCategoria]=useState(movement.categoria),[descripcion,setDescripcion]=useState(movement.descripcion||''),[motivo,setMotivo]=useState('');
@@ -45,8 +45,8 @@ export function EditMovement({day,movement,onClose,onDone}:{day:CashDay;movement
     <p className={styles.help}>{movement.tipo==='ingreso'?'Ingreso':'Egreso'} · {movement.categoria}{movement.numero_contrato?` · ${movement.numero_contrato} · ${movement.cliente}`:''}</p>
     <div className={styles.row}><label>Medio<select value={medio} onChange={e=>{setMedio(e.target.value);setCuenta('');}}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
      <label>Cuenta donde está el dinero<AccountSelect medio={medio} cuentas={day.cuentas} sedeId={day.sede_id} value={cuenta} onChange={setCuenta}/></label></div>
-    <div className={styles.row}><label>Valor (COP)<input inputMode="decimal" value={valor} disabled={deposit} onChange={e=>setValor(e.target.value)}/>{deposit&&<span className={styles.help}>El valor de un depósito se cambia en Depósitos → Modificar valor.</span>}{movement.origen==='pago'&&<span className={styles.help}>Cambia también el pago y el saldo del contrato.</span>}</label>
-     <label>Categoría<select value={categoria} disabled={fromErp} onChange={e=>setCategoria(e.target.value)}>{categories.map(c=><option key={c}>{c}</option>)}</select></label></div>
+    <div className={styles.row}><label>Valor (COP)<input inputMode="decimal" value={valor} disabled={deposit||soloCuenta} onChange={e=>setValor(e.target.value)}/>{deposit&&<span className={styles.help}>El valor de un depósito se cambia en Depósitos → Modificar valor.</span>}{movement.origen==='pago'&&<span className={styles.help}>Cambia también el pago y el saldo del contrato.</span>}</label>
+     <label>Categoría<select value={categoria} disabled={fromErp||soloCuenta} onChange={e=>setCategoria(e.target.value)}>{categories.map(c=><option key={c}>{c}</option>)}</select></label></div>
     <label>Descripción<input maxLength={500} value={descripcion} onChange={e=>setDescripcion(e.target.value)}/></label>
     <label>Motivo del cambio (obligatorio)<textarea maxLength={500} value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Ej.: la clienta pagó en efectivo, no por transferencia"/></label>
     {error&&<p role="alert" className={styles.error}>{error}</p>}
@@ -111,7 +111,9 @@ type Site={sede_id:string;sede:string};
 const EMPTY={id:'',nombre:'',tipo:'banco' as CashAccount['tipo'],banco:'',numero:'',titular:'',sede_id:'',activo:true,orden:0};
 
 /** Accounts and petty cash: admins add banks and wallets, rename the petty cash of each site and deactivate old accounts. */
-export function AccountsAdmin({sites,isAdmin}:{sites:Site[];isAdmin:boolean}){
+export function AccountsAdmin({sites,isAdmin,canManage=isAdmin}:{sites:Site[];isAdmin:boolean;canManage?:boolean}){
+ // Leaders and franchisees manage only the accounts of their own sites (sites = the sites they can see).
+ const propia=(sedeId:string|null)=>isAdmin||(!!sedeId&&sites.some(s=>s.sede_id===sedeId));
  const cuentaObligatoria=useFieldRequired('cuenta_caja','cuenta');
  const [rows,setRows]=useState<CashAccount[]|null>(null),[form,setForm]=useState(EMPTY),[error,setError]=useState(''),[notice,setNotice]=useState(''),[saving,setSaving]=useState(false),[version,setVersion]=useState(0);
  useEffect(()=>{
@@ -124,6 +126,7 @@ export function AccountsAdmin({sites,isAdmin}:{sites:Site[];isAdmin:boolean}){
   e.preventDefault();if(saving)return;setError('');
   if(form.nombre.trim().length<2){setError('Escribe el nombre de la cuenta.');return;}
   if(form.tipo==='efectivo'&&!form.sede_id){setError('La caja menor debe pertenecer a una sede.');return;}
+  if(!isAdmin&&!form.sede_id){setError('Elige la sede de la cuenta.');return;}
   if(form.tipo==='banco'&&!form.banco.trim()){setError('Escribe el banco.');return;}
   if(cuentaObligatoria&&form.tipo!=='efectivo'&&!form.numero.trim()){setError('Escribe el número de cuenta o la llave.');return;}
   setSaving(true);
@@ -136,20 +139,20 @@ export function AccountsAdmin({sites,isAdmin}:{sites:Site[];isAdmin:boolean}){
  return <>
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   <section className={styles.card}><h2>Cuentas y caja menor</h2><p>El efectivo de cada sede queda en su caja menor. Las transferencias y pagos con tarjeta se asignan a la cuenta bancaria o billetera donde llegaron. Una cuenta sin sede sirve para todas las sedes.</p>
-   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Cuenta</th><th>Tipo</th><th>Banco / número</th><th>Titular</th><th>Sede</th><th>Estado</th>{isAdmin&&<th></th>}</tr></thead>
+   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Cuenta</th><th>Tipo</th><th>Banco / número</th><th>Titular</th><th>Sede</th><th>Estado</th>{canManage&&<th></th>}</tr></thead>
     <tbody>{(rows||[]).map(c=><tr key={c.id} className={c.activo?'':styles.annulled}><td><strong>{TYPE_ICON[c.tipo]} {c.nombre}</strong></td><td>{ACCOUNT_TYPES[c.tipo]}</td><td>{[c.banco,c.numero].filter(Boolean).join(' · ')||'—'}</td><td>{c.titular||'—'}</td><td>{c.sede||'Todas las sedes'}</td>
      <td>{c.activo?<span className={`${styles.badge} ${styles.badgeIn}`}>Activa</span>:<span className={styles.badge}>Inactiva</span>}</td>
-     {isAdmin&&<td><button className={styles.button} onClick={()=>edit(c)}>Editar</button></td>}</tr>)}</tbody></table></div>
+     {canManage&&<td>{propia(c.sede_id)&&<button className={styles.button} onClick={()=>edit(c)}>Editar</button>}</td>}</tr>)}</tbody></table></div>
    {!rows?.length&&<p className={styles.empty}>{rows?'No hay cuentas configuradas.':'Cargando…'}</p>}
   </section>
-  {isAdmin&&<section className={styles.card}><h2>{form.id?'Editar cuenta':'Nueva cuenta'}</h2>
+  {canManage&&<section className={styles.card}><h2>{form.id?'Editar cuenta':'Nueva cuenta'}</h2>
    <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
     <div className={styles.row}><label>Tipo<select value={form.tipo} onChange={e=>set('tipo',e.target.value)}>{Object.entries(ACCOUNT_TYPES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
      <label>Nombre<input maxLength={80} value={form.nombre} onChange={e=>set('nombre',e.target.value)} placeholder={form.tipo==='efectivo'?'Caja menor Bogotá':form.tipo==='banco'?'Bancolombia ahorros principal':'Nequi Pereira'}/></label></div>
     {form.tipo!=='efectivo'&&<div className={styles.row}><label>Banco o plataforma{form.tipo==='banco'?' (obligatorio)':''}<input maxLength={60} value={form.banco} onChange={e=>set('banco',e.target.value)} placeholder="Bancolombia, Davivienda, Nequi…"/></label>
      <label>Número de cuenta o llave<input maxLength={40} value={form.numero} onChange={e=>set('numero',e.target.value)}/></label></div>}
     <div className={styles.row}>{form.tipo!=='efectivo'&&<label>Titular<input maxLength={120} value={form.titular} onChange={e=>set('titular',e.target.value)}/></label>}
-     <label>Sede<select value={form.sede_id} onChange={e=>set('sede_id',e.target.value)}>{form.tipo!=='efectivo'&&<option value="">Todas las sedes</option>}{form.tipo==='efectivo'&&<option value="">Elige la sede</option>}{sites.map(s=><option key={s.sede_id} value={s.sede_id}>{s.sede}</option>)}</select></label></div>
+     <label>Sede<select value={form.sede_id} onChange={e=>set('sede_id',e.target.value)}>{isAdmin&&form.tipo!=='efectivo'&&<option value="">Todas las sedes</option>}{(!isAdmin||form.tipo==='efectivo')&&<option value="">Elige la sede</option>}{sites.map(s=><option key={s.sede_id} value={s.sede_id}>{s.sede}</option>)}</select></label></div>
     <label className={styles.check}><input type="checkbox" checked={form.activo} onChange={e=>set('activo',e.target.checked)}/> Activa (se puede elegir al registrar movimientos)</label>
     {error&&<p role="alert" className={styles.error}>{error}</p>}
     <div style={{display:'flex',gap:8}}>
@@ -158,7 +161,7 @@ export function AccountsAdmin({sites,isAdmin}:{sites:Site[];isAdmin:boolean}){
     </div>
    </fieldset></form>
   </section>}
-  {!isAdmin&&error&&<p role="alert" className={styles.error}>{error}</p>}
+  {!canManage&&error&&<p role="alert" className={styles.error}>{error}</p>}
  </>;
 }
 
