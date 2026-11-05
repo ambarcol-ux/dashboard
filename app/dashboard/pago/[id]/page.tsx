@@ -17,7 +17,7 @@ import {
 import Link from 'next/link';
 import PaymentSupportUpload from '@/components/PaymentSupportUpload';
 import { SUPPORT_BUCKET, type UploadedSupport } from '@/lib/payment-support';
-import { saldoContrato, puedeAbonar } from '@/lib/saldo';
+import { porPagarContrato, puedeAbonar, saldoContrato } from '@/lib/saldo';
 
 type PagoSoporte = { id: string; archivo_path: string; nombre: string; activo: boolean };
 
@@ -32,6 +32,10 @@ export default function RegistrarPagoPage() {
   const [pagos, setPagos] = useState<any[]>([]);
   const [soportes, setSoportes] = useState<UploadedSupport[]>([]);
   const [subiendoSoporte, setSubiendoSoporte] = useState(false);
+  const [esAdmin, setEsAdmin] = useState(false);
+  const [condonar, setCondonar] = useState<{ valor: string; motivo: string } | null>(null);
+  const [condonando, setCondonando] = useState(false);
+  useEffect(() => { void supabase.rpc('es_admin').then(({ data }) => setEsAdmin(data === true)); }, []);
 
   const [formData, setFormData] = useState({
     valor_pagado: '',
@@ -80,7 +84,25 @@ export default function RegistrarPagoPage() {
   };
 
   // ── REAL-TIME VALIDATION ──────────────────────────────────────────────────
-  const saldoNumber = contrato ? saldoContrato(contrato) : 0;
+  // Includes penalties: the release keeps the contract open until they are paid too.
+  const saldoNumber = contrato ? porPagarContrato(contrato) : 0;
+  const multasTotal = Number(contrato?.total_multas) || 0;
+  // Payments cover the rental first; whatever is still owed beyond it is the pending penalty.
+  const multaPendiente = Math.min(multasTotal, Math.max(0, saldoNumber));
+  const saldoAlquiler = Math.max(0, saldoNumber - multaPendiente);
+  const confirmarCondonacion = async () => {
+    if (!condonar) return;
+    const valor = Number(condonar.valor.replace(/\D/g, '')) || 0;
+    if (valor <= 0 || valor > multaPendiente) { toast.error(`El valor debe estar entre $1 y ${formatCurrency(multaPendiente)}.`); return; }
+    if (condonar.motivo.trim().length < 10) { toast.error('Escribe el motivo (mínimo 10 caracteres).'); return; }
+    setCondonando(true);
+    const { error } = await supabase.rpc('condonar_multa', { p_contrato: id, p_valor: valor, p_motivo: condonar.motivo.trim() });
+    setCondonando(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Multa condonada: ${formatCurrency(valor)}. Queda registrado en la bitácora del contrato.`);
+    setCondonar(null);
+    void fetchData();
+  };
   const montoIngresado = parseFloat(formData.valor_pagado) || 0;
   const excedeBalance = montoIngresado > saldoNumber && formData.valor_pagado !== '';
   const montoInvalido = montoIngresado <= 0 && formData.valor_pagado !== '';
@@ -111,7 +133,7 @@ export default function RegistrarPagoPage() {
     }
 
     // Hard-stop: Operación denegada si genera saldo negativo
-    const saldoPendienteActual = saldoContrato(contrato);
+    const saldoPendienteActual = porPagarContrato(contrato);
     if (montoAbono > saldoPendienteActual) {
       toast.error(
         `Operación denegada: El pago genera un saldo negativo. ` +
@@ -232,12 +254,53 @@ export default function RegistrarPagoPage() {
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-500 font-semibold mb-1">Saldo Pendiente</p>
+                <p className="text-sm text-gray-500 font-semibold mb-1">{Number(contrato.total_multas) > 0 ? 'Saldo pendiente (incluye multas)' : 'Saldo Pendiente'}</p>
                 <div className={`text-3xl font-black ${saldoNumber > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                   {formatCurrency(saldoNumber)}
                 </div>
+                {multaPendiente > 0 && <p className="text-xs font-bold text-gray-500 mt-1">Alquiler {formatCurrency(saldoAlquiler)} · <span className="text-violet-700">Multa {formatCurrency(multaPendiente)}</span></p>}
               </div>
             </div>
+
+            {/* Multa: se ve aparte, con opción de pagarla o condonarla */}
+            {multasTotal > 0 && (
+              <div className="bg-violet-50 rounded-2xl p-6 border-2 border-violet-200 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-widest text-violet-600">Multa del contrato</p>
+                    <p className="text-2xl font-black text-violet-900">{multaPendiente > 0 ? `${formatCurrency(multaPendiente)} pendiente` : 'Multa pagada ✅'}</p>
+                    <p className="text-xs text-violet-700">Multa cargada: {formatCurrency(multasTotal)}. Se paga como abono o, si se perdona, se condona y queda en ceros.</p>
+                  </div>
+                  {multaPendiente > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => setFormData(prev => ({ ...prev, valor_pagado: String(multaPendiente), observaciones: prev.observaciones || 'Pago de multa' }))}
+                        className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-black hover:bg-violet-700">Pagar multa</button>
+                      {esAdmin && <button type="button" onClick={() => setCondonar({ valor: String(multaPendiente), motivo: '' })}
+                        className="px-4 py-2.5 rounded-xl border-2 border-violet-300 bg-white text-violet-800 text-sm font-black hover:bg-violet-100">Condonar multa</button>}
+                    </div>
+                  )}
+                </div>
+                {condonar && (
+                  <div className="bg-white rounded-xl border border-violet-200 p-4 space-y-3">
+                    <p className="text-sm font-bold text-gray-800">Condonar multa (no entra dinero; queda registrado quién y por qué)</p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <label className="text-xs font-bold text-gray-600">Valor a condonar
+                        <input inputMode="numeric" value={condonar.valor ? Number(condonar.valor.replace(/\D/g, '') || 0).toLocaleString('es-CO') : ''} onChange={e => setCondonar({ ...condonar, valor: e.target.value.replace(/\D/g, '') })}
+                          className="mt-1 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 font-semibold" />
+                      </label>
+                      <label className="text-xs font-bold text-gray-600 md:col-span-2">Motivo *
+                        <input value={condonar.motivo} maxLength={300} onChange={e => setCondonar({ ...condonar, motivo: e.target.value })} placeholder="Ej.: Autorizado por gerencia, la clienta devolvió a tiempo según acuerdo"
+                          className="mt-1 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2" />
+                      </label>
+                    </div>
+                    <div className="flex gap-2 justify-end">
+                      <button type="button" onClick={() => setCondonar(null)} disabled={condonando} className="px-4 py-2 rounded-xl border text-sm font-bold">Cancelar</button>
+                      <button type="button" onClick={() => void confirmarCondonacion()} disabled={condonando} className="px-4 py-2 rounded-xl bg-violet-700 text-white text-sm font-black disabled:opacity-50">{condonando ? 'Condonando…' : 'Confirmar condonación'}</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Formulario de Pago */}
             <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-sm border border-emerald-100 relative overflow-hidden">

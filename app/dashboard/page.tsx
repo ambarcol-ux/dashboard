@@ -1,7 +1,7 @@
 'use client';
 import DressThumb from '@/components/DressThumb';
 import ContractDateEditor from '@/components/ContractDateEditor';
-import { saldoContrato, puedeEntregar } from '@/lib/saldo';
+import { saldoContrato, puedeEntregar, pendienteTexto } from '@/lib/saldo';
 import {loadContractSignature} from '@/lib/load-dashboard-contracts';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
 import {CONTRACT_PAGE_SIZE, type DashboardSummary} from '@/lib/dashboard-summary';
@@ -1196,8 +1196,8 @@ export default function DashboardPage() {
           .from('contratos')
           .update({ estado: 'firmado' }) 
           .eq('id', contrato.id);
-        finalMsg = `Vestido liberado. El contrato sigue activo debido a SALDO PENDIENTE de $${totalPendiente.toLocaleString('es-CO')} 💰`;
-        toast.warning(`⚠️ ATENCIÓN: El contrato no se cerró completamente porque existe un saldo de $${totalPendiente.toLocaleString('es-CO')}.`);
+        finalMsg = `Vestido liberado. El contrato sigue activo por ${pendienteTexto(saldo, multas)} 💰`;
+        toast.warning(`⚠️ ATENCIÓN: El contrato no se cerró porque tiene ${pendienteTexto(saldo, multas)}. Se paga o se condona en Registrar abono.`);
       }
 
       // 4. Registrar en bitácora de cambios (Audit Trail)
@@ -1207,7 +1207,7 @@ export default function DashboardPage() {
       await supabase.from('bitacora_cambios').insert({
         contrato_id: contrato.id,
         tipo_evento: '🔓 Liberación Manual',
-        motivo: `Ingreso manual anticipado realizado por ${editorName}. Vestidos liberados. saldo: ${saldo}.`,
+        motivo: `Ingreso manual anticipado realizado por ${editorName}. Vestidos liberados. Pendiente: ${pendienteTexto(saldo, multas)}.`,
         usuario_id: user?.id
       });
 
