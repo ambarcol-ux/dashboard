@@ -101,6 +101,8 @@ export default function DashboardPage() {
 
   // -- Quality Control Filters --
   const [filtroSede, setFiltroSede] = useState<string>('Todas');
+  // Last sede chosen on this device (the list of sedes validates it when it loads).
+  useEffect(() => { try { const v = localStorage.getItem('inicio.sede'); if (v) setFiltroSede(v); } catch {} }, []);
   const [filtroHito, setFiltroHito] = useState<string>('Todos'); // 'Cita de Medidas'|'Prueba Final'|'Fecha de Entrega/Envío'|'Sesión Pre-XV'
   const [filtroRango, setFiltroRango] = useState<string>('Cualquier Fecha'); // 'Hoy'|'Esta Semana'|'Este Mes'|'Personalizado'
   const [fechaDesde, setFechaDesde] = useState<string>('');
@@ -246,6 +248,7 @@ export default function DashboardPage() {
             codigo,
             nombre: v.nombre,
             sede_nombre: sedesMap.get(v.sede_actual_id) || 'Sin Sede',
+            sede_id: v.sede_actual_id,
             total_alquileres: 0
           };
         }
@@ -253,8 +256,7 @@ export default function DashboardPage() {
       });
 
       const sorted = Object.values(counts)
-        .sort((a: any, b: any) => b.total_alquileres - a.total_alquileres)
-        .slice(0, 5);
+        .sort((a: any, b: any) => b.total_alquileres - a.total_alquileres);
 
       setKpiVestidos(sorted);
     } catch (err) {
@@ -2244,6 +2246,9 @@ export default function DashboardPage() {
     };
   }, [summary, tabCounts, activeBranchName]);
 
+  // Top 5 most rented dresses of the selected sede (all sedes when none is chosen).
+  const rankingSede = (filtroSede === 'Todas' ? kpiVestidos : kpiVestidos.filter((v: any) => v.sede_id === filtroSede)).slice(0, 5);
+
   const salesStats = React.useMemo(() => {
     try {
       const count = summary?.monthCount ?? 0;
@@ -2408,9 +2413,6 @@ export default function DashboardPage() {
       <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-8">
         
-        {user && <DashboardAlerts canSee={id => panelAccess(id, user || {}, null, userPermissions)} pendingDeposits={pendingDeposits}
-          entregas={alerts.entregasOmitidasCount} borradores={alerts.borradoresVencidosCount} prexv={summary?.prexvIncomplete ?? 0}
-          filtroAlerta={filtroAlerta} onAlerta={f => setFiltroAlerta(f as typeof filtroAlerta)} onPrexv={() => setFiltroTipoEvento('PREXV')} />}
         {contractsError && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">{contractsError}</div>}
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-rose-100">
@@ -2433,6 +2435,22 @@ export default function DashboardPage() {
             />
           </div>
 
+          {/* Sede: filtra toda la página (cifras, alertas, rentabilidad y contratos) */}
+          <label className="flex items-center gap-2" title="Filtra todo el panel por sede">
+            <span className="text-gray-500 font-bold text-sm">Sede:</span>
+            <select
+              value={filtroSede}
+              onChange={(e) => { setFiltroSede(e.target.value); try { localStorage.setItem('inicio.sede', e.target.value); } catch {} }}
+              className="bg-rose-50 border border-rose-200 text-gray-900 rounded-xl px-4 py-2.5 font-black focus:ring-2 focus:ring-rose-300 outline-none"
+            >
+              <option value="Todas">Todas las sedes</option>
+              {sedes.map((s: any) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+              {summary?.hasUnassigned && (
+                <option value="unassigned">Sin sede válida</option>
+              )}
+            </select>
+          </label>
+
           <div className="flex items-center gap-3">
              <button 
                onClick={() => void fetchContratos()}
@@ -2449,6 +2467,10 @@ export default function DashboardPage() {
              </Link>
           </div>
         </div>
+        {user && <DashboardAlerts canSee={id => panelAccess(id, user || {}, null, userPermissions)} pendingDeposits={pendingDeposits}
+          entregas={alerts.entregasOmitidasCount} borradores={alerts.borradoresVencidosCount} prexv={summary?.prexvIncomplete ?? 0}
+          filtroAlerta={filtroAlerta} onAlerta={f => setFiltroAlerta(f as typeof filtroAlerta)} sedeId={filtroSede !== 'Todas' && filtroSede !== 'unassigned' ? filtroSede : null} sedeNombre={sedes.find((x: any) => x.id === filtroSede)?.nombre || null}
+          onPrexv={() => setFiltroTipoEvento('PREXV')} />}
 
         {/* --- CITAS ANALYTICS DASHBOARD --- */}
 
@@ -2488,7 +2510,7 @@ export default function DashboardPage() {
         </div>
 
         {/* NEW: KPI QUICK VIEW (Imagen 5 Request) */}
-        {kpiVestidos.length > 0 && (
+        {rankingSede.length > 0 && (
            <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 p-6 animate-in slide-in-from-top-4 duration-500">
              <div className="flex items-center justify-between mb-4 px-2">
                 <h3 className="text-xs font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
@@ -2497,7 +2519,7 @@ export default function DashboardPage() {
                 {panelAccess('reports', user || {}, null, userPermissions) && <Link href="/admin/reports" className="text-[10px] font-black text-rose-500 hover:text-rose-600 uppercase tracking-tighter"> Ver Reporte Full → </Link>}
              </div>
              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                {kpiVestidos.map((v, i) => (
+                {rankingSede.map((v, i) => (
                   <div key={v.codigo} className="relative group">
                     <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 group-hover:bg-rose-50 group-hover:border-rose-100 transition-all">
                        <div className="flex items-center justify-between mb-1">
@@ -2513,7 +2535,7 @@ export default function DashboardPage() {
                        <p className="text-[9px] text-gray-400 font-bold truncate mb-2">{v.nombre || 'Vestido'}</p>
                        <div className="flex items-center gap-1">
                           <div className="h-1.5 flex-1 bg-gray-200 rounded-full overflow-hidden">
-                             <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (v.total_alquileres / kpiVestidos[0].total_alquileres) * 100)}%` }}></div>
+                             <div className="h-full bg-emerald-500" style={{ width: `${Math.min(100, (v.total_alquileres / rankingSede[0].total_alquileres) * 100)}%` }}></div>
                           </div>
                           <span className="text-[10px] font-black text-emerald-600">{v.total_alquileres} rentals</span>
                        </div>
@@ -2647,20 +2669,6 @@ export default function DashboardPage() {
                   );
                 })()}
 
-                <div className="flex items-center gap-2">
-                  <span className="text-gray-500 font-bold text-sm">Sede:</span>
-                  <select 
-                    value={filtroSede} 
-                    onChange={(e) => setFiltroSede(e.target.value)}
-                    className="bg-gray-50 border border-gray-200 text-gray-800 rounded-xl px-4 py-2 font-bold focus:ring-2 focus:ring-rose-300 outline-none"
-                  >
-                    <option value="Todas">Todas las Sedes</option>
-                    {sedes.map((s: any) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                    {summary?.hasUnassigned && (
-                      <option value="unassigned">Sin sede válida</option>
-                    )}
-                  </select>
-                </div>
               </div>
             </div>
 
@@ -2719,7 +2727,7 @@ export default function DashboardPage() {
             </div>
           
           <div className="overflow-x-visible pb-32">
-            <div id="vestidos-fuera"><OutsideDressAlerts /></div>
+            <div id="vestidos-fuera"><OutsideDressAlerts sede={filtroSede !== 'Todas' && filtroSede !== 'unassigned' ? sedes.find((x: any) => x.id === filtroSede)?.nombre || null : null} /></div>
             
             <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-gray-100" aria-label="Paginación de contratos">
               <span className="text-sm text-gray-500" aria-live="polite">

@@ -9,28 +9,33 @@ type Server={caja_abonos:number;caja_sin_cerrar:number;caja_diferencias:number;p
 type Tile={key:string;label:string;count:number;color:string;panel:string;href?:string;onClick?:()=>void;active?:boolean};
 
 /** Inicio: one strip with every pending item, each with its own color; tap to go to the module. Only items with something pending show. */
-export default function DashboardAlerts({canSee,pendingDeposits,entregas,borradores,prexv,filtroAlerta,onAlerta,onPrexv}:{
+export default function DashboardAlerts({canSee,pendingDeposits,entregas,borradores,prexv,filtroAlerta,onAlerta,onPrexv,sedeId=null,sedeNombre=null}:{
+ sedeId?:string|null;sedeNombre?:string|null;
  canSee:(panel:string)=>boolean;pendingDeposits:number|null;entregas:number;borradores:number;prexv:number;
  filtroAlerta:string;onAlerta:(f:string)=>void;onPrexv:()=>void}){
- const [data,setData]=useState<Server|null>(null),[seg,setSeg]=useState<{hoy:number;vencidos:number}|null>(null),[fuera,setFuera]=useState(0),[ver,setVer]=useState(false);
- const cobros=useCobrosUrgentes(canSee('cobros'));
+ const [data,setData]=useState<Server|null>(null),[seg,setSeg]=useState<{hoy:number;vencidos:number}|null>(null),[fuera,setFuera]=useState(0),[ver,setVer]=useState(false),[depSede,setDepSede]=useState<number|null>(null);
+ const cobros=useCobrosUrgentes(canSee('cobros'),sedeId);
  useEffect(()=>{
   let live=true,last=0;
   const load=async()=>{
    if(document.visibilityState!=='visible'||Date.now()-last<55000)return;last=Date.now();
-   const [a,s,f]=await Promise.all([supabase.rpc('alertas_inicio'),supabase.rpc('seguimientos_resumen'),
-    supabase.rpc('vestidos_fuera_activos',{},{count:'exact',head:true}).eq('semaforo','ALERTA')]);
+   // Everything follows the sede chosen in the Inicio (null = all the user's sedes).
+   let fq=supabase.rpc('vestidos_fuera_activos',{},{count:'exact',head:true}).eq('semaforo','ALERTA');if(sedeNombre)fq=fq.eq('sede',sedeNombre);
+   const [a,s,f,dp]=await Promise.all([supabase.rpc('alertas_inicio_sede',{p_sede:sedeId}),supabase.rpc('seguimientos_resumen'),fq,
+    sedeId?supabase.from('solicitudes_depositos').select('id,contratos!inner(sede_id)',{count:'exact',head:true}).in('estado',['pendiente','en_proceso','pagado']).eq('contratos.sede_id',sedeId):Promise.resolve(null)]);
    if(!live)return;
    if(!a.error&&a.data)setData(a.data as Server);
-   if(!s.error&&s.data)setSeg({hoy:Number(s.data.hoy)||0,vencidos:Number(s.data.vencidos)||0});
+   if(!s.error&&s.data){const al=((s.data.alertas||[]) as {sede:string|null;estado:string}[]).filter(x=>!sedeNombre||x.sede===sedeNombre);
+    setSeg(sedeNombre?{hoy:al.filter(x=>x.estado==='Hoy').length,vencidos:al.filter(x=>x.estado!=='Hoy').length}:{hoy:Number(s.data.hoy)||0,vencidos:Number(s.data.vencidos)||0});}
+   setDepSede(dp&&!dp.error?dp.count||0:null);
    if(!f.error)setFuera(f.count||0);
   };
   void load();const t=setInterval(()=>void load(),60000);window.addEventListener('focus',load);
   return()=>{live=false;clearInterval(t);window.removeEventListener('focus',load);};
- },[]);
+ },[sedeId,sedeNombre]);
  const d=data,toggle=(f:string)=>onAlerta(filtroAlerta===f?'ninguna':f);
  const tiles:Tile[]=[
-  {key:'dep',label:'Depósitos por devolver',count:pendingDeposits||0,color:'bg-rose-50 border-rose-200 text-rose-700',panel:'depositos',href:'/dashboard/devoluciones-depositos#pendientes'},
+  {key:'dep',label:'Depósitos por devolver',count:(sedeId?depSede:pendingDeposits)||0,color:'bg-rose-50 border-rose-200 text-rose-700',panel:'depositos',href:'/dashboard/devoluciones-depositos#pendientes'},
   {key:'cob',label:cobros?.tres?`Saldos por cobrar (7 días) · ${cobros.tres} urgentes`:'Saldos por cobrar (7 días)',count:cobros?.total||0,color:'bg-amber-50 border-amber-200 text-amber-800',panel:'cobros',href:'/dashboard/cuentas-por-cobrar'},
   {key:'seg',label:`Seguimientos · ${seg?.hoy||0} hoy · ${seg?.vencidos||0} vencidos`,count:(seg?.hoy||0)+(seg?.vencidos||0),color:'bg-yellow-50 border-yellow-300 text-yellow-800',panel:'primeras-citas',href:'/dashboard/primeras-citas'},
   {key:'hoy',label:'Agenda de hoy (citas, pruebas, entregas)',count:d?.agenda_hoy||0,color:'bg-sky-50 border-sky-200 text-sky-800',panel:'calendario',href:'/dashboard/calendario'},
