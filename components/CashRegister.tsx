@@ -63,7 +63,8 @@ function PendingPayments({rows,onOpen}:{rows:PendingPayment[];onOpen:(p:PendingP
 export default function CashRegister({profile}:{profile:Profile}){
  const today=bogotaDay(new Date().toISOString())!;
  const role=profile.rol.toLowerCase(),seesAll=role==='admin'||role==='contabilidad',isAdmin=role==='admin';
- const perms=usePermissions(profile.id),puedeCorregir=isAdmin||can(perms,'caja.editar'),puedeReabrir=isAdmin||can(perms,'caja.reabrir'),puedeCuentas=isAdmin||can(perms,'caja.cuentas');
+ // Contabilidad has the same financial powers as administration; leaders and franchisees get them for their own site through Roles.
+ const finanzas=seesAll,perms=usePermissions(profile.id),puedeCorregir=finanzas||can(perms,'caja.editar'),puedeReabrir=finanzas||can(perms,'caja.reabrir'),puedeCuentas=finanzas||can(perms,'caja.cuentas');
  const [sites,setSites]=useState<CashSiteSummary[]>([]),[sede,setSede]=useState(seesAll?ALL:(profile.sede_id||'')),[fecha,setFecha]=useState(today),[desde,setDesde]=useState(today);
  const [day,setDay]=useState<CashDay|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [pending,setPending]=useState<PendingPayment[]>([]);
@@ -98,7 +99,7 @@ export default function CashRegister({profile}:{profile:Profile}){
   <button key={k} role="tab" aria-selected={view===k} className={`${styles.tab} ${view===k?styles.tabActive:''}`} onClick={()=>setView(k)}>{label}</button>)}</div>;
  if(view==='plata')return <>{tabs}<WhereIsMoneyView today={today}/></>;
  if(view==='depositos')return <>{tabs}<DepositsView today={today}/></>;
- if(view==='cuentas')return <>{tabs}{seesAll&&<CashStartAdmin isAdmin={isAdmin} today={today}/>}<AccountsAdmin sites={sites} isAdmin={isAdmin} canManage={puedeCuentas}/></>;
+ if(view==='cuentas')return <>{tabs}{seesAll&&<CashStartAdmin isAdmin={finanzas} today={today}/>}<AccountsAdmin sites={sites} isAdmin={finanzas} canManage={puedeCuentas}/></>;
  return <>
   {tabs}
   <div className={styles.toolbar} style={{marginBottom:18}}>
@@ -110,7 +111,7 @@ export default function CashRegister({profile}:{profile:Profile}){
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   <PendingPayments rows={sede===ALL?pending:pending.filter(p=>p.sede_id===sede)} onOpen={p=>{setLoading(true);setNotice('');setSede(p.sede_id);setFecha(p.fecha);if(p.fecha<desde)setDesde(p.fecha);}}/>
-  {sede===ALL?<AllSites rows={sites} loading={loading} onPick={id=>{setLoading(true);setSede(id);}}/>:day?<SiteDay key={`${day.sede_id}:${day.fecha}`} day={day} siteName={siteName} isAdmin={isAdmin} canFix={puedeCorregir} canReopen={puedeReabrir} onDone={done} onError={setError}/>:!error&&<p className={styles.empty}>{loading?'Cargando caja…':'No tienes una sede asignada para manejar caja.'}</p>}
+  {sede===ALL?<AllSites rows={sites} loading={loading} onPick={id=>{setLoading(true);setSede(id);}}/>:day?<SiteDay key={`${day.sede_id}:${day.fecha}`} day={day} siteName={siteName} isAdmin={isAdmin} finanzas={finanzas} canFix={puedeCorregir} canReopen={puedeReabrir} onDone={done} onError={setError}/>:!error&&<p className={styles.empty}>{loading?'Cargando caja…':'No tienes una sede asignada para manejar caja.'}</p>}
  </>;
 }
 
@@ -136,7 +137,7 @@ function AllSites({rows,loading,onPick}:{rows:CashSiteSummary[];loading:boolean;
  </>;
 }
 
-function SiteDay({day,siteName,isAdmin,canFix,canReopen,onDone,onError}:{day:CashDay;siteName:string;isAdmin:boolean;canFix:boolean;canReopen:boolean;onDone:(m:string)=>void;onError:(m:string)=>void}){
+function SiteDay({day,siteName,isAdmin,finanzas,canFix,canReopen,onDone,onError}:{day:CashDay;siteName:string;isAdmin:boolean;finanzas:boolean;canFix:boolean;canReopen:boolean;onDone:(m:string)=>void;onError:(m:string)=>void}){
  const open=!day.cierre,canWork=open&&day.puede_operar;
  const ie=Number(day.totales.ingresos_efectivo||0),ee=Number(day.totales.egresos_efectivo||0),esperado=expectedCash(day.saldo_inicial,ie,ee);
  const active=day.movimientos.filter(m=>!m.anulado_at);
@@ -183,7 +184,7 @@ function SiteDay({day,siteName,isAdmin,canFix,canReopen,onDone,onError}:{day:Cas
   {canWork&&<div className={styles.grid2}><NewMovement day={day} onDone={onDone}/><CloseForm day={day} esperado={esperado} pendingSupports={missing.length} onDone={onDone}/></div>}
   {!open&&canReopen&&<Reopen day={day} onDone={onDone}/>}
   {!open&&canReopen&&<p className={styles.help}>Para editar un movimiento de un día cerrado, primero reabre la caja de ese día.</p>}
-  {editing&&<EditMovement soloCuenta={!isAdmin} day={day} movement={editing} onClose={()=>setEditing(null)} onDone={m=>{setEditing(null);onDone(m);}}/>}
+  {editing&&<EditMovement soloCuenta={!finanzas} day={day} movement={editing} onClose={()=>setEditing(null)} onDone={m=>{setEditing(null);onDone(m);}}/>}
  </>;
 }
 
