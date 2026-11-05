@@ -17,7 +17,7 @@ import {
 import Link from 'next/link';
 import PaymentSupportUpload from '@/components/PaymentSupportUpload';
 import { SUPPORT_BUCKET, type UploadedSupport } from '@/lib/payment-support';
-import { saldoContrato, puedeAbonar } from '@/lib/saldo';
+import { porPagarContrato, puedeAbonar } from '@/lib/saldo';
 
 type PagoSoporte = { id: string; archivo_path: string; nombre: string; activo: boolean };
 
@@ -80,7 +80,8 @@ export default function RegistrarPagoPage() {
   };
 
   // ── REAL-TIME VALIDATION ──────────────────────────────────────────────────
-  const saldoNumber = contrato ? saldoContrato(contrato) : 0;
+  // Includes penalties: the release keeps the contract open until they are paid too.
+  const saldoNumber = contrato ? porPagarContrato(contrato) : 0;
   const montoIngresado = parseFloat(formData.valor_pagado) || 0;
   const excedeBalance = montoIngresado > saldoNumber && formData.valor_pagado !== '';
   const montoInvalido = montoIngresado <= 0 && formData.valor_pagado !== '';
@@ -111,7 +112,7 @@ export default function RegistrarPagoPage() {
     }
 
     // Hard-stop: Operación denegada si genera saldo negativo
-    const saldoPendienteActual = saldoContrato(contrato);
+    const saldoPendienteActual = porPagarContrato(contrato);
     if (montoAbono > saldoPendienteActual) {
       toast.error(
         `Operación denegada: El pago genera un saldo negativo. ` +
@@ -232,7 +233,7 @@ export default function RegistrarPagoPage() {
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-gray-500 font-semibold mb-1">Saldo Pendiente</p>
+                <p className="text-sm text-gray-500 font-semibold mb-1">{Number(contrato.total_multas) > 0 ? 'Saldo pendiente (incluye multas)' : 'Saldo Pendiente'}</p>
                 <div className={`text-3xl font-black ${saldoNumber > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                   {formatCurrency(saldoNumber)}
                 </div>
