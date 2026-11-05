@@ -1829,7 +1829,7 @@ export default function NuevoContratoPage() {
           <ContractAllyMode extra={!isEditMode && <a href="/dashboard/ventas" className="px-5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 text-sm font-bold text-emerald-700">Venta</a>} value={aliadoModo} onChange={setAliadoModo} descuento={descuentoAliado} descuentoPct={aliadoPct.descuento} minimoPct={aliadoPct.minimo} numero={editingContractNumber}
             total={Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado - descuentoPromo) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0)}
             disabled={isEditMode && !['borrador','pendiente_admin'].includes(String(editingContractState).toLowerCase()) && String(userRole).toLowerCase() !== 'admin'}
-            onAlly={a => setFormData(prev => ({ ...prev, cliente_nombre: a.nombre, cliente_documento: a.cedula, cliente_email: a.correo, whatsapp: a.celular, direccion: a.direccion }))}
+            onAlly={a => setFormData(prev => ({ ...prev, cliente_nombre: a.nombre, cliente_documento: a.cedula, cliente_email: a.correo || '', whatsapp: a.celular || '', direccion: a.direccion || '' }))}
             onClienta={c => setFormData(prev => ({ ...prev, quinceanera_name: c.clienta_nombre, fecha_evento: prev.fecha_evento || c.fecha_evento }))} />
           {/* SECCIÓN 1: DATOS BÁSICOS */}
           <section className="space-y-6">
