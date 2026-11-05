@@ -48,7 +48,7 @@ export default function DashboardAlerts({canSee,pendingDeposits,entregas,borrado
   {key:'man7',label:'Mantenimiento demorado (+7 días)',count:d?.mantenimiento_demorado||0,color:'bg-blue-50 border-blue-200 text-blue-700',panel:'inventory',href:'/admin/inventory'},
   {key:'est',label:'Pedidos de estrene en riesgo (no alcanzan)',count:d?.estrene_riesgo||0,color:'bg-red-100 border-red-300 text-red-800',panel:'pedidos_estrene',href:'/dashboard/pedidos-estrene'},
   {key:'prov',label:'Servicios de proveedores por pagar',count:d?.proveedores_por_pagar||0,color:'bg-gray-50 border-gray-300 text-gray-700',panel:'proveedores-pagos',href:'/dashboard/proveedores/pagos'},
-  {key:'ven',label:'Ventas de vestido sin factura',count:d?.ventas_sin_factura||0,color:'bg-pink-50 border-pink-200 text-pink-700',panel:'inventory',href:'/admin/inventory'},
+  {key:'ven',label:'Ventas de vestido sin factura',count:d?.ventas_sin_factura||0,color:'bg-pink-50 border-pink-200 text-pink-700',panel:'dashboard',href:'/dashboard/ventas'},
   {key:'inc',label:'Contratos con datos por revisar',count:d?.incoherentes.length||0,color:'bg-slate-50 border-slate-300 text-slate-700',panel:'cobros',onClick:()=>setVer(v=>!v),active:ver},
  ].filter(t=>t.count>0&&canSee(t.panel));
  if(!d&&!seg)return null;

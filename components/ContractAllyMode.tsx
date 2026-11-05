@@ -1,5 +1,5 @@
 'use client';
-import {useEffect,useState} from 'react';
+import {useEffect,useState,type ReactNode} from 'react';
 import {Handshake} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 import {ALLY_EVENT_LABEL,categoryRange,clientId,type AllyCategory,type AllyClient} from '@/lib/ally-clients';
@@ -9,7 +9,7 @@ import {EMPTY_ALLY_MODE,type ContractAlly,type ContractAllyModeValue} from '@/li
 const money=(v:number)=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(v);
 
 /** Classification at the start of the lease contract: Cliente directo (unchanged) or Aliado (ally is the client; the ally's client data are loaded). */
-export default function ContractAllyMode({value,onChange,onAlly,onClienta,descuento,total,numero,disabled,descuentoPct=5,minimoPct=50}:{descuentoPct?:number;minimoPct?:number;value:ContractAllyModeValue;onChange:(v:ContractAllyModeValue)=>void;onAlly:(a:ContractAlly)=>void;onClienta:(c:AllyClient)=>void;descuento:number;total:number;numero:string;disabled?:boolean}){
+export default function ContractAllyMode({value,onChange,onAlly,onClienta,descuento,total,numero,disabled,descuentoPct=5,minimoPct=50,extra}:{extra?:ReactNode;descuentoPct?:number;minimoPct?:number;value:ContractAllyModeValue;onChange:(v:ContractAllyModeValue)=>void;onAlly:(a:ContractAlly)=>void;onClienta:(c:AllyClient)=>void;descuento:number;total:number;numero:string;disabled?:boolean}){
  const [cats,setCats]=useState<AllyCategory[]>([]);
  useEffect(()=>{void supabase.rpc('categorias_aliado').then(({data})=>setCats((data||[]) as AllyCategory[]));},[]);
  const [qa,setQa]=useState(''),[qc,setQc]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false);
@@ -20,7 +20,7 @@ export default function ContractAllyMode({value,onChange,onAlly,onClienta,descue
  const c=value.clienta;
  return <section className="bg-violet-50/40 p-6 rounded-2xl border border-violet-100 shadow-sm space-y-4">
   <div className="flex items-center gap-2 text-gray-800 border-b border-violet-100 pb-2"><Handshake className="w-5 h-5 text-violet-600"/><h3 className="font-bold">Clasificación del contrato</h3></div>
-  <div className="flex gap-2">{([[false,'Cliente directo'],[true,'Aliado']] as [boolean,string][]).map(([v,l])=><button key={l} type="button" disabled={disabled} onClick={()=>onChange(v?{...value,tiene:true}:EMPTY_ALLY_MODE)} className={`px-5 py-2 rounded-xl border text-sm font-bold ${value.tiene===v?'bg-violet-600 border-violet-600 text-white':'bg-white border-gray-200 text-gray-600'}`}>{l}</button>)}</div>
+  <div className="flex gap-2">{([[false,'Cliente directo'],[true,'Aliado']] as [boolean,string][]).map(([v,l])=><button key={l} type="button" disabled={disabled} onClick={()=>onChange(v?{...value,tiene:true}:EMPTY_ALLY_MODE)} className={`px-5 py-2 rounded-xl border text-sm font-bold ${value.tiene===v?'bg-violet-600 border-violet-600 text-white':'bg-white border-gray-200 text-gray-600'}`}>{l}</button>)}{extra}</div>
   {error&&<p className="text-sm font-bold text-rose-600">{error}</p>}
   {value.tiene&&<>
    <div className="text-sm font-semibold text-gray-700">Aliado (cliente del contrato)

@@ -10,7 +10,7 @@ const digits=(v:string)=>v.replace(/\D/g,'');
 
 /** Sale of a dress (cash sale, no contract): sale price minus an optional discount with reason, buyer data for the invoice.
  * The income goes into today's cash register as «Venta de vestido»; Siigo will use the code + V. */
-export default function DressSaleDialog({dress,onClose,onSaved}:{dress:SaleDress;onClose:()=>void;onSaved:()=>void}){
+export default function DressSaleDialog({dress,onClose,onSaved}:{dress:SaleDress;onClose:()=>void;onSaved:(ventaId?:string)=>void}){
  const precio=Number(dress.precio_venta)||0;
  const [f,setF]=useState({descuento:'',motivo_descuento:'',medio_pago:'Efectivo',cuenta_id:'',cliente_nombre:'',cliente_documento:'',cliente_telefono:'',cliente_email:'',numero_factura:''}),[busy,setBusy]=useState(false);
  const [cuentas,setCuentas]=useState<CashAccount[]>([]);
@@ -20,10 +20,10 @@ export default function DressSaleDialog({dress,onClose,onSaved}:{dress:SaleDress
  const faltaCuenta=needsAccount(f.medio_pago,opciones)&&!f.cuenta_id;
  const invalido=!precio||dto>=precio||(dto>0&&f.motivo_descuento.trim().length<5)||f.cliente_nombre.trim().length<3||!/^[0-9A-Za-z-]{5,20}$/.test(f.cliente_documento.replace(/[\s.]/g,''))||faltaCuenta;
  const save=async()=>{setBusy(true);
-  const {error}=await supabase.rpc('registrar_venta_vestido',{p_datos:{vestido_id:dress.id,...f,descuento:String(dto)}});
+  const {data,error}=await supabase.rpc('registrar_venta_vestido',{p_datos:{vestido_id:dress.id,...f,descuento:String(dto)}});
   setBusy(false);
   if(error){toast.error(error.message);return;}
-  toast.success(`Venta registrada: ${dress.codigo} por ${money(total)}. Entró a la caja de hoy.`);onSaved();};
+  toast.success(`Venta registrada: ${dress.codigo} por ${money(total)}. Entró a la caja de hoy.`);onSaved(data?String(data):undefined);};
  const input='w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none';
  const label='block text-[10px] font-black text-gray-400 uppercase tracking-widest';
  return <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={()=>{if(!busy)onClose();}}>
