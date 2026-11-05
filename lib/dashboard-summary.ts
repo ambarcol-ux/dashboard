@@ -45,6 +45,8 @@ export function filterDashboardContracts(contratos: Row[], sedes: Row[], filters
         if ((c.estado_entrega_envio || '') !== 'Por Entregar') return false;
         return c.fecha_entrega_envio < todayStr;
       });
+    } else if (filtroAlerta === 'prexv_incompletos') {
+      return result.filter(c => hasPrexv(c) && !['cancelado','rechazado','finalizado'].includes(c.estado?.toLowerCase()) && prexvPending(c).length > 0);
     } else if (filtroAlerta === 'borradores_sin_firmar') {
       const fortyEightHoursAgo = new Date(now - 48 * 60 * 60 * 1000);
       return result.filter(c => {

@@ -107,7 +107,7 @@ export default function DashboardPage() {
   const [filtroRango, setFiltroRango] = useState<string>('Cualquier Fecha'); // 'Hoy'|'Esta Semana'|'Este Mes'|'Personalizado'
   const [fechaDesde, setFechaDesde] = useState<string>('');
   const [fechaHasta, setFechaHasta] = useState<string>('');
-  const [filtroAlerta, setFiltroAlerta] = useState<'ninguna' | 'entregas_omitidas' | 'borradores_sin_firmar'>('ninguna');
+  const [filtroAlerta, setFiltroAlerta] = useState<'ninguna' | 'entregas_omitidas' | 'borradores_sin_firmar' | 'prexv_incompletos'>('ninguna');
   // -- PREXV Filter (15 Años) --
   const [filtroTipoEvento, setFiltroTipoEvento] = useState<'Todos' | 'PREXV'>('Todos');
 
@@ -2699,7 +2699,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Tabla Principal */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div id="lista-contratos" className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden scroll-mt-4">
           <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
               <h2 className="text-xl font-black text-gray-900 uppercase tracking-tighter">Gestión de Operaciones</h2>
               <div className="flex bg-gray-200/50 p-1 rounded-2xl border border-gray-100 shadow-inner">

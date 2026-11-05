@@ -58,7 +58,7 @@ export default function InventoryPage() {
   const [categoriaFilter, setCategoriaFilter] = useState<string>('');
   const [catalogBusy, setCatalogBusy] = useState(false), [bulkOpen, setBulkOpen] = useState(false); // '' todas, 'none' sin categoría, o nombre
   const [showArchived, setShowArchived] = useState(false);
-  const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado'>('bandeja');
+  const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado'>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('vista') === 'estado' ? 'estado' : 'bandeja');
   const [removalTarget, setRemovalTarget] = useState<{id: string; codigo: string} | null>(null);
   const [user, setUser] = useState<any>(null);
   const userPermissions = usePermissions(user?.id ? String(user.id) : null);
@@ -78,6 +78,9 @@ export default function InventoryPage() {
   const canEditDress = (v: { sede_actual_id?: unknown } | null | undefined) => !!v && (sedesEditables.includes(String(v.sede_actual_id)) || (sinSede(v) && String(user?.rol || '').toLowerCase() === 'admin'));
   const [sedeFilter, setSedeFilter] = useState<string>(''); // Filtro por Sede Principal ('none' = sin sede)
   const [novedadFilter, setNovedadFilter] = useState<string>('');
+  // ?vista=demorados (alert «Mantenimiento demorado»): only dresses in maintenance for more than 7 days, with their days.
+  const [demorados, setDemorados] = useState<{ vestido_id: string; codigo: string; dias: number }[] | null>(null);
+  useEffect(() => { if (new URLSearchParams(window.location.search).get('vista') !== 'demorados') return; void supabase.rpc('vestidos_mantenimiento_demorado', { p_sede: null }).then(({ data }) => setDemorados((data || []) as { vestido_id: string; codigo: string; dias: number }[])); }, []);
   const [editState, setEditState] = useState<Record<number, any>>({}); // Estado local de edición por vestidoid
   const [profilesList, setProfilesList] = useState<any[]>([]);
 
@@ -541,7 +544,8 @@ export default function InventoryPage() {
       (clasificacionFilter === 'none' ? !v.clasificacion_id : String(v.clasificacion_id) === clasificacionFilter))
       && (categoriaFilter === '' || (categoriaFilter === 'none' ? !v.categoria : v.categoria === categoriaFilter));
     
-    return searchMatch && sedeMatch && clasificacionMatch && novedadMatch && Boolean(v.archivado) === showArchived;
+    const demoradoMatch = !demorados || demorados.some(x => String(x.vestido_id) === String(v.id));
+    return searchMatch && sedeMatch && clasificacionMatch && novedadMatch && demoradoMatch && Boolean(v.archivado) === showArchived;
   });
 
   if (loading && vestidos.length === 0) {
@@ -615,6 +619,11 @@ export default function InventoryPage() {
         {inventoryTab === 'estado' ? (
           <InventoryByStatus vestidos={vestidos.filter(v => !v.archivado)} sedes={sedes} clasificaciones={clasificaciones} />
         ) : (<>
+        {demorados && <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-900">
+          <div className="flex flex-wrap items-center justify-between gap-2"><b>Mantenimiento demorado: {demorados.length} vestido{demorados.length === 1 ? '' : 's'} en lavandería o arreglo hace más de 7 días.</b>
+            <button type="button" className="underline font-bold" onClick={() => { setDemorados(null); window.history.replaceState(null, '', '/admin/inventory'); }}>Ver todo el inventario</button></div>
+          <div className="flex flex-wrap gap-2 mt-2">{demorados.map(x => <span key={x.vestido_id} className="px-2 py-1 rounded-lg bg-white border border-blue-200 font-bold">{x.codigo} · {x.dias} días</span>)}</div>
+        </div>}
         {/* Filters & Actions */}
         <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col gap-4">
           <div className="relative w-full">
