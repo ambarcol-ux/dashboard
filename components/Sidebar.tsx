@@ -3,8 +3,6 @@
 import { usePermissions } from '@/lib/use-permissions';
 import React, { useState } from 'react';
 import Link from 'next/link';
-import DepositAlert, {useDepositCount} from '@/components/DepositAlert';
-import CobrosAlert from '@/components/CobrosAlert';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
 import {
   FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight
@@ -17,8 +15,8 @@ interface SidebarProps {
   activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros';
 }
 
-export default function Sidebar({ user, handleLogout, activePage, pendingDeposits }: SidebarProps) {
-  const depositCount = useDepositCount(pendingDeposits, user?.id);
+// Deposit and balance reminders live in the Inicio alert strip (DashboardAlerts), not in the menu.
+export default function Sidebar({ user, handleLogout, activePage }: SidebarProps) {
   const [isOpen, setIsOpen] = useState(false);
   const accountingOnly = isAccountingProfile(user);
   // Same rules as the route guard: role defaults plus the administrator's manual changes.
@@ -171,8 +169,6 @@ export default function Sidebar({ user, handleLogout, activePage, pendingDeposit
       </div>
 
       <nav className="flex-1 p-4 space-y-6 overflow-y-auto overflow-x-hidden custom-scrollbar pb-10">
-        <DepositAlert count={depositCount}/>
-        {canSee('cobros') && <CobrosAlert/>}
         {blocksWithSoon.map((block, blockIndex) => {
           if (!block.items.some(item => !item.disabled && canSee(item.panel || item.id))) return null;
           const open = isBlockOpen(block);
