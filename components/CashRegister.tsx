@@ -52,11 +52,29 @@ function PendingPayments({rows,onOpen,abierto=false}:{rows:PendingPayment[];onOp
  const total=rows.reduce((a,p)=>a+(Number(p.valor)||0),0);
  return <details open={abierto||undefined} className={styles.card} style={{borderColor:'#f59e0b',background:'#fffbeb',marginBottom:18}}>
   <summary style={{cursor:'pointer',fontWeight:800}}>⚠️ {rows.length} abonos de contratos sin pasar a caja · {money(total)} · Pulsa para ver y confirmar cada uno en su día</summary>
-  <p style={{fontSize:12,margin:'8px 0'}}>Confírmalos desde la sugerencia del día; no los escribas a mano para no contarlos dos veces. Si el día ya está cerrado, reábrelo primero.</p>
-  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Día</th><th>Sede</th><th>Contrato</th><th>Valor</th><th>Medio</th><th></th></tr></thead>
-   <tbody>{rows.map((p,i)=><tr key={i}><td>{p.fecha}</td><td>{p.sede}</td><td><strong>{p.numero_contrato}</strong><br/><small>{p.cliente}</small></td><td>{money(p.valor)}</td><td>{p.medio||'—'}</td>
-    <td><button className={styles.button} onClick={()=>onOpen(p)}>{p.cerrado?'Ir al día (cerrado: reabrir)':'Ir al día'}</button></td></tr>)}</tbody></table></div>
+  <p style={{fontSize:13,margin:'8px 0'}}><strong>Qué hacer:</strong> son pagos que el cliente hizo y quedaron en el contrato, pero aún no están en la caja de su día. Toca <strong>«Arreglar»</strong> en el primero y sigue los pasos que aparecen arriba; al terminar te lleva al siguiente.</p>
+  <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th></th><th>Día</th><th>Contrato</th><th>Valor</th><th>Medio</th><th>Sede</th></tr></thead>
+   <tbody>{rows.map((p,i)=><tr key={i}><td><button className={`${styles.button} ${styles.primary}`} onClick={()=>onOpen(p)}>Arreglar</button></td><td>{p.fecha}{p.cerrado&&<small>Día cerrado</small>}</td><td><strong>{p.numero_contrato}</strong><br/><small>{p.cliente}</small></td><td>{money(p.valor)}</td><td>{p.medio||'—'}</td><td>{p.sede}</td></tr>)}</tbody></table></div>
  </details>;
+}
+
+/** Step-by-step guide to pass the pending contract payments of the open day into the cash register; says what comes next after each step. */
+function GuiaAbonos({day,pending,onNext,onClose}:{day:CashDay;pending:PendingPayment[];onNext:(p:PendingPayment)=>void;onClose:()=>void}){
+ const delDia=pending.filter(p=>p.sede_id===day.sede_id&&p.fecha===day.fecha),otro=pending.find(p=>!(p.sede_id===day.sede_id&&p.fecha===day.fecha));
+ const ir=(id:string)=>document.getElementById(id)?.scrollIntoView({behavior:'smooth',block:'start'});
+ const total=delDia.reduce((a,p)=>a+(Number(p.valor)||0),0);
+ let paso:number,texto:React.ReactNode,boton:React.ReactNode=null;
+ if(delDia.length&&day.cierre){paso=1;texto=<>La caja del <strong>{day.fecha}</strong> está cerrada. Reábrela para poder agregar {delDia.length===1?'el abono':`los ${delDia.length} abonos`} ({money(total)}). Escribe un motivo corto, por ejemplo «agregar abono que faltaba».</>;boton=<button className={`${styles.button} ${styles.primary}`} onClick={()=>ir('paso-reabrir')}>Llevarme a «Reabrir caja»</button>;}
+ else if(delDia.length&&!day.puede_operar){paso=1;texto=<>No tienes permiso para registrar en la caja de esta sede. Pídele a la líder de tienda o a contabilidad que agregue {delDia.length===1?'este abono':'estos abonos'}.</>;}
+ else if(delDia.length){paso=2;texto=<>Baja a <strong>«Registrados hoy en el ERP»</strong>. En cada abono ({delDia.map(p=>p.numero_contrato).join(', ')}) elige la <strong>cuenta</strong> donde llegó el dinero y toca <strong>«Agregar a la caja»</strong>.</>;boton=<button className={`${styles.button} ${styles.primary}`} onClick={()=>ir('paso-sugerencias')}>Llevarme ahí</button>;}
+ else if(!day.cierre&&day.puede_operar){paso=3;texto=<>✅ Los abonos de este día ya están en la caja. Ahora <strong>cierra la caja</strong>: cuenta el efectivo, escríbelo y toca «Cerrar caja».</>;boton=<button className={`${styles.button} ${styles.primary}`} onClick={()=>ir('paso-cerrar')}>Llevarme a «Cerrar caja»</button>;}
+ else{paso=4;texto=otro?<>✅ ¡Listo este día! Sigue con el próximo: <strong>{otro.numero_contrato}</strong> del {otro.fecha} ({money(otro.valor)}).</>:<>✅ ¡Todo al día! Ya no quedan abonos sin pasar a caja.</>;boton=otro?<button className={`${styles.button} ${styles.primary}`} onClick={()=>onNext(otro)}>Ir al siguiente</button>:null;}
+ return <section id="guia-abonos" className={styles.card} style={{borderColor:'#f59e0b',background:'#fffbeb',marginBottom:18,scrollMarginTop:80}}>
+  <p style={{fontSize:11,fontWeight:800,textTransform:'uppercase',letterSpacing:1,color:'#92400e'}}>Guía · Paso {Math.min(paso,3)} de 3{pending.length?` · quedan ${pending.length} abono${pending.length===1?'':'s'} en total`:''}</p>
+  <ol style={{fontSize:12,margin:'6px 0 10px 18px',color:'#78350f'}}><li style={{fontWeight:paso===1?800:400}}>Si el día está cerrado, reábrelo.</li><li style={{fontWeight:paso===2?800:400}}>Agrega cada abono a la caja eligiendo la cuenta.</li><li style={{fontWeight:paso===3?800:400}}>Vuelve a cerrar la caja del día.</li></ol>
+  <p style={{fontSize:15,margin:'0 0 10px'}}>{texto}</p>
+  <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{boton}<button className={styles.button} onClick={onClose}>Ver la lista completa</button></div>
+ </section>;
 }
 
 /** Cash closings: daily income and expenses per site, the closing count, and a view of every site. */
@@ -68,7 +86,8 @@ export default function CashRegister({profile}:{profile:Profile}){
  const ver=typeof window==='undefined'?'':new URLSearchParams(window.location.search).get('ver')||'';
  const [sites,setSites]=useState<CashSiteSummary[]>([]),[sede,setSede]=useState(seesAll&&ver?ALL:seesAll?ALL:(profile.sede_id||'')),[fecha,setFecha]=useState(today),[desde,setDesde]=useState(()=>ver==='sedes'?new Date(Date.parse(today+'T12:00:00Z')-30*86400000).toISOString().slice(0,10):today);
  const [day,setDay]=useState<CashDay|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [pending,setPending]=useState<PendingPayment[]>([]);
+ const [pending,setPending]=useState<PendingPayment[]>([]),[guia,setGuia]=useState(false);
+ const irAbono=(p:PendingPayment)=>{setLoading(true);setNotice('');setSede(p.sede_id);setFecha(p.fecha);if(p.fecha<desde)setDesde(p.fecha);setGuia(true);setTimeout(()=>document.getElementById('guia-abonos')?.scrollIntoView({behavior:'smooth',block:'start'}),400);};
  const request=useRef(0),[view,setView]=useState<'caja'|'plata'|'depositos'|'cuentas'>('caja');
 
  const load=useCallback(async()=>{
@@ -111,7 +130,8 @@ export default function CashRegister({profile}:{profile:Profile}){
   </div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
-  <PendingPayments abierto={ver==='abonos'} rows={sede===ALL?pending:pending.filter(p=>p.sede_id===sede)} onOpen={p=>{setLoading(true);setNotice('');setSede(p.sede_id);setFecha(p.fecha);if(p.fecha<desde)setDesde(p.fecha);}}/>
+  {guia&&sede!==ALL&&day&&day.sede_id===sede&&day.fecha===fecha?<GuiaAbonos day={day} pending={pending} onNext={irAbono} onClose={()=>setGuia(false)}/>
+   :<PendingPayments abierto={ver==='abonos'} rows={sede===ALL?pending:pending.filter(p=>p.sede_id===sede)} onOpen={irAbono}/>}
   {sede===ALL?<AllSites rows={sites} loading={loading} onPick={id=>{setLoading(true);setSede(id);}}/>:day?<SiteDay key={`${day.sede_id}:${day.fecha}`} day={day} siteName={siteName} isAdmin={isAdmin} finanzas={finanzas} canFix={puedeCorregir} canReopen={puedeReabrir} onDone={done} onError={setError}/>:!error&&<p className={styles.empty}>{loading?'Cargando caja…':'No tienes una sede asignada para manejar caja.'}</p>}
  </>;
 }
@@ -241,7 +261,7 @@ function Suggestions({day,onDone,onError}:{day:CashDay;onDone:(m:string)=>void;o
   const {error}=await supabase.rpc('registrar_movimiento_caja',{p_datos:{sede_id:day.sede_id,fecha:day.fecha,tipo:s.tipo,categoria:s.categoria,medio,valor:s.valor,origen:s.origen,origen_id:s.origen_id,contrato_id:s.contrato_id,cuenta_id:cuenta,descripcion:`${s.numero_contrato} · ${s.cliente}`}});
   setBusy('');if(error)onError(error.message);else onDone('Movimiento del ERP agregado a la caja.');
  };
- return <section className={styles.card}><h2>Registrados hoy en el ERP</h2><p>Pagos de contratos de esta sede que aún no están en la caja. Agrégalos sin volver a digitarlos; cada uno entra una sola vez. Los depósitos en garantía no entran a la caja: se llevan aparte en la pestaña Depósitos.</p>
+ return <section id="paso-sugerencias" className={styles.card} style={{scrollMarginTop:80}}><h2>Registrados hoy en el ERP</h2><p>Pagos de contratos de esta sede que aún no están en la caja. Agrégalos sin volver a digitarlos; cada uno entra una sola vez. Los depósitos en garantía no entran a la caja: se llevan aparte en la pestaña Depósitos.</p>
   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Hora</th><th>Movimiento</th><th>Contrato</th><th>Valor</th><th>Medio</th><th>Cuenta</th><th>Soporte</th><th></th></tr></thead>
    <tbody>{day.sugerencias.map(s=><tr key={s.origen+s.origen_id}><td>{s.origen==='pago'?'—':time(s.hora)}</td><td><span className={`${styles.badge} ${s.tipo==='ingreso'?styles.badgeIn:styles.badgeOut}`}>{s.categoria}</span></td><td>{s.numero_contrato}<small>{s.cliente}</small></td>
     <td className={s.tipo==='ingreso'?styles.in:styles.out}>{money(s.valor)}</td>
@@ -309,7 +329,7 @@ function CloseForm({day,esperado,pendingSupports,onDone}:{day:CashDay;esperado:n
   const {error:re}=await supabase.rpc('cerrar_caja',{p_sede:day.sede_id,p_fecha:day.fecha,p_contado:counted,p_observaciones:obs.trim()});
   setSaving(false);if(re)setError(re.message);else onDone('Caja cerrada. El efectivo contado es el saldo inicial del siguiente día.');
  };
- return <section className={styles.card}><h2>Cerrar caja</h2><p>Cuenta el efectivo físico y compáralo con lo esperado.</p>
+ return <section id="paso-cerrar" className={styles.card} style={{scrollMarginTop:80}}><h2>Cerrar caja</h2><p>Cuenta el efectivo físico y compáralo con lo esperado.</p>
   <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
    <p className={styles.help}>Esperado = saldo inicial {money(day.saldo_inicial)} + ingresos en efectivo (incluida la base) − egresos en efectivo = <strong>{money(esperado)}</strong>. Los depósitos en garantía no se cuentan aquí.</p>
    <label>Efectivo contado (COP)<input inputMode="decimal" placeholder="0" value={contado} onChange={e=>setContado(e.target.value)}/></label>
@@ -325,6 +345,6 @@ function CloseForm({day,esperado,pendingSupports,onDone}:{day:CashDay;esperado:n
 function Reopen({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
  const [error,setError]=useState('');
  const reopen=async()=>{const motivo=window.prompt('Motivo para reabrir esta caja (mínimo 5 caracteres)');if(motivo===null)return;const {error:re}=await supabase.rpc('reabrir_caja',{p_sede:day.sede_id,p_fecha:day.fecha,p_motivo:motivo});if(re)setError(re.message);else onDone('Caja reabierta. El cierre anterior queda guardado con el motivo.');};
- return <section className={styles.card}><h2>Reabrir caja</h2><p>Solo administradores. El cierre anterior queda en el historial con el motivo.</p>
+ return <section id="paso-reabrir" className={styles.card} style={{scrollMarginTop:80}}><h2>Reabrir caja</h2><p>Solo administradores. El cierre anterior queda en el historial con el motivo.</p>
   {error&&<p role="alert" className={styles.error}>{error}</p>}<button className={`${styles.button} ${styles.danger}`} onClick={()=>void reopen()}>Reabrir caja de este día</button></section>;
 }
