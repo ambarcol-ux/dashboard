@@ -138,6 +138,36 @@ function AllSites({rows,loading,onPick}:{rows:CashSiteSummary[];loading:boolean;
  </>;
 }
 
+/** Assigns in one go the account to every movement of the day paid by transfer, card or other that has none. */
+function AssignAccountBulk({day,canEdit,canFix,onDone,onError}:{day:CashDay;canEdit:boolean;canFix:boolean;onDone:(m:string)=>void;onError:(m:string)=>void}){
+ const sinCuenta=(day.movimientos||[]).filter(m=>!m.anulado_at&&!m.cuenta_id&&m.medio!=='Efectivo');
+ const medios=Array.from(new Set(sinCuenta.map(m=>m.medio)));
+ const [abierto,setAbierto]=useState(false),[medio,setMedio]=useState(medios[0]||''),[cuenta,setCuenta]=useState(''),[motivo,setMotivo]=useState(''),[saving,setSaving]=useState(false);
+ if(!sinCuenta.length||!canFix)return null;
+ if(!canEdit)return <p className={styles.help}>{sinCuenta.length} movimiento{sinCuenta.length===1?'':'s'} sin cuenta: reabre la caja de este día para asignarles la cuenta de una vez.</p>;
+ const opciones=accountsFor(medio,day.cuentas,day.sede_id),cuantos=sinCuenta.filter(m=>m.medio===medio).length;
+ const guardar=async()=>{
+  if(!cuenta)return onError('Elige la cuenta.');
+  if(motivo.trim().length<5)return onError('Escribe el motivo (mínimo 5 caracteres).');
+  setSaving(true);
+  const {data,error}=await supabase.rpc('caja_asignar_cuenta_dia',{p_sede:day.sede_id,p_fecha:day.fecha,p_medio:medio,p_cuenta:cuenta,p_motivo:motivo.trim()});
+  setSaving(false);
+  if(error)return onError(error.message);
+  setAbierto(false);setCuenta('');setMotivo('');
+  onDone(`Cuenta asignada a ${data} movimiento${data===1?'':'s'} de ${medio.toLowerCase()}. Cada cambio queda en el historial.`);
+ };
+ if(!abierto)return <div style={{marginTop:10}}><button className={`${styles.button} ${styles.primary}`} onClick={()=>{setMedio(medios[0]||'');setAbierto(true);}}>Asignar cuenta a todos los movimientos sin cuenta ({sinCuenta.length})</button></div>;
+ return <div className={styles.form} style={{marginTop:10,border:'1px solid #e5e7eb',borderRadius:12,padding:12,display:'grid',gap:10}}>
+  <div className={styles.row}>
+   <label>Medio<select value={medio} onChange={e=>{setMedio(e.target.value);setCuenta('');}}>{medios.map(m=><option key={m}>{m}</option>)}</select></label>
+   <label>Cuenta donde está el dinero{opciones.length?<AccountSelect medio={medio} cuentas={day.cuentas} sedeId={day.sede_id} value={cuenta} onChange={setCuenta}/>:<span className={styles.help}>Esta sede no tiene cuentas para {medio.toLowerCase()}. Regístrala en «Cuentas y caja menor».</span>}</label>
+  </div>
+  <label>Motivo (obligatorio)<input maxLength={500} value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Ej.: los pagos con tarjeta salieron de la cuenta Bancolombia"/></label>
+  <p className={styles.help}>Se asignará a {cuantos} movimiento{cuantos===1?'':'s'} de {medio.toLowerCase()} sin cuenta de este día.</p>
+  <div style={{display:'flex',gap:8}}><button className={`${styles.button} ${styles.primary}`} disabled={saving||!opciones.length} onClick={()=>void guardar()}>{saving?'Asignando…':'Asignar cuenta'}</button><button className={styles.button} disabled={saving} onClick={()=>setAbierto(false)}>Cancelar</button></div>
+ </div>;
+}
+
 function SiteDay({day,siteName,isAdmin,finanzas,canFix,canReopen,onDone,onError}:{day:CashDay;siteName:string;isAdmin:boolean;finanzas:boolean;canFix:boolean;canReopen:boolean;onDone:(m:string)=>void;onError:(m:string)=>void}){
  const open=!day.cierre,canWork=open&&day.puede_operar;
  const ie=Number(day.totales.ingresos_efectivo||0),ee=Number(day.totales.egresos_efectivo||0),esperado=expectedCash(day.saldo_inicial,ie,ee);
@@ -153,6 +183,8 @@ function SiteDay({day,siteName,isAdmin,finanzas,canFix,canReopen,onDone,onError}
    {open?<><Unlock size={16}/> <strong>Caja abierta</strong> · {siteName} · {day.fecha}{!day.puede_operar&&' · Solo consulta'}</>
     :<><Lock size={16}/> <strong>Caja cerrada</strong> · {siteName} · {day.fecha} · por {day.cierre!.cerrado_por_nombre} a las {time(day.cierre!.cerrado_at)} · Contado {money(day.cierre!.contado)} · Diferencia <span className={styles.diff}>{money(day.cierre!.diferencia)}</span>{day.cierre!.observaciones&&` · ${day.cierre!.observaciones}`}</>}
   </div>
+  {/* Por revisar: a previous day was corrected after this closing, so this day now starts with a different cash balance. */}
+  {!open&&Number(day.cierre!.saldo_inicial)!==Number(day.saldo_inicial)&&<p role="alert" className={styles.error}>Cierre por revisar: este día se cerró arrancando con {money(day.cierre!.saldo_inicial)} en efectivo, pero después se corrigió un día anterior y ahora arranca con {money(day.saldo_inicial)} (diferencia {money(Number(day.saldo_inicial)-Number(day.cierre!.saldo_inicial))}). Si el efectivo contado de este día sigue igual, reábrelo y vuelve a cerrarlo para que la diferencia quede registrada como novedad.</p>}
   <div className={styles.stats}>
    <div><span>Saldo inicial en efectivo</span><strong>{money(day.saldo_inicial)}</strong></div>
    <div><span>Ingresos en efectivo</span><strong className={styles.in}>{money(ie)}</strong></div>
@@ -167,6 +199,7 @@ function SiteDay({day,siteName,isAdmin,finanzas,canFix,canReopen,onDone,onError}
    <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Cuenta</th><th>Entró</th><th>Salió</th><th>Neto</th></tr></thead>
     <tbody>{porCuenta.map(c=><tr key={c.cuenta_id||'sin'}><td><strong>{c.tipo==='efectivo'?'💵':c.tipo?'🏦':'❔'} {c.cuenta}</strong>{!c.cuenta_id&&<small>{canFix?'Usa “Editar” para indicar a qué cuenta llegó.':'Pide a un administrador que indique la cuenta.'}</small>}</td>
      <td className={styles.in}>{money(c.ingresos)}</td><td className={styles.out}>{money(c.egresos)}</td><td><strong>{money(Number(c.ingresos)-Number(c.egresos))}</strong></td></tr>)}</tbody></table></div>
+   <AssignAccountBulk day={day} canEdit={canEdit} canFix={canFix} onDone={onDone} onError={onError}/>
   </section>}
   {missing.length>0&&<MissingSupports day={day} missing={missing} canAttach={open&&(day.puede_operar||isAdmin)} onDone={onDone} onError={onError}/>}
   <section className={styles.card}><h2>Movimientos del día</h2><p>{active.length} movimiento{active.length===1?'':'s'} · Por medio: {Object.entries(day.totales.por_medio||{}).map(([m,v])=>`${m} +${money(Number(v.ingresos||0))} / −${money(Number(v.egresos||0))}`).join(' · ')||'sin movimientos'}</p>
