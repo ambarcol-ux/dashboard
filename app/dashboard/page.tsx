@@ -108,7 +108,7 @@ export default function DashboardPage() {
   const [filtroRango, setFiltroRango] = useState<string>('Cualquier Fecha'); // 'Hoy'|'Esta Semana'|'Este Mes'|'Personalizado'
   const [fechaDesde, setFechaDesde] = useState<string>('');
   const [fechaHasta, setFechaHasta] = useState<string>('');
-  const [filtroAlerta, setFiltroAlerta] = useState<'ninguna' | 'entregas_omitidas' | 'borradores_sin_firmar' | 'prexv_incompletos'>('ninguna');
+  const [filtroAlerta, setFiltroAlerta] = useState<'ninguna' | 'entregas_omitidas' | 'borradores_sin_firmar' | 'prexv_incompletos' | 'citas_por_agendar'>('ninguna');
   // -- PREXV Filter (15 Años) --
   const [filtroTipoEvento, setFiltroTipoEvento] = useState<'Todos' | 'PREXV'>('Todos');
 
@@ -2472,7 +2472,7 @@ export default function DashboardPage() {
           </div>
         </div>
         {user && <DashboardAlerts canSee={id => panelAccess(id, user || {}, null, userPermissions)} pendingDeposits={pendingDeposits}
-          entregas={alerts.entregasOmitidasCount} borradores={alerts.borradoresVencidosCount} prexv={summary?.prexvIncomplete ?? 0}
+          entregas={alerts.entregasOmitidasCount} borradores={alerts.borradoresVencidosCount} prexv={summary?.prexvIncomplete ?? 0} porAgendar={summary?.citasPorAgendar ?? 0}
           filtroAlerta={filtroAlerta} onAlerta={f => setFiltroAlerta(f as typeof filtroAlerta)} sedeId={filtroSede !== 'Todas' && filtroSede !== 'unassigned' ? filtroSede : null} sedeNombre={sedes.find((x: any) => x.id === filtroSede)?.nombre || null}
           onPrexv={() => setFiltroTipoEvento('PREXV')} />}
 

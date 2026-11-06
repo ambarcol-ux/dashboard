@@ -120,6 +120,7 @@ export default function NuevoContratoPage() {
     incluye_retablo: false,
     incluye_book: false,
     cita_medidas: '',
+    por_agendar: false,
     prueba_final: '',
     fecha_entrega: '',
     tipo_entrega: 'Local', // Local | Nacional
@@ -428,6 +429,7 @@ export default function NuevoContratoPage() {
           incluye_retablo: false,
           incluye_book: false,
           cita_medidas: contract.fecha_cita_medidas || '',
+          por_agendar: !contract.fecha_cita_medidas || !contract.fecha_prueba_final || !contract.fecha_entrega_envio,
           prueba_final: contract.fecha_prueba_final || '',
           fecha_entrega: contract.fecha_entrega_envio || '',
           tipo_entrega: contract.tipo_entrega || 'Local',
@@ -1417,6 +1419,7 @@ export default function NuevoContratoPage() {
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (prexv.prexv_componentes?.length && !formData.fecha_fotografia) { toast.error('Indica la fecha de sesión PRE-XV.'); return; }
+    if (!formData.por_agendar && (!formData.cita_medidas || !formData.prueba_final || !formData.fecha_entrega)) { toast.error('Indica las fechas de cita de medidas, prueba final y entrega/envío, o marca «Fechas por agendar».'); document.querySelector<HTMLInputElement>('[name="cita_medidas"]')?.focus(); return; }
 
     let depositoInicial: number;
     try { depositoInicial = initialDepositAmount(formData.valor_deposito); }
@@ -1949,10 +1952,14 @@ export default function NuevoContratoPage() {
             {!prexv.prexv_componentes?.length && (formData.tipo_evento === 'PreXV' || formData.tipo_evento === 'Ambos') && renderTextInput('Fecha de uso del vestido PRE-XV', 'fecha_fotografia', <Calendar className="w-4 h-4" />, 'date', true)}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
-              {renderTextInput("Cita Medidas", "cita_medidas", <Calendar className="w-4 h-4 text-rose-500" />, "date")}
-              {renderTextInput("Prueba Final", "prueba_final", <Calendar className="w-4 h-4 text-rose-500" />, "date")}
-              {renderTextInput("Entrega/Envío Vestido", "fecha_entrega", <Calendar className="w-4 h-4 text-rose-500" />, "date")}
+              {renderTextInput("Cita Medidas", "cita_medidas", <Calendar className="w-4 h-4 text-rose-500" />, "date", !formData.por_agendar)}
+              {renderTextInput("Prueba Final", "prueba_final", <Calendar className="w-4 h-4 text-rose-500" />, "date", !formData.por_agendar)}
+              {renderTextInput("Entrega/Envío Vestido", "fecha_entrega", <Calendar className="w-4 h-4 text-rose-500" />, "date", !formData.por_agendar)}
             </div>
+            <label className="flex items-start gap-2 text-sm text-gray-700">
+              <input type="checkbox" className="mt-1" checked={formData.por_agendar} onChange={e => setFormData(prev => ({ ...prev, por_agendar: e.target.checked }))} />
+              <span><strong>Fechas por agendar.</strong> Márcalo solo si aún no se pueden fijar; el contrato saldrá en el Inicio como «citas por agendar» hasta completarlas.</span>
+            </label>
           </section>
 
           {/* BLOQUEO DE FECHAS ESPECIALES */}
