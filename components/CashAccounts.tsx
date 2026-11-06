@@ -26,6 +26,8 @@ export function EditMovement({day,movement,onClose,onDone,soloCuenta=false}:{day
  const fromErp=movement.origen==='pago'||movement.origen==='deposito'||movement.origen==='devolucion',deposit=movement.origen==='deposito'||movement.origen==='devolucion';
  const [medio,setMedio]=useState(movement.medio),[cuenta,setCuenta]=useState(movement.medio==='Efectivo'?'':movement.cuenta_id||''),[valor,setValor]=useState(String(movement.valor));
  const [categoria,setCategoria]=useState(movement.categoria),[descripcion,setDescripcion]=useState(movement.descripcion||''),[motivo,setMotivo]=useState('');
+ // Date: a movement registered later (e.g. a sale recorded days after) moves to its real day; abonos and deposits keep theirs.
+ const [fecha,setFecha]=useState(day.fecha);
  const [saving,setSaving]=useState(false),[error,setError]=useState('');
  const categories:readonly string[]=CASH_CATEGORIES[movement.tipo].includes(movement.categoria as never)?CASH_CATEGORIES[movement.tipo]:[movement.categoria,...CASH_CATEGORIES[movement.tipo]];
  const submit=async(e:React.FormEvent)=>{
@@ -35,9 +37,9 @@ export function EditMovement({day,movement,onClose,onDone,soloCuenta=false}:{day
   if(needsAccount(medio,accountsFor(medio,day.cuentas,day.sede_id))&&!cuenta){setError('Elige la cuenta o banco donde llegó el dinero.');return;}
   if(motivo.trim().length<5){setError('Escribe el motivo del cambio (mínimo 5 caracteres).');return;}
   setSaving(true);
-  const {error:re}=await supabase.rpc('editar_movimiento_caja',{p_id:movement.id,p_datos:{medio,cuenta_id:medio==='Efectivo'?null:(cuenta||null),valor:amount,categoria,descripcion:descripcion.trim()},p_motivo:motivo.trim()});
+  const {error:re}=await supabase.rpc('editar_movimiento_caja',{p_id:movement.id,p_datos:{medio,cuenta_id:medio==='Efectivo'?null:(cuenta||null),valor:amount,categoria,descripcion:descripcion.trim(),...(fecha!==day.fecha?{fecha}:{})},p_motivo:motivo.trim()});
   setSaving(false);
-  if(re)setError(re.message);else onDone(movement.origen==='pago'&&amount!==Number(movement.valor)?'Movimiento editado. El pago y el saldo del contrato se ajustaron.':'Movimiento editado. El cambio queda en el historial.');
+  if(re)setError(re.message);else onDone(fecha!==day.fecha?`Movimiento pasado al ${fecha.split('-').reverse().join('/')}${movement.categoria==='Venta de vestido'?' (la venta y su comprobante también)':''}. El cambio queda en el historial.`:movement.origen==='pago'&&amount!==Number(movement.valor)?'Movimiento editado. El pago y el saldo del contrato se ajustaron.':'Movimiento editado. El cambio queda en el historial.');
  };
  return <div className={styles.overlay} role="dialog" aria-modal="true" onClick={e=>{if(e.target===e.currentTarget&&!saving)onClose();}}>
   <form className={styles.dialog} onSubmit={submit}><h2>Editar movimiento</h2>
@@ -47,6 +49,7 @@ export function EditMovement({day,movement,onClose,onDone,soloCuenta=false}:{day
      <label>Cuenta donde está el dinero<AccountSelect medio={medio} cuentas={day.cuentas} sedeId={day.sede_id} value={cuenta} onChange={setCuenta}/></label></div>
     <div className={styles.row}><label>Valor (COP)<input inputMode="decimal" value={valor} disabled={deposit||soloCuenta} onChange={e=>setValor(e.target.value)}/>{deposit&&<span className={styles.help}>El valor de un depósito se cambia en Depósitos → Modificar valor.</span>}{movement.origen==='pago'&&<span className={styles.help}>Cambia también el pago y el saldo del contrato.</span>}</label>
      <label>Categoría<select value={categoria} disabled={fromErp||soloCuenta} onChange={e=>setCategoria(e.target.value)}>{categories.map(c=><option key={c}>{c}</option>)}</select></label></div>
+    <label>Fecha del movimiento<input type="date" value={fecha} max={new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'})} disabled={fromErp} onChange={e=>setFecha(e.target.value)}/>{fromErp?<span className={styles.help}>La fecha de un abono o depósito no se cambia aquí.</span>:<span className={styles.help}>Si se registró otro día, escoge la fecha real. Ese día debe estar abierto (si está cerrado, reábrelo primero).</span>}</label>
     <label>Descripción<input maxLength={500} value={descripcion} onChange={e=>setDescripcion(e.target.value)}/></label>
     <label>Motivo del cambio (obligatorio)<textarea maxLength={500} value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Ej.: la clienta pagó en efectivo, no por transferencia"/></label>
     {error&&<p role="alert" className={styles.error}>{error}</p>}
