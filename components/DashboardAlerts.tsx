@@ -6,7 +6,7 @@ import {useCobrosUrgentes} from '@/components/CobrosAlert';
 import {hoyBogota} from '@/lib/cobros';
 
 type Server={caja_abonos:number;caja_sin_cerrar:number;caja_diferencias:number;pagos_sin_soporte:number;traslados_por_aprobar:number;prestamos_vencidos:number;
- mantenimiento_demorado:number;agenda_hoy:number;citas_hoy:number;estrene_riesgo:number;proveedores_por_pagar:number;agenda_manana:number;ventas_sin_factura:number;incoherentes:{numero:string;sede:string|null;problema:string}[]};
+ mantenimiento_demorado:number;cierres_por_revisar:number;agenda_hoy:number;citas_hoy:number;estrene_riesgo:number;proveedores_por_pagar:number;agenda_manana:number;ventas_sin_factura:number;incoherentes:{numero:string;sede:string|null;problema:string}[]};
 type Tile={key:string;label:string;count:number;color:string;panel:string;href?:string;onClick?:()=>void;active?:boolean};
 
 /** Inicio: one strip with every pending item, each with its own color; tap to go to the module. Only items with something pending show. */
@@ -51,6 +51,7 @@ export default function DashboardAlerts({canSee,pendingDeposits,entregas,borrado
   {key:'pxv',label:'Pre-XV incompletos',count:prexv,color:'bg-violet-50 border-violet-200 text-violet-700',panel:'dashboard',onClick:()=>toggle('prexv_incompletos'),active:filtroAlerta==='prexv_incompletos'},
   {key:'abo',label:'Abonos sin pasar a caja',count:d?.caja_abonos||0,color:'bg-emerald-50 border-emerald-200 text-emerald-800',panel:'caja',href:'/dashboard/caja?ver=abonos'},
   {key:'cie',label:'Días de caja sin cerrar',count:d?.caja_sin_cerrar||0,color:'bg-teal-50 border-teal-200 text-teal-800',panel:'caja',href:'/dashboard/caja?ver=sedes'},
+  {key:'rev',label:'Cierres de caja por revisar (se corrigió un día anterior)',count:d?.cierres_por_revisar||0,color:'bg-orange-100 border-orange-300 text-orange-900',panel:'caja',href:'/dashboard/caja?ver=sedes'},
   {key:'dif',label:'Cierres con diferencia (30 días)',count:d?.caja_diferencias||0,color:'bg-lime-50 border-lime-300 text-lime-800',panel:'caja',href:'/dashboard/caja?ver=sedes'},
   {key:'sop',label:'Abonos sin soporte (30 días)',count:d?.pagos_sin_soporte||0,color:'bg-stone-50 border-stone-300 text-stone-700',panel:'caja',href:'/dashboard/caja'},
   {key:'tra',label:'Traslados por aprobar',count:d?.traslados_por_aprobar||0,color:'bg-indigo-50 border-indigo-200 text-indigo-700',panel:'traslados',href:'/dashboard/traslados'},

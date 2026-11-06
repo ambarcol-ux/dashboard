@@ -183,6 +183,8 @@ function SiteDay({day,siteName,isAdmin,finanzas,canFix,canReopen,onDone,onError}
    {open?<><Unlock size={16}/> <strong>Caja abierta</strong> · {siteName} · {day.fecha}{!day.puede_operar&&' · Solo consulta'}</>
     :<><Lock size={16}/> <strong>Caja cerrada</strong> · {siteName} · {day.fecha} · por {day.cierre!.cerrado_por_nombre} a las {time(day.cierre!.cerrado_at)} · Contado {money(day.cierre!.contado)} · Diferencia <span className={styles.diff}>{money(day.cierre!.diferencia)}</span>{day.cierre!.observaciones&&` · ${day.cierre!.observaciones}`}</>}
   </div>
+  {/* Por revisar: a previous day was corrected after this closing, so this day now starts with a different cash balance. */}
+  {!open&&Number(day.cierre!.saldo_inicial)!==Number(day.saldo_inicial)&&<p role="alert" className={styles.error}>Cierre por revisar: este día se cerró arrancando con {money(day.cierre!.saldo_inicial)} en efectivo, pero después se corrigió un día anterior y ahora arranca con {money(day.saldo_inicial)} (diferencia {money(Number(day.saldo_inicial)-Number(day.cierre!.saldo_inicial))}). Si el efectivo contado de este día sigue igual, reábrelo y vuelve a cerrarlo para que la diferencia quede registrada como novedad.</p>}
   <div className={styles.stats}>
    <div><span>Saldo inicial en efectivo</span><strong>{money(day.saldo_inicial)}</strong></div>
    <div><span>Ingresos en efectivo</span><strong className={styles.in}>{money(ie)}</strong></div>
