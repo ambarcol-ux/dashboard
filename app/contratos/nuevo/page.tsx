@@ -48,6 +48,11 @@ const onlyDigits = (v: string) => v.replace(/[^0-9]/g, '');
 const moneyShow = (v: unknown) => { const t = String(v ?? '').trim(); if (!t) return ''; const n = /^\d+(\.\d+)?$/.test(t) ? Math.round(Number(t)) : Number(onlyDigits(t)); return Number.isFinite(n) ? cop(n) : ''; };
 const moneyValue = (typed: string) => { const d = onlyDigits(typed); return d ? String(Number(d)) : ''; };
 
+
+/** Empty date inputs are sent as null: the database rejects "" as a date. */
+function sinFechasVacias<T extends Record<string, unknown>>(datos: T): T {
+  return Object.fromEntries(Object.entries(datos).map(([k, v]) => [k, k.startsWith('fecha') && v === '' ? null : v])) as T;
+}
 export default function NuevoContratoPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -902,6 +907,19 @@ export default function NuevoContratoPage() {
     const row = vestidosMaestro.find(m => m.id === v.vestido_id);
     return { categoria: clasificaciones.find(c => c.id === row?.clasificacion_id)?.nombre ?? null, precio: row?.precio_sugerido };
   })), [vestidos, vestidosMaestro, clasificaciones]);
+  // Gala and bridal dresses never have a PRE-XV session: the event type is fixed to «Evento» and the PRE-XV fields are hidden.
+  const sinPrexv = useMemo(() => {
+    const usados = vestidos.filter(v => v.vestido_id || v.referencia.trim());
+    return usados.length > 0 && usados.every(v => {
+      const clase = clasificaciones.find(c => c.id === vestidosMaestro.find(m => m.id === v.vestido_id)?.clasificacion_id)?.nombre || '';
+      return ['Gala', 'Novia'].includes(v.tipo) || /gala|novia|nupcial/i.test(clase);
+    });
+  }, [vestidos, vestidosMaestro, clasificaciones]);
+  useEffect(() => {
+    if (!sinPrexv) return;
+    if (formData.tipo_evento !== 'Evento' || formData.fecha_fotografia) setFormData(prev => ({ ...prev, tipo_evento: 'Evento', fecha_fotografia: '' }));
+    if (prexv.prexv_componentes?.length) setPrexv(prev => ({ ...prev, prexv_componentes: [] }));
+  }, [sinPrexv, formData.tipo_evento, formData.fecha_fotografia, prexv.prexv_componentes]);
   const addVestido = () => setVestidos([...vestidos, { vestido_id: null, referencia: '', tipo: 'XV', observaciones: '' }]);
   const removeVestido = (idx: number) => setVestidos(vestidos.filter((_, i) => i !== idx));
   const updateVestido = (idx: number, field: string, value: any) => {
@@ -1230,7 +1248,7 @@ export default function NuevoContratoPage() {
 
       const { data: newDoc, error: errC } = await supabase
         .from('contratos')
-        .insert([payload])
+        .insert([sinFechasVacias(payload)])
         .select('id')
         .single();
 
@@ -1403,7 +1421,7 @@ export default function NuevoContratoPage() {
 
     const { data, error } = await supabase.rpc('editar_contrato_completo_admin', {
       p_contrato: editingContractId,
-      p_datos: datos,
+      p_datos: sinFechasVacias(datos),
       p_vestidos: vestidosPayload,
       p_arreglos: arreglosPayload
     });
@@ -1419,6 +1437,8 @@ export default function NuevoContratoPage() {
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (prexv.prexv_componentes?.length && !formData.fecha_fotografia) { toast.error('Indica la fecha de sesión PRE-XV.'); return; }
+    if ((formData.tipo_evento === 'Evento' || formData.tipo_evento === 'Ambos') && !formData.fecha_evento) { toast.error('Falta la fecha del evento.'); document.querySelector<HTMLInputElement>('[name="fecha_evento"]')?.focus(); return; }
+    if (formData.tipo_evento === 'PreXV' && !formData.fecha_fotografia) { toast.error('Falta la fecha de la sesión PRE-XV.'); return; }
     if (!formData.por_agendar && (!formData.cita_medidas || !formData.prueba_final || !formData.fecha_entrega)) { toast.error('Indica las fechas de cita de medidas, prueba final y entrega/envío, o marca «Fechas por agendar».'); document.querySelector<HTMLInputElement>('[name="cita_medidas"]')?.focus(); return; }
 
     let depositoInicial: number;
@@ -1624,7 +1644,7 @@ export default function NuevoContratoPage() {
         autoriza_uso_imagen: formData.autoriza_uso_imagen
       };
 
-      const { data: insertedContract, error: insertError } = await supabase.from('contratos').insert([payload]).select('id').single();
+      const { data: insertedContract, error: insertError } = await supabase.from('contratos').insert([sinFechasVacias(payload)]).select('id').single();
 
       if (insertError) throw insertError;
       try { await saveDataAuthorization({ documento: formData.cliente_documento.trim(), telefono: formData.whatsapp, nombre: formData.cliente_nombre.trim(), email: formData.cliente_email.trim(), sede: formData.sede_id || null, origen: 'contrato', choice: dataAuth, state: dataAuthState }); }
@@ -1921,11 +1941,12 @@ export default function NuevoContratoPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-1">
                 <label className="text-sm font-semibold text-gray-700">Tipo de Evento</label>
-                <select name="tipo_evento" value={formData.tipo_evento} onChange={handleChange} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300">
+                <select name="tipo_evento" value={formData.tipo_evento} onChange={handleChange} disabled={sinPrexv} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300 disabled:opacity-70">
                   <option value="Evento">Evento General</option>
-                  <option value="PreXV">Sesión Pre XV</option>
-                  <option value="Ambos">Ambos (Combo)</option>
+                  {!sinPrexv && <option value="PreXV">Sesión Pre XV</option>}
+                  {!sinPrexv && <option value="Ambos">Ambos (Combo)</option>}
                 </select>
+                {sinPrexv && <p className="text-xs text-gray-500">Vestido de gala o de novia: no aplica PRE-XV.</p>}
               </div>
 
               {/* Dependencia: Fecha Evento */}
@@ -1945,11 +1966,11 @@ export default function NuevoContratoPage() {
               )}
             </div>
 
-            <PreXvFields value={{ ...prexv, fecha_pre_xv: formData.fecha_fotografia }} onChange={patch => {
+            {!sinPrexv && <PreXvFields value={{ ...prexv, fecha_pre_xv: formData.fecha_fotografia }} onChange={patch => {
               setPrexv(prev => ({ ...prev, ...patch }));
               if ('fecha_pre_xv' in patch) setFormData(prev => ({ ...prev, fecha_fotografia: patch.fecha_pre_xv || '' }));
-            }} disabled={loading} />
-            {!prexv.prexv_componentes?.length && (formData.tipo_evento === 'PreXV' || formData.tipo_evento === 'Ambos') && renderTextInput('Fecha de uso del vestido PRE-XV', 'fecha_fotografia', <Calendar className="w-4 h-4" />, 'date', true)}
+            }} disabled={loading} />}
+            {!sinPrexv && !prexv.prexv_componentes?.length && (formData.tipo_evento === 'PreXV' || formData.tipo_evento === 'Ambos') && renderTextInput('Fecha de uso del vestido PRE-XV', 'fecha_fotografia', <Calendar className="w-4 h-4" />, 'date', true)}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
               {renderTextInput("Cita Medidas", "cita_medidas", <Calendar className="w-4 h-4 text-rose-500" />, "date", !formData.por_agendar)}
