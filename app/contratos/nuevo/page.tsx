@@ -907,6 +907,19 @@ export default function NuevoContratoPage() {
     const row = vestidosMaestro.find(m => m.id === v.vestido_id);
     return { categoria: clasificaciones.find(c => c.id === row?.clasificacion_id)?.nombre ?? null, precio: row?.precio_sugerido };
   })), [vestidos, vestidosMaestro, clasificaciones]);
+  // Gala and bridal dresses never have a PRE-XV session: the event type is fixed to «Evento» and the PRE-XV fields are hidden.
+  const sinPrexv = useMemo(() => {
+    const usados = vestidos.filter(v => v.vestido_id || v.referencia.trim());
+    return usados.length > 0 && usados.every(v => {
+      const clase = clasificaciones.find(c => c.id === vestidosMaestro.find(m => m.id === v.vestido_id)?.clasificacion_id)?.nombre || '';
+      return ['Gala', 'Novia'].includes(v.tipo) || /gala|novia|nupcial/i.test(clase);
+    });
+  }, [vestidos, vestidosMaestro, clasificaciones]);
+  useEffect(() => {
+    if (!sinPrexv) return;
+    if (formData.tipo_evento !== 'Evento' || formData.fecha_fotografia) setFormData(prev => ({ ...prev, tipo_evento: 'Evento', fecha_fotografia: '' }));
+    if (prexv.prexv_componentes?.length) setPrexv(prev => ({ ...prev, prexv_componentes: [] }));
+  }, [sinPrexv, formData.tipo_evento, formData.fecha_fotografia, prexv.prexv_componentes]);
   const addVestido = () => setVestidos([...vestidos, { vestido_id: null, referencia: '', tipo: 'XV', observaciones: '' }]);
   const removeVestido = (idx: number) => setVestidos(vestidos.filter((_, i) => i !== idx));
   const updateVestido = (idx: number, field: string, value: any) => {
@@ -1928,11 +1941,12 @@ export default function NuevoContratoPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="space-y-1">
                 <label className="text-sm font-semibold text-gray-700">Tipo de Evento</label>
-                <select name="tipo_evento" value={formData.tipo_evento} onChange={handleChange} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300">
+                <select name="tipo_evento" value={formData.tipo_evento} onChange={handleChange} disabled={sinPrexv} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300 disabled:opacity-70">
                   <option value="Evento">Evento General</option>
-                  <option value="PreXV">Sesión Pre XV</option>
-                  <option value="Ambos">Ambos (Combo)</option>
+                  {!sinPrexv && <option value="PreXV">Sesión Pre XV</option>}
+                  {!sinPrexv && <option value="Ambos">Ambos (Combo)</option>}
                 </select>
+                {sinPrexv && <p className="text-xs text-gray-500">Vestido de gala o de novia: no aplica PRE-XV.</p>}
               </div>
 
               {/* Dependencia: Fecha Evento */}
@@ -1952,11 +1966,11 @@ export default function NuevoContratoPage() {
               )}
             </div>
 
-            <PreXvFields value={{ ...prexv, fecha_pre_xv: formData.fecha_fotografia }} onChange={patch => {
+            {!sinPrexv && <PreXvFields value={{ ...prexv, fecha_pre_xv: formData.fecha_fotografia }} onChange={patch => {
               setPrexv(prev => ({ ...prev, ...patch }));
               if ('fecha_pre_xv' in patch) setFormData(prev => ({ ...prev, fecha_fotografia: patch.fecha_pre_xv || '' }));
-            }} disabled={loading} />
-            {!prexv.prexv_componentes?.length && (formData.tipo_evento === 'PreXV' || formData.tipo_evento === 'Ambos') && renderTextInput('Fecha de uso del vestido PRE-XV', 'fecha_fotografia', <Calendar className="w-4 h-4" />, 'date', true)}
+            }} disabled={loading} />}
+            {!sinPrexv && !prexv.prexv_componentes?.length && (formData.tipo_evento === 'PreXV' || formData.tipo_evento === 'Ambos') && renderTextInput('Fecha de uso del vestido PRE-XV', 'fecha_fotografia', <Calendar className="w-4 h-4" />, 'date', true)}
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
               {renderTextInput("Cita Medidas", "cita_medidas", <Calendar className="w-4 h-4 text-rose-500" />, "date", !formData.por_agendar)}
