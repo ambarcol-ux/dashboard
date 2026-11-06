@@ -10,9 +10,9 @@ type Server={caja_abonos:number;caja_sin_cerrar:number;caja_diferencias:number;p
 type Tile={key:string;label:string;count:number;color:string;panel:string;href?:string;onClick?:()=>void;active?:boolean};
 
 /** Inicio: one strip with every pending item, each with its own color; tap to go to the module. Only items with something pending show. */
-export default function DashboardAlerts({canSee,pendingDeposits,entregas,borradores,prexv,filtroAlerta,onAlerta,sedeId=null,sedeNombre=null}:{
+export default function DashboardAlerts({canSee,pendingDeposits,entregas,borradores,prexv,porAgendar=0,filtroAlerta,onAlerta,sedeId=null,sedeNombre=null}:{
  sedeId?:string|null;sedeNombre?:string|null;
- canSee:(panel:string)=>boolean;pendingDeposits:number|null;entregas:number;borradores:number;prexv:number;
+ canSee:(panel:string)=>boolean;pendingDeposits:number|null;entregas:number;borradores:number;prexv:number;porAgendar?:number;
  filtroAlerta:string;onAlerta:(f:string)=>void;onPrexv:()=>void}){
  const [data,setData]=useState<Server|null>(null),[seg,setSeg]=useState<{hoy:number;vencidos:number}|null>(null),[fuera,setFuera]=useState(0),[ver,setVer]=useState(false),[depSede,setDepSede]=useState<number|null>(null);
  const cobros=useCobrosUrgentes(canSee('cobros'),sedeId);
@@ -46,6 +46,7 @@ export default function DashboardAlerts({canSee,pendingDeposits,entregas,borrado
   {key:'hoy',label:'Agenda de hoy (medidas, pruebas, entregas)',count:d?.agenda_hoy||0,color:'bg-sky-50 border-sky-200 text-sky-800',panel:'calendario',href:`/dashboard/calendario?dia=${hoy}`},
   {key:'man',label:'Agenda de mañana',count:d?.agenda_manana||0,color:'bg-cyan-50 border-cyan-200 text-cyan-800',panel:'calendario',href:`/dashboard/calendario?dia=${manana}`},
   {key:'ent',label:'Entregas sin registrar (fecha pasada)',count:entregas,color:'bg-red-50 border-red-200 text-red-700',panel:'dashboard',onClick:()=>toggle('entregas_omitidas'),active:filtroAlerta==='entregas_omitidas'},
+  {key:'agd',label:'Contratos con citas por agendar (medidas, prueba o entrega)',count:porAgendar,color:'bg-rose-100 border-rose-300 text-rose-800',panel:'dashboard',onClick:()=>toggle('citas_por_agendar'),active:filtroAlerta==='citas_por_agendar'},
   {key:'bor',label:'Borradores sin firmar (+48 h)',count:borradores,color:'bg-orange-50 border-orange-200 text-orange-700',panel:'dashboard',onClick:()=>toggle('borradores_sin_firmar'),active:filtroAlerta==='borradores_sin_firmar'},
   {key:'fue',label:'Vestidos fuera de tienda en alerta',count:fuera,color:'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700',panel:'dashboard',href:'#vestidos-fuera'},
   {key:'pxv',label:'Pre-XV incompletos',count:prexv,color:'bg-violet-50 border-violet-200 text-violet-700',panel:'dashboard',onClick:()=>toggle('prexv_incompletos'),active:filtroAlerta==='prexv_incompletos'},

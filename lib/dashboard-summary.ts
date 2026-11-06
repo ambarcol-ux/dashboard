@@ -1,4 +1,11 @@
 import {hasPrexv, prexvPending} from './prexv';
+
+/** Active contracts not yet delivered that still lack the measurements, final fitting or delivery date («por agendar»). */
+export function citasPorAgendar(c: {estado?: string | null; entregas?: unknown[] | null; fecha_cita_medidas?: string | null; fecha_prueba_final?: string | null; fecha_entrega_envio?: string | null}): boolean {
+  if (['finalizado','cancelado','rechazado','anulado','entregado','mantenimiento','liquidado','historial'].includes((c.estado || '').toLowerCase())) return false;
+  if (c.entregas && c.entregas.length > 0) return false;
+  return !c.fecha_cita_medidas || !c.fecha_prueba_final || !c.fecha_entrega_envio;
+}
 import {saldoContrato} from './saldo';
 import {totalPorCobrar, type Cobro} from './cobros';
 type Row = Record<string, any>;
@@ -45,6 +52,8 @@ export function filterDashboardContracts(contratos: Row[], sedes: Row[], filters
         if ((c.estado_entrega_envio || '') !== 'Por Entregar') return false;
         return c.fecha_entrega_envio < todayStr;
       });
+    } else if (filtroAlerta === 'citas_por_agendar') {
+      return result.filter(citasPorAgendar);
     } else if (filtroAlerta === 'prexv_incompletos') {
       return result.filter(c => hasPrexv(c) && !['cancelado','rechazado','finalizado'].includes(c.estado?.toLowerCase()) && prexvPending(c).length > 0);
     } else if (filtroAlerta === 'borradores_sin_firmar') {
@@ -219,6 +228,7 @@ export function summarizeDashboard(contratos: Row[], sedes: Row[], filters: Dash
    monthCount: branchContracts.filter(c => {const t=Date.parse(c.created_at); return t>=filters.monthStart && t<filters.monthEnd;}).length,
    pendingInvoices: contratos.filter(c => !c.numero_factura && Date.parse(c.created_at)<filters.dayStart).length,
    prexvCount: branchContracts.filter(hasPrexv).length,
+   citasPorAgendar: branchContracts.filter(citasPorAgendar).length,
    prexvIncomplete: branchContracts.filter(c => hasPrexv(c) && !['cancelado','rechazado','finalizado'].includes(c.estado?.toLowerCase()) && prexvPending(c).length>0).length,
    hasUnassigned: contratos.some(c => !c.sede_id || !sedes.some(s => s.id===c.sede_id)),
  }};
