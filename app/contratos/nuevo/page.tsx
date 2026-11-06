@@ -48,6 +48,11 @@ const onlyDigits = (v: string) => v.replace(/[^0-9]/g, '');
 const moneyShow = (v: unknown) => { const t = String(v ?? '').trim(); if (!t) return ''; const n = /^\d+(\.\d+)?$/.test(t) ? Math.round(Number(t)) : Number(onlyDigits(t)); return Number.isFinite(n) ? cop(n) : ''; };
 const moneyValue = (typed: string) => { const d = onlyDigits(typed); return d ? String(Number(d)) : ''; };
 
+
+/** Empty date inputs are sent as null: the database rejects "" as a date. */
+function sinFechasVacias<T extends Record<string, unknown>>(datos: T): T {
+  return Object.fromEntries(Object.entries(datos).map(([k, v]) => [k, k.startsWith('fecha') && v === '' ? null : v])) as T;
+}
 export default function NuevoContratoPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -1230,7 +1235,7 @@ export default function NuevoContratoPage() {
 
       const { data: newDoc, error: errC } = await supabase
         .from('contratos')
-        .insert([payload])
+        .insert([sinFechasVacias(payload)])
         .select('id')
         .single();
 
@@ -1403,7 +1408,7 @@ export default function NuevoContratoPage() {
 
     const { data, error } = await supabase.rpc('editar_contrato_completo_admin', {
       p_contrato: editingContractId,
-      p_datos: datos,
+      p_datos: sinFechasVacias(datos),
       p_vestidos: vestidosPayload,
       p_arreglos: arreglosPayload
     });
@@ -1419,6 +1424,8 @@ export default function NuevoContratoPage() {
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (prexv.prexv_componentes?.length && !formData.fecha_fotografia) { toast.error('Indica la fecha de sesión PRE-XV.'); return; }
+    if ((formData.tipo_evento === 'Evento' || formData.tipo_evento === 'Ambos') && !formData.fecha_evento) { toast.error('Falta la fecha del evento.'); document.querySelector<HTMLInputElement>('[name="fecha_evento"]')?.focus(); return; }
+    if (formData.tipo_evento === 'PreXV' && !formData.fecha_fotografia) { toast.error('Falta la fecha de la sesión PRE-XV.'); return; }
     if (!formData.por_agendar && (!formData.cita_medidas || !formData.prueba_final || !formData.fecha_entrega)) { toast.error('Indica las fechas de cita de medidas, prueba final y entrega/envío, o marca «Fechas por agendar».'); document.querySelector<HTMLInputElement>('[name="cita_medidas"]')?.focus(); return; }
 
     let depositoInicial: number;
@@ -1624,7 +1631,7 @@ export default function NuevoContratoPage() {
         autoriza_uso_imagen: formData.autoriza_uso_imagen
       };
 
-      const { data: insertedContract, error: insertError } = await supabase.from('contratos').insert([payload]).select('id').single();
+      const { data: insertedContract, error: insertError } = await supabase.from('contratos').insert([sinFechasVacias(payload)]).select('id').single();
 
       if (insertError) throw insertError;
       try { await saveDataAuthorization({ documento: formData.cliente_documento.trim(), telefono: formData.whatsapp, nombre: formData.cliente_nombre.trim(), email: formData.cliente_email.trim(), sede: formData.sede_id || null, origen: 'contrato', choice: dataAuth, state: dataAuthState }); }
