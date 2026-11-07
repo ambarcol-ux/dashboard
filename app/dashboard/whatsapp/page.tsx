@@ -6,7 +6,7 @@ import SupplierShell from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Conv={id:string;telefono:string;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null};
+type Conv={id:string;telefono:string;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null};
 type Msg={id:string;direccion:'entrante'|'saliente';origen:'clienta'|'erp'|'celular';texto:string|null;estado:string|null;created_at:string};
 type Ficha={nombre:string|null;citas:{id:string;fecha:string;hora:string;estado:string;modalidad:string;sede:string|null;tipo_vestido:string|null}[];contratos:{id:string;numero_contrato:string;estado:string;fecha_evento:string|null;sede:string|null}[]};
 const WINDOW_MS=24*3600*1000;
@@ -25,8 +25,63 @@ async function api(body:Record<string,unknown>){
 export default function WhatsappPage(){
  return <SupplierShell activePage="whatsapp" crumb="Ventas y CRM / WhatsApp 304" title="WhatsApp 304" icon={<MessageCircle/>}
   description="Chats del 304 unidos a la ficha de cada clienta. La IA etiqueta, detecta la sede y deja una respuesta sugerida: la asesora la revisa antes de enviarla.">
-  {()=><Inbox/>}
+  {profile=><Tabs admin={profile.rol==='admin'}/>}
  </SupplierShell>;
+}
+
+function Tabs({admin}:{admin:boolean}){
+ const [tab,setTab]=useState<'chats'|'ia'>('chats');
+ return <>
+  {admin&&<div className={styles.toolbar} style={{marginBottom:12}}>{([['chats','Chats'],['ia','IA de WhatsApp']] as const).map(([k,l])=><button key={k} type="button" className={tab===k?styles.primary:undefined} onClick={()=>setTab(k)}>{l}</button>)}</div>}
+  {tab==='chats'?<Inbox/>:<IaSettings/>}
+ </>;
+}
+
+type IaCfg={conocimientos:string;instrucciones:string;escalamiento:string};
+const IA_FIELDS:[keyof IaCfg,string,string,string][]=[
+ ['conocimientos','Conocimientos','Lo que la IA puede decir con seguridad. Lo que no esté aquí ni en los datos del ERP, no lo dice.','Ej.:\n- Horario: lunes a sábado 9 a. m. a 7 p. m.; domingos con cita.\n- El alquiler incluye arreglos básicos y lavado.\n- Depósito de garantía: se devuelve hasta 72 h después de devolver el vestido.\n- Alquiler de XV desde $400.000 (solo si quieres que diga precios «desde»).'],
+ ['instrucciones','Instrucciones y tono','Cómo saluda, qué ofrece primero y qué no debe decir nunca.','Ej.:\n- Saluda con el nombre de la clienta si lo sabes.\n- Ofrece siempre la primera cita presencial; la virtual solo si vive en otra ciudad.\n- Nunca hables mal de otras tiendas.'],
+ ['escalamiento','Reglas de paso a una persona','Cuándo marcar el chat como «Atender persona», además de reclamos, pagos y cambios de contrato.','Ej.:\n- Si es una novia, márcalo para que lo atienda la líder.\n- Si dice que su evento es en menos de 15 días, márcalo urgente.\n- Si pregunta por venta de vestidos, márcalo.'],
+];
+
+/** «IA de WhatsApp» (administration): knowledge, instructions and hand-off rules, with a test box and history. */
+function IaSettings(){
+ const [cfg,setCfg]=useState<IaCfg>({conocimientos:'',instrucciones:'',escalamiento:''}),[saved,setSaved]=useState<IaCfg|null>(null),[meta,setMeta]=useState('');
+ const [hist,setHist]=useState<(IaCfg&{id:number;created_at:string})[]>([]),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState('');
+ const [prueba,setPrueba]=useState(''),[resultado,setResultado]=useState<{etiqueta:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;sede:string}|null>(null);
+ const load=useCallback(async()=>{
+  const [{data:c,error:e},{data:h}]=await Promise.all([supabase.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento,actualizado_at').eq('id',1).maybeSingle(),
+   supabase.from('whatsapp_ia_historial').select('id,conocimientos,instrucciones,escalamiento,created_at').order('id',{ascending:false}).limit(10)]);
+  if(e){setError(e.message);return;}
+  const v={conocimientos:c?.conocimientos||'',instrucciones:c?.instrucciones||'',escalamiento:c?.escalamiento||''};
+  setCfg(v);setSaved(v);setMeta(c?.actualizado_at?`Última actualización: ${hora(c.actualizado_at)}`:'');setHist((h||[]) as (IaCfg&{id:number;created_at:string})[]);
+ },[]);
+ useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
+ const dirty=!!saved&&(cfg.conocimientos!==saved.conocimientos||cfg.instrucciones!==saved.instrucciones||cfg.escalamiento!==saved.escalamiento);
+ const guardar=async()=>{setBusy('guardar');setError('');setNotice('');const {error:e}=await supabase.rpc('guardar_whatsapp_ia',{p_conocimientos:cfg.conocimientos,p_instrucciones:cfg.instrucciones,p_escalamiento:cfg.escalamiento});setBusy('');if(e)setError(e.message);else{setNotice('Guardado. La IA usa estos cambios desde el próximo mensaje.');await load();}};
+ const probar=async()=>{setBusy('probar');setError('');setResultado(null);try{setResultado(await api({accion:'probar',mensaje:prueba,...cfg}));}catch(e){setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}};
+ return <div style={{display:'grid',gap:16}}>
+  <section className={styles.card} style={{display:'grid',gap:12}}>
+   <p className={styles.help}>Escribe en español normal. La IA ya sabe sola las direcciones, WhatsApp, mapas y enlaces de agenda de cada sede, y las citas y contratos de cada clienta. Nunca inventa precios ni disponibilidad, y nunca envía nada sola: la asesora revisa cada respuesta.</p>
+   {IA_FIELDS.map(([k,l,h,ph])=><label key={k} style={{display:'grid',gap:4}}><strong>{l}</strong><small className={styles.help}>{h}</small>
+    <textarea rows={k==='conocimientos'?10:6} value={cfg[k]} onChange={e=>setCfg({...cfg,[k]:e.target.value})} placeholder={ph} style={{width:'100%',resize:'vertical'}}/></label>)}
+   {error&&<p role="alert" className={styles.error}>{error}</p>}{notice&&<p role="status" className={styles.notice}>{notice}</p>}
+   <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><button className={`${styles.button} ${styles.primary}`} disabled={!dirty||!!busy} onClick={()=>void guardar()}>{busy==='guardar'?'Guardando…':'Guardar cambios'}</button>
+    {dirty&&<button className={styles.button} disabled={!!busy} onClick={()=>saved&&setCfg(saved)}>Descartar</button>}<small className={styles.help}>{meta}</small></div>
+  </section>
+  <section className={styles.card} style={{display:'grid',gap:8}}>
+   <h2>Probar antes de guardar</h2><p className={styles.help}>Escribe un mensaje como si fueras una clienta. La IA responde con lo que está escrito arriba, aunque no lo hayas guardado.</p>
+   <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><input value={prueba} onChange={e=>setPrueba(e.target.value)} maxLength={2000} placeholder="Ej.: Hola, ¿cuánto vale alquilar un vestido de XV en Villavicencio?" style={{flex:1,minWidth:200}}/>
+    <button className={`${styles.button} ${styles.primary}`} disabled={!prueba.trim()||!!busy} onClick={()=>void probar()}>{busy==='probar'?'Pensando…':'Probar'}</button></div>
+   {resultado&&<div style={{border:'1px solid #ddd6fe',background:'#f5f3ff',borderRadius:12,padding:10,display:'grid',gap:6}}>
+    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}><span className={styles.badge}>{resultado.etiqueta}</span>{resultado.sede&&<span className={styles.badge}>{resultado.sede}</span>}{resultado.atender_persona&&<span className={styles.badge} style={{background:'#fee2e2',color:'#b91c1c'}}>Atender persona: {resultado.motivo}</span>}</div>
+    <small style={{color:'#6d28d9'}}>{resultado.resumen}</small><div style={{whiteSpace:'pre-wrap'}}>{resultado.respuesta}</div></div>}
+  </section>
+  {hist.length>0&&<section className={styles.card}><h2>Historial de cambios</h2><div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Fecha</th><th>Resumen</th><th></th></tr></thead>
+   <tbody>{hist.map(h=><tr key={h.id}><td>{hora(h.created_at)}</td><td><small>{h.conocimientos.length} car. de conocimientos · {h.instrucciones.length} de instrucciones · {h.escalamiento.length} de reglas</small></td>
+    <td><button className={styles.button} onClick={()=>setCfg({conocimientos:h.conocimientos,instrucciones:h.instrucciones,escalamiento:h.escalamiento})}>Cargar esta versión</button></td></tr>)}</tbody></table></div>
+   <p className={styles.help}>«Cargar esta versión» la pone en los campos de arriba; se aplica al tocar «Guardar cambios».</p></section>}
+ </div>;
 }
 
 function Inbox(){
@@ -42,7 +97,7 @@ function Inbox(){
   const first=setTimeout(()=>void load(),0),t=setInterval(()=>{if(document.visibilityState==='visible')void load();},15000);return()=>{clearTimeout(first);clearInterval(t);};
  },[load]);
  const sedeName=(id:string|null)=>sedes.find(s=>s.id===id)?.nombre||'Sin sede';
- const lista=useMemo(()=>convs.filter(c=>(filtro==='todas'||(filtro==='sin_leer'&&c.no_leidos>0)||(filtro==='sin_sede'&&!c.sede_id)||c.sede_id===filtro)
+ const lista=useMemo(()=>convs.filter(c=>(filtro==='todas'||(filtro==='sin_leer'&&c.no_leidos>0)||(filtro==='atender'&&c.ia_atender)||(filtro==='sin_sede'&&!c.sede_id)||c.sede_id===filtro)
   &&`${c.nombre||''} ${c.telefono}`.toLowerCase().includes(q.trim().toLowerCase())),[convs,filtro,q]);
  const current=convs.find(c=>c.id===sel)||null;
  return <>
@@ -55,7 +110,7 @@ function Inbox(){
      <button className={styles.button} onClick={()=>void load()} aria-label="Actualizar"><RefreshCw size={14}/></button>
     </div>
     <select aria-label="Filtrar chats" value={filtro} onChange={e=>setFiltro(e.target.value)} style={{width:'100%',marginBottom:8}}>
-     <option value="todas">Todos los chats</option><option value="sin_leer">Sin leer</option><option value="sin_sede">Sin sede</option>
+     <option value="todas">Todos los chats</option><option value="atender">Atender persona</option><option value="sin_leer">Sin leer</option><option value="sin_sede">Sin sede</option>
      {sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
     </select>
     {loading?<p className={styles.empty}>Cargando chats…</p>:!lista.length?<p className={styles.empty}>{convs.length?'Ningún chat con ese filtro.':'Aún no hay chats. Llegan aquí desde que una clienta escriba al 304.'}</p>:
@@ -66,7 +121,7 @@ function Inbox(){
        <small style={{color:'#475569',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.ultimo_mensaje||'—'}</small>
        {c.no_leidos>0&&<span style={{background:'#10b981',color:'#fff',borderRadius:999,fontSize:11,fontWeight:800,padding:'1px 7px'}}>{c.no_leidos}</span>}
       </div>
-      <small style={{color:'#94a3b8'}}>{sedeName(c.sede_id)}{c.etiqueta?` · ${c.etiqueta}`:''}</small>
+      <small style={{color:'#94a3b8'}}>{sedeName(c.sede_id)}{c.etiqueta?` · ${c.etiqueta}`:''}</small>{c.ia_atender&&<small style={{display:'block',color:'#b91c1c',fontWeight:800}}>● Atender persona</small>}
      </button>)}
     </div>}
    </section>
@@ -111,6 +166,7 @@ function Chat({conv,sedes,onBack,onChange}:{conv:Conv;sedes:{id:string;nombre:st
   <div style={{border:'1px solid #ddd6fe',background:'#f5f3ff',borderRadius:12,padding:10,display:'grid',gap:6}}>
    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><Sparkles size={15} color="#7c3aed"/><strong style={{fontSize:13}}>IA</strong>{conv.etiqueta&&<span className={styles.badge}>{conv.etiqueta}</span>}<small style={{color:'#6d28d9',flex:1}}>{conv.ia_resumen||''}</small>
     <button className={styles.button} disabled={!!busy} onClick={()=>void run('ia',{accion:'ia'})}>{busy==='ia'?'Pensando…':'Volver a sugerir'}</button></div>
+   {conv.ia_atender&&<p role="alert" style={{margin:0,color:'#b91c1c',fontWeight:800,fontSize:13}}>Atender persona: {conv.ia_motivo||'la IA recomienda que la atienda una asesora'}</p>}
    {conv.ia_error&&<small style={{color:'#b91c1c'}}>La IA no pudo responder: {conv.ia_error}</small>}
    {conv.ia_sugerencia?<><div style={{whiteSpace:'pre-wrap',fontSize:14}}>{conv.ia_sugerencia}</div>
     <div><button className={styles.button} onClick={()=>setTexto(conv.ia_sugerencia||'')}>Usar sugerencia</button></div></>
