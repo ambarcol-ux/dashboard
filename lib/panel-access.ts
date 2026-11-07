@@ -36,6 +36,7 @@ export const PANELS:Panel[]=[
  {id:'proveedores-pagos',label:'Pagos a proveedores',href:'/dashboard/proveedores/pagos',block:'PROVEEDORES',paths:['/dashboard/proveedores/pagos'],grantable:false},
  {id:'metas',label:'Metas y ventas',href:'/admin/metas',block:'VENTAS & CRM',paths:['/admin/metas'],staff:true,grantable:true},
  {id:'catalogo',label:'Catálogo de vestidos',href:'/dashboard/catalogo',block:'VENTAS & CRM',paths:['/dashboard/catalogo'],staff:true,grantable:true},
+ {id:'whatsapp',label:'WhatsApp 304',href:'/dashboard/whatsapp',block:'VENTAS & CRM',paths:['/dashboard/whatsapp'],staff:true,grantable:true},
  {id:'correo',label:'Correo (promociones)',href:'/dashboard/correo',block:'VENTAS & CRM',paths:['/dashboard/correo'],staff:true,grantable:true},
  {id:'aliados_directos',label:'Aliados directos',href:'/dashboard/aliados-directos',block:'RED DE ALIADOS',paths:['/dashboard/aliados-directos'],staff:true,grantable:true},
  {id:'aliados_admin',label:'Gestión de aliados',href:'/dashboard/admin/aliados',block:'RED DE ALIADOS',paths:['/dashboard/admin/aliados'],grantable:true},
