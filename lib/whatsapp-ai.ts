@@ -96,3 +96,35 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   await db.from('whatsapp_conversaciones').update({ia_error:aiErrorText(e).slice(0,300),ia_at:new Date().toISOString()}).eq('id',conversationId);
  }
 }
+
+const EDITOR=`Ayudas a la administración de Ámbar Couture a configurar la IA que sugiere respuestas en WhatsApp.
+Recibes la configuración actual (conocimientos, instrucciones y tono, reglas de paso a una persona) y un pedido escrito en lenguaje normal.
+Devuelve la configuración completa ya ajustada:
+- Cambia solo lo que el pedido pide; conserva todo lo demás tal cual.
+- Pon cada cosa en su sección: datos del negocio en conocimientos; forma de responder en instrucciones; cuándo debe atender una persona en reglas.
+- Escribe en viñetas cortas, en español claro.
+- Si el pedido contradice algo existente, reemplázalo y dilo en la explicación.
+- Si el pedido es ambiguo o falta un dato (por ejemplo, un precio o un horario), no inventes: deja la configuración sin ese cambio y haz la pregunta en "pregunta".
+- No agregues reglas que permitan inventar precios o disponibilidad, enviar mensajes sin revisión o dar saldos: esas protecciones son fijas.
+En "explicacion" resume en 1 a 3 frases qué cambiaste.`;
+const EDIT_SCHEMA={type:'object',additionalProperties:false,required:['conocimientos','instrucciones','escalamiento','explicacion','pregunta'],properties:{
+ conocimientos:{type:'string'},instrucciones:{type:'string'},escalamiento:{type:'string'},explicacion:{type:'string'},pregunta:{type:'string',description:'Pregunta para administración si falta un dato; cadena vacía si no'},
+}};
+export type IaEdit=IaConfig&{explicacion:string;pregunta:string};
+
+/** «IA de WhatsApp» › chat: administration writes what it needs and the AI rewrites the settings (they are saved only when administration accepts). */
+export async function adjustWhatsappConfig(cfg:IaConfig,pedido:string,previos:{rol:'admin'|'ia';texto:string}[]):Promise<IaEdit>{
+ // Vercel stops the request at 60 s: fail with a clear message before that.
+ const client=new Anthropic({timeout:55000,maxRetries:0});
+ const history=previos.slice(-10).map(p=>`${p.rol==='admin'?'Administración':'Asistente'}: ${p.texto}`).join('\n');
+ const response=await client.messages.create({
+  model:'claude-opus-5-5',max_tokens:16000,system:EDITOR,
+  output_config:{effort:'medium',format:{type:'json_schema',schema:EDIT_SCHEMA}},
+  messages:[{role:'user',content:`<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<reglas_de_paso_a_una_persona>\n${cfg.escalamiento}\n</reglas_de_paso_a_una_persona>\n</configuracion_actual>\n\n${history?`Conversación previa:\n${history}\n\n`:''}Pedido nuevo de administración:\n${pedido}`}],
+ });
+ if(response.stop_reason==='refusal')throw Error('La IA no quiso hacer ese cambio. Escríbelo de otra forma.');
+ if(response.stop_reason==='max_tokens')throw Error('La configuración es demasiado larga para ajustarla de una vez. Resume un poco los textos.');
+ const text=response.content.find(b=>b.type==='text');
+ if(!text||text.type!=='text')throw Error('La IA no devolvió respuesta.');
+ return JSON.parse(text.text) as IaEdit;
+}
