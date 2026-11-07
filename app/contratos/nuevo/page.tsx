@@ -958,7 +958,7 @@ export default function NuevoContratoPage() {
 
       let query = supabase
         .from('vestidos')
-        .select('id, codigo, nombre, estado, sede_actual_id, stock_total, precio_sugerido, sedes(nombre)')
+        .select('id, codigo, nombre, estado, sede_actual_id, stock_total, precio_sugerido, para_alquiler, sedes(nombre)')
         .eq('archivado', false);
 
       if (v.vestido_id) {
@@ -978,6 +978,10 @@ export default function NuevoContratoPage() {
       if (existing && existing.id) {
         if (isRetiredDress(existing.estado)) {
           throw new Error(`❌ El vestido ${codigoUpper} no está disponible (Estado: ${existing.estado})`);
+        }
+        // Checked before saving so a sale-only dress never leaves a contract half created.
+        if (existing.para_alquiler === false) {
+          throw new Error(`❌ El vestido ${existing.codigo} está marcado solo para venta. En Inventario › Editar todo marca «Alquiler» y escribe su precio de alquiler, y vuelve a guardar.`);
         }
 
         // TRASLADO DE INVENTARIO: Actualizar sede si es diferente
