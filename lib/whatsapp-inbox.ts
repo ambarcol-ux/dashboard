@@ -53,7 +53,8 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    const text=messageText(m).slice(0,4000),at=when(m.timestamp);
    const {error}=await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:String(m.id),direccion:'saliente',origen:'celular',tipo:String(m.type||'text'),texto:text,estado:'sent',created_at:at});
    if(error){if(error.code==='23505')continue;throw error;}
-   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:text.slice(0,200),ultimo_at:at,no_leidos:0}).eq('id',conv.id);
+   // A person answered from the phone: the AI pauses in this chat.
+   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:text.slice(0,200),ultimo_at:at,no_leidos:0,ia_pausada:true,ia_pausada_at:at,ia_pausada_por:null}).eq('id',conv.id);
   }
   // Delivery statuses of what the ERP sent from this screen.
   for(const s of v.statuses||[]){

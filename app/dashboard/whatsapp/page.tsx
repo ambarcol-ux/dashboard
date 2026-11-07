@@ -6,13 +6,13 @@ import SupplierShell from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Conv={id:string;telefono:string;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null};
-type Msg={id:string;direccion:'entrante'|'saliente';origen:'clienta'|'erp'|'celular';texto:string|null;estado:string|null;created_at:string};
+type Conv={id:string;telefono:string;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null;ia_pausada:boolean;ia_pausada_at:string|null};
+type Msg={id:string;direccion:'entrante'|'saliente';origen:'clienta'|'erp'|'celular'|'ia';texto:string|null;estado:string|null;created_at:string};
 type Ficha={nombre:string|null;citas:{id:string;fecha:string;hora:string;estado:string;modalidad:string;sede:string|null;tipo_vestido:string|null}[];contratos:{id:string;numero_contrato:string;estado:string;fecha_evento:string|null;sede:string|null}[]};
 const WINDOW_MS=24*3600*1000;
 const hora=(iso:string)=>{const d=new Date(iso),hoy=new Date().toDateString()===d.toDateString();return d.toLocaleString('es-CO',{timeZone:'America/Bogota',...(hoy?{timeStyle:'short'}:{dateStyle:'short',timeStyle:'short'})});};
 const tel=(t:string)=>t.startsWith('57')&&t.length===12?`+57 ${t.slice(2,5)} ${t.slice(5,8)} ${t.slice(8)}`:`+${t}`;
-const ORIGEN:Record<string,string>={erp:'ERP',celular:'Celular',clienta:''};
+const ORIGEN:Record<string,string>={erp:'ERP',celular:'Celular',ia:'IA',clienta:''};
 const ESTADO:Record<string,string>={sent:'✓',delivered:'✓✓',read:'✓✓ leído',failed:'⚠ no entregado'};
 
 async function api(body:Record<string,unknown>){
@@ -49,17 +49,23 @@ function IaSettings(){
  const [cfg,setCfg]=useState<IaCfg>({conocimientos:'',instrucciones:'',escalamiento:''}),[saved,setSaved]=useState<IaCfg|null>(null),[meta,setMeta]=useState('');
  const [hist,setHist]=useState<(IaCfg&{id:number;created_at:string})[]>([]),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [chat,setChat]=useState<{rol:'admin'|'ia';texto:string}[]>([]),[pedido,setPedido]=useState('');
+ const [auto,setAuto]=useState<{activa:boolean;horas:number}|null>(null);
  const [prueba,setPrueba]=useState(''),[resultado,setResultado]=useState<{etiqueta:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;sede:string}|null>(null);
  const load=useCallback(async()=>{
-  const [{data:c,error:e},{data:h}]=await Promise.all([supabase.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento,actualizado_at').eq('id',1).maybeSingle(),
+  const [{data:c,error:e},{data:h}]=await Promise.all([supabase.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento,actualizado_at,auto_activa,reactivar_horas').eq('id',1).maybeSingle(),
    supabase.from('whatsapp_ia_historial').select('id,conocimientos,instrucciones,escalamiento,created_at').order('id',{ascending:false}).limit(10)]);
   if(e){setError(e.message);return;}
   const v={conocimientos:c?.conocimientos||'',instrucciones:c?.instrucciones||'',escalamiento:c?.escalamiento||''};
-  setCfg(v);setSaved(v);setMeta(c?.actualizado_at?`Última actualización: ${hora(c.actualizado_at)}`:'');setHist((h||[]) as (IaCfg&{id:number;created_at:string})[]);
+  setCfg(v);setSaved(v);setAuto({activa:!!c?.auto_activa,horas:Number(c?.reactivar_horas)||12});setMeta(c?.actualizado_at?`Última actualización: ${hora(c.actualizado_at)}`:'');setHist((h||[]) as (IaCfg&{id:number;created_at:string})[]);
  },[]);
  useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
  const dirty=!!saved&&(cfg.conocimientos!==saved.conocimientos||cfg.instrucciones!==saved.instrucciones||cfg.escalamiento!==saved.escalamiento);
  const guardar=async()=>{setBusy('guardar');setError('');setNotice('');const {error:e}=await supabase.rpc('guardar_whatsapp_ia',{p_conocimientos:cfg.conocimientos,p_instrucciones:cfg.instrucciones,p_escalamiento:cfg.escalamiento});setBusy('');if(e)setError(e.message);else{setNotice('Guardado. La IA usa estos cambios desde el próximo mensaje.');await load();}};
+ const guardarAuto=async(next:{activa:boolean;horas:number})=>{
+  if(next.activa&&!auto?.activa&&!window.confirm('¿Encender la respuesta automática? La IA contestará sola en los chats que no estén pausados. Antes, apaga la IA del proveedor de WhatsApp para que no respondan las dos.'))return;
+  setBusy('auto');setError('');setNotice('');const {error:e}=await supabase.rpc('guardar_whatsapp_ia_auto',{p_activa:next.activa,p_horas:next.horas});setBusy('');
+  if(e)setError(e.message);else{setAuto(next);setNotice(next.activa?'Respuesta automática encendida.':'Respuesta automática apagada: la IA vuelve a solo sugerir.');}
+ };
  const ajustar=async()=>{
   const texto=pedido.trim();if(!texto)return;
   setBusy('ajustar');setError('');setNotice('');setChat(c=>[...c,{rol:'admin',texto}]);setPedido('');
@@ -73,6 +79,14 @@ function IaSettings(){
  };
  const probar=async()=>{setBusy('probar');setError('');setResultado(null);try{setResultado(await api({accion:'probar',mensaje:prueba,...cfg}));}catch(e){setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}};
  return <div style={{display:'grid',gap:16}}>
+  {auto&&<section className={styles.card} style={{display:'grid',gap:8,borderColor:auto.activa?'#10b981':undefined}}>
+   <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+    <h2 style={{margin:0,flex:1}}>Respuesta automática: {auto.activa?'ENCENDIDA':'APAGADA'}</h2>
+    <button className={`${styles.button} ${auto.activa?styles.danger:styles.primary}`} disabled={!!busy} onClick={()=>void guardarAuto({...auto,activa:!auto.activa})}>{busy==='auto'?'Guardando…':auto.activa?'Apagar para todos los chats':'Encender para todos los chats'}</button>
+   </div>
+   <p className={styles.help}>{auto.activa?'La IA contesta sola en los chats activos.':'La IA solo deja sugerencias; las asesoras envían.'} Nunca responde sola los chats marcados «Atender persona». Cuando una asesora escribe en un chat (desde el ERP o el celular), la IA se pausa en ese chat; la asesora la reactiva con su botón o vuelve sola después de:
+    {' '}<select value={auto.horas} disabled={!!busy} onChange={e=>void guardarAuto({...auto,horas:Number(e.target.value)})}>{[1,2,4,6,8,12,24,48,72].map(h=><option key={h} value={h}>{h} hora{h===1?'':'s'}</option>)}</select> sin que la asesora escriba.</p>
+  </section>}
   <section className={styles.card} style={{display:'grid',gap:10}}>
    <h2>Pídele a la IA lo que necesitas</h2>
    <p className={styles.help}>Escribe como si le hablaras a una persona: «los domingos solo atendemos con cita», «si es novia pásala a la líder», «no ofrezcas la cita virtual». La IA ajusta los conocimientos y reglas; tú revisas y guardas.</p>
@@ -108,7 +122,7 @@ function IaSettings(){
 
 function Inbox(){
  const [convs,setConvs]=useState<Conv[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[sel,setSel]=useState<string|null>(null);
- const [filtro,setFiltro]=useState('todas'),[q,setQ]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(true);
+ const [filtro,setFiltro]=useState('todas'),[q,setQ]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(true),[auto,setAuto]=useState(false);
  const load=useCallback(async()=>{
   const {data,error:e}=await supabase.from('whatsapp_conversaciones').select('*').order('ultimo_at',{ascending:false}).limit(300);
   if(e)setError(e.message);else{setConvs((data||[]) as Conv[]);setError('');}
@@ -116,6 +130,7 @@ function Inbox(){
  },[]);
  useEffect(()=>{
   void supabase.from('sedes').select('id,nombre').eq('activo',true).order('nombre').then(({data})=>setSedes(data||[]));
+  void supabase.rpc('whatsapp_ia_auto_estado').then(({data})=>setAuto(!!(data as {activa?:boolean}|null)?.activa));
   const first=setTimeout(()=>void load(),0),t=setInterval(()=>{if(document.visibilityState==='visible')void load();},15000);return()=>{clearTimeout(first);clearInterval(t);};
  },[load]);
  const sedeName=(id:string|null)=>sedes.find(s=>s.id===id)?.nombre||'Sin sede';
@@ -143,16 +158,16 @@ function Inbox(){
        <small style={{color:'#475569',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.ultimo_mensaje||'—'}</small>
        {c.no_leidos>0&&<span style={{background:'#10b981',color:'#fff',borderRadius:999,fontSize:11,fontWeight:800,padding:'1px 7px'}}>{c.no_leidos}</span>}
       </div>
-      <small style={{color:'#94a3b8'}}>{sedeName(c.sede_id)}{c.etiqueta?` · ${c.etiqueta}`:''}</small>{c.ia_atender&&<small style={{display:'block',color:'#b91c1c',fontWeight:800}}>● Atender persona</small>}
+      <small style={{color:'#94a3b8'}}>{sedeName(c.sede_id)}{c.etiqueta?` · ${c.etiqueta}`:''}</small>{c.ia_atender&&<small style={{display:'block',color:'#b91c1c',fontWeight:800}}>● Atender persona</small>}{auto&&c.ia_pausada&&<small style={{display:'block',color:'#b45309',fontWeight:700}}>IA pausada</small>}
      </button>)}
     </div>}
    </section>
-   {current?<Chat key={current.id} conv={current} sedes={sedes} onBack={()=>setSel(null)} onChange={load}/>:<section className={`${styles.card} wa-hide`}><p className={styles.empty}>Elige un chat para verlo.</p></section>}
+   {current?<Chat key={current.id} conv={current} auto={auto} sedes={sedes} onBack={()=>setSel(null)} onChange={load}/>:<section className={`${styles.card} wa-hide`}><p className={styles.empty}>Elige un chat para verlo.</p></section>}
   </div>
  </>;
 }
 
-function Chat({conv,sedes,onBack,onChange}:{conv:Conv;sedes:{id:string;nombre:string}[];onBack:()=>void;onChange:()=>Promise<void>}){
+function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{id:string;nombre:string}[];onBack:()=>void;onChange:()=>Promise<void>}){
  const [msgs,setMsgs]=useState<Msg[]>([]),[ficha,setFicha]=useState<Ficha|null>(null),[texto,setTexto]=useState(''),[busy,setBusy]=useState(''),[error,setError]=useState('');
  const end=useRef<HTMLDivElement>(null);
  const loadMsgs=useCallback(async()=>{
@@ -171,6 +186,7 @@ function Chat({conv,sedes,onBack,onChange}:{conv:Conv;sedes:{id:string;nombre:st
   <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
    <button className={styles.button} onClick={onBack} aria-label="Volver a la lista"><ArrowLeft size={14}/></button>
    <div style={{flex:1,minWidth:160}}><strong>{conv.nombre||tel(conv.telefono)}</strong><br/><small>{tel(conv.telefono)} · <a href={`https://wa.me/${conv.telefono}`} target="_blank" rel="noreferrer">abrir en WhatsApp</a></small></div>
+   {auto&&<button className={`${styles.button} ${conv.ia_pausada?'':styles.primary}`} disabled={!!busy} title={conv.ia_pausada?'La IA no contesta sola en este chat':'La IA contesta sola en este chat'} onClick={()=>void run('pausa',{accion:'pausa',pausada:!conv.ia_pausada})}>{conv.ia_pausada?'IA pausada · Reactivar':'IA activa · Pausar'}</button>}
    <label style={{fontSize:12}}>Sede <select value={conv.sede_id||''} disabled={!!busy} onChange={e=>void run('sede',{accion:'sede',sede_id:e.target.value||null})}><option value="">Sin sede</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
   </div>
   {ficha&&(ficha.citas.length>0||ficha.contratos.length>0)&&<div style={{display:'flex',gap:6,flexWrap:'wrap',fontSize:12}}>

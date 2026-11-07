@@ -15,7 +15,7 @@ export async function POST(request:Request){
   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
   if(!auth.user)return publicReply({error:'Inicia sesión.'},401);
-  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;pedido?:string;previos?:{rol:'admin'|'ia';texto:string}[]};
+  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;pedido?:string;previos?:{rol:'admin'|'ia';texto:string}[];pausada?:boolean};
   // «IA de WhatsApp» › Probar: answer a sample message with the settings being edited, without saving. Administration only.
   // «IA de WhatsApp» › chat: rewrite the settings from a request in plain Spanish. Nothing is saved here.
   if(body.accion==='ajustar'){
@@ -40,6 +40,12 @@ export async function POST(request:Request){
   const {data:conv}=await userDb.from('whatsapp_conversaciones').select('id,telefono,ultimo_entrante_at').eq('id',body.conversacion_id!).maybeSingle();
   if(!conv)return publicReply({error:'No tienes acceso a este chat.'},403);
   const db=publicServerClient();
+  // Per-chat switch: a person pauses the AI to take the chat, and reactivates it when done.
+  if(body.accion==='pausa'){
+   const pausada=body.pausada===true;
+   const {error}=await db.from('whatsapp_conversaciones').update(pausada?{ia_pausada:true,ia_pausada_at:new Date().toISOString(),ia_pausada_por:auth.user.id}:{ia_pausada:false,ia_pausada_at:null,ia_pausada_por:null}).eq('id',conv.id);
+   return error?publicReply({error:'No se pudo cambiar la IA de este chat.'},500):publicReply({ok:true});
+  }
   if(body.accion==='leido'){await db.from('whatsapp_conversaciones').update({no_leidos:0}).eq('id',conv.id);return publicReply({ok:true});}
   if(body.accion==='sede'){
    const sede=body.sede_id||null;
@@ -62,7 +68,7 @@ export async function POST(request:Request){
    try{waId=await sendWhatsappText(settings,conv.telefono,texto);}catch(e){return publicReply({error:e instanceof Error?e.message:'No se pudo enviar.'},502);}
    const now=new Date().toISOString();
    await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:waId,direccion:'saliente',origen:'erp',tipo:'text',texto,estado:'sent',enviado_por:auth.user.id,created_at:now});
-   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,no_leidos:0,ia_sugerencia:null,ia_atender:false,ia_motivo:null}).eq('id',conv.id);
+   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,no_leidos:0,ia_sugerencia:null,ia_atender:false,ia_motivo:null,ia_pausada:true,ia_pausada_at:now,ia_pausada_por:auth.user.id}).eq('id',conv.id);
    return publicReply({ok:true});
   }
   return publicReply({error:'Acción no válida.'},400);
