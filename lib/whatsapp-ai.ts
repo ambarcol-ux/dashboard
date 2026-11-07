@@ -1,5 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type {SupabaseClient} from '@supabase/supabase-js';
+import {loadWhatsappSettings} from './whatsapp-config';
+import {sendWhatsappText} from './whatsapp-inbox';
 
 /** Ventas y CRM › WhatsApp 304: the AI reads the chat, labels it, detects the store, flags chats a person must take and leaves a suggested reply. It never sends anything. */
 export const WHATSAPP_TAGS=['cita','disponibilidad','precio','pago','contrato','reclamo','aliado','otro'] as const;
@@ -45,10 +47,10 @@ function systemPrompt(cfg:IaConfig,sites:Site[]){
 
 async function loadBasics(db:SupabaseClient){
  const [{data:cfg},{data:sites}]=await Promise.all([
-  db.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento').eq('id',1).maybeSingle(),
+  db.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento,auto_activa,reactivar_horas').eq('id',1).maybeSingle(),
   db.from('sedes').select('id,nombre,direccion,direccion_clientes,whatsapp,mapa_url').eq('activo',true).order('nombre'),
  ]);
- return {cfg:(cfg||{conocimientos:'',instrucciones:'',escalamiento:''}) as IaConfig,sites:(sites||[]) as Site[]};
+ return {cfg:(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}) as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
 }
 
 /** One AI call. Used by the inbox and by the «Probar» box of the settings screen. */
@@ -79,8 +81,8 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
  if(!process.env.ANTHROPIC_API_KEY)return;
  try{
   const [{data:conv},{data:msgs},{cfg,sites}]=await Promise.all([
-   db.from('whatsapp_conversaciones').select('id,telefono,nombre,sede_id').eq('id',conversationId).single(),
-   db.from('whatsapp_mensajes').select('direccion,texto,created_at').eq('conversacion_id',conversationId).order('created_at',{ascending:false}).limit(20),
+   db.from('whatsapp_conversaciones').select('id,telefono,nombre,sede_id,ia_pausada,ia_pausada_at').eq('id',conversationId).single(),
+   db.from('whatsapp_mensajes').select('id,direccion,texto,created_at').eq('conversacion_id',conversationId).order('created_at',{ascending:false}).limit(20),
    loadBasics(db),
   ]);
   if(!conv||!msgs?.length)return;
@@ -92,6 +94,22 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   const sede=sites.find(s=>s.nombre.toLowerCase()===out.sede.trim().toLowerCase());
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:out.respuesta.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
+  // Automatic reply: general switch on, chat not paused by a person (or paused longer than the configured hours), and nothing a person must take.
+  if(!cfg.auto_activa||out.atender_persona||!out.respuesta.trim())return;
+  const expired=conv.ia_pausada&&conv.ia_pausada_at&&Date.now()-Date.parse(conv.ia_pausada_at)>cfg.reactivar_horas*3600000;
+  if(conv.ia_pausada&&!expired)return;
+  // Send only if nothing changed meanwhile: same last message (a newer one gets its own reply) and no person stepped in.
+  const [{data:last},{data:now}]=await Promise.all([
+   db.from('whatsapp_mensajes').select('id').eq('conversacion_id',conversationId).order('created_at',{ascending:false}).limit(1).maybeSingle(),
+   db.from('whatsapp_conversaciones').select('ia_pausada,ia_pausada_at').eq('id',conversationId).single(),
+  ]);
+  const lastId=(history[history.length-1] as Msg&{id?:string}).id;
+  if(!last||last.id!==lastId||(now?.ia_pausada&&now.ia_pausada_at!==conv.ia_pausada_at))return;
+  const settings=await loadWhatsappSettings(db);
+  if(!settings.token||!settings.phoneNumberId)return;
+  const texto=out.respuesta.trim().slice(0,4000),waId=await sendWhatsappText(settings,conv.telefono,texto),at=new Date().toISOString();
+  await db.from('whatsapp_mensajes').insert({conversacion_id:conversationId,wa_id:waId,direccion:'saliente',origen:'ia',tipo:'text',texto,estado:'sent',created_at:at});
+  await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:at,ia_sugerencia:null,...(expired?{ia_pausada:false,ia_pausada_at:null,ia_pausada_por:null}:{})}).eq('id',conversationId);
  }catch(e){
   await db.from('whatsapp_conversaciones').update({ia_error:aiErrorText(e).slice(0,300),ia_at:new Date().toISOString()}).eq('id',conversationId);
  }
