@@ -1651,6 +1651,7 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
         <label className={label}>6. Precio de alquiler {f.para_alquiler ? '*' : '(opcional)'}<input type="text" inputMode="numeric" className={input} value={miles(f.precio)} onChange={(e) => setF({ ...f, precio: soloDigitos(e.target.value) })} /></label>
         <label className={label}>Precio de venta {f.para_venta ? '*' : 'sugerido'}<input type="text" inputMode="numeric" placeholder="Opcional" className={input} value={miles(f.precio_venta)} onChange={(e) => setF({ ...f, precio_venta: soloDigitos(e.target.value) })} /></label>
       </div>
+      {faltan.length > 0 && <p role="alert" className="text-xs font-bold text-rose-600">Para guardar falta: {faltan.join(', ')}.{faltan.includes('Precio de alquiler') ? ' Si este vestido no se alquila, desmarca «Alquiler».' : ''}</p>}
       <p className="text-[11px] text-gray-400">La sede se cambia con la lista «Sede actual» de la fila (traslado) y el estado con sus botones de siempre.</p>
       <div className="flex gap-3 justify-end"><button onClick={onClose} disabled={saving} className="px-5 py-3 rounded-xl border font-bold text-sm">Cancelar</button>
         <button onClick={() => void save()} disabled={saving || faltan.length > 0} className="px-5 py-3 rounded-xl bg-rose-500 text-white font-black text-sm disabled:opacity-50">{saving ? 'Guardando…' : 'Guardar'}</button></div>
