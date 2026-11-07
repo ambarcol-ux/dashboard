@@ -2,7 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendWhatsappText,WINDOW_MS} from '@/lib/whatsapp-inbox';
-import {suggestWhatsappReply} from '@/lib/whatsapp-ai';
+import {suggestWhatsappReply,testWhatsappAI,adjustWhatsappConfig,aiErrorText} from '@/lib/whatsapp-ai';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
@@ -15,7 +15,26 @@ export async function POST(request:Request){
   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
   if(!auth.user)return publicReply({error:'Inicia sesión.'},401);
-  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null};
+  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;pedido?:string;previos?:{rol:'admin'|'ia';texto:string}[]};
+  // «IA de WhatsApp» › Probar: answer a sample message with the settings being edited, without saving. Administration only.
+  // «IA de WhatsApp» › chat: rewrite the settings from a request in plain Spanish. Nothing is saved here.
+  if(body.accion==='ajustar'){
+   const {data:admin}=await userDb.rpc('es_admin');
+   if(admin!==true)return publicReply({error:'Solo administración puede ajustar la IA.'},403);
+   if(!process.env.ANTHROPIC_API_KEY)return publicReply({error:'Falta ANTHROPIC_API_KEY en Vercel.'},503);
+   const pedido=String(body.pedido||'').trim();if(!pedido||pedido.length>4000)return publicReply({error:'Escribe qué quieres ajustar.'},400);
+   const cfg={conocimientos:String(body.conocimientos||'').slice(0,30000),instrucciones:String(body.instrucciones||'').slice(0,15000),escalamiento:String(body.escalamiento||'').slice(0,15000)};
+   const previos=(Array.isArray(body.previos)?body.previos:[]).filter(p=>p&&(p.rol==='admin'||p.rol==='ia')).map(p=>({rol:p.rol,texto:String(p.texto||'').slice(0,2000)}));
+   try{return publicReply(await adjustWhatsappConfig(cfg,pedido,previos));}catch(e){return publicReply({error:aiErrorText(e)},502);}
+  }
+  if(body.accion==='probar'){
+   const {data:admin}=await userDb.rpc('es_admin');
+   if(admin!==true)return publicReply({error:'Solo administración puede probar la IA.'},403);
+   if(!process.env.ANTHROPIC_API_KEY)return publicReply({error:'Falta ANTHROPIC_API_KEY en Vercel.'},503);
+   const mensaje=String(body.mensaje||'').trim();if(!mensaje||mensaje.length>2000)return publicReply({error:'Escribe el mensaje de prueba.'},400);
+   const cfg={conocimientos:String(body.conocimientos||'').slice(0,30000),instrucciones:String(body.instrucciones||'').slice(0,15000),escalamiento:String(body.escalamiento||'').slice(0,15000)};
+   try{return publicReply(await testWhatsappAI(publicServerClient(),cfg,mensaje));}catch(e){return publicReply({error:aiErrorText(e)},502);}
+  }
   if(!UUID_RE.test(String(body.conversacion_id||'')))return publicReply({error:'Chat no válido.'},400);
   // The user's own permissions decide: RLS returns the chat only if they can see it.
   const {data:conv}=await userDb.from('whatsapp_conversaciones').select('id,telefono,ultimo_entrante_at').eq('id',body.conversacion_id!).maybeSingle();
@@ -43,7 +62,7 @@ export async function POST(request:Request){
    try{waId=await sendWhatsappText(settings,conv.telefono,texto);}catch(e){return publicReply({error:e instanceof Error?e.message:'No se pudo enviar.'},502);}
    const now=new Date().toISOString();
    await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:waId,direccion:'saliente',origen:'erp',tipo:'text',texto,estado:'sent',enviado_por:auth.user.id,created_at:now});
-   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,no_leidos:0,ia_sugerencia:null}).eq('id',conv.id);
+   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,no_leidos:0,ia_sugerencia:null,ia_atender:false,ia_motivo:null}).eq('id',conv.id);
    return publicReply({ok:true});
   }
   return publicReply({error:'Acción no válida.'},400);
