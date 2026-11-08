@@ -37,14 +37,14 @@ export default function PublicCatalogPage(){
      <div className="aspect-[3/4] bg-gray-100 flex items-center justify-center text-xs text-gray-400">{v.foto?<DressThumb src={v.foto} alt={v.nombre||v.codigo} className="w-full h-full object-cover"/>:'Foto próximamente'}</div>
      <div className="p-3 text-xs space-y-0.5"><p className="font-black text-gray-900 text-sm">{v.codigo}</p>
       <p className="font-bold text-rose-700">{v.tipo}{v.categoria?` · ${v.categoria}`:''}</p>
-      <p className="text-gray-600">{v.nombre}</p><p className="text-gray-500">Talla {v.talla||'—'} · {v.color||'—'}</p>
+      <p className="text-gray-500">Talla {v.talla||'—'} · {v.color||'—'}</p>
       <p className="font-black text-gray-900 pt-1">{v.precio?`Alquiler ${cop(v.precio)}`:'Precio a consultar'}</p></div>
     </article>)}
    </div>}
    {data&&!data.vestidos.length&&<p className="text-center text-gray-500">No hay vestidos en este catálogo por ahora.</p>}
    {open&&<div onClick={()=>{setOpen(null);setZoom(null);}} className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
     <div onClick={e=>e.stopPropagation()} className="bg-white rounded-3xl p-4 w-full max-w-3xl max-h-[92vh] overflow-y-auto space-y-3">
-     <div className="flex justify-between gap-2"><div className="text-sm"><p className="font-black text-lg">{open.codigo}</p><p className="font-bold text-rose-700">{open.tipo}{open.categoria?` · ${open.categoria}`:''}</p><p className="text-gray-600">{open.nombre} · Talla {open.talla||'—'} · {open.color||'—'}</p><p className="font-black">{open.precio?`Alquiler ${cop(open.precio)}`:'Precio a consultar'}</p></div>
+     <div className="flex justify-between gap-2"><div className="text-sm"><p className="font-black text-lg">{open.codigo}</p><p className="font-bold text-rose-700">{open.tipo}{open.categoria?` · ${open.categoria}`:''}</p><p className="text-gray-600">Talla {open.talla||'—'} · {open.color||'—'}</p><p className="font-black">{open.precio?`Alquiler ${cop(open.precio)}`:'Precio a consultar'}</p></div>
       <button type="button" onClick={()=>{setOpen(null);setZoom(null);}} className="self-start px-4 py-2 rounded-xl bg-gray-900 text-white text-xs font-black">Cerrar</button></div>
      {fotos.length?<div className={`grid grid-cols-1 gap-3 ${fotos.length===1?'max-w-sm mx-auto':fotos.length===2?'sm:grid-cols-2':'sm:grid-cols-3'}`}>{fotos.map((f,i)=><figure key={f.label}>
       <button type="button" onClick={()=>setZoom(i)} className="block w-full aspect-[3/4] bg-gray-100 rounded-2xl overflow-hidden cursor-zoom-in" aria-label={`Ampliar foto ${f.label}`}><img src={f.url} alt={`${open.codigo} ${f.label}`} className="w-full h-full object-cover"/></button>

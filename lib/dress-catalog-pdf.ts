@@ -38,7 +38,7 @@ export async function downloadCatalogPdf(rows:CatalogDress[],subtitle:string,mod
     if(img)doc.addImage(img,'JPEG',x,y,cw,ph,undefined,'FAST');else{doc.setTextColor(170);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text('Sin foto',x+cw/2,y+ph/2,{align:'center'});}
     doc.setTextColor(150);doc.setFontSize(7);doc.text(label,x+cw-4,y+ph-5,{align:'right'});});
    doc.setTextColor(20);doc.setFont('helvetica','bold');doc.setFontSize(11);doc.text(r.codigo,M,y+ph+14);
-   doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(90);doc.text(`${r.nombre||''} · Talla ${r.talla||'—'} · ${r.color||'—'}`.slice(0,110),M,y+ph+27);
+   doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(90);doc.text(`Talla ${r.talla||'—'} · ${r.color||'—'}`.slice(0,110),M,y+ph+27);
    doc.setTextColor(190,18,60);doc.setFont('helvetica','bold');doc.text(`Alquiler ${money(r.precio)}`,M,y+ph+40);
    y+=ch+GAP;return;
   }
@@ -49,8 +49,8 @@ export async function downloadCatalogPdf(rows:CatalogDress[],subtitle:string,mod
   else{doc.setTextColor(170);doc.setFont('helvetica','normal');doc.setFontSize(10);doc.text('Sin foto',x+cw/2,y+ph/2,{align:'center'});}
   doc.setTextColor(20);doc.setFont('helvetica','bold');doc.setFontSize(10);doc.text(r.codigo,x,y+ph+14);
   doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(90);
-  doc.text(doc.splitTextToSize(r.nombre||'',cw).slice(0,1),x,y+ph+26);
-  doc.text(`Talla ${r.talla||'—'} · ${r.color||'—'}`,x,y+ph+37);
+  // The internal description (e.g. «XV DORADO AMERICANO COLECCION 2025») is not shown to customers.
+  doc.text(`Talla ${r.talla||'—'} · ${r.color||'—'}`,x,y+ph+26);
   doc.setTextColor(190,18,60);doc.setFont('helvetica','bold');doc.setFontSize(9);doc.text(`Alquiler ${money(r.precio)}`,x,y+ph+49);
   col++;if(col===COLS){col=0;y+=ch+GAP;}
  });
