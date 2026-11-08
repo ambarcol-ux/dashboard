@@ -18,7 +18,6 @@ begin
  end if;
  return new;
 end $$;
-drop trigger if exists primeras_citas_anuncio on public.primeras_citas;
 create trigger primeras_citas_anuncio before insert on public.primeras_citas for each row execute function private.primeras_citas_anuncio();
 
 create or replace function private.registrar_origen_primera_cita(p_id uuid, p_origen text) returns void
