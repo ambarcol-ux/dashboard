@@ -50,7 +50,8 @@ function IaSettings(){
  const [hist,setHist]=useState<(IaCfg&{id:number;created_at:string})[]>([]),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [chat,setChat]=useState<{rol:'admin'|'ia';texto:string}[]>([]),[pedido,setPedido]=useState('');
  const [auto,setAuto]=useState<{activa:boolean;horas:number}|null>(null);
- const [prueba,setPrueba]=useState(''),[resultado,setResultado]=useState<{etiqueta:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;sede:string}|null>(null);
+ type Turno={rol:'clienta'|'ambar';texto:string;info?:{etiqueta:string;resumen:string;atender_persona:boolean;motivo:string;sede:string}};
+ const [prueba,setPrueba]=useState(''),[simulacion,setSimulacion]=useState<Turno[]>([]);
  const load=useCallback(async()=>{
   const [{data:c,error:e},{data:h}]=await Promise.all([supabase.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento,actualizado_at,auto_activa,reactivar_horas').eq('id',1).maybeSingle(),
    supabase.from('whatsapp_ia_historial').select('id,conocimientos,instrucciones,escalamiento,created_at').order('id',{ascending:false}).limit(10)]);
@@ -77,7 +78,16 @@ function IaSettings(){
    setChat(c=>[...c,{rol:'ia',texto:[r.explicacion,cambios.length?`Cambié: ${cambios.join(', ')}. Revisa y toca «Guardar cambios» para aplicarlo, o «Descartar».`:'',r.pregunta].filter(Boolean).join('\n\n')}]);
   }catch(e){setChat(c=>c.slice(0,-1));setPedido(texto);setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}
  };
- const probar=async()=>{setBusy('probar');setError('');setResultado(null);try{setResultado(await api({accion:'probar',mensaje:prueba,...cfg}));}catch(e){setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}};
+ // Simulated chat: you write as the customer, the AI answers as Ámbar with the settings above (saved or not).
+ const probar=async()=>{
+  const texto=prueba.trim();if(!texto)return;
+  const turnos:Turno[]=[...simulacion,{rol:'clienta',texto}];
+  setSimulacion(turnos);setPrueba('');setBusy('probar');setError('');
+  try{
+   const r=await api({accion:'probar',conversacion:turnos.map(t=>({rol:t.rol,texto:t.texto})),...cfg}) as {etiqueta:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;sede:string};
+   setSimulacion([...turnos,{rol:'ambar',texto:r.respuesta,info:r}]);
+  }catch(e){setSimulacion(simulacion);setPrueba(texto);setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}
+ };
  return <div style={{display:'grid',gap:16}}>
   {auto&&<section className={styles.card} style={{display:'grid',gap:8,borderColor:auto.activa?'#10b981':undefined}}>
    <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
@@ -106,12 +116,18 @@ function IaSettings(){
     <textarea rows={k==='conocimientos'?10:6} value={cfg[k]} onChange={e=>setCfg({...cfg,[k]:e.target.value})} placeholder={ph} style={{width:'100%',resize:'vertical'}}/></label>)}
   </div></details>
   <section className={styles.card} style={{display:'grid',gap:8}}>
-   <h2>Probar antes de guardar</h2><p className={styles.help}>Escribe un mensaje como si fueras una clienta. La IA responde con lo que está escrito arriba, aunque no lo hayas guardado.</p>
-   <div style={{display:'flex',gap:8,flexWrap:'wrap'}}><input value={prueba} onChange={e=>setPrueba(e.target.value)} maxLength={2000} placeholder="Ej.: Hola, ¿cuánto vale alquilar un vestido de XV en Villavicencio?" style={{flex:1,minWidth:200}}/>
-    <button className={`${styles.button} ${styles.primary}`} disabled={!prueba.trim()||!!busy} onClick={()=>void probar()}>{busy==='probar'?'Pensando…':'Probar'}</button></div>
-   {resultado&&<div style={{border:'1px solid #ddd6fe',background:'#f5f3ff',borderRadius:12,padding:10,display:'grid',gap:6}}>
-    <div style={{display:'flex',gap:6,flexWrap:'wrap'}}><span className={styles.badge}>{resultado.etiqueta}</span>{resultado.sede&&<span className={styles.badge}>{resultado.sede}</span>}{resultado.atender_persona&&<span className={styles.badge} style={{background:'#fee2e2',color:'#b91c1c'}}>Atender persona: {resultado.motivo}</span>}</div>
-    <small style={{color:'#6d28d9'}}>{resultado.resumen}</small><div style={{whiteSpace:'pre-wrap'}}>{resultado.respuesta}</div></div>}
+   <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><h2 style={{margin:0,flex:1}}>Probar como clienta</h2>{simulacion.length>0&&<button className={styles.button} disabled={!!busy} onClick={()=>setSimulacion([])}>Nueva conversación</button>}</div>
+   <p className={styles.help}>Chatea como si fueras una clienta: la IA responde como Ámbar con lo que está escrito arriba, aunque no lo hayas guardado. Así ves cómo lleva una conversación completa. No se envía nada por WhatsApp.</p>
+   {simulacion.length>0&&<div style={{background:'#f8fafc',borderRadius:12,padding:10,display:'grid',gap:6,maxHeight:'55vh',overflowY:'auto'}}>
+    {simulacion.map((t,i)=><div key={i} style={{justifySelf:t.rol==='clienta'?'start':'end',maxWidth:'85%',background:t.rol==='clienta'?'#fff':'#dcfce7',border:'1px solid #e2e8f0',borderRadius:12,padding:'6px 10px',display:'grid',gap:4}}>
+     <div style={{whiteSpace:'pre-wrap',fontSize:14}}>{t.texto}</div>
+     {t.info&&<div style={{display:'flex',gap:4,flexWrap:'wrap',alignItems:'center'}}><span className={styles.badge}>{t.info.etiqueta}</span>{t.info.sede&&<span className={styles.badge}>{t.info.sede}</span>}
+      {t.info.atender_persona&&<span className={styles.badge} style={{background:'#fee2e2',color:'#b91c1c'}}>Atender persona: {t.info.motivo}</span>}<small style={{color:'#6d28d9'}}>{t.info.resumen}</small></div>}
+    </div>)}
+    {busy==='probar'&&<small className={styles.help} style={{justifySelf:'end'}}>Ámbar está escribiendo…</small>}
+   </div>}
+   <div style={{display:'flex',gap:8,alignItems:'flex-end'}}><textarea rows={2} value={prueba} onChange={e=>setPrueba(e.target.value)} maxLength={2000} placeholder={simulacion.length?'Responde como la clienta…':'Ej.: Hola, quiero ver el catálogo de XV'} style={{flex:1,minWidth:0,resize:'vertical'}}/>
+    <button className={`${styles.button} ${styles.primary}`} disabled={!prueba.trim()||!!busy} onClick={()=>void probar()}><Send size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Enviar</button></div>
   </section>
   {hist.length>0&&<section className={styles.card}><h2>Historial de cambios</h2><div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Fecha</th><th>Resumen</th><th></th></tr></thead>
    <tbody>{hist.map(h=><tr key={h.id}><td>{hora(h.created_at)}</td><td><small>{h.conocimientos.length} car. de conocimientos · {h.instrucciones.length} de instrucciones · {h.escalamiento.length} de reglas</small></td>

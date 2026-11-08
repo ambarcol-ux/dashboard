@@ -15,7 +15,7 @@ export async function POST(request:Request){
   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
   if(!auth.user)return publicReply({error:'Inicia sesión.'},401);
-  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;pedido?:string;previos?:{rol:'admin'|'ia';texto:string}[];pausada?:boolean};
+  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;pedido?:string;previos?:{rol:'admin'|'ia';texto:string}[];pausada?:boolean;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
   // «IA de WhatsApp» › Probar: answer a sample message with the settings being edited, without saving. Administration only.
   // «IA de WhatsApp» › chat: rewrite the settings from a request in plain Spanish. Nothing is saved here.
   if(body.accion==='ajustar'){
@@ -31,9 +31,11 @@ export async function POST(request:Request){
    const {data:admin}=await userDb.rpc('es_admin');
    if(admin!==true)return publicReply({error:'Solo administración puede probar la IA.'},403);
    if(!process.env.ANTHROPIC_API_KEY)return publicReply({error:'Falta ANTHROPIC_API_KEY en Vercel.'},503);
-   const mensaje=String(body.mensaje||'').trim();if(!mensaje||mensaje.length>2000)return publicReply({error:'Escribe el mensaje de prueba.'},400);
+   // A simulated conversation (customer and Ámbar turns); the last turn is the customer's.
+   const turns=(Array.isArray(body.conversacion)?body.conversacion:[]).filter(t=>t&&(t.rol==='clienta'||t.rol==='ambar')&&String(t.texto||'').trim()).slice(-20).map(t=>({rol:t.rol,texto:String(t.texto).slice(0,2000)}));
+   if(!turns.length||turns[turns.length-1].rol!=='clienta')return publicReply({error:'Escribe el mensaje de prueba.'},400);
    const cfg={conocimientos:String(body.conocimientos||'').slice(0,30000),instrucciones:String(body.instrucciones||'').slice(0,15000),escalamiento:String(body.escalamiento||'').slice(0,15000)};
-   try{return publicReply(await testWhatsappAI(publicServerClient(),cfg,mensaje));}catch(e){return publicReply({error:aiErrorText(e)},502);}
+   try{return publicReply(await testWhatsappAI(publicServerClient(),cfg,turns));}catch(e){return publicReply({error:aiErrorText(e)},502);}
   }
   if(!UUID_RE.test(String(body.conversacion_id||'')))return publicReply({error:'Chat no válido.'},400);
   // The user's own permissions decide: RLS returns the chat only if they can see it.

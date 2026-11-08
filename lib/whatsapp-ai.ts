@@ -71,9 +71,9 @@ export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,c
 export const aiErrorText=(e:unknown)=>e instanceof Anthropic.APIError?`Anthropic ${e.status}: ${e.message}`:e instanceof Error?e.message:'Error de la IA';
 
 /** «Probar»: what the AI would answer to a sample message with the given (unsaved) settings. */
-export async function testWhatsappAI(db:SupabaseClient,cfg:IaConfig,message:string){
+export async function testWhatsappAI(db:SupabaseClient,cfg:IaConfig,turns:{rol:'clienta'|'ambar';texto:string}[]){
  const {sites}=await loadBasics(db);
- return runWhatsappAI(cfg,sites,{nombre:null,citas:[],contratos:[]},`Clienta: ${message}`);
+ return runWhatsappAI(cfg,sites,{nombre:null,citas:[],contratos:[]},turns.map(t=>`${t.rol==='clienta'?'Clienta':'Ámbar'}: ${t.texto}`).join('\n'));
 }
 
 /** Builds the suggestion for one chat and saves it. Errors are saved in ia_error so the screen can show them. */
