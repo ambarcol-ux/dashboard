@@ -219,8 +219,8 @@ function Inbox(){
      {sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
     </select>
     {loading?<p className={styles.empty}>Cargando chats…</p>:!lista.length?<p className={styles.empty}>{convs.length?'Ningún chat con ese filtro.':'Aún no hay chats. Llegan aquí desde que una clienta escriba al 304.'}</p>:
-    <div style={{display:'grid',gap:4,height:'calc(100vh - 300px)',minHeight:320,overflowY:'auto',overflowX:'hidden'}}>
-     {lista.map(c=><button key={c.id} type="button" onClick={()=>setSel(c.id)} style={{display:'grid',gap:2,width:'100%',minWidth:0,boxSizing:'border-box',overflow:'hidden',textAlign:'left',padding:'8px 10px',borderRadius:12,border:'1px solid',borderColor:sel===c.id?'#10b981':'#f1f5f9',background:sel===c.id?'#ecfdf5':'#fff',cursor:'pointer'}}>
+    <div style={{display:'grid',gap:4,gridAutoRows:'max-content',alignContent:'start',height:'calc(100vh - 300px)',minHeight:320,overflowY:'auto',overflowX:'hidden'}}>
+     {lista.map(c=><button key={c.id} type="button" onClick={()=>setSel(c.id)} style={{display:'grid',gap:2,flexShrink:0,minHeight:64,width:'100%',minWidth:0,boxSizing:'border-box',overflow:'hidden',textAlign:'left',padding:'8px 10px',borderRadius:12,border:'1px solid',borderColor:sel===c.id?'#10b981':'#f1f5f9',background:sel===c.id?'#ecfdf5':'#fff',cursor:'pointer'}}>
       <span style={{display:'flex',alignItems:'center',gap:6,minWidth:0}}>
        <strong style={{flex:1,minWidth:0,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.nombre||tel(c.telefono)}</strong>
        <small style={{flexShrink:0,color:c.no_leidos>0?'#047857':'#64748b',fontWeight:c.no_leidos>0?800:400}}>{horaCorta(c.ultimo_at)}</small>
