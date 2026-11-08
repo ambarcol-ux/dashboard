@@ -1,7 +1,12 @@
 const assert=require('node:assert/strict');const compile=require('./compile.cjs');
 const {validateVisitInput,visitMetrics,visitOutcome}=compile('lib/first-visits.ts');
 const valid={id:'12345678-1234-1234-1234-123456789000',sede:'12345678-1234-1234-1234-123456789001',fecha:'2026-10-20',hora:'18:00',modalidad:'presencial',nombre:'Test Client',telefono:'+57 3001234567',email:'cliente@example.com',consentimiento:true,comercial:false,tipoVestido:'Gala',documento:'9908886655'};
-assert.equal(validateVisitInput(valid).telefono,'573001234567');
+// Colombian mobile stored as 10 digits (+57 removed); WhatsApp adds 57 when sending.
+assert.equal(validateVisitInput(valid).telefono,'3001234567');
+assert.equal(validateVisitInput({...valid,nombre:'  María   José Gómez '}).nombre,'María José Gómez');
+for(const nombre of ['4 pm','María','Ana 2','x y','3001234567'])assert.throws(()=>validateVisitInput({...valid,nombre}),undefined,nombre);
+for(const telefono of ['6017001234','300123456','30012345678','4001234567'])assert.throws(()=>validateVisitInput({...valid,telefono}),undefined,telefono);
+assert.throws(()=>validateVisitInput({...valid,email:'ana@gmial.com'}),/gmail\.com/);
 for(const invalid of [{documento:''},{documento:'abc'},{documento:'1234'},{hora:'19:00'},{hora:'08:00'},{hora:'09:30'},{consentimiento:false},{website:'spam'},{telefono:'hi'},{nombre:' '},{email:'wrong'},{email:''},{email:'   '},{modalidad:'otra'},{tipoVestido:''},{tipoVestido:'Otro'}])assert.throws(()=>validateVisitInput({...valid,...invalid}));
 const NOW=Date.parse('2026-10-21T12:00:00-05:00');
 const base={estado:'asistio',fecha:'2026-10-15',hora:'10:00:00',contrato_id:null,contrato_estado:null,alquilo:null,posible_seguimiento:null};
@@ -14,7 +19,7 @@ console.log('PASS: input validation, attendance and rental counted once each (co
 
 for(const tipoVestido of ['Gala','Quince','Novia'])assert.equal(validateVisitInput({...valid,tipoVestido}).tipoVestido,tipoVestido);
 for(const telefono of ['300.123.4567','+57 (300) 123-4567','300 123 4567'])assert.match(validateVisitInput({...valid,telefono}).telefono,/^\d{10,15}$/);
-assert.throws(()=>validateVisitInput({...valid,telefono:'123'}),/Revisa el teléfono/);
+assert.throws(()=>validateVisitInput({...valid,telefono:'123'}),/Revisa tu celular/);
 assert.throws(()=>validateVisitInput({...valid,consentimiento:false}),/casilla de autorización/);
 assert.throws(()=>validateVisitInput({...valid,hora:''}),/hora disponible/);
 assert.throws(()=>validateVisitInput({...valid,website:'autofill'}),/campos visibles/);

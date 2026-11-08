@@ -1,3 +1,4 @@
+import {cleanPersonName,colombianMobile,personNameError,MOBILE_ERROR,emailTypo,validEmail,cedula,CEDULA_ERROR} from './contact-validation';
 export const firstVisitDressTypes=['Gala','Quince','Novia'] as const;
 export const visitStates:Record<string,string>={agendada:'Agendada',confirmada:'Confirmada',asistio:'Asistió',seguimiento:'En seguimiento',no_asistio:'No asistió',no_cerro:'No cerró',cancelada:'Cancelada'};
 export type FirstVisit={codigo?:string|null;promocion_id?:string|null;origen_enlace?:string|null;registrada_al_contratar?:boolean;tipo_seguimiento?:string|null;cierre_seguimiento?:string|null;alquilo?:boolean|null;posible_seguimiento?:boolean|null;origen?:'cita'|'vitrina';como_se_entero?:string|null;asesora_id?:string|null;asesora_nombre?:string|null;resultado_visita?:string|null;crm_origen_id?:string|null;crm_mensajes_activos?:boolean;cliente_documento?:string|null;nueva_cita_id?:string|null;fecha_evento?:string|null;tipo_vestido?:string;enlace_virtual?:string;respuesta_asistencia?:boolean|null;respuesta_alquiler?:boolean|null;motivo_no_alquiler?:string;resultado_comercial?:string;id:string;updated_at:string;fecha:string;hora:string;modalidad:'presencial'|'virtual';sede_id:string;sede:string;cliente_nombre:string;telefono:string;email:string;estado:string;motivo:string;responsable:string|null;contrato_id:string|null;numero_contrato:string|null;contrato_estado:string|null};
@@ -78,19 +79,20 @@ export const bogotaLocalToIso=(value:string)=>/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.
 export const nowBogotaLocal=(now=new Date())=>new Date(now.getTime()-5*3600000).toISOString().slice(0,16);
 export function validateVisitInput(b:Record<string,unknown>){
  const uuid=/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
- const name=String(b.nombre||'').trim(),phone=String(b.telefono||'').replace(/[\s().+-]/g,''),email=String(b.email||'').trim().toLowerCase();
+ const name=cleanPersonName(String(b.nombre||'')),phone=colombianMobile(String(b.telefono||'')),email=String(b.email||'').trim().toLowerCase();
  if(!uuid.test(String(b.id)))throw Error('Recarga la página e intenta reservar nuevamente.');
  if(!uuid.test(String(b.sede)))throw Error('Selecciona la sede de tu cita.');
  if(!['presencial','virtual'].includes(String(b.modalidad)))throw Error('Selecciona la modalidad de tu cita.');
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(b.fecha)))throw Error('Selecciona una fecha válida para tu cita.');
  if(!/^(09|1[0-8]):00$/.test(String(b.hora)))throw Error('Selecciona una hora disponible para tu cita.');
- if(name.length<2||name.length>120)throw Error('Escribe tu nombre completo, entre 2 y 120 caracteres.');
- if(!/^\d{10,15}$/.test(phone))throw Error('Revisa el teléfono: escribe entre 10 y 15 números, incluyendo el indicativo si corresponde. Ejemplo: 3001234567.');
- if(email.length>160||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))throw Error('Escribe un correo electrónico válido. Te enviaremos ahí la confirmación y cualquier cambio de tu cita.');
+ const nameError=personNameError(name);if(nameError)throw Error(nameError);
+ if(!phone)throw Error(MOBILE_ERROR);
+ const typo=emailTypo(email);if(typo)throw Error(`Revisa tu correo: ¿quisiste decir ${typo}?`);
+ if(!validEmail(email))throw Error('Escribe un correo electrónico válido. Te enviaremos ahí la confirmación y cualquier cambio de tu cita.');
  if(b.consentimiento!==true)throw Error('Marca la casilla de autorización de uso de datos para reservar.');
  if(b.website)throw Error('No se pudo validar el formulario. Recarga la página y completa los campos visibles manualmente.');
- const documento=String(b.documento||'').replace(/[.\s-]/g,'');
- if(!/^\d{5,15}$/.test(documento))throw Error('Ingresa la cédula de la persona que reserva, solo números.');
+ const documento=cedula(String(b.documento||''));
+ if(!documento)throw Error(CEDULA_ERROR);
  const fechaEvento=String(b.fechaEvento||''),tipoVestido=String(b.tipoVestido||'').trim();
  if((fechaEvento&&!/^\d{4}-\d{2}-\d{2}$/.test(fechaEvento))||!firstVisitDressTypes.includes(tipoVestido as typeof firstVisitDressTypes[number]))throw Error('Revisa la fecha del evento y tipo de vestido.');
   if(typeof b.comercial!=='boolean')throw Error('Elige si autorizas o no recibir información comercial.');

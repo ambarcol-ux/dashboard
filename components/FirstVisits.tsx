@@ -8,6 +8,8 @@ import {supabase} from '@/lib/supabase';
 import {VISIT_STATUS,visitAttendance,visitMetrics,visitRented,visitStatus,outcomeLabel,visitOrigin,type FirstVisit} from '@/lib/first-visits';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
 import {followupTypeLabel} from '@/lib/first-visit-followup';
+import {usePermissions} from '@/lib/use-permissions';
+import FirstVisitContactEdit from '@/components/FirstVisitContactEdit';
 import {emptyConfig,fieldState,loadModuleConfig,minChars} from '@/lib/module-config';
 
 type SegInfo={proximo?:string;ultimo?:string;hechos:number;asignado?:string|null};
@@ -25,6 +27,8 @@ async function loadSegInfo(ids:string[]):Promise<Record<string,SegInfo>>{
 /** Follow-up state of a visit: Cerrado, Hoy, Vencido or Al día. */
 const segEstado=(v:FirstVisit,i?:SegInfo)=>v.cierre_seguimiento||v.resultado_comercial!=='EN SEGUIMIENTO'?'Cerrado':!i?.proximo?'Al día':i.proximo===todayCO()?'Hoy':i.proximo<todayCO()?'Vencido':'Al día';
 export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;profile?:{id:string;sede_id:string|null}}){
+ // Correct the customer's contact data: administration, or roles with «Corregir datos de la clienta» (leaders, franchisee) for their stores.
+ const permisos=usePermissions(profile?.id||null),canEditContact=isAdmin||!!permisos?.includes('primeras_citas.editar_datos');
  const [customFrom,setCustomFrom]=useState(()=>bogotaDay(new Date().toISOString())!);
  const [customTo,setCustomTo]=useState(()=>bogotaDay(new Date(Date.now()+90*86400000).toISOString())!);
  const from=customFrom,to=customTo;
@@ -135,6 +139,7 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
  </fieldset></form>}
  {cancelled&&<p className={styles.notice}>Esta cita está cancelada.</p>}
  {error&&<p role="alert" className={styles.error}>{error}</p>}
+ {canEditContact&&<FirstVisitContactEdit key={selected.id} visit={selected} onSaved={m=>{setSelected(null);setNotice(m);void load();}}/>}
  <div className={styles.actions}><button type="button" disabled={saving} onClick={()=>setSelected(null)}>Cerrar</button></div></>;})()}{canDelete&&<section className={styles.dangerZone}><h4>Eliminar cita</h4><p className={styles.notice}>Solo para citas de prueba o creadas por error. Se borran la cita y sus mensajes pendientes; queda una copia de auditoría con el motivo.{selected.contrato_id?' Esta cita tiene contrato y no se puede eliminar.':''}</p><label>Motivo<select value={deleteReason} onChange={e=>setDeleteReason(e.target.value)}><option value="">Elige…</option>{(cfg.lists.pv_motivos_eliminar||[]).map(m=><option key={m}>{m}</option>)}</select></label><button type="button" className={styles.danger} disabled={saving||!!selected.contrato_id||!deleteReason} onClick={()=>void remove()}>Eliminar cita</button></section>}<FirstVisitCommercial visit={selected} showMessages={isAdmin} onChanged={()=>{void load();void supabase.from('primeras_citas').select('*').eq('id',selected.id).single().then(({data,error})=>{if(!error&&data)setSelected(current=>current?.id===data.id?{...current,...data}:current);});}}/><h4 className="mt-5 font-bold">Historial de atención</h4><div className={styles.history}>{history.map(h=><p key={h.id}><strong>{h.accion}</strong> · {new Date(h.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota'})}<br/>{h.detalle}</p>)}</div></dialog>}{walkIn&&profile&&<FirstVisitWalkIn profile={profile} onClose={()=>setWalkIn(false)} onSaved={m=>{setWalkIn(false);setNotice(m);void load();}}/>}</section>;
 }
 
