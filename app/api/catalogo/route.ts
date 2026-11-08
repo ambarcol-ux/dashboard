@@ -32,7 +32,8 @@ export async function GET(request:Request){
   const {data,error}=await q;
   if(error)return publicReply({error:'El servicio no está disponible.'},503);
   // Only dresses ready to rent: with photo, rental price and marked for rent (see lib/catalog-public).
-  const vestidos=(data||[]).filter(isPublicCatalogDress).map(v=>({codigo:String(v.codigo).trim(),nombre:v.nombre,talla:v.talla,color:v.color,precio:v.precio_sugerido,
+  // The internal description is not sent to customers (only code, type, size, color, price and photos).
+  const vestidos=(data||[]).filter(isPublicCatalogDress).map(v=>({codigo:String(v.codigo).trim(),nombre:null,talla:v.talla,color:v.color,precio:v.precio_sugerido,
    tipo:(v.clasificaciones_vestido as {nombre?:string}|null)?.nombre||null,categoria:v.categoria,foto:v.foto_frente||v.imagen_url||v.foto_espalda||v.foto_detalle||null,fotos:[v.foto_frente||v.imagen_url||null,v.foto_espalda||null,v.foto_detalle||null]}));
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).format(new Date());
   const {data:promos}=await db.from('promociones').select(PROMO_FIELDS).eq('activo',true).lte('desde',today).gte('hasta',today);
