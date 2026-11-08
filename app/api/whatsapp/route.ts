@@ -2,6 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendWhatsappText,WINDOW_MS} from '@/lib/whatsapp-inbox';
+import {resolveAd,adsSpend,adsTokenReady} from '@/lib/meta-ads';
 import {suggestWhatsappReply,testWhatsappAI,knowledgeChatTurn,applyIaChanges,loadContractClauses,aiErrorText,type IaCambio} from '@/lib/whatsapp-ai';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -15,8 +16,26 @@ export async function POST(request:Request){
   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
   if(!auth.user)return publicReply({error:'Inicia sesión.'},401);
-  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;pausada?:boolean;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
+  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;desde?:string;hasta?:string;pausada?:boolean;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
   // «IA de WhatsApp» › Probar: answer a sample message with the settings being edited, without saving. Administration only.
+  // WhatsApp 304 › Anuncios: per ad, chats → visits (virtual / in person) → attended → contracts, with spend and cost from Meta. Administration only.
+  if(body.accion==='anuncios'){
+   const desde=String(body.desde||''),hasta=String(body.hasta||'');
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(desde)||!/^\d{4}-\d{2}-\d{2}$/.test(hasta)||desde>hasta)return publicReply({error:'Elige un rango de fechas válido.'},400);
+   const {data:rows,error}=await userDb.rpc('whatsapp_anuncios_resumen',{p_desde:desde,p_hasta:hasta});
+   if(error)return publicReply({error:error.message},403);
+   const list=(rows||[]) as {anuncio_id:string;nombre:string|null}[];
+   // Ads still without name: ask Meta now (needs META_ADS_TOKEN), then read the summary again.
+   const db=publicServerClient();
+   let final=list;
+   if(adsTokenReady()&&list.some(r=>!r.nombre)){
+    for(const r of list.filter(r=>!r.nombre).slice(0,30))await resolveAd(db,r.anuncio_id).catch(()=>null);
+    const again=await userDb.rpc('whatsapp_anuncios_resumen',{p_desde:desde,p_hasta:hasta});
+    if(!again.error)final=(again.data||[]) as typeof list;
+   }
+   const gasto=await adsSpend(final.map(r=>r.anuncio_id),desde,hasta);
+   return publicReply({token:adsTokenReady(),filas:final.map(r=>({...r,gasto:gasto[r.anuncio_id]??null}))});
+  }
   // «IA de WhatsApp» › chat de conocimientos: saved conversation; changes are proposed (before → after) and applied only after confirmation.
   if(body.accion==='conocimiento'||body.accion==='conocimiento_decidir'){
    const {data:admin}=await userDb.rpc('es_admin');

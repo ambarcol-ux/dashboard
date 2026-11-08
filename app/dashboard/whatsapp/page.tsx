@@ -6,7 +6,7 @@ import SupplierShell from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Conv={id:string;telefono:string;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null;ia_pausada:boolean;ia_pausada_at:string|null};
+type Conv={id:string;telefono:string;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null;ia_pausada:boolean;ia_pausada_at:string|null;anuncio_id:string|null;anuncio_titulo:string|null};
 type Msg={id:string;direccion:'entrante'|'saliente';origen:'clienta'|'erp'|'celular'|'ia';texto:string|null;estado:string|null;created_at:string};
 type Ficha={nombre:string|null;citas:{id:string;fecha:string;hora:string;estado:string;modalidad:string;sede:string|null;tipo_vestido:string|null}[];contratos:{id:string;numero_contrato:string;estado:string;fecha_evento:string|null;sede:string|null}[]};
 const WINDOW_MS=24*3600*1000;
@@ -30,11 +30,39 @@ export default function WhatsappPage(){
 }
 
 function Tabs({admin}:{admin:boolean}){
- const [tab,setTab]=useState<'chats'|'ia'>('chats');
+ const [tab,setTab]=useState<'chats'|'ia'|'anuncios'>('chats');
  return <>
-  {admin&&<div className={styles.toolbar} style={{marginBottom:12}}>{([['chats','Chats'],['ia','IA de WhatsApp']] as const).map(([k,l])=><button key={k} type="button" className={tab===k?styles.primary:undefined} onClick={()=>setTab(k)}>{l}</button>)}</div>}
-  {tab==='chats'?<Inbox/>:<IaSettings/>}
+  {admin&&<div className={styles.toolbar} style={{marginBottom:12}}>{([['chats','Chats'],['ia','IA de WhatsApp'],['anuncios','Anuncios']] as const).map(([k,l])=><button key={k} type="button" className={tab===k?styles.primary:undefined} onClick={()=>setTab(k)}>{l}</button>)}</div>}
+  {tab==='chats'?<Inbox/>:tab==='ia'?<IaSettings/>:<AdsPanel/>}
  </>;
+}
+
+type AdRow={anuncio_id:string;nombre:string|null;campana:string|null;sede:string|null;chats:number;citas:number;citas_virtuales:number;citas_presenciales:number;asistieron:number;contratos:number;gasto:number|null};
+const cop=(n:number)=>n.toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0});
+const pct=(a:number,b:number)=>b?`${Math.round(100*a/b)}%`:'—';
+const bogota=(offsetDays=0)=>new Date(Date.now()-5*3600000+offsetDays*86400000).toISOString().slice(0,10);
+
+/** WhatsApp 304 › Anuncios: which Meta ads bring chats, visits (virtual / in person), attendance and contracts, and at what cost. */
+function AdsPanel(){
+ const [desde,setDesde]=useState(()=>bogota(-30)),[hasta,setHasta]=useState(()=>bogota()),[rows,setRows]=useState<AdRow[]|null>(null),[token,setToken]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const load=useCallback(async()=>{setBusy(true);setError('');try{const r=await api({accion:'anuncios',desde,hasta}) as {token:boolean;filas:AdRow[]};setRows(r.filas.map(f=>({...f,chats:Number(f.chats),citas:Number(f.citas),citas_virtuales:Number(f.citas_virtuales),citas_presenciales:Number(f.citas_presenciales),asistieron:Number(f.asistieron),contratos:Number(f.contratos)})));setToken(r.token);}catch(e){setError(e instanceof Error?e.message:'Error');}finally{setBusy(false);}},[desde,hasta]);
+ useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
+ const tot=(rows||[]).reduce((a,r)=>({chats:a.chats+r.chats,citas:a.citas+r.citas,v:a.v+r.citas_virtuales,p:a.p+r.citas_presenciales,asis:a.asis+r.asistieron,con:a.con+r.contratos,gasto:a.gasto+(r.gasto||0)}),{chats:0,citas:0,v:0,p:0,asis:0,con:0,gasto:0});
+ return <section className={styles.card} style={{display:'grid',gap:10}}>
+  <h2>Efectividad de los anuncios</h2>
+  <p className={styles.help}>Chats que llegaron por un anuncio de Meta con botón de WhatsApp, y lo que pasó después con esa clienta (por su celular): agendó primera cita (virtual o presencial), asistió y firmó contrato. La sede sale del nombre del anuncio.</p>
+  {!token&&<p className={styles.help} style={{color:'#b45309'}}>Falta conectar la lectura de anuncios de Meta (META_ADS_TOKEN): por ahora se ven los ID de los anuncios, sin su nombre ni el gasto.</p>}
+  <div className={styles.toolbar}><label>Desde<input type="date" value={desde} max={hasta} onChange={e=>setDesde(e.target.value)}/></label><label>Hasta<input type="date" value={hasta} min={desde} onChange={e=>setHasta(e.target.value)}/></label>
+   <button className={styles.button} disabled={busy} onClick={()=>void load()}><RefreshCw size={14} style={{display:'inline',verticalAlign:'-2px'}}/> {busy?'Calculando…':'Actualizar'}</button></div>
+  {error&&<p role="alert" className={styles.error}>{error}</p>}
+  {rows&&!rows.length&&<p className={styles.empty}>Aún no hay chats que hayan llegado por anuncios en estas fechas. Se empiezan a contar desde hoy.</p>}
+  {rows&&rows.length>0&&<div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Anuncio</th><th>Sede</th><th>Chats</th><th>Citas</th><th>Virtual / presencial</th><th>Asistieron</th><th>Contratos</th><th>Gasto</th><th>Costo por cita</th><th>Costo por contrato</th></tr></thead>
+   <tbody>{rows.map(r=><tr key={r.anuncio_id}><td><strong>{r.nombre||`Anuncio ${r.anuncio_id}`}</strong>{r.campana&&<small>{r.campana}</small>}</td><td>{r.sede||'—'}</td><td>{r.chats}</td>
+    <td>{r.citas} <small>{pct(r.citas,r.chats)} de los chats</small></td><td>{r.citas_virtuales} / {r.citas_presenciales}</td><td>{r.asistieron} <small>{pct(r.asistieron,r.citas)} de las citas</small></td><td>{r.contratos}</td>
+    <td>{r.gasto==null?'—':cop(r.gasto)}</td><td>{r.gasto&&r.citas?cop(r.gasto/r.citas):'—'}</td><td>{r.gasto&&r.contratos?cop(r.gasto/r.contratos):'—'}</td></tr>)}
+    <tr><td><strong>Total</strong></td><td></td><td><strong>{tot.chats}</strong></td><td><strong>{tot.citas}</strong> <small>{pct(tot.citas,tot.chats)}</small></td><td>{tot.v} / {tot.p}</td><td><strong>{tot.asis}</strong> <small>{pct(tot.asis,tot.citas)}</small></td><td><strong>{tot.con}</strong></td>
+     <td>{token?cop(tot.gasto):'—'}</td><td>{token&&tot.citas?cop(tot.gasto/tot.citas):'—'}</td><td>{token&&tot.con?cop(tot.gasto/tot.con):'—'}</td></tr></tbody></table></div>}
+ </section>;
 }
 
 type IaCfg={conocimientos:string;instrucciones:string;escalamiento:string};
@@ -218,7 +246,7 @@ function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{i
  return <section className={styles.card} style={{padding:12,display:'grid',gap:10}}>
   <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
    <button className={styles.button} onClick={onBack} aria-label="Volver a la lista"><ArrowLeft size={14}/></button>
-   <div style={{flex:1,minWidth:160}}><strong>{conv.nombre||tel(conv.telefono)}</strong><br/><small>{tel(conv.telefono)} · <a href={`https://wa.me/${conv.telefono}`} target="_blank" rel="noreferrer">abrir en WhatsApp</a></small></div>
+   <div style={{flex:1,minWidth:160}}><strong>{conv.nombre||tel(conv.telefono)}</strong><br/><small>{tel(conv.telefono)} · <a href={`https://wa.me/${conv.telefono}`} target="_blank" rel="noreferrer">abrir en WhatsApp</a>{conv.anuncio_id&&<><br/>📣 Llegó por anuncio{conv.anuncio_titulo?`: ${conv.anuncio_titulo}`:''}</>}</small></div>
    {auto&&<button className={`${styles.button} ${conv.ia_pausada?'':styles.primary}`} disabled={!!busy} title={conv.ia_pausada?'La IA no contesta sola en este chat':'La IA contesta sola en este chat'} onClick={()=>void run('pausa',{accion:'pausa',pausada:!conv.ia_pausada})}>{conv.ia_pausada?'IA pausada · Reactivar':'IA activa · Pausar'}</button>}
    <label style={{fontSize:12}}>Sede <select value={conv.sede_id||''} disabled={!!busy} onChange={e=>void run('sede',{accion:'sede',sede_id:e.target.value||null})}><option value="">Sin sede</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
   </div>

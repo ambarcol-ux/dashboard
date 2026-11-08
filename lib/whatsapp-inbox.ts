@@ -29,9 +29,9 @@ export async function conversationFor(db:SupabaseClient,phone:string,profileName
  return data as {id:string;nombre:string|null;sede_id:string|null;no_leidos:number};
 }
 
-/** Saves the events of one webhook call. Returns the chats with new customer messages (for the AI suggestion). */
+/** Saves the events of one webhook call. Returns the chats with new customer messages (for the AI suggestion) and the ads they came from. */
 export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:string[]){
- const touched=new Set<string>();
+ const touched=new Set<string>(),ads:{conversacion:string;anuncio:string}[]=[];
  for(const entry of data.entry||[])for(const change of entry.changes||[]){
   const v=change.value;if(!v||(accepted.length&&!accepted.includes(String(v.metadata?.phone_number_id||''))))continue;
   const names=new Map<string,string>((v.contacts||[]).map((c:Value)=>[digits(c.wa_id),String(c.profile?.name||'')]));
@@ -44,6 +44,12 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    if(error){if(error.code==='23505')continue;throw error;}
    await db.from('whatsapp_conversaciones').update({ultimo_mensaje:text.slice(0,200),ultimo_at:at,ultimo_entrante_at:at,no_leidos:(conv.no_leidos||0)+1,...(!conv.nombre&&names.get(phone)?{nombre:names.get(phone)}:{})}).eq('id',conv.id);
    conv.no_leidos=(conv.no_leidos||0)+1;
+   // Click-to-WhatsApp ad: Meta sends the ad id with the first message; the latest ad is kept (last touch).
+   const ref=m.referral;
+   if(ref?.source_id&&/^\d+$/.test(String(ref.source_id))&&(!ref.source_type||ref.source_type==='ad')){
+    await db.from('whatsapp_conversaciones').update({anuncio_id:String(ref.source_id),anuncio_titulo:String(ref.headline||ref.body||'').slice(0,300)||null,anuncio_url:String(ref.source_url||'').slice(0,500)||null,ctwa_clid:ref.ctwa_clid?String(ref.ctwa_clid).slice(0,300):null,anuncio_at:at}).eq('id',conv.id);
+    ads.push({conversacion:conv.id,anuncio:String(ref.source_id)});
+   }
    if(m.type!=='reaction')touched.add(conv.id);
   }
   // Replies typed in the WhatsApp Business app of the phone (coexistence): field smb_message_echoes.
@@ -62,7 +68,7 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    await db.from('whatsapp_mensajes').update({estado:s.status}).eq('wa_id',String(s.id));
   }
  }
- return [...touched];
+  return {touched:[...touched],ads};
 }
 
 /** Sends a free text inside Meta's 24-hour window. Returns the WhatsApp message id. */
