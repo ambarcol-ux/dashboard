@@ -1,4 +1,5 @@
 import {createHmac} from 'node:crypto';
+import {isPublicCatalogDress} from '@/lib/catalog-public';
 import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {allySlug} from '@/lib/ally-validation';
 import {PROMO_FIELDS,promoApplies,promoBenefit,type Promotion} from '@/lib/promotions';
@@ -24,13 +25,14 @@ export async function GET(request:Request){
     c=n||(await db.from('catalogos_publicos').select('titulo,clasificacion_id,categoria,sede_id,activo').eq('ruta',ruta).maybeSingle()).data;}
   }
   if(!c||!c.activo)return publicReply({error:'Este catálogo ya no está disponible.'},404);
-  let q=db.from('vestidos').select('codigo,nombre,talla,color,precio_sugerido,categoria,estado,foto_frente,foto_espalda,foto_detalle,imagen_url,clasificaciones_vestido(nombre)').eq('archivado',false).order('precio_sugerido');
+  let q=db.from('vestidos').select('codigo,nombre,talla,color,precio_sugerido,para_alquiler,categoria,estado,foto_frente,foto_espalda,foto_detalle,imagen_url,clasificaciones_vestido(nombre)').eq('archivado',false).order('precio_sugerido');
   if(c.clasificacion_id)q=q.eq('clasificacion_id',c.clasificacion_id);
   if(c.categoria)q=q.eq('categoria',c.categoria);
   if(c.sede_id)q=q.eq('sede_actual_id',c.sede_id);
   const {data,error}=await q;
   if(error)return publicReply({error:'El servicio no está disponible.'},503);
-  const vestidos=(data||[]).filter(v=>!/vendido|baja/i.test(String(v.estado||''))).map(v=>({codigo:String(v.codigo).trim(),nombre:v.nombre,talla:v.talla,color:v.color,precio:v.precio_sugerido,
+  // Only dresses ready to rent: with photo, rental price and marked for rent (see lib/catalog-public).
+  const vestidos=(data||[]).filter(isPublicCatalogDress).map(v=>({codigo:String(v.codigo).trim(),nombre:v.nombre,talla:v.talla,color:v.color,precio:v.precio_sugerido,
    tipo:(v.clasificaciones_vestido as {nombre?:string}|null)?.nombre||null,categoria:v.categoria,foto:v.foto_frente||v.imagen_url||v.foto_espalda||v.foto_detalle||null,fotos:[v.foto_frente||v.imagen_url||null,v.foto_espalda||null,v.foto_detalle||null]}));
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).format(new Date());
   const {data:promos}=await db.from('promociones').select(PROMO_FIELDS).eq('activo',true).lte('desde',today).gte('hasta',today);
