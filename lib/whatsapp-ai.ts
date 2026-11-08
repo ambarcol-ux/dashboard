@@ -115,34 +115,57 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
  }
 }
 
-const EDITOR=`Ayudas a la administración de Ámbar Couture a configurar la IA que sugiere respuestas en WhatsApp.
-Recibes la configuración actual (conocimientos, instrucciones y tono, reglas de paso a una persona) y un pedido escrito en lenguaje normal.
-Devuelve la configuración completa ya ajustada:
-- Cambia solo lo que el pedido pide; conserva todo lo demás tal cual.
-- Pon cada cosa en su sección: datos del negocio en conocimientos; forma de responder en instrucciones; cuándo debe atender una persona en reglas.
-- Escribe en viñetas cortas, en español claro.
-- Si el pedido contradice algo existente, reemplázalo y dilo en la explicación.
-- Si el pedido es ambiguo o falta un dato (por ejemplo, un precio o un horario), no inventes: deja la configuración sin ese cambio y haz la pregunta en "pregunta".
-- No agregues reglas que permitan inventar precios o disponibilidad, enviar mensajes sin revisión o dar saldos: esas protecciones son fijas.
-En "explicacion" resume en 1 a 3 frases qué cambiaste.`;
-const EDIT_SCHEMA={type:'object',additionalProperties:false,required:['conocimientos','instrucciones','escalamiento','explicacion','pregunta'],properties:{
- conocimientos:{type:'string'},instrucciones:{type:'string'},escalamiento:{type:'string'},explicacion:{type:'string'},pregunta:{type:'string',description:'Pregunta para administración si falta un dato; cadena vacía si no'},
-}};
-export type IaEdit=IaConfig&{explicacion:string;pregunta:string};
+const KNOWLEDGE=`Eres la asistente que administra lo que sabe la IA de WhatsApp de Ámbar Couture (tiendas de alquiler de vestidos de XV, gala, novia y pajecitas en Colombia).
+Conversas con la administración. Recibes la configuración actual en tres secciones: conocimientos (datos del negocio), instrucciones (forma de responder y tono) y escalamiento (cuándo debe atender una persona), y la conversación.
 
-/** «IA de WhatsApp» › chat: administration writes what it needs and the AI rewrites the settings (they are saved only when administration accepts). */
-export async function adjustWhatsappConfig(cfg:IaConfig,pedido:string,previos:{rol:'admin'|'ia';texto:string}[]):Promise<IaEdit>{
+Qué haces en cada mensaje (campo "accion"):
+- "responder": contestar una pregunta sobre lo que sabes, o pedir un dato que falta. Si te preguntan algo que no está en la configuración, dilo claramente y ofrece agregarlo.
+- "proponer": cuando la administración quiere agregar, corregir o quitar algo. No lo aplicas: propones los cambios exactos y en "respuesta" preguntas si confirma. Cada cambio es una de estas operaciones sobre una sección:
+  · agregar: "despues" es el texto nuevo (viñetas cortas); "antes" vacío.
+  · reemplazar: "antes" es un fragmento copiado EXACTAMENTE del texto actual de esa sección y "despues" su versión corregida.
+  · quitar: "antes" es el fragmento exacto a borrar; "despues" vacío.
+  Pon cada cosa en su sección. Si algo nuevo contradice lo que ya existe, reemplaza lo existente en vez de agregar una contradicción.
+- "confirmar": la administración aceptó la propuesta pendiente (dice sí, dale, confírmalo, etc.).
+- "descartar": la administración rechazó la propuesta pendiente sin pedir otra cosa.
+Nunca inventes datos (precios, horarios, políticas): si faltan, pregúntalos con "responder".
+No propongas cambios que permitan inventar precios o disponibilidad, enviar mensajes sin control o dar saldos: esas protecciones son fijas.
+Escribe en español claro, breve y cálido. Trata a la administración de tú.`;
+const KNOWLEDGE_SCHEMA={type:'object',additionalProperties:false,required:['accion','respuesta','cambios'],properties:{
+ accion:{type:'string',enum:['responder','proponer','confirmar','descartar']},
+ respuesta:{type:'string'},
+ cambios:{type:'array',items:{type:'object',additionalProperties:false,required:['seccion','operacion','antes','despues'],properties:{
+  seccion:{type:'string',enum:['conocimientos','instrucciones','escalamiento']},
+  operacion:{type:'string',enum:['agregar','reemplazar','quitar']},
+  antes:{type:'string'},despues:{type:'string'},
+ }}},
+}};
+export type IaCambio={seccion:keyof IaConfig;operacion:'agregar'|'reemplazar'|'quitar';antes:string;despues:string};
+export type KnowledgeTurn={accion:'responder'|'proponer'|'confirmar'|'descartar';respuesta:string;cambios:IaCambio[]};
+
+/** Applies proposed changes to the settings; fails if a fragment to replace or remove is no longer in the text. */
+export function applyIaChanges(cfg:IaConfig,cambios:IaCambio[]):IaConfig{
+ const out={...cfg};
+ for(const c of cambios){
+  const actual=out[c.seccion]||'';
+  if(c.operacion==='agregar'){out[c.seccion]=`${actual.trimEnd()}${actual.trim()?'\n':''}${c.despues.trim()}`;continue;}
+  if(!c.antes||!actual.includes(c.antes))throw Error(`No encontré en ${c.seccion} el texto «${c.antes.slice(0,80)}». Pídeme el cambio otra vez.`);
+  out[c.seccion]=actual.replace(c.antes,c.operacion==='quitar'?'':c.despues).replace(/\n{3,}/g,'\n\n');
+ }
+ return out;
+}
+
+/** One turn of the knowledge chat. The model answers, proposes exact changes, or recognizes a confirmation. */
+export async function knowledgeChatTurn(cfg:IaConfig,history:{rol:'admin'|'ia';texto:string}[],pendiente:IaCambio[]|null):Promise<KnowledgeTurn>{
  // Vercel stops the request at 60 s: fail with a clear message before that.
  const client=new Anthropic({timeout:55000,maxRetries:0});
- const history=previos.slice(-10).map(p=>`${p.rol==='admin'?'Administración':'Asistente'}: ${p.texto}`).join('\n');
+ const chat=history.slice(-16).map(h=>`${h.rol==='admin'?'Administración':'Asistente'}: ${h.texto}`).join('\n\n');
  const response=await client.messages.create({
-  model:'claude-opus-5-5',max_tokens:16000,system:EDITOR,
-  output_config:{effort:'medium',format:{type:'json_schema',schema:EDIT_SCHEMA}},
-  messages:[{role:'user',content:`<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<reglas_de_paso_a_una_persona>\n${cfg.escalamiento}\n</reglas_de_paso_a_una_persona>\n</configuracion_actual>\n\n${history?`Conversación previa:\n${history}\n\n`:''}Pedido nuevo de administración:\n${pedido}`}],
+  model:'claude-opus-5-5',max_tokens:8000,system:KNOWLEDGE,
+  output_config:{effort:'low',format:{type:'json_schema',schema:KNOWLEDGE_SCHEMA}},
+  messages:[{role:'user',content:`<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<escalamiento>\n${cfg.escalamiento}\n</escalamiento>\n</configuracion_actual>\n\n<propuesta_pendiente>\n${pendiente?JSON.stringify(pendiente):'ninguna'}\n</propuesta_pendiente>\n\n<conversacion>\n${chat}\n</conversacion>\n\nResponde al último mensaje de la administración.`}],
  });
- if(response.stop_reason==='refusal')throw Error('La IA no quiso hacer ese cambio. Escríbelo de otra forma.');
- if(response.stop_reason==='max_tokens')throw Error('La configuración es demasiado larga para ajustarla de una vez. Resume un poco los textos.');
+ if(response.stop_reason==='refusal')throw Error('La IA no quiso responder eso. Escríbelo de otra forma.');
  const text=response.content.find(b=>b.type==='text');
  if(!text||text.type!=='text')throw Error('La IA no devolvió respuesta.');
- return JSON.parse(text.text) as IaEdit;
+ return JSON.parse(text.text) as KnowledgeTurn;
 }

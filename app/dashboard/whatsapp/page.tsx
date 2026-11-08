@@ -48,7 +48,8 @@ const IA_FIELDS:[keyof IaCfg,string,string,string][]=[
 function IaSettings(){
  const [cfg,setCfg]=useState<IaCfg>({conocimientos:'',instrucciones:'',escalamiento:''}),[saved,setSaved]=useState<IaCfg|null>(null),[meta,setMeta]=useState('');
  const [hist,setHist]=useState<(IaCfg&{id:number;created_at:string})[]>([]),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState('');
- const [chat,setChat]=useState<{rol:'admin'|'ia';texto:string}[]>([]),[pedido,setPedido]=useState('');
+ type Cambio={seccion:keyof IaCfg;operacion:'agregar'|'reemplazar'|'quitar';antes:string;despues:string};
+ const [chat,setChat]=useState<{id:number;rol:'admin'|'ia';texto:string;propuesta:Cambio[]|null;estado:string|null;created_at:string}[]>([]),[pedido,setPedido]=useState('');
  const [auto,setAuto]=useState<{activa:boolean;horas:number}|null>(null);
  type Turno={rol:'clienta'|'ambar';texto:string;info?:{etiqueta:string;resumen:string;atender_persona:boolean;motivo:string;sede:string}};
  const [prueba,setPrueba]=useState(''),[simulacion,setSimulacion]=useState<Turno[]>([]);
@@ -57,6 +58,8 @@ function IaSettings(){
    supabase.from('whatsapp_ia_historial').select('id,conocimientos,instrucciones,escalamiento,created_at').order('id',{ascending:false}).limit(10)]);
   if(e){setError(e.message);return;}
   const v={conocimientos:c?.conocimientos||'',instrucciones:c?.instrucciones||'',escalamiento:c?.escalamiento||''};
+  const {data:k}=await supabase.from('whatsapp_ia_conocimiento_chat').select('id,rol,texto,propuesta,estado,created_at').order('id',{ascending:false}).limit(60);
+  setChat(((k||[]) as typeof chat).reverse());
   setCfg(v);setSaved(v);setAuto({activa:!!c?.auto_activa,horas:Number(c?.reactivar_horas)||12});setMeta(c?.actualizado_at?`Última actualización: ${hora(c.actualizado_at)}`:'');setHist((h||[]) as (IaCfg&{id:number;created_at:string})[]);
  },[]);
  useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
@@ -67,17 +70,15 @@ function IaSettings(){
   setBusy('auto');setError('');setNotice('');const {error:e}=await supabase.rpc('guardar_whatsapp_ia_auto',{p_activa:next.activa,p_horas:next.horas});setBusy('');
   if(e)setError(e.message);else{setAuto(next);setNotice(next.activa?'Respuesta automática encendida.':'Respuesta automática apagada: la IA vuelve a solo sugerir.');}
  };
- const ajustar=async()=>{
-  const texto=pedido.trim();if(!texto)return;
-  setBusy('ajustar');setError('');setNotice('');setChat(c=>[...c,{rol:'admin',texto}]);setPedido('');
-  try{
-   const r=await api({accion:'ajustar',pedido:texto,previos:chat,...cfg}) as IaCfg&{explicacion:string;pregunta:string};
-   const nuevo={conocimientos:r.conocimientos,instrucciones:r.instrucciones,escalamiento:r.escalamiento};
-   const cambios=IA_FIELDS.filter(([k])=>nuevo[k]!==cfg[k]).map(([,l])=>l);
-   setCfg(nuevo);
-   setChat(c=>[...c,{rol:'ia',texto:[r.explicacion,cambios.length?`Cambié: ${cambios.join(', ')}. Revisa y toca «Guardar cambios» para aplicarlo, o «Descartar».`:'',r.pregunta].filter(Boolean).join('\n\n')}]);
-  }catch(e){setChat(c=>c.slice(0,-1));setPedido(texto);setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}
+ // Knowledge chat: every message goes to the server, which answers, proposes exact changes or applies a confirmed one.
+ const conversar=async(body:Record<string,unknown>,texto?:string)=>{
+  setBusy('ajustar');setError('');setNotice('');
+  if(texto){setChat(c=>[...c,{id:-Date.now(),rol:'admin',texto,propuesta:null,estado:null,created_at:new Date().toISOString()}]);setPedido('');}
+  try{await api(body);await load();}
+  catch(e){if(texto){setChat(c=>c.filter(m=>m.id>=0));setPedido(texto);}setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}
  };
+ const ajustar=()=>{const texto=pedido.trim();if(texto)void conversar({accion:'conocimiento',texto},texto);};
+ const SECCION:Record<string,string>={conocimientos:'Conocimientos',instrucciones:'Instrucciones y tono',escalamiento:'Reglas de paso a una persona'};
  // Simulated chat: you write as the customer, the AI answers as Ámbar with the settings above (saved or not).
  const probar=async()=>{
   const texto=prueba.trim();if(!texto)return;
@@ -98,22 +99,38 @@ function IaSettings(){
     {' '}<select value={auto.horas} disabled={!!busy} onChange={e=>void guardarAuto({...auto,horas:Number(e.target.value)})}>{[1,2,4,6,8,12,24,48,72].map(h=><option key={h} value={h}>{h} hora{h===1?'':'s'}</option>)}</select> sin que la asesora escriba.</p>
   </section>}
   <section className={styles.card} style={{display:'grid',gap:10}}>
-   <h2>Pídele a la IA lo que necesitas</h2>
-   <p className={styles.help}>Escribe como si le hablaras a una persona: «los domingos solo atendemos con cita», «si es novia pásala a la líder», «no ofrezcas la cita virtual». La IA ajusta los conocimientos y reglas; tú revisas y guardas.</p>
-   {chat.length>0&&<div style={{background:'#f8fafc',borderRadius:12,padding:10,display:'grid',gap:6,maxHeight:'40vh',overflowY:'auto'}}>
-    {chat.map((m,i)=><div key={i} style={{justifySelf:m.rol==='admin'?'end':'start',maxWidth:'85%',background:m.rol==='admin'?'#dcfce7':'#f5f3ff',border:'1px solid #e2e8f0',borderRadius:12,padding:'6px 10px',whiteSpace:'pre-wrap',fontSize:14}}>{m.texto}</div>)}
-    {busy==='ajustar'&&<small className={styles.help}>Ajustando… (puede tardar hasta un minuto)</small>}
-   </div>}
-   <div style={{display:'flex',gap:8,alignItems:'flex-end'}}><textarea rows={2} value={pedido} onChange={e=>setPedido(e.target.value)} maxLength={4000} placeholder="Ej.: Agrega que el depósito se puede pagar el día de la entrega" style={{flex:1,minWidth:0,resize:'vertical'}}/>
-    <button className={`${styles.button} ${styles.primary}`} disabled={!pedido.trim()||!!busy} onClick={()=>void ajustar()}><Send size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Enviar</button></div>
+   <h2>Conocimientos de la IA</h2>
+   <p className={styles.help}>Conversa con ella como con una persona: pregúntale qué sabe («¿qué sabes del depósito?»), enséñale algo nuevo o corrígela. Antes de cambiar algo te muestra el antes y el después y te pide confirmar; nada se guarda sin tu «sí».</p>
+   <div style={{background:'#f8fafc',borderRadius:12,padding:10,display:'grid',gap:6,maxHeight:'55vh',overflowY:'auto'}}>
+    {!chat.length&&<p className={styles.empty}>Escribe tu primera pregunta o lo que quieres que aprenda.</p>}
+    {chat.map(m=><div key={m.id} style={{justifySelf:m.rol==='admin'?'end':'start',maxWidth:'90%',background:m.rol==='admin'?'#dcfce7':'#f5f3ff',border:'1px solid #e2e8f0',borderRadius:12,padding:'6px 10px',display:'grid',gap:6}}>
+     <div style={{whiteSpace:'pre-wrap',fontSize:14}}>{m.texto}</div>
+     {m.propuesta&&m.propuesta.length>0&&<div style={{display:'grid',gap:6}}>
+      {m.propuesta.map((c,i)=><div key={i} style={{background:'#fff',border:'1px solid #e9d5ff',borderRadius:10,padding:8,fontSize:13}}>
+       <strong>{SECCION[c.seccion]||c.seccion} · {c.operacion==='agregar'?'Agregar':c.operacion==='quitar'?'Quitar':'Corregir'}</strong>
+       {c.antes&&<div style={{whiteSpace:'pre-wrap',color:'#b91c1c',textDecoration:c.operacion==='agregar'?'none':'line-through'}}>Antes: {c.antes}</div>}
+       {c.despues&&<div style={{whiteSpace:'pre-wrap',color:'#047857'}}>{c.operacion==='agregar'?'Nuevo':'Después'}: {c.despues}</div>}
+      </div>)}
+      {m.estado==='pendiente'?<div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+       <button className={`${styles.button} ${styles.primary}`} disabled={!!busy} onClick={()=>void conversar({accion:'conocimiento_decidir',aplicar:true})}>Sí, ajústalo</button>
+       <button className={styles.button} disabled={!!busy} onClick={()=>void conversar({accion:'conocimiento_decidir',aplicar:false})}>No, déjalo así</button></div>
+      :<small style={{fontWeight:700,color:m.estado==='aplicada'?'#047857':'#64748b'}}>{m.estado==='aplicada'?'✓ Aplicado':'Descartado'}</small>}
+     </div>}
+     <small style={{color:'#94a3b8'}}>{hora(m.created_at)}</small>
+    </div>)}
+    {busy==='ajustar'&&<small className={styles.help}>La IA está pensando… (puede tardar hasta un minuto)</small>}
+   </div>
+   <div style={{display:'flex',gap:8,alignItems:'flex-end'}}><textarea rows={2} value={pedido} onChange={e=>setPedido(e.target.value)} maxLength={4000} placeholder="Ej.: ¿Qué sabes del depósito? · Agrega que los domingos solo atendemos con cita" style={{flex:1,minWidth:0,resize:'vertical'}}/>
+    <button className={`${styles.button} ${styles.primary}`} disabled={!pedido.trim()||!!busy} onClick={ajustar}><Send size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Enviar</button></div>
    {error&&<p role="alert" className={styles.error}>{error}</p>}{notice&&<p role="status" className={styles.notice}>{notice}</p>}
-   <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><button className={`${styles.button} ${styles.primary}`} disabled={!dirty||!!busy} onClick={()=>void guardar()}>{busy==='guardar'?'Guardando…':'Guardar cambios'}</button>
-    {dirty&&<button className={styles.button} disabled={!!busy} onClick={()=>saved&&setCfg(saved)}>Descartar</button>}{dirty&&<small style={{color:'#b45309',fontWeight:700}}>Hay cambios sin guardar</small>}<small className={styles.help}>{meta}</small></div>
+   <small className={styles.help}>{meta}</small>
   </section>
   <details className={styles.card}><summary style={{cursor:'pointer',fontWeight:800}}>Ver o editar el texto completo</summary><div style={{display:'grid',gap:12,marginTop:10}}>
    <p className={styles.help}>Escribe en español normal. La IA ya sabe sola las direcciones, WhatsApp, mapas y enlaces de agenda de cada sede, y las citas y contratos de cada clienta. Nunca inventa precios ni disponibilidad, y nunca envía nada sola: la asesora revisa cada respuesta.</p>
    {IA_FIELDS.map(([k,l,h,ph])=><label key={k} style={{display:'grid',gap:4}}><strong>{l}</strong><small className={styles.help}>{h}</small>
     <textarea rows={k==='conocimientos'?10:6} value={cfg[k]} onChange={e=>setCfg({...cfg,[k]:e.target.value})} placeholder={ph} style={{width:'100%',resize:'vertical'}}/></label>)}
+   <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><button className={`${styles.button} ${styles.primary}`} disabled={!dirty||!!busy} onClick={()=>void guardar()}>{busy==='guardar'?'Guardando…':'Guardar cambios'}</button>
+    {dirty&&<button className={styles.button} disabled={!!busy} onClick={()=>saved&&setCfg(saved)}>Descartar</button>}{dirty&&<small style={{color:'#b45309',fontWeight:700}}>Hay cambios sin guardar</small>}</div>
   </div></details>
   <section className={styles.card} style={{display:'grid',gap:8}}>
    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><h2 style={{margin:0,flex:1}}>Probar como clienta</h2>{simulacion.length>0&&<button className={styles.button} disabled={!!busy} onClick={()=>setSimulacion([])}>Nueva conversación</button>}</div>
