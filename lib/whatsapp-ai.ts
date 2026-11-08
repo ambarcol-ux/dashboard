@@ -16,7 +16,8 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Usa solo direcciones, teléfonos y enlaces que aparezcan en los datos de las sedes.
 - No des datos de dinero de un contrato (saldos, valores).
 - No saludes de nuevo si ya hubo saludo reciente en la conversación.
-- Marca atender_persona=true cuando la clienta pida hablar con una persona, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
+- Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
+- Marca atender_persona=true cuando la clienta pida hablar con una persona, reclame o discuta un cobro, una multa o una cláusula, pida una excepción, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
 
 Además: elige la etiqueta del tema principal, la sede de la clienta (solo si es clara; si no, cadena vacía) y un resumen de una frase para la asesora.`;
 
@@ -35,31 +36,40 @@ type Msg={direccion:string;texto:string|null;created_at:string};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null};
 
 /** System prompt: fixed rules plus what administration wrote in «IA de WhatsApp». Stable between chats so it can be cached. */
-function systemPrompt(cfg:IaConfig,sites:Site[]){
+function systemPrompt(cfg:IaConfig,sites:Site[],clauses:string){
  const origin=(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'');
  const sedes=sites.map(s=>`- ${s.nombre}: dirección ${s.direccion_clientes||s.direccion||'—'}; WhatsApp ${s.whatsapp||'—'}; mapa ${s.mapa_url||'—'}; agenda de primera cita ${origin}/agendar-primera-cita?sede=${s.id}`).join('\n');
  return [BASE,
   `<sedes>\n${sedes}\n</sedes>`,
   `<conocimientos>\n${cfg.conocimientos.trim()||'(sin conocimientos adicionales)'}\n</conocimientos>`,
   `<instrucciones_de_administracion>\n${cfg.instrucciones.trim()||'(sin instrucciones adicionales)'}\n</instrucciones_de_administracion>`,
-  `<reglas_de_paso_a_una_persona>\n${cfg.escalamiento.trim()||'(solo las reglas fijas)'}\n</reglas_de_paso_a_una_persona>`].join('\n\n');
+  `<reglas_de_paso_a_una_persona>\n${cfg.escalamiento.trim()||'(solo las reglas fijas)'}\n</reglas_de_paso_a_una_persona>`,
+  `<clausulas_del_contrato>\n${clauses||'(sin cláusulas)'}\n</clausulas_del_contrato>`].join('\n\n');
+}
+
+/** Current contract clauses (Administración › Cláusulas del contrato), as plain text: the same ones the customer signs. */
+export async function loadContractClauses(db:SupabaseClient){
+ const {data}=await db.from('plantillas_contratos').select('titulo,contenido').order('numero_orden',{ascending:true});
+ const plain=(v:unknown)=>String(v||'').replace(/<br\s*\/?>/gi,'\n').replace(/<\/(p|div|li)>/gi,'\n').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+ return ((data||[]) as {titulo:string;contenido:string}[]).map(c=>`${plain(c.titulo)}\n${plain(c.contenido)}`).join('\n\n').slice(0,60000);
 }
 
 async function loadBasics(db:SupabaseClient){
- const [{data:cfg},{data:sites}]=await Promise.all([
+ const [{data:cfg},{data:sites},clauses]=await Promise.all([
   db.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento,auto_activa,reactivar_horas').eq('id',1).maybeSingle(),
   db.from('sedes').select('id,nombre,direccion,direccion_clientes,whatsapp,mapa_url').eq('activo',true).order('nombre'),
+  loadContractClauses(db),
  ]);
- return {cfg:(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}) as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
+ return {clauses,cfg:(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}) as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
 }
 
 /** One AI call. Used by the inbox and by the «Probar» box of the settings screen. */
-export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,chat:string):Promise<IaOutput>{
+export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,chat:string,clauses=''):Promise<IaOutput>{
  const today=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',year:'numeric',month:'long',day:'numeric'});
  const client=new Anthropic();
  const response=await client.messages.create({
   model:MODEL,max_tokens:2000,
-  system:[{type:'text',text:systemPrompt(cfg,sites),cache_control:{type:'ephemeral'}}],
+  system:[{type:'text',text:systemPrompt(cfg,sites,clauses),cache_control:{type:'ephemeral'}}],
   output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},
   messages:[{role:'user',content:`Hoy es ${today}.\n\nDatos de la clienta en el ERP (nombre, sede, primeras citas y contratos):\n${JSON.stringify(customer)}\n\nConversación (la más reciente al final):\n${chat}`}],
  });
@@ -72,15 +82,15 @@ export const aiErrorText=(e:unknown)=>e instanceof Anthropic.APIError?`Anthropic
 
 /** «Probar»: what the AI would answer to a sample message with the given (unsaved) settings. */
 export async function testWhatsappAI(db:SupabaseClient,cfg:IaConfig,turns:{rol:'clienta'|'ambar';texto:string}[]){
- const {sites}=await loadBasics(db);
- return runWhatsappAI(cfg,sites,{nombre:null,citas:[],contratos:[]},turns.map(t=>`${t.rol==='clienta'?'Clienta':'Ámbar'}: ${t.texto}`).join('\n'));
+ const {sites,clauses}=await loadBasics(db);
+ return runWhatsappAI(cfg,sites,{nombre:null,citas:[],contratos:[]},turns.map(t=>`${t.rol==='clienta'?'Clienta':'Ámbar'}: ${t.texto}`).join('\n'),clauses);
 }
 
 /** Builds the suggestion for one chat and saves it. Errors are saved in ia_error so the screen can show them. */
 export async function suggestWhatsappReply(db:SupabaseClient,conversationId:string){
  if(!process.env.ANTHROPIC_API_KEY)return;
  try{
-  const [{data:conv},{data:msgs},{cfg,sites}]=await Promise.all([
+  const [{data:conv},{data:msgs},{cfg,sites,clauses}]=await Promise.all([
    db.from('whatsapp_conversaciones').select('id,telefono,nombre,sede_id,ia_pausada,ia_pausada_at').eq('id',conversationId).single(),
    db.from('whatsapp_mensajes').select('id,direccion,texto,created_at').eq('conversacion_id',conversationId).order('created_at',{ascending:false}).limit(20),
    loadBasics(db),
@@ -90,7 +100,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   if(history[history.length-1].direccion!=='entrante')return;// already answered
   const {data:ctx}=await db.rpc('whatsapp_contexto_servidor',{p_tel:conv.telefono});
   const chat=history.map(m=>`[${new Date(m.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'})}] ${m.direccion==='entrante'?'Clienta':'Ámbar'}: ${m.texto||''}`).join('\n');
-  const out=await runWhatsappAI(cfg,sites,{nombre_whatsapp:conv.nombre,...(ctx||{})},chat);
+  const out=await runWhatsappAI(cfg,sites,{nombre_whatsapp:conv.nombre,...(ctx||{})},chat,clauses);
   const sede=sites.find(s=>s.nombre.toLowerCase()===out.sede.trim().toLowerCase());
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:out.respuesta.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
@@ -116,7 +126,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
 }
 
 const KNOWLEDGE=`Eres la asistente que administra lo que sabe la IA de WhatsApp de Ámbar Couture (tiendas de alquiler de vestidos de XV, gala, novia y pajecitas en Colombia).
-Conversas con la administración. Recibes la configuración actual en tres secciones: conocimientos (datos del negocio), instrucciones (forma de responder y tono) y escalamiento (cuándo debe atender una persona), y la conversación.
+Conversas con la administración. También recibes las cláusulas vigentes del contrato: puedes explicarlas y la IA de WhatsApp las usa, pero no las cambias (se editan en «Cláusulas del contrato» del ERP); si piden cambiarlas, indícalo. Recibes la configuración actual en tres secciones: conocimientos (datos del negocio), instrucciones (forma de responder y tono) y escalamiento (cuándo debe atender una persona), y la conversación.
 
 Qué haces en cada mensaje (campo "accion"):
 - "responder": contestar una pregunta sobre lo que sabes, o pedir un dato que falta. Si te preguntan algo que no está en la configuración, dilo claramente y ofrece agregarlo.
@@ -155,14 +165,14 @@ export function applyIaChanges(cfg:IaConfig,cambios:IaCambio[]):IaConfig{
 }
 
 /** One turn of the knowledge chat. The model answers, proposes exact changes, or recognizes a confirmation. */
-export async function knowledgeChatTurn(cfg:IaConfig,history:{rol:'admin'|'ia';texto:string}[],pendiente:IaCambio[]|null):Promise<KnowledgeTurn>{
+export async function knowledgeChatTurn(cfg:IaConfig,history:{rol:'admin'|'ia';texto:string}[],pendiente:IaCambio[]|null,clauses=''):Promise<KnowledgeTurn>{
  // Vercel stops the request at 60 s: fail with a clear message before that.
  const client=new Anthropic({timeout:55000,maxRetries:0});
  const chat=history.slice(-16).map(h=>`${h.rol==='admin'?'Administración':'Asistente'}: ${h.texto}`).join('\n\n');
  const response=await client.messages.create({
   model:'claude-opus-5-5',max_tokens:8000,system:KNOWLEDGE,
   output_config:{effort:'low',format:{type:'json_schema',schema:KNOWLEDGE_SCHEMA}},
-  messages:[{role:'user',content:`<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<escalamiento>\n${cfg.escalamiento}\n</escalamiento>\n</configuracion_actual>\n\n<propuesta_pendiente>\n${pendiente?JSON.stringify(pendiente):'ninguna'}\n</propuesta_pendiente>\n\n<conversacion>\n${chat}\n</conversacion>\n\nResponde al último mensaje de la administración.`}],
+  messages:[{role:'user',content:`<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<escalamiento>\n${cfg.escalamiento}\n</escalamiento>\n</configuracion_actual>\n\n<clausulas_del_contrato>\n${clauses||'(sin cláusulas)'}\n</clausulas_del_contrato>\n\n<propuesta_pendiente>\n${pendiente?JSON.stringify(pendiente):'ninguna'}\n</propuesta_pendiente>\n\n<conversacion>\n${chat}\n</conversacion>\n\nResponde al último mensaje de la administración.`}],
  });
  if(response.stop_reason==='refusal')throw Error('La IA no quiso responder eso. Escríbelo de otra forma.');
  const text=response.content.find(b=>b.type==='text');
