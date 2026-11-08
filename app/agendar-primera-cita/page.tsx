@@ -5,6 +5,7 @@ import {bogotaDay} from '@/lib/contract-calendar';
 import VisitDatePicker from '@/components/VisitDatePicker';
 import {useVisitDays} from '@/components/useVisitDays';
 import styles from './visits.module.css';
+import {personNameError,colombianMobile,MOBILE_ERROR,emailTypo,formatMobile} from '@/lib/contact-validation';
 type Site={id:string;nombre:string};
 export default function FirstBooking(){
  const [sites,setSites]=useState<Site[]>([]),[site,setSite]=useState(''),[mode,setMode]=useState('presencial'),[date,setDate]=useState(''),[time,setTime]=useState(''),[slots,setSlots]=useState<{hora:string;cupos:number}[]>([]);
@@ -19,7 +20,13 @@ export default function FirstBooking(){
   setTime('');setSlots([]);if(!date||!site)return;const c=new AbortController();setLoading(true);setError('');
   void fetch(`/api/primeras-citas?${new URLSearchParams({fecha:date,sede:site,modalidad:mode})}`,{signal:c.signal,cache:'no-store'}).then(async r=>{const d=await r.json();if(!r.ok)throw Error(d.error);setSlots(d.horarios);}).catch(e=>{if(!c.signal.aborted)setError(e.message);}).finally(()=>{if(!c.signal.aborted)setLoading(false);});return()=>c.abort();
  },[date,site,mode]);
- async function submit(e:React.FormEvent){e.preventDefault();if(busy.current)return;busy.current=true;setSaving(true);setError('');setCanReschedule(false);
+ async function submit(e:React.FormEvent){e.preventDefault();if(busy.current)return;
+  // Same rules as the server, with a clear message before sending; the WhatsApp number is confirmed because a wrong digit loses the customer.
+  const nameErr=personNameError(name);if(nameErr){setError(nameErr);return;}
+  const mobile=colombianMobile(phone);if(!mobile){setError(MOBILE_ERROR);return;}
+  const typo=emailTypo(email);if(typo){if(window.confirm(`¿Tu correo es ${typo}?`)){setEmail(typo);}setError('Revisa tu correo y vuelve a tocar Reservar.');return;}
+  if(!window.confirm(`Te escribiremos al WhatsApp ${formatMobile(mobile)} para confirmar tu cita. ¿Es correcto?`)){setError('Corrige tu número de WhatsApp y vuelve a tocar Reservar.');return;}
+  busy.current=true;setSaving(true);setError('');setCanReschedule(false);
   const origen=(new URLSearchParams(window.location.search).get('o')||'').replace(/[^A-Za-z0-9._-]/g,'').slice(0,60);
   const body={documento,fechaEvento,tipoVestido,nombre:name,telefono:phone,email,sede:site,modalidad:mode,fecha:date,hora:time,consentimiento:consent,comercial,website,...(origen?{origen}:{})};
   const key=JSON.stringify(body);if(payloadKey.current!==key){payloadKey.current=key;requestId.current=crypto.randomUUID();}
