@@ -2,6 +2,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {loadWhatsappSettings} from './whatsapp-config';
 import {sendWhatsappText} from './whatsapp-inbox';
+import {allySlug} from './ally-validation';
+import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
 
 /** Ventas y CRM › WhatsApp 304: the AI reads the chat, labels it, detects the store, flags chats a person must take and leaves a suggested reply. It never sends anything. */
 export const WHATSAPP_TAGS=['cita','disponibilidad','precio','pago','contrato','reclamo','aliado','otro'] as const;
@@ -16,6 +18,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Usa solo direcciones, teléfonos y enlaces que aparezcan en los datos de las sedes.
 - No des datos de dinero de un contrato (saldos, valores).
 - No saludes de nuevo si ya hubo saludo reciente en la conversación.
+- Catálogo: si la clienta pide ver vestidos, modelos, fotos o el catálogo, envíale el enlace del catálogo de su sede y tipo de vestido tal cual aparece en <catalogos> (no lo modifiques). Si no sabes su sede o el tipo de vestido (XV, gala, novia, pajecita…), pregúntalo primero. Si esa combinación no está en la lista, di que una asesora le comparte opciones. Invítala a agendar su primera cita desde el catálogo.
 - Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
 - Marca atender_persona=true cuando la clienta pida hablar con una persona, reclame o discuta un cobro, una multa o una cláusula, pida una excepción, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
 
@@ -36,7 +39,7 @@ type Msg={direccion:string;texto:string|null;created_at:string};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null};
 
 /** System prompt: fixed rules plus what administration wrote in «IA de WhatsApp». Stable between chats so it can be cached. */
-function systemPrompt(cfg:IaConfig,sites:Site[],clauses:string){
+function systemPrompt(cfg:IaConfig,sites:Site[],clauses:string,catalogs=''){
  const origin=(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'');
  const sedes=sites.map(s=>`- ${s.nombre}: dirección ${s.direccion_clientes||s.direccion||'—'}; WhatsApp ${s.whatsapp||'—'}; mapa ${s.mapa_url||'—'}; agenda de primera cita ${origin}/agendar-primera-cita?sede=${s.id}`).join('\n');
  return [BASE,
@@ -44,7 +47,8 @@ function systemPrompt(cfg:IaConfig,sites:Site[],clauses:string){
   `<conocimientos>\n${cfg.conocimientos.trim()||'(sin conocimientos adicionales)'}\n</conocimientos>`,
   `<instrucciones_de_administracion>\n${cfg.instrucciones.trim()||'(sin instrucciones adicionales)'}\n</instrucciones_de_administracion>`,
   `<reglas_de_paso_a_una_persona>\n${cfg.escalamiento.trim()||'(solo las reglas fijas)'}\n</reglas_de_paso_a_una_persona>`,
-  `<clausulas_del_contrato>\n${clauses||'(sin cláusulas)'}\n</clausulas_del_contrato>`].join('\n\n');
+  `<clausulas_del_contrato>\n${clauses||'(sin cláusulas)'}\n</clausulas_del_contrato>`,
+  `<catalogos>\n${catalogs||'(sin catálogos disponibles)'}\n</catalogos>`].join('\n\n');
 }
 
 /** Current contract clauses (Administración › Cláusulas del contrato), as plain text: the same ones the customer signs. */
@@ -54,22 +58,41 @@ export async function loadContractClauses(db:SupabaseClient){
  return ((data||[]) as {titulo:string;contenido:string}[]).map(c=>`${plain(c.titulo)}\n${plain(c.contenido)}`).join('\n\n').slice(0,60000);
 }
 
+/** Catalog links per store and dress type with dresses visible to customers (same rule as the public catalog), marked as sent by the AI. */
+export async function loadCatalogLinks(db:SupabaseClient){
+ const origin=(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'');
+ const [{data:dresses},{data:sites},{data:types}]=await Promise.all([
+  db.from('vestidos').select('sede_actual_id,clasificacion_id,foto_frente,foto_espalda,foto_detalle,imagen_url,precio_sugerido,para_alquiler,estado').eq('archivado',false),
+  db.from('sedes').select('id,nombre').eq('activo',true).order('nombre'),
+  db.from('clasificaciones_vestido').select('id,nombre').eq('activo',true).order('nombre'),
+ ]);
+ const count=new Map<string,number>();
+ for(const d of (dresses||[]) as (CatalogDress&{sede_actual_id:string|null;clasificacion_id:number|null})[])
+  if(d.sede_actual_id&&d.clasificacion_id&&isPublicCatalogDress(d)){const k=`${d.sede_actual_id}|${d.clasificacion_id}`;count.set(k,(count.get(k)||0)+1);}
+ const lines:string[]=[];
+ for(const s of (sites||[]) as {id:string;nombre:string}[])for(const t of (types||[]) as {id:number;nombre:string}[]){
+  const n=count.get(`${s.id}|${t.id}`);if(n)lines.push(`- ${s.nombre} · ${t.nombre} (${n} vestidos): ${origin}/${allySlug(s.nombre)}/${allySlug(t.nombre)}?o=ia-whatsapp`);
+ }
+ return lines.join('\n');
+}
+
 async function loadBasics(db:SupabaseClient){
- const [{data:cfg},{data:sites},clauses]=await Promise.all([
+ const [{data:cfg},{data:sites},clauses,catalogs]=await Promise.all([
   db.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento,auto_activa,reactivar_horas').eq('id',1).maybeSingle(),
   db.from('sedes').select('id,nombre,direccion,direccion_clientes,whatsapp,mapa_url').eq('activo',true).order('nombre'),
   loadContractClauses(db),
+  loadCatalogLinks(db),
  ]);
- return {clauses,cfg:(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}) as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
+ return {clauses,catalogs,cfg:(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}) as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
 }
 
 /** One AI call. Used by the inbox and by the «Probar» box of the settings screen. */
-export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,chat:string,clauses=''):Promise<IaOutput>{
+export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,chat:string,clauses='',catalogs=''):Promise<IaOutput>{
  const today=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',year:'numeric',month:'long',day:'numeric'});
  const client=new Anthropic();
  const response=await client.messages.create({
   model:MODEL,max_tokens:2000,
-  system:[{type:'text',text:systemPrompt(cfg,sites,clauses),cache_control:{type:'ephemeral'}}],
+  system:[{type:'text',text:systemPrompt(cfg,sites,clauses,catalogs),cache_control:{type:'ephemeral'}}],
   output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},
   messages:[{role:'user',content:`Hoy es ${today}.\n\nDatos de la clienta en el ERP (nombre, sede, primeras citas y contratos):\n${JSON.stringify(customer)}\n\nConversación (la más reciente al final):\n${chat}`}],
  });
@@ -82,15 +105,15 @@ export const aiErrorText=(e:unknown)=>e instanceof Anthropic.APIError?`Anthropic
 
 /** «Probar»: what the AI would answer to a sample message with the given (unsaved) settings. */
 export async function testWhatsappAI(db:SupabaseClient,cfg:IaConfig,turns:{rol:'clienta'|'ambar';texto:string}[]){
- const {sites,clauses}=await loadBasics(db);
- return runWhatsappAI(cfg,sites,{nombre:null,citas:[],contratos:[]},turns.map(t=>`${t.rol==='clienta'?'Clienta':'Ámbar'}: ${t.texto}`).join('\n'),clauses);
+ const {sites,clauses,catalogs}=await loadBasics(db);
+ return runWhatsappAI(cfg,sites,{nombre:null,citas:[],contratos:[]},turns.map(t=>`${t.rol==='clienta'?'Clienta':'Ámbar'}: ${t.texto}`).join('\n'),clauses,catalogs);
 }
 
 /** Builds the suggestion for one chat and saves it. Errors are saved in ia_error so the screen can show them. */
 export async function suggestWhatsappReply(db:SupabaseClient,conversationId:string){
  if(!process.env.ANTHROPIC_API_KEY)return;
  try{
-  const [{data:conv},{data:msgs},{cfg,sites,clauses}]=await Promise.all([
+  const [{data:conv},{data:msgs},{cfg,sites,clauses,catalogs}]=await Promise.all([
    db.from('whatsapp_conversaciones').select('id,telefono,nombre,sede_id,ia_pausada,ia_pausada_at').eq('id',conversationId).single(),
    db.from('whatsapp_mensajes').select('id,direccion,texto,created_at').eq('conversacion_id',conversationId).order('created_at',{ascending:false}).limit(20),
    loadBasics(db),
@@ -100,7 +123,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   if(history[history.length-1].direccion!=='entrante')return;// already answered
   const {data:ctx}=await db.rpc('whatsapp_contexto_servidor',{p_tel:conv.telefono});
   const chat=history.map(m=>`[${new Date(m.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'})}] ${m.direccion==='entrante'?'Clienta':'Ámbar'}: ${m.texto||''}`).join('\n');
-  const out=await runWhatsappAI(cfg,sites,{nombre_whatsapp:conv.nombre,...(ctx||{})},chat,clauses);
+  const out=await runWhatsappAI(cfg,sites,{nombre_whatsapp:conv.nombre,...(ctx||{})},chat,clauses,catalogs);
   const sede=sites.find(s=>s.nombre.toLowerCase()===out.sede.trim().toLowerCase());
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:out.respuesta.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
