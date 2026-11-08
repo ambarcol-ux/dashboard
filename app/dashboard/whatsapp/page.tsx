@@ -194,7 +194,12 @@ function Inbox(){
  useEffect(()=>{
   void supabase.from('sedes').select('id,nombre').eq('activo',true).order('nombre').then(({data})=>setSedes(data||[]));
   void supabase.rpc('whatsapp_ia_auto_estado').then(({data})=>setAuto(!!(data as {activa?:boolean}|null)?.activa));
-  const first=setTimeout(()=>void load(),0),t=setInterval(()=>{if(document.visibilityState==='visible')void load();},15000);return()=>{clearTimeout(first);clearInterval(t);};
+  // Real time: any change in the chats the user can see (RLS) reloads the list at once; a slow poll stays as a safety net.
+  let pending:ReturnType<typeof setTimeout>|null=null;
+  const soon=()=>{if(pending)return;pending=setTimeout(()=>{pending=null;void load();},300);};
+  const channel=supabase.channel('wa-conversaciones').on('postgres_changes',{event:'*',schema:'public',table:'whatsapp_conversaciones'},soon).subscribe();
+  const first=setTimeout(()=>void load(),0),t=setInterval(()=>{if(document.visibilityState==='visible')void load();},30000);
+  return()=>{clearTimeout(first);clearInterval(t);if(pending)clearTimeout(pending);void supabase.removeChannel(channel);};
  },[load]);
  const sedeName=(id:string|null)=>sedes.find(s=>s.id===id)?.nombre||'Sin sede';
  const lista=useMemo(()=>convs.filter(c=>(filtro==='todas'||(filtro==='sin_leer'&&c.no_leidos>0)||(filtro==='atender'&&c.ia_atender)||(filtro==='sin_sede'&&!c.sede_id)||c.sede_id===filtro)
@@ -240,7 +245,10 @@ function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{i
  },[conv.id]);
  useEffect(()=>{
   void loadMsgs();void supabase.rpc('whatsapp_ficha',{p_conversacion:conv.id}).then(({data})=>setFicha(data as Ficha|null));
-  const t=setInterval(()=>{if(document.visibilityState==='visible')void loadMsgs();},10000);return()=>clearInterval(t);
+  // Real time: new messages and delivery statuses of this chat appear at once; a slow poll stays as a safety net.
+  const channel=supabase.channel(`wa-mensajes-${conv.id}`).on('postgres_changes',{event:'*',schema:'public',table:'whatsapp_mensajes',filter:`conversacion_id=eq.${conv.id}`},()=>void loadMsgs()).subscribe();
+  const t=setInterval(()=>{if(document.visibilityState==='visible')void loadMsgs();},30000);
+  return()=>{clearInterval(t);void supabase.removeChannel(channel);};
  },[conv.id,loadMsgs]);
  useEffect(()=>{if(conv.no_leidos>0)void api({accion:'leido',conversacion_id:conv.id}).then(onChange).catch(()=>{});},[conv.id,conv.no_leidos,onChange]);
  useEffect(()=>{end.current?.scrollIntoView({block:'end'});},[msgs.length]);
