@@ -2,7 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendWhatsappText,WINDOW_MS} from '@/lib/whatsapp-inbox';
-import {suggestWhatsappReply,testWhatsappAI,adjustWhatsappConfig,aiErrorText} from '@/lib/whatsapp-ai';
+import {suggestWhatsappReply,testWhatsappAI,knowledgeChatTurn,applyIaChanges,aiErrorText,type IaCambio} from '@/lib/whatsapp-ai';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
@@ -15,17 +15,50 @@ export async function POST(request:Request){
   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
   if(!auth.user)return publicReply({error:'Inicia sesión.'},401);
-  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;pedido?:string;previos?:{rol:'admin'|'ia';texto:string}[];pausada?:boolean;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
+  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;pausada?:boolean;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
   // «IA de WhatsApp» › Probar: answer a sample message with the settings being edited, without saving. Administration only.
-  // «IA de WhatsApp» › chat: rewrite the settings from a request in plain Spanish. Nothing is saved here.
-  if(body.accion==='ajustar'){
+  // «IA de WhatsApp» › chat de conocimientos: saved conversation; changes are proposed (before → after) and applied only after confirmation.
+  if(body.accion==='conocimiento'||body.accion==='conocimiento_decidir'){
    const {data:admin}=await userDb.rpc('es_admin');
    if(admin!==true)return publicReply({error:'Solo administración puede ajustar la IA.'},403);
-   if(!process.env.ANTHROPIC_API_KEY)return publicReply({error:'Falta ANTHROPIC_API_KEY en Vercel.'},503);
-   const pedido=String(body.pedido||'').trim();if(!pedido||pedido.length>4000)return publicReply({error:'Escribe qué quieres ajustar.'},400);
-   const cfg={conocimientos:String(body.conocimientos||'').slice(0,30000),instrucciones:String(body.instrucciones||'').slice(0,15000),escalamiento:String(body.escalamiento||'').slice(0,15000)};
-   const previos=(Array.isArray(body.previos)?body.previos:[]).filter(p=>p&&(p.rol==='admin'||p.rol==='ia')).map(p=>({rol:p.rol,texto:String(p.texto||'').slice(0,2000)}));
-   try{return publicReply(await adjustWhatsappConfig(cfg,pedido,previos));}catch(e){return publicReply({error:aiErrorText(e)},502);}
+   if(body.accion==='conocimiento'&&!process.env.ANTHROPIC_API_KEY)return publicReply({error:'Falta ANTHROPIC_API_KEY en Vercel.'},503);
+   const db=publicServerClient();
+   const [{data:row},{data:pend}]=await Promise.all([
+    db.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento').eq('id',1).single(),
+    db.from('whatsapp_ia_conocimiento_chat').select('id,propuesta').eq('estado','pendiente').order('id',{ascending:false}).limit(1).maybeSingle(),
+   ]);
+   const cfg={conocimientos:row?.conocimientos||'',instrucciones:row?.instrucciones||'',escalamiento:row?.escalamiento||''};
+   const say=(texto:string,extra:Record<string,unknown>={})=>db.from('whatsapp_ia_conocimiento_chat').insert({rol:'ia',texto:texto.slice(0,8000),...extra});
+   // Applies (through the user's own session, so the history records who) or discards the pending proposal.
+   const decide=async(aplicar:boolean)=>{
+    if(!pend)return 'No hay ningún cambio pendiente por confirmar.';
+    if(aplicar){
+     const nuevo=applyIaChanges(cfg,(pend.propuesta||[]) as IaCambio[]);
+     const {error}=await userDb.rpc('guardar_whatsapp_ia',{p_conocimientos:nuevo.conocimientos,p_instrucciones:nuevo.instrucciones,p_escalamiento:nuevo.escalamiento});
+     if(error)throw Error(error.message);
+    }
+    await db.from('whatsapp_ia_conocimiento_chat').update({estado:aplicar?'aplicada':'descartada'}).eq('id',pend.id);
+    return aplicar?'Listo, ya lo ajusté y quedó guardado. Puedes comprobarlo en «Probar como clienta».':'Listo, no cambié nada.';
+   };
+   try{
+    if(body.accion==='conocimiento_decidir'){await say(await decide(body.aplicar===true));return publicReply({ok:true});}
+    const texto=String(body.texto||'').trim();
+    if(!texto||texto.length>4000)return publicReply({error:'Escribe tu mensaje (máximo 4000 caracteres).'},400);
+    const {data:prev}=await db.from('whatsapp_ia_conocimiento_chat').select('rol,texto').order('id',{ascending:false}).limit(15);
+    const history=[...((prev||[]) as {rol:'admin'|'ia';texto:string}[]).reverse(),{rol:'admin' as const,texto}];
+    const turn=await knowledgeChatTurn(cfg,history,pend?(pend.propuesta as IaCambio[]):null);
+    // The admin message is saved only when the AI answered, so a failed attempt can simply be sent again.
+    await db.from('whatsapp_ia_conocimiento_chat').insert({rol:'admin',texto,usuario_id:auth.user.id});
+    if(turn.accion==='confirmar'&&pend)await say(await decide(true));
+    else if(turn.accion==='descartar'&&pend){await decide(false);await say(turn.respuesta||'Listo, no cambié nada.');}
+    else if(turn.accion==='proponer'&&turn.cambios.length){
+     try{applyIaChanges(cfg,turn.cambios);}catch(e){await say(e instanceof Error?e.message:'No pude preparar ese cambio. Pídemelo otra vez.');return publicReply({ok:true});}
+     if(pend)await db.from('whatsapp_ia_conocimiento_chat').update({estado:'descartada'}).eq('id',pend.id);
+     await say(turn.respuesta,{propuesta:turn.cambios,estado:'pendiente'});
+    }
+    else await say(turn.respuesta);
+    return publicReply({ok:true});
+   }catch(e){return publicReply({error:aiErrorText(e)},502);}
   }
   if(body.accion==='probar'){
    const {data:admin}=await userDb.rpc('es_admin');
