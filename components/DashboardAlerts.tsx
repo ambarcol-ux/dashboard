@@ -6,7 +6,7 @@ import {useCobrosUrgentes} from '@/components/CobrosAlert';
 import {hoyBogota} from '@/lib/cobros';
 
 type Server={caja_abonos:number;caja_sin_cerrar:number;caja_diferencias:number;pagos_sin_soporte:number;traslados_por_aprobar:number;prestamos_vencidos:number;
- mantenimiento_demorado:number;cierres_por_revisar:number;agenda_hoy:number;citas_hoy:number;estrene_riesgo:number;proveedores_por_pagar:number;agenda_manana:number;ventas_sin_factura:number;incoherentes:{numero:string;sede:string|null;problema:string}[]};
+ mantenimiento_demorado:number;cierres_por_revisar:number;agenda_hoy:number;citas_hoy:number;citas_solicitadas_hoy?:number;estrene_riesgo:number;proveedores_por_pagar:number;agenda_manana:number;ventas_sin_factura:number;incoherentes:{numero:string;sede:string|null;problema:string}[]};
 type Tile={key:string;label:string;count:number;color:string;panel:string;href?:string;onClick?:()=>void;active?:boolean};
 
 /** Inicio: one strip with every pending item, each with its own color; tap to go to the module. Only items with something pending show. */
@@ -42,6 +42,7 @@ export default function DashboardAlerts({canSee,pendingDeposits,entregas,borrado
   {key:'dep',label:'Depósitos por devolver',count:(sedeId?depSede:pendingDeposits)||0,color:'bg-rose-50 border-rose-200 text-rose-700',panel:'depositos',href:'/dashboard/devoluciones-depositos#pendientes'},
   {key:'cob',label:cobros?.tres?`Saldos por cobrar (7 días) · ${cobros.tres} urgentes`:'Saldos por cobrar (7 días)',count:cobros?.total||0,color:'bg-amber-50 border-amber-200 text-amber-800',panel:'cobros',href:'/dashboard/cuentas-por-cobrar'},
   {key:'seg',label:`Seguimientos · ${seg?.hoy||0} hoy · ${seg?.vencidos||0} vencidos`,count:(seg?.hoy||0)+(seg?.vencidos||0),color:'bg-yellow-50 border-yellow-300 text-yellow-800',panel:'primeras-citas',href:'/dashboard/primeras-citas?tab=seguimientos&estado=pendientes'},
+  {key:'sol',label:'Citas solicitadas hoy (nuevas)',count:d?.citas_solicitadas_hoy||0,color:'bg-rose-50 border-rose-200 text-rose-700',panel:'primeras-citas',href:`/dashboard/primeras-citas?solicitadas=${hoy}`},
   {key:'cit',label:'Primeras citas de hoy',count:d?.citas_hoy||0,color:'bg-amber-100 border-amber-300 text-amber-900',panel:'primeras-citas',href:`/dashboard/primeras-citas?dia=${hoy}`},
   {key:'hoy',label:'Agenda de hoy (medidas, pruebas, entregas)',count:d?.agenda_hoy||0,color:'bg-sky-50 border-sky-200 text-sky-800',panel:'calendario',href:`/dashboard/calendario?dia=${hoy}`},
   {key:'man',label:'Agenda de mañana',count:d?.agenda_manana||0,color:'bg-cyan-50 border-cyan-200 text-cyan-800',panel:'calendario',href:`/dashboard/calendario?dia=${manana}`},
