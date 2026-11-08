@@ -1,5 +1,6 @@
 'use client';
 import DressThumb from '@/components/DressThumb';
+import {publicHiddenReasons,RETIRED_RE} from '@/lib/catalog-public';
 import {useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
 import {BookOpen,Download,Link2} from 'lucide-react';
@@ -44,6 +45,11 @@ function Catalog({profile}:{profile:ShellProfile}){
  const text=q.trim().toLowerCase();
  const list=useMemo(()=>rows.filter(d=>(!limite||limite.includes(String(d.sede_actual_id)))&&(!tipo||String(d.clasificacion_id)===tipo)&&(!categoria||d.categoria===categoria)&&(!sede||d.sede_actual_id===sede)
   &&(!soloFoto||!!cover(d))&&(!text||`${d.codigo} ${d.nombre} ${d.color}`.toLowerCase().includes(text))),[rows,limite,tipo,categoria,sede,soloFoto,text]);
+ // Same filters without search/photo: dresses customers do not see in the public catalog, and why (so advisors can complete them).
+ const ocultos=useMemo(()=>rows.filter(d=>(!limite||limite.includes(String(d.sede_actual_id)))&&(!tipo||String(d.clasificacion_id)===tipo)&&(!categoria||d.categoria===categoria)&&(!sede||d.sede_actual_id===sede)
+  &&!RETIRED_RE.test(String(d.estado||''))&&publicHiddenReasons(d).length>0),[rows,limite,tipo,categoria,sede]);
+ const motivos=ocultos.reduce((m,d)=>{for(const r of publicHiddenReasons(d))m[r]=(m[r]||0)+1;return m;},{} as Record<string,number>);
+ const [verOcultos,setVerOcultos]=useState(false);
  const categorias=[...new Set(rows.filter(d=>!tipo||String(d.clasificacion_id)===tipo).map(d=>d.categoria).filter(Boolean))].sort() as string[];
  const canEdit=profile.rol==='admin';
  // Public links of the current filter (tipo, categoría, sede): /c/[token], always up to date with the inventory.
@@ -89,14 +95,19 @@ function Catalog({profile}:{profile:ShellProfile}){
     {l.activo&&<button type="button" onClick={()=>void copy(l.token)}>Copiar</button>}
     {(canEdit||l.creado_por===profile.id)&&<button type="button" onClick={()=>void toggle(l)}>{l.activo?'Desactivar':'Activar'}</button>}</p>)}
   </details>}
+  {ocultos.length>0&&<div role="status" style={{background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:12,padding:'10px 12px',marginBottom:14,fontSize:13,display:'flex',gap:10,flexWrap:'wrap',alignItems:'center'}}>
+   <span><b>{ocultos.length} vestido{ocultos.length===1?'':'s'} no se muestra{ocultos.length===1?'':'n'} a las clientas</b> en el catálogo público y en los enlaces: {Object.entries(motivos).map(([k,v])=>`${k.toLowerCase()} (${v})`).join(' · ')}. Aparecen solos cuando se completan en Inventario.</span>
+   <button type="button" onClick={()=>setVerOcultos(v=>!v)}>{verOcultos?'Ver todo el catálogo':'Ver cuáles son'}</button>
+  </div>}
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(170px,1fr))',gap:14}}>
-   {list.map(d=><article key={d.id} onClick={()=>setOpen(d)} style={{border:'1px solid #eee',borderRadius:16,overflow:'hidden',background:'#fff',cursor:'pointer'}}>
+   {(verOcultos?ocultos:list).map(d=><article key={d.id} onClick={()=>setOpen(d)} style={{border:'1px solid #eee',borderRadius:16,overflow:'hidden',background:'#fff',cursor:'pointer'}}>
     <div style={{aspectRatio:'3/4',background:'#f6f6f6',display:'flex',alignItems:'center',justifyContent:'center',color:'#aaa',fontSize:12}}>
      {cover(d)?<DressThumb src={cover(d)!} alt={d.nombre||d.codigo} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:'Sin foto'}</div>
     <div style={{padding:10,fontSize:12,lineHeight:1.4}}>
      <b style={{fontSize:13}}>{d.codigo}</b><br/><span style={{color:'#be123c',fontWeight:700}}>{tipoNombre(d.clasificacion_id)}{d.categoria?` · ${d.categoria}`:''}</span>
      <br/>{d.nombre||'Sin descripción'}<br/>Talla {d.talla||'—'} · {d.color||'—'}<br/><b>{d.para_alquiler===false?'Solo venta':d.precio_sugerido?cop(d.precio_sugerido):'Sin precio'}</b>{d.para_venta&&d.precio_venta?<> · <b style={{color:'#047857'}}>Venta {cop(d.precio_venta)}</b></>:null} · {d.estado||'—'}
+     {!RETIRED_RE.test(String(d.estado||''))&&publicHiddenReasons(d).length>0&&<><br/><span style={{color:'#c2410c',fontWeight:700}}>No visible al público: {publicHiddenReasons(d).join(', ').toLowerCase()}</span></>}
      {canEdit&&<><br/><Link href={`/admin/inventory?q=${encodeURIComponent(d.codigo.trim())}`} style={{color:'#be123c',fontWeight:700}}>Editar en inventario</Link></>}
     </div></article>)}
   </div>
