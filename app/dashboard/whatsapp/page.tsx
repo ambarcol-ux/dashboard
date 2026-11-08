@@ -10,6 +10,8 @@ type Conv={id:string;telefono:string;nombre:string|null;sede_id:string|null;ulti
 type Msg={id:string;direccion:'entrante'|'saliente';origen:'clienta'|'erp'|'celular'|'ia';texto:string|null;estado:string|null;created_at:string};
 type Ficha={nombre:string|null;citas:{id:string;fecha:string;hora:string;estado:string;modalidad:string;sede:string|null;tipo_vestido:string|null}[];contratos:{id:string;numero_contrato:string;estado:string;fecha_evento:string|null;sede:string|null}[]};
 const WINDOW_MS=24*3600*1000;
+// List: time only for today, date only for earlier days, so it always fits next to the name.
+const horaCorta=(iso:string)=>{const d=new Date(iso),dia=(x:Date)=>x.toLocaleDateString('es-CO',{timeZone:'America/Bogota'});return dia(d)===dia(new Date())?d.toLocaleTimeString('es-CO',{timeZone:'America/Bogota',hour:'numeric',minute:'2-digit'}):d.toLocaleDateString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'numeric'});};
 const hora=(iso:string)=>{const d=new Date(iso),hoy=new Date().toDateString()===d.toDateString();return d.toLocaleString('es-CO',{timeZone:'America/Bogota',...(hoy?{timeStyle:'short'}:{dateStyle:'short',timeStyle:'short'})});};
 const tel=(t:string)=>t.startsWith('57')&&t.length===12?`+57 ${t.slice(2,5)} ${t.slice(5,8)} ${t.slice(8)}`:`+${t}`;
 const ORIGEN:Record<string,string>={erp:'ERP',celular:'Celular',ia:'IA',clienta:''};
@@ -200,7 +202,7 @@ function Inbox(){
  const current=convs.find(c=>c.id===sel)||null;
  return <>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
-  <div style={{display:'grid',gridTemplateColumns:'minmax(0,340px) minmax(0,1fr)',gap:16,alignItems:'start'}} className="wa-grid">
+  <div style={{display:'grid',gridTemplateColumns:'minmax(0,360px) minmax(0,1fr)',gap:16,alignItems:'start'}} className="wa-grid">
    <style>{`@media(max-width:860px){.wa-grid{grid-template-columns:minmax(0,1fr)!important}.wa-grid>.wa-hide{display:none}}`}</style>
    <section className={`${styles.card} ${sel?'wa-hide':''}`} style={{padding:12}}>
     <div style={{display:'flex',gap:8,marginBottom:8}}>
@@ -212,14 +214,15 @@ function Inbox(){
      {sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
     </select>
     {loading?<p className={styles.empty}>Cargando chats…</p>:!lista.length?<p className={styles.empty}>{convs.length?'Ningún chat con ese filtro.':'Aún no hay chats. Llegan aquí desde que una clienta escriba al 304.'}</p>:
-    <div style={{display:'grid',gap:4,maxHeight:'70vh',overflowY:'auto'}}>
-     {lista.map(c=><button key={c.id} type="button" onClick={()=>setSel(c.id)} style={{textAlign:'left',padding:'10px 12px',borderRadius:12,border:'1px solid',borderColor:sel===c.id?'#10b981':'#f1f5f9',background:sel===c.id?'#ecfdf5':'#fff',cursor:'pointer'}}>
-      <div style={{display:'flex',justifyContent:'space-between',gap:8}}><strong style={{fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.nombre||tel(c.telefono)}</strong><small style={{color:'#64748b',whiteSpace:'nowrap'}}>{hora(c.ultimo_at)}</small></div>
-      <div style={{display:'flex',justifyContent:'space-between',gap:8,alignItems:'center'}}>
-       <small style={{color:'#475569',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.ultimo_mensaje||'—'}</small>
-       {c.no_leidos>0&&<span style={{background:'#10b981',color:'#fff',borderRadius:999,fontSize:11,fontWeight:800,padding:'1px 7px'}}>{c.no_leidos}</span>}
-      </div>
-      <small style={{color:'#94a3b8'}}>{sedeName(c.sede_id)}{c.etiqueta?` · ${c.etiqueta}`:''}</small>{c.ia_atender&&<small style={{display:'block',color:'#b91c1c',fontWeight:800}}>● Atender persona</small>}{auto&&c.ia_pausada&&<small style={{display:'block',color:'#b45309',fontWeight:700}}>IA pausada</small>}
+    <div style={{display:'grid',gap:4,height:'calc(100vh - 300px)',minHeight:320,overflowY:'auto',overflowX:'hidden'}}>
+     {lista.map(c=><button key={c.id} type="button" onClick={()=>setSel(c.id)} style={{display:'grid',gap:2,width:'100%',minWidth:0,boxSizing:'border-box',overflow:'hidden',textAlign:'left',padding:'8px 10px',borderRadius:12,border:'1px solid',borderColor:sel===c.id?'#10b981':'#f1f5f9',background:sel===c.id?'#ecfdf5':'#fff',cursor:'pointer'}}>
+      <span style={{display:'flex',alignItems:'center',gap:6,minWidth:0}}>
+       <strong style={{flex:1,minWidth:0,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.nombre||tel(c.telefono)}</strong>
+       <small style={{flexShrink:0,color:c.no_leidos>0?'#047857':'#64748b',fontWeight:c.no_leidos>0?800:400}}>{horaCorta(c.ultimo_at)}</small>
+       {c.no_leidos>0&&<span style={{flexShrink:0,background:'#10b981',color:'#fff',borderRadius:999,fontSize:11,fontWeight:800,padding:'1px 7px'}}>{c.no_leidos}</span>}
+      </span>
+      <small style={{display:'block',minWidth:0,color:'#475569',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.ultimo_mensaje||'—'}</small>
+      <small style={{display:'block',minWidth:0,color:'#94a3b8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sedeName(c.sede_id)}{c.etiqueta?` · ${c.etiqueta}`:''}{c.ia_atender&&<b style={{color:'#b91c1c'}}> · ● Atender persona</b>}{auto&&c.ia_pausada&&<b style={{color:'#b45309'}}> · IA pausada</b>}</small>
      </button>)}
     </div>}
    </section>
@@ -254,7 +257,7 @@ function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{i
    {ficha.contratos.map(c=><Link key={c.id} href={`/dashboard?contratoId=${encodeURIComponent(c.id)}`} className={styles.badge}>Contrato {c.numero_contrato} · {c.estado}{c.fecha_evento?` · evento ${c.fecha_evento}`:''}</Link>)}
    {ficha.citas.map(c=><Link key={c.id} href={`/dashboard/primeras-citas?dia=${c.fecha}`} className={styles.badge}>Cita {c.fecha} {String(c.hora||'').slice(0,5)} · {c.estado}{c.sede?` · ${c.sede}`:''}</Link>)}
   </div>}
-  <div style={{background:'#f8fafc',borderRadius:12,padding:10,maxHeight:'50vh',overflowY:'auto',display:'grid',gap:6}}>
+  <div style={{background:'#f8fafc',borderRadius:12,padding:10,height:'calc(100vh - 520px)',minHeight:260,overflowY:'auto',overflowX:'hidden',display:'grid',gap:6,alignContent:'start'}}>
    {!msgs.length&&<p className={styles.empty}>Sin mensajes.</p>}
    {msgs.map(m=><div key={m.id} style={{justifySelf:m.direccion==='entrante'?'start':'end',maxWidth:'85%',background:m.direccion==='entrante'?'#fff':'#dcfce7',border:'1px solid #e2e8f0',borderRadius:12,padding:'6px 10px'}}>
     <div style={{whiteSpace:'pre-wrap',fontSize:14,overflowWrap:'anywhere'}}>{m.texto||'—'}</div>
