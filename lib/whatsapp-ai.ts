@@ -18,7 +18,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Usa solo direcciones, teléfonos y enlaces que aparezcan en los datos de las sedes.
 - No des datos de dinero de un contrato (saldos, valores).
 - No saludes de nuevo si ya hubo saludo reciente en la conversación.
-- Catálogo: si la clienta pide ver vestidos, modelos, fotos o el catálogo, envíale el enlace del catálogo de su sede y tipo de vestido tal cual aparece en <catalogos> (no lo modifiques). Si no sabes su sede o el tipo de vestido (XV, gala, novia, pajecita…), pregúntalo primero. Si esa combinación no está en la lista, di que una asesora le comparte opciones. Invítala a agendar su primera cita desde el catálogo.
+- Catálogo: si la clienta pide ver vestidos, modelos, fotos o el catálogo, envíale el enlace del catálogo de su sede y tipo de vestido tal cual aparece en <catalogos> (no lo modifiques). Si sabes la sede pero no el tipo de vestido, envía el enlace general de esa sede (ahí la clienta elige el tipo). Si no sabes la sede, pregúntala primero. Si esa combinación no está en la lista, di que una asesora le comparte opciones. Invítala a agendar su primera cita desde el catálogo.
 - Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
 - Marca atender_persona=true cuando la clienta pida hablar con una persona, reclame o discuta un cobro, una multa o una cláusula, pida una excepción, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
 
@@ -70,8 +70,12 @@ export async function loadCatalogLinks(db:SupabaseClient){
  for(const d of (dresses||[]) as (CatalogDress&{sede_actual_id:string|null;clasificacion_id:number|null})[])
   if(d.sede_actual_id&&d.clasificacion_id&&isPublicCatalogDress(d)){const k=`${d.sede_actual_id}|${d.clasificacion_id}`;count.set(k,(count.get(k)||0)+1);}
  const lines:string[]=[];
- for(const s of (sites||[]) as {id:string;nombre:string}[])for(const t of (types||[]) as {id:number;nombre:string}[]){
+ for(const s of (sites||[]) as {id:string;nombre:string}[]){
+  // General link of the store: the customer chooses the dress type there.
+  if([...count.keys()].some(k=>k.startsWith(`${s.id}|`)))lines.push(`- ${s.nombre} · todos los tipos (la clienta elige): ${origin}/${allySlug(s.nombre)}?o=ia-whatsapp`);
+  for(const t of (types||[]) as {id:number;nombre:string}[]){
   const n=count.get(`${s.id}|${t.id}`);if(n)lines.push(`- ${s.nombre} · ${t.nombre} (${n} vestidos): ${origin}/${allySlug(s.nombre)}/${allySlug(t.nombre)}?o=ia-whatsapp`);
+  }
  }
  return lines.join('\n');
 }
