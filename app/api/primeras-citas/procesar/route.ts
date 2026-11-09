@@ -1,6 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {visitManagementLink} from '@/lib/first-visit-links';
-import {confirmationPayload,isTemplateError,whatsappPayload} from '@/lib/first-visit-messaging';
+import {confirmationPayload,isTemplateError,whatsappPayload,reminderConfirmPayload,openWindowPayload,REMINDER_CONFIRM_TEMPLATE,RECOVERY_TEMPLATE} from '@/lib/first-visit-messaging';
+import {whatsappPhone} from '@/lib/first-visit-links';
 import {claimVisitEmails,deliverVisitEmails} from '@/lib/first-visit-email';
 import {Resend} from 'resend';
 import {capiEvent,DEFAULT_CAPI_DATASET,type CapiJob} from '@/lib/meta-capi';
@@ -48,12 +49,22 @@ export async function POST(request:Request){
     }
    }else{
     const link=visitManagementLink(origin,c.id,Date.parse(c.fecha+'T23:59:59-05:00')+30*86400000,process.env.FIRST_VISIT_LINK_SECRET||key);
-    // Confirmations use the detailed per-store template; while Meta has not approved it, the short one goes out.
-    const payloads=[m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites):null,whatsappPayload(m.tipo,c,sede,link,wa.templateLang)].filter(p=>p!==null);
+    // If the customer wrote to the 304 in the last 24 hours, reminders go as normal messages (they also show in the inbox).
+    const tel=whatsappPhone(c.telefono);
+    const {data:conv}=['recordatorio24','recordatorio2','recuperar'].includes(m.tipo)?await db.from('whatsapp_conversaciones').select('id,ultimo_entrante_at').eq('telefono',tel).maybeSingle():{data:null};
+    const open=!!conv?.ultimo_entrante_at&&Date.now()-Date.parse(conv.ultimo_entrante_at)<23.5*3600000;
+    const direct=open?openWindowPayload(m.tipo,c,sede,link,sites):null;
+    // Confirmations use the detailed per-store template; the 24-hour reminder asks to confirm. While Meta has not approved a template, the next one goes out.
+    const payloads=[direct?.payload??null,m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang):null,whatsappPayload(m.tipo,c,sede,link,wa.templateLang)].filter(p=>p!==null);
     for(const [n,payload] of payloads.entries()){
      const r=await fetch(`https://graph.facebook.com/${version}/${phone}/messages`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
-     const d=await r.json();if(r.ok&&d.messages?.[0]?.id){state='enviado';providerId=d.messages[0].id;issue=null;template=(payload as {template?:{name?:string}}).template?.name||null;break;}
-     if(r.status>=400&&r.status<500){state='error';issue=`WhatsApp rechazó el envío (${r.status})`;if(n<payloads.length-1&&isTemplateError(d.error?.code))continue;}
+     const d=await r.json();if(r.ok&&d.messages?.[0]?.id){state='enviado';providerId=d.messages[0].id;issue=null;template=(payload as {template?:{name?:string}}).template?.name||null;
+      if(direct&&payload===direct.payload&&conv)await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:providerId,direccion:'saliente',origen:'erp',tipo:'text',texto:direct.texto,estado:'sent'});
+      break;}
+     if(r.status>=400&&r.status<500){state='error';
+      const name=(payload as {template?:{name?:string}}).template?.name;
+      issue=isTemplateError(d.error?.code)&&(name===REMINDER_CONFIRM_TEMPLATE||name===RECOVERY_TEMPLATE)?`Falta aprobar en Meta la plantilla ${name} (ver docs/plantillas-whatsapp.md).`:`WhatsApp rechazó el envío (${r.status})`;
+      if(n<payloads.length-1&&(isTemplateError(d.error?.code)||(direct&&payload===direct.payload)))continue;}
      else issue='Respuesta incierta del proveedor; revisar antes de reintentar';
      break;
     }
