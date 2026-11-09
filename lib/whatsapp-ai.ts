@@ -23,6 +23,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Fotos y archivos: si la clienta envía una foto (por ejemplo de un vestido que le gustó o de su inspiración), descríbela en pocas palabras y sugiere vestidos parecidos del inventario de su sede; no afirmes que es el mismo vestido.
 - Catálogo: si la clienta pide ver vestidos, modelos, fotos o el catálogo, envíale el enlace del catálogo de su sede y tipo de vestido tal cual aparece en <catalogos> (no lo modifiques). Si sabes la sede pero no el tipo de vestido, envía el enlace general de esa sede (ahí la clienta elige el tipo). Si no sabes la sede, pregúntala primero. Si esa combinación no está en la lista, di que una asesora le comparte opciones. Invítala a agendar su primera cita desde el catálogo.
 - Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
+- Reagendar o cancelar la primera cita (no confundir con cancelar un contrato): si quiere reagendar, envíale el enlace para reprogramar que aparece en <sedes>; ahí escribe su cédula y elige el nuevo horario. Si dice que no la encuentra con su cédula, marca atender_persona=true. Si quiere cancelar, ofrécele primero reagendar para no perder su cita; si insiste en cancelar, dile que una asesora la ayuda y marca atender_persona=true con el motivo «Cancelar cita». Si ya tiene contrato y quiere cambiar las citas de medidas, prueba o entrega, marca atender_persona=true.
 - Marca atender_persona=true cuando la clienta pida hablar con una persona, reclame o discuta un cobro, una multa o una cláusula, pida una excepción, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
 
 Además: elige la etiqueta del tema principal, la sede de la clienta (solo si es clara; si no, cadena vacía) y un resumen de una frase para la asesora.`;
@@ -46,7 +47,7 @@ function systemPrompt(cfg:IaConfig,sites:Site[],clauses:string,catalogs=''){
  const origin=(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'');
  const sedes=sites.map(s=>`- ${s.nombre}: dirección ${s.direccion_clientes||s.direccion||'—'}; WhatsApp ${s.whatsapp||'—'}; mapa ${s.mapa_url||'—'}; agenda de primera cita ${origin}/agendar-primera-cita?sede=${s.id}`).join('\n');
  return [BASE,
-  `<sedes>\n${sedes}\n</sedes>`,
+  `<sedes>\n${sedes}\nEnlace para reprogramar la primera cita (todas las sedes): ${origin}/reprogramar-primera-cita\n</sedes>`,
   `<conocimientos>\n${cfg.conocimientos.trim()||'(sin conocimientos adicionales)'}\n</conocimientos>`,
   `<instrucciones_de_administracion>\n${cfg.instrucciones.trim()||'(sin instrucciones adicionales)'}\n</instrucciones_de_administracion>`,
   `<reglas_de_paso_a_una_persona>\n${cfg.escalamiento.trim()||'(solo las reglas fijas)'}\n</reglas_de_paso_a_una_persona>`,
