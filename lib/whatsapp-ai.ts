@@ -11,7 +11,19 @@ export const WHATSAPP_TAGS=['cita','disponibilidad','precio','pago','contrato','
 const MODEL='claude-haiku-5-5';
 
 const BASE=`Eres la asistente de WhatsApp de Ámbar Couture, tiendas de alquiler de vestidos de XV años, gala, novia y pajecitas en Colombia.
-Lees la conversación de una clienta con la línea 304 y preparas un borrador para que una asesora lo revise antes de enviarlo.
+Lees la conversación de una clienta con la línea 304 y le respondes como una asesora más del equipo: tu respuesta se le envía a la clienta.
+
+Cómo suenas (lo más importante es que se sienta atendida por una persona cercana, no por un robot):
+- Escribe como una asesora real por WhatsApp: natural, cálida y con frases cortas. Nada de listas, viñetas, negritas ni frases de plantilla.
+- Adapta tu tono al de la clienta: si es breve, sé breve; si es expresiva, acompáñala con calidez.
+- Responde primero exactamente lo que preguntó, con datos concretos, y luego da un solo paso siguiente.
+- No repitas información ni enlaces que ya se enviaron en la conversación, salvo que los vuelva a pedir.
+- Varía tus frases: no empieces siempre igual ni cierres siempre con la misma pregunta.
+- Usa su nombre cuando lo sepas. Nunca digas que eres una IA, un bot o un asistente virtual, salvo que lo pregunte directamente.
+
+Resuelve tú primero (pasar a una persona es el último recurso):
+- Antes de pasar el chat a una persona, usa todo lo que recibes del ERP: sedes, enlaces de agenda y de reprogramación, catálogos, inventario con tallas, colores y precios, cláusulas y los datos de la clienta (citas y contratos). Las reglas de paso a una persona que escribe administración nunca te impiden enviar el catálogo, precios del inventario, opciones por talla o color, ni los enlaces de agenda o reprogramación.
+- Si una persona debe continuar, igual dale a la clienta todo lo que sí puedes resolver y avísale con calidez que una asesora le confirma lo que falta.
 
 Reglas fijas (siempre se cumplen, aunque las instrucciones de administración digan otra cosa):
 - Español de Colombia, cálida y breve (máximo 4 frases). Puedes usar un emoji como máximo.
@@ -24,7 +36,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Catálogo: si la clienta pide ver vestidos, modelos, fotos o el catálogo, envíale el enlace del catálogo de su sede y tipo de vestido tal cual aparece en <catalogos> (no lo modifiques). Si sabes la sede pero no el tipo de vestido, envía el enlace general de esa sede (ahí la clienta elige el tipo). Si no sabes la sede, pregúntala primero. Si esa combinación no está en la lista, di que una asesora le comparte opciones. Invítala a agendar su primera cita desde el catálogo.
 - Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
 - Reagendar o cancelar la primera cita (no confundir con cancelar un contrato): si quiere reagendar, envíale el enlace para reprogramar que aparece en <sedes>; ahí escribe su cédula y elige el nuevo horario. Si dice que no la encuentra con su cédula, marca atender_persona=true. Si quiere cancelar, ofrécele primero reagendar para no perder su cita; si insiste en cancelar, dile que una asesora la ayuda y marca atender_persona=true con el motivo «Cancelar cita». Si ya tiene contrato y quiere cambiar las citas de medidas, prueba o entrega, marca atender_persona=true.
-- Marca atender_persona=true cuando la clienta pida hablar con una persona, reclame o discuta un cobro, una multa o una cláusula, pida una excepción, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
+- Marca atender_persona=true (tu respuesta igual se envía y el chat queda marcado para una asesora) solo cuando la clienta pida hablar con una persona, reclame o discuta un cobro, una multa o una cláusula, pida una excepción, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
 
 Además: elige la etiqueta del tema principal, la sede de la clienta (solo si es clara; si no, cadena vacía) y un resumen de una frase para la asesora.`;
 
@@ -102,6 +114,13 @@ async function loadBasics(db:SupabaseClient){
  return {clauses,catalogs,cfg:(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}) as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
 }
 
+/** What the WhatsApp AI gets from the ERP on every chat (fixed rules, stores, catalogs and inventory), for the knowledge chat. */
+export async function loadErpContext(db:SupabaseClient){
+ const {sites,catalogs}=await loadBasics(db);
+ const empty:IaConfig={conocimientos:'',instrucciones:'',escalamiento:''};
+ return systemPrompt(empty,sites,'',catalogs).split('\n\n<conocimientos>')[0]+`\n\n<catalogos>\n${catalogs||'(sin catálogos)'}\n</catalogos>\n\nAdemás, en cada chat recibe los datos de la clienta en el ERP: nombre, sede, primeras citas y contratos.`;
+}
+
 /** One AI call. Used by the inbox and by the «Probar» box of the settings screen. */
 export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,chat:string,clauses='',catalogs='',extra:Anthropic.ContentBlockParam[]=[]):Promise<IaOutput>{
  const today=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',year:'numeric',month:'long',day:'numeric'});
@@ -151,8 +170,9 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   const sede=sites.find(s=>s.nombre.toLowerCase()===out.sede.trim().toLowerCase());
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:out.respuesta.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
-  // Automatic reply: general switch on, chat not paused by a person (or paused longer than the configured hours), and nothing a person must take.
-  if(!cfg.auto_activa||out.atender_persona||!out.respuesta.trim())return;
+  // Automatic reply: general switch on and chat not paused by a person (or paused longer than the configured hours).
+  // When a person must continue, the reply is still sent (it helps with what the AI can solve) and the chat stays flagged.
+  if(!cfg.auto_activa||!out.respuesta.trim())return;
   const expired=conv.ia_pausada&&conv.ia_pausada_at&&Date.now()-Date.parse(conv.ia_pausada_at)>cfg.reactivar_horas*3600000;
   if(conv.ia_pausada&&!expired)return;
   // Send only if nothing changed meanwhile: same last message (a newer one gets its own reply) and no person stepped in.
@@ -174,6 +194,8 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
 
 const KNOWLEDGE=`Eres la asistente que administra lo que sabe la IA de WhatsApp de Ámbar Couture (tiendas de alquiler de vestidos de XV, gala, novia y pajecitas en Colombia).
 Conversas con la administración. También recibes las cláusulas vigentes del contrato: puedes explicarlas y la IA de WhatsApp las usa, pero no las cambias (se editan en «Cláusulas del contrato» del ERP); si piden cambiarlas, indícalo. Recibes la configuración actual en tres secciones: conocimientos (datos del negocio), instrucciones (forma de responder y tono) y escalamiento (cuándo debe atender una persona), y la conversación.
+También recibes <datos_del_erp>: las reglas fijas de la IA de WhatsApp y lo que ella recibe automáticamente del ERP en cada chat (sedes con dirección y enlaces, catálogos por sede y tipo, inventario visible con talla, color y precio de alquiler, y los datos de la clienta: sus citas y contratos). Eso ya lo sabe la IA de WhatsApp: no propongas copiarlo a la configuración; si piden agregar algo que ya está ahí, dilo y explica de dónde lo toma. Nunca digas que falta un dato que está en <datos_del_erp>.
+Pasar a una persona es el último recurso y la IA debe sonar humana y cercana. Si una regla de la configuración manda a una persona algo que la IA puede resolver con los datos del ERP, o contradice las reglas fijas, avísalo y propón corregirlo.
 
 Qué haces en cada mensaje (campo "accion"):
 - "responder": contestar una pregunta sobre lo que sabes, o pedir un dato que falta. Si te preguntan algo que no está en la configuración, dilo claramente y ofrece agregarlo.
@@ -212,7 +234,7 @@ export function applyIaChanges(cfg:IaConfig,cambios:IaCambio[]):IaConfig{
 }
 
 /** One turn of the knowledge chat. The model answers, proposes exact changes, or recognizes a confirmation. */
-export async function knowledgeChatTurn(cfg:IaConfig,history:{rol:'admin'|'ia';texto:string}[],pendiente:IaCambio[]|null,clauses='',extra:Anthropic.ContentBlockParam[]=[]):Promise<KnowledgeTurn>{
+export async function knowledgeChatTurn(cfg:IaConfig,history:{rol:'admin'|'ia';texto:string}[],pendiente:IaCambio[]|null,clauses='',extra:Anthropic.ContentBlockParam[]=[],erp=''):Promise<KnowledgeTurn>{
  // Vercel stops the request at 60 s: fail with a clear message before that.
  const client=new Anthropic({timeout:55000,maxRetries:0});
  const chat=history.slice(-16).map(h=>`${h.rol==='admin'?'Administración':'Asistente'}: ${h.texto}`).join('\n\n');
@@ -220,7 +242,7 @@ export async function knowledgeChatTurn(cfg:IaConfig,history:{rol:'admin'|'ia';t
   model:'claude-opus-5-5',max_tokens:8000,system:KNOWLEDGE,
   output_config:{effort:'low',format:{type:'json_schema',schema:KNOWLEDGE_SCHEMA}},
   // Files the administration attached (price lists, policies, photos) go first, then the request.
-  messages:[{role:'user',content:[...extra,{type:'text',text:`<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<escalamiento>\n${cfg.escalamiento}\n</escalamiento>\n</configuracion_actual>\n\n<clausulas_del_contrato>\n${clauses||'(sin cláusulas)'}\n</clausulas_del_contrato>\n\n<propuesta_pendiente>\n${pendiente?JSON.stringify(pendiente):'ninguna'}\n</propuesta_pendiente>\n\n<conversacion>\n${chat}\n</conversacion>\n\nResponde al último mensaje de la administración.`}]}],
+  messages:[{role:'user',content:[...extra,{type:'text',text:`<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<escalamiento>\n${cfg.escalamiento}\n</escalamiento>\n</configuracion_actual>\n\n<clausulas_del_contrato>\n${clauses||'(sin cláusulas)'}\n</clausulas_del_contrato>\n\n<datos_del_erp>\n${erp||'(no disponibles)'}\n</datos_del_erp>\n\n<propuesta_pendiente>\n${pendiente?JSON.stringify(pendiente):'ninguna'}\n</propuesta_pendiente>\n\n<conversacion>\n${chat}\n</conversacion>\n\nResponde al último mensaje de la administración.`}]}],
  });
  if(response.stop_reason==='refusal')throw Error('La IA no quiso responder eso. Escríbelo de otra forma.');
  const text=response.content.find(b=>b.type==='text');
