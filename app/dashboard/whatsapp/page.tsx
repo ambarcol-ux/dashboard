@@ -208,6 +208,8 @@ function Inbox(){
  const [convs,setConvs]=useState<Conv[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[sel,setSel]=useState<string|null>(null);
  const [filtro,setFiltro]=useState('todas'),[q,setQ]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(true),[auto,setAuto]=useState(false);
  // ?tel=57…: opened from a customer's file (Primeras visitas › WhatsApp): open her 304 chat, or say she has none yet.
+ const [iniciando,setIniciando]=useState(false);
+ const iniciar=async(t:string)=>{setIniciando(true);setError('');try{const d=await api({accion:'iniciar',telefono:t});setSinChat('');await load();if(d.conversacion_id)setSel(d.conversacion_id);}catch(e){setError(e instanceof Error?e.message:'No se pudo enviar.');}finally{setIniciando(false);}};
  const [abrirTel,setAbrirTel]=useState(''),[sinChat,setSinChat]=useState('');
  useEffect(()=>{const t=new URLSearchParams(window.location.search).get('tel')?.replace(/\D/g,'')||'';if(t.length>=10)setTimeout(()=>setAbrirTel(t),0);},[]);
  useEffect(()=>{if(!abrirTel||loading)return;const t=abrirTel;setTimeout(()=>setAbrirTel(''),0);
@@ -235,7 +237,7 @@ function Inbox(){
  const current=convs.find(c=>c.id===sel)||null;
  return <>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
-  {sinChat&&<p role="status" className={styles.notice}>Esta clienta todavía no ha escrito al 304, así que no hay conversación en el ERP (Meta solo deja iniciarla con plantilla). <a href={`https://wa.me/${sinChat}`} target="_blank" rel="noopener noreferrer">Escribirle desde el celular del 304</a> · <button type="button" onClick={()=>setSinChat('')}>Cerrar</button></p>}
+  {sinChat&&<p role="status" className={styles.notice}>Esta clienta todavía no ha escrito al 304. Puedes iniciar la conversación con un saludo aprobado por Meta; cuando responda, sigues escribiéndole normal desde aquí. <button type="button" className={`${styles.button} ${styles.primary}`} disabled={iniciando} onClick={()=>void iniciar(sinChat)}>{iniciando?'Enviando…':'Enviarle un saludo desde el ERP'}</button> · <a href={`https://wa.me/${sinChat}`} target="_blank" rel="noopener noreferrer">o desde el celular del 304</a> · <button type="button" onClick={()=>setSinChat('')}>Cerrar</button></p>}
   <div style={{display:'grid',gridTemplateColumns:'minmax(0,360px) minmax(0,1fr)',gap:16,alignItems:'start'}} className="wa-grid">
    <style>{`@media(max-width:860px){.wa-grid{grid-template-columns:minmax(0,1fr)!important}.wa-grid>.wa-hide{display:none}}`}</style>
    <section className={`${styles.card} ${sel?'wa-hide':''}`} style={{padding:12}}>
@@ -328,7 +330,7 @@ function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{i
     <div><button className={styles.button} onClick={()=>setTexto(conv.ia_sugerencia||'')}>Usar sugerencia</button></div></>
     :!conv.ia_error&&<small style={{color:'#64748b'}}>Sin sugerencia pendiente. Aparece cuando la clienta escribe.</small>}
   </div>
-  {!abierta&&<p className={styles.help}>Pasaron más de 24 horas desde el último mensaje de la clienta: Meta solo deja escribirle con una plantilla. Respóndele desde el celular del 304.</p>}
+  {!abierta&&<p className={styles.help}>Pasaron más de 24 horas desde el último mensaje de la clienta: Meta solo deja escribirle con una plantilla. <button type="button" className={styles.button} disabled={!!busy} onClick={()=>void run('iniciar',{accion:'iniciar',telefono:conv.telefono})}>{busy==='iniciar'?'Enviando…':'Enviarle un saludo para retomar'}</button> Cuando responda, le escribes normal.</p>}
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
    <textarea aria-label="Mensaje" rows={3} maxLength={4000} value={texto} onChange={e=>setTexto(e.target.value)} disabled={!abierta||!!busy} placeholder={abierta?'Escribe la respuesta…':'Ventana de 24 h cerrada'} style={{flex:1,minWidth:0,resize:'vertical'}}/>

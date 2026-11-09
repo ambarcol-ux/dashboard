@@ -125,3 +125,18 @@ Hola {{1}} 💛 Hoy te esperábamos en tu cita en Ámbar Couture. Si quieres, el
 | {{2}} | https://erp.ambarcouture.com/agendar-primera-cita/gestionar#… |
 
 Se envía cuando la cita queda en «No asistió». Si la clienta escribió al 304 en las últimas 24 horas, ambos mensajes salen como mensaje normal sin plantilla.
+
+## Saludo para iniciar o retomar el chat — `ambar_seguimiento`
+
+Categoría **Marketing** (Meta clasifica así los seguimientos) · Idioma **Español (COL)** · Sin botones.
+
+```
+Hola {{1}} 💛 Te escribimos de Ámbar Couture {{2}} para acompañarte con tu vestido. ¿Tienes un momento para conversar?
+```
+
+| Variable | Ejemplo |
+|---|---|
+| {{1}} | Luisa |
+| {{2}} | Barranquilla |
+
+Se envía desde WhatsApp 304 cuando la clienta nunca escribió al 304 o pasaron más de 24 horas («Enviarle un saludo»). Cuando responde, la asesora sigue escribiéndole normal desde el ERP.

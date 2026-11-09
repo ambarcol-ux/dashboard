@@ -1,7 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
-import {sendWhatsappText,downloadWhatsappImage,WINDOW_MS} from '@/lib/whatsapp-inbox';
+import {sendWhatsappText,downloadWhatsappImage,sendWhatsappFollowup,followupText,conversationFor,WINDOW_MS} from '@/lib/whatsapp-inbox';
 import {resolveAd,adsSpend,adsTokenReady} from '@/lib/meta-ads';
 import {attachmentBlocks,type Adjunto} from '@/lib/ai-attachments';
 import {weeklyChatAnalysis} from '@/lib/whatsapp-analysis';
@@ -18,7 +18,7 @@ export async function POST(request:Request){
   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
   if(!auth.user)return publicReply({error:'Inicia sesión.'},401);
-  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;adjuntos?:Adjunto[];desde?:string;hasta?:string;pausada?:boolean;mensaje_id?:string;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
+  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;adjuntos?:Adjunto[];desde?:string;hasta?:string;pausada?:boolean;mensaje_id?:string;telefono?:string;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
   // «IA de WhatsApp» › Probar: answer a sample message with the settings being edited, without saving. Administration only.
   // WhatsApp 304 › Anuncios: per ad, chats → visits (virtual / in person) → attended → contracts, with spend and cost from Meta. Administration only.
   if(body.accion==='anuncios'){
@@ -100,6 +100,29 @@ export async function POST(request:Request){
    if(!turns.length||turns[turns.length-1].rol!=='clienta')return publicReply({error:'Escribe el mensaje de prueba.'},400);
    const cfg={conocimientos:String(body.conocimientos||'').slice(0,30000),instrucciones:String(body.instrucciones||'').slice(0,15000),escalamiento:String(body.escalamiento||'').slice(0,15000)};
    try{return publicReply(await testWhatsappAI(publicServerClient(),cfg,turns,body.adjuntos));}catch(e){return publicReply({error:aiErrorText(e)},502);}
+  }
+  // Start or resume a chat with the follow-up template (the customer has not written in 24 hours or never wrote to the 304).
+  // Allowed only for a phone the user can already see: her chat or one of her first visits (RLS).
+  if(body.accion==='iniciar'){
+   const digits=String(body.telefono||'').replace(/\D/g,''),tel=digits.length===10?'57'+digits:digits,ten=tel.slice(-10);
+   if(!/^57\d{10}$/.test(tel))return publicReply({error:'Celular no válido.'},400);
+   const [{data:chat},{data:cita}]=await Promise.all([
+    userDb.from('whatsapp_conversaciones').select('id').eq('telefono',tel).maybeSingle(),
+    userDb.from('primeras_citas').select('cliente_nombre,sede_id').or(`telefono.eq.${ten},telefono.eq.${tel}`).order('created_at',{ascending:false}).limit(1).maybeSingle(),
+   ]);
+   if(!chat&&!cita)return publicReply({error:'No tienes acceso a esta clienta.'},403);
+   const db=publicServerClient(),settings=await loadWhatsappSettings(db);
+   if(!settings.token||!settings.phoneNumberId)return publicReply({error:'WhatsApp no está configurado.'},503);
+   const conv=await conversationFor(db,tel,cita?.cliente_nombre||null);
+   const {data:sede}=await db.from('sedes').select('nombre').eq('id',conv.sede_id||cita?.sede_id||'00000000-0000-0000-0000-000000000000').maybeSingle();
+   const nombre=String(conv.nombre||cita?.cliente_nombre||'').trim().split(/\s+/)[0]||'',lugar=sede?.nombre||'';
+   let waId:string;
+   try{waId=await sendWhatsappFollowup(settings,tel,nombre||'hola',lugar);}catch(e){return publicReply({error:e instanceof Error?e.message:'No se pudo enviar.'},502);}
+   const now=new Date().toISOString(),texto=followupText(nombre,lugar).replace(/\s+/g,' ');
+   await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:waId,direccion:'saliente',origen:'erp',tipo:'template',texto,estado:'sent',enviado_por:auth.user.id,created_at:now});
+   // The person who wrote takes the chat: the AI stays paused here until it is reactivated (or the configured hours pass).
+   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,ia_pausada:true,ia_pausada_at:now,ia_pausada_por:auth.user.id,...(!conv.sede_id&&cita?.sede_id?{sede_id:cita.sede_id}:{})}).eq('id',conv.id);
+   return publicReply({ok:true,conversacion_id:conv.id});
   }
   if(!UUID_RE.test(String(body.conversacion_id||'')))return publicReply({error:'Chat no válido.'},400);
   // The user's own permissions decide: RLS returns the chat only if they can see it.
