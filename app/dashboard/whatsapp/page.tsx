@@ -8,7 +8,7 @@ import {supabase} from '@/lib/supabase';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
 type Conv={id:string;telefono:string;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null;ia_pausada:boolean;ia_pausada_at:string|null;anuncio_id:string|null;anuncio_titulo:string|null};
-type Msg={id:string;direccion:'entrante'|'saliente';origen:'clienta'|'erp'|'celular'|'ia';texto:string|null;estado:string|null;created_at:string};
+type Msg={id:string;direccion:'entrante'|'saliente';origen:'clienta'|'erp'|'celular'|'ia';texto:string|null;estado:string|null;created_at:string;media_id?:string|null};
 type Ficha={nombre:string|null;citas:{id:string;fecha:string;hora:string;estado:string;modalidad:string;sede:string|null;tipo_vestido:string|null}[];contratos:{id:string;numero_contrato:string;estado:string;fecha_evento:string|null;sede:string|null}[]};
 const WINDOW_MS=24*3600*1000;
 // List: time only for today, date only for earlier days, so it always fits next to the name.
@@ -256,11 +256,27 @@ function Inbox(){
  </>;
 }
 
+/** Customer photo inside the chat: loaded from WhatsApp when the chat opens; tap to see it large. */
+function Foto({conversacion,mensaje}:{conversacion:string;mensaje:string}){
+ const [src,setSrc]=useState(''),[error,setError]=useState(''),[grande,setGrande]=useState(false);
+ useEffect(()=>{let vivo=true;api({accion:'foto',conversacion_id:conversacion,mensaje_id:mensaje}).then(d=>{if(vivo)setSrc(`data:${d.tipo};base64,${d.datos}`);}).catch(e=>{if(vivo)setError(e instanceof Error?e.message:'No se pudo cargar la foto.');});return()=>{vivo=false;};},[conversacion,mensaje]);
+ if(error)return <small style={{color:'#64748b'}}>{error}</small>;
+ if(!src)return <small style={{color:'#64748b'}}>Cargando foto…</small>;
+ return <>
+  {/* eslint-disable-next-line @next/next/no-img-element */}
+  <img src={src} alt="Foto enviada por la clienta" onClick={()=>setGrande(true)} style={{display:'block',maxWidth:'100%',maxHeight:220,borderRadius:8,cursor:'zoom-in',marginBottom:4}}/>
+  {grande&&<div role="dialog" aria-label="Foto" onClick={()=>setGrande(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,.85)',display:'grid',placeItems:'center',zIndex:1000,padding:16,cursor:'zoom-out'}}>
+   {/* eslint-disable-next-line @next/next/no-img-element */}
+   <img src={src} alt="Foto enviada por la clienta" style={{maxWidth:'100%',maxHeight:'100%',borderRadius:8}}/>
+  </div>}
+ </>;
+}
+
 function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{id:string;nombre:string}[];onBack:()=>void;onChange:()=>Promise<void>}){
  const [msgs,setMsgs]=useState<Msg[]>([]),[ficha,setFicha]=useState<Ficha|null>(null),[texto,setTexto]=useState(''),[busy,setBusy]=useState(''),[error,setError]=useState('');
  const end=useRef<HTMLDivElement>(null);
  const loadMsgs=useCallback(async()=>{
-  const {data}=await supabase.from('whatsapp_mensajes').select('id,direccion,origen,texto,estado,created_at').eq('conversacion_id',conv.id).order('created_at',{ascending:true}).limit(500);
+  const {data}=await supabase.from('whatsapp_mensajes').select('id,direccion,origen,texto,estado,created_at,media_id').eq('conversacion_id',conv.id).order('created_at',{ascending:true}).limit(500);
   setMsgs((data||[]) as Msg[]);
  },[conv.id]);
  useEffect(()=>{
@@ -288,6 +304,7 @@ function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{i
   <div style={{background:'#f8fafc',borderRadius:12,padding:10,height:'calc(100vh - 520px)',minHeight:260,overflowY:'auto',overflowX:'hidden',display:'grid',gap:6,alignContent:'start'}}>
    {!msgs.length&&<p className={styles.empty}>Sin mensajes.</p>}
    {msgs.map(m=><div key={m.id} style={{justifySelf:m.direccion==='entrante'?'start':'end',maxWidth:'85%',background:m.direccion==='entrante'?'#fff':'#dcfce7',border:'1px solid #e2e8f0',borderRadius:12,padding:'6px 10px'}}>
+    {m.media_id&&<Foto conversacion={conv.id} mensaje={m.id}/>}
     <div style={{whiteSpace:'pre-wrap',fontSize:14,overflowWrap:'anywhere'}}>{m.texto||'—'}</div>
     <small style={{color:'#64748b'}}>{hora(m.created_at)}{ORIGEN[m.origen]?` · ${ORIGEN[m.origen]}`:''}{m.direccion==='saliente'&&m.estado?` · ${ESTADO[m.estado]||m.estado}`:''}</small>
    </div>)}

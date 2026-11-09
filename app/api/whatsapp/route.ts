@@ -1,7 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
-import {sendWhatsappText,WINDOW_MS} from '@/lib/whatsapp-inbox';
+import {sendWhatsappText,downloadWhatsappImage,WINDOW_MS} from '@/lib/whatsapp-inbox';
 import {resolveAd,adsSpend,adsTokenReady} from '@/lib/meta-ads';
 import {attachmentBlocks,type Adjunto} from '@/lib/ai-attachments';
 import {suggestWhatsappReply,testWhatsappAI,knowledgeChatTurn,applyIaChanges,loadContractClauses,aiErrorText,type IaCambio} from '@/lib/whatsapp-ai';
@@ -17,7 +17,7 @@ export async function POST(request:Request){
   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
   if(!auth.user)return publicReply({error:'Inicia sesión.'},401);
-  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;adjuntos?:Adjunto[];desde?:string;hasta?:string;pausada?:boolean;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
+  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;adjuntos?:Adjunto[];desde?:string;hasta?:string;pausada?:boolean;mensaje_id?:string;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
   // «IA de WhatsApp» › Probar: answer a sample message with the settings being edited, without saving. Administration only.
   // WhatsApp 304 › Anuncios: per ad, chats → visits (virtual / in person) → attended → contracts, with spend and cost from Meta. Administration only.
   if(body.accion==='anuncios'){
@@ -103,6 +103,16 @@ export async function POST(request:Request){
    const pausada=body.pausada===true;
    const {error}=await db.from('whatsapp_conversaciones').update(pausada?{ia_pausada:true,ia_pausada_at:new Date().toISOString(),ia_pausada_por:auth.user.id}:{ia_pausada:false,ia_pausada_at:null,ia_pausada_por:null}).eq('id',conv.id);
    return error?publicReply({error:'No se pudo cambiar la IA de este chat.'},500):publicReply({ok:true});
+  }
+  // Customer photo: fetched from WhatsApp each time it is opened (Meta keeps it about 30 days); the ERP does not store it.
+  if(body.accion==='foto'){
+   if(!UUID_RE.test(String(body.mensaje_id||'')))return publicReply({error:'Mensaje no válido.'},400);
+   const {data:m}=await db.from('whatsapp_mensajes').select('media_id').eq('id',body.mensaje_id!).eq('conversacion_id',conv.id).maybeSingle();
+   if(!m?.media_id)return publicReply({error:'Este mensaje no tiene foto.'},404);
+   const settings=await loadWhatsappSettings(db);
+   const img=settings.token?await downloadWhatsappImage(settings,String(m.media_id)).catch(()=>null):null;
+   if(!img||img.datos.length>4_200_000)return publicReply({error:'La foto ya no está disponible en WhatsApp (Meta la guarda unos 30 días).'},404);
+   return publicReply(img);
   }
   if(body.accion==='leido'){await db.from('whatsapp_conversaciones').update({no_leidos:0}).eq('id',conv.id);return publicReply({ok:true});}
   if(body.accion==='sede'){
