@@ -91,3 +91,37 @@ https://erp.ambarcouture.com/reprogramar-primera-cita
 | {{6}} | https://wa.me/573058073210 |
 
 Los datos de cada sede (dirección, mapa, teléfono y WhatsApp) están en `lib/first-visit-sites.ts`.
+
+## Recordatorio con confirmación — `ambar_recordatorio_confirmar`
+
+Categoría **Utilidad** · Idioma **Español (COL)** · Botones de respuesta rápida: **Confirmo** y **Reagendar** (en ese orden).
+
+```
+Hola {{1}} 💛 Te recordamos tu primera cita en Ámbar Couture {{2}} el {{3}} a las {{4}}.
+
+¿Nos confirmas que vienes?
+```
+
+| Variable | Ejemplo |
+|---|---|
+| {{1}} | Ana María |
+| {{2}} | Pereira |
+| {{3}} | 15 de octubre de 2026 |
+| {{4}} | 3:00 p. m. |
+
+«Confirmo» deja la cita como confirmada; «Reagendar» le envía el enlace para cambiarla. Mientras Meta no la apruebe, sale el recordatorio de siempre.
+
+## Recuperar a quien no llegó — `ambar_cita_reprogramar`
+
+Categoría **Utilidad** · Idioma **Español (COL)** · Sin botones.
+
+```
+Hola {{1}} 💛 Hoy te esperábamos en tu cita en Ámbar Couture. Si quieres, elige una nueva fecha aquí y te tenemos los vestidos listos: {{2}}
+```
+
+| Variable | Ejemplo |
+|---|---|
+| {{1}} | Ana María |
+| {{2}} | https://erp.ambarcouture.com/agendar-primera-cita/gestionar#… |
+
+Se envía cuando la cita queda en «No asistió». Si la clienta escribió al 304 en las últimas 24 horas, ambos mensajes salen como mensaje normal sin plantilla.
