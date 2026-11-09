@@ -24,7 +24,7 @@ export async function POST(request:Request){
   const {data:tomados,error}=await db.rpc('correo_tomar_envios',{p_limite:20});
   if(error)return reply({error:'No se pudo leer la cola'},503);
   const jobs=(tomados?.envios||[]) as Job[];
-  const [{data:autos},{data:sedes}]=await Promise.all([db.from('correo_automatizaciones').select('id,asunto,cuerpo'),db.from('sedes').select('id,nombre')]);
+  const [{data:autos},{data:sedes}]=await Promise.all([db.from('correo_automatizaciones').select('id,asunto,cuerpo'),db.from('sedes').select('id,nombre,resena_url')]);
   let enviados=0,errores=0;
   for(const j of jobs){
    let estadoFinal='error',motivo:string|null=null,providerId:string|null=null,asunto:string|null=null;
@@ -37,7 +37,7 @@ export async function POST(request:Request){
     if(solicitud?(!aut||aut.estado==='revocada'||aut.comercial):(!aut||aut.estado!=='autorizada'||!aut.comercial)){estadoFinal='omitido';motivo=solicitud?'Ya respondió la autorización':'Sin autorización comercial vigente';}
     else{
      const o=`correo-${j.automatizacion_id||'campana'}`;
-     const values:Record<string,string>={nombre:(j.nombre||'').split(/\s+/)[0]||'',sede:'',enlace_cita:`${origin}/agendar-primera-cita?o=${o}`,catalogo:'',promocion:'',beneficio:'',condiciones:'',vigencia:'',fecha_evento:''};
+     const values:Record<string,string>={nombre:(j.nombre||'').split(/\s+/)[0]||'',sede:'',enlace_cita:`${origin}/agendar-primera-cita?o=${o}`,catalogo:'',promocion:'',beneficio:'',condiciones:'',vigencia:'',fecha_evento:'',resena:''};
      if(j.cita_id){
       const {data:c}=await db.from('primeras_citas').select('sede_id,tipo_vestido,fecha_evento').eq('id',j.cita_id).single();
       const sede=(sedes||[]).find(s=>s.id===c?.sede_id)?.nombre||'';
@@ -49,8 +49,11 @@ export async function POST(request:Request){
       const {data:p}=await db.from('promociones').select('*').eq('id',j.promocion_id).single();
       if(p)Object.assign(values,{promocion:p.nombre,beneficio:promoBenefit(p as Promotion),condiciones:p.condiciones||'',vigencia:dmy(p.hasta)});
      }
+     values.resena=(sedes||[]).find(s=>s.nombre===values.sede)?.resena_url||'';
      values.enlace_autorizacion=authLink(origin,aut!.token);
-     const mail=renderMail(plantilla.asunto,plantilla.cuerpo,values,authLink(origin,aut!.token),solicitud);
+     // Without the store's Google review link, the paragraph that asks for the review is left out.
+     const cuerpo=values.resena?plantilla.cuerpo:plantilla.cuerpo.split(/\n{2,}/).filter((p:string)=>!p.includes('{resena}')).join('\n\n');
+     const mail=renderMail(plantilla.asunto,cuerpo,values,authLink(origin,aut!.token),solicitud);
      asunto=mail.asunto;
      const r=await sendEmail(conn as EmailConnection,{to:j.email,nombre:j.nombre,...mail});
      if(r.ok){estadoFinal='enviado';providerId=r.detalle||null;enviados++;}

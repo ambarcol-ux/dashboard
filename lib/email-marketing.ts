@@ -1,7 +1,7 @@
 import {allySlug} from '@/lib/ally-validation';
 
 /** Ventas y CRM › Correo: placeholders an automation or campaign text may use. */
-export const MAIL_PLACEHOLDERS=['{nombre}','{sede}','{enlace_cita}','{catalogo}','{promocion}','{beneficio}','{condiciones}','{vigencia}','{fecha_evento}'] as const;
+export const MAIL_PLACEHOLDERS=['{nombre}','{sede}','{enlace_cita}','{catalogo}','{promocion}','{beneficio}','{condiciones}','{vigencia}','{fecha_evento}','{resena}'] as const;
 /** One-time request for commercial authorization (no advertising): its own footer and the {enlace_autorizacion} link. */
 export const AUTH_REQUEST_ID='solicitud_autorizacion';
 export const MAIL_TRIGGER:Record<string,string>={visita:'horas después de la visita',no_asistio:'horas después de la cita no asistida',evento:'horas antes de la fecha del evento',contrato:'horas después de firmar el contrato',devolucion:'horas después de finalizar el contrato',solicitud:'Envío único desde Correo › Envíos'};
