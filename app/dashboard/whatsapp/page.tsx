@@ -206,6 +206,13 @@ function AdjuntosLista({archivos,onQuitar}:{archivos:AdjuntoCliente[];onQuitar:(
 function Inbox(){
  const [convs,setConvs]=useState<Conv[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[sel,setSel]=useState<string|null>(null);
  const [filtro,setFiltro]=useState('todas'),[q,setQ]=useState(''),[error,setError]=useState(''),[loading,setLoading]=useState(true),[auto,setAuto]=useState(false);
+ // ?tel=57…: opened from a customer's file (Primeras visitas › WhatsApp): open her 304 chat, or say she has none yet.
+ const [abrirTel,setAbrirTel]=useState(''),[sinChat,setSinChat]=useState('');
+ useEffect(()=>{const t=new URLSearchParams(window.location.search).get('tel')?.replace(/\D/g,'')||'';if(t.length>=10)setTimeout(()=>setAbrirTel(t),0);},[]);
+ useEffect(()=>{if(!abrirTel||loading)return;const t=abrirTel;setTimeout(()=>setAbrirTel(''),0);
+  // Older chats may be beyond the 300 loaded: look the phone up directly.
+  void (async()=>{const c=convs.find(x=>x.telefono.slice(-10)===t.slice(-10))||((await supabase.from('whatsapp_conversaciones').select('*').like('telefono',`%${t.slice(-10)}`).limit(1).maybeSingle()).data as Conv|null);
+   if(c){setConvs(l=>l.some(x=>x.id===c.id)?l:[c,...l]);setSel(c.id);setSinChat('');}else setSinChat(t);})();},[abrirTel,loading,convs]);
  const load=useCallback(async()=>{
   const {data,error:e}=await supabase.from('whatsapp_conversaciones').select('*').order('ultimo_at',{ascending:false}).limit(300);
   if(e)setError(e.message);else{setConvs((data||[]) as Conv[]);setError('');}
@@ -227,6 +234,7 @@ function Inbox(){
  const current=convs.find(c=>c.id===sel)||null;
  return <>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
+  {sinChat&&<p role="status" className={styles.notice}>Esta clienta todavía no ha escrito al 304, así que no hay conversación en el ERP (Meta solo deja iniciarla con plantilla). <a href={`https://wa.me/${sinChat}`} target="_blank" rel="noopener noreferrer">Escribirle desde el celular del 304</a> · <button type="button" onClick={()=>setSinChat('')}>Cerrar</button></p>}
   <div style={{display:'grid',gridTemplateColumns:'minmax(0,360px) minmax(0,1fr)',gap:16,alignItems:'start'}} className="wa-grid">
    <style>{`@media(max-width:860px){.wa-grid{grid-template-columns:minmax(0,1fr)!important}.wa-grid>.wa-hide{display:none}}`}</style>
    <section className={`${styles.card} ${sel?'wa-hide':''}`} style={{padding:12}}>
