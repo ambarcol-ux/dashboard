@@ -3,6 +3,7 @@ import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendWhatsappText,WINDOW_MS} from '@/lib/whatsapp-inbox';
 import {resolveAd,adsSpend,adsTokenReady} from '@/lib/meta-ads';
+import {attachmentBlocks,type Adjunto} from '@/lib/ai-attachments';
 import {suggestWhatsappReply,testWhatsappAI,knowledgeChatTurn,applyIaChanges,loadContractClauses,aiErrorText,type IaCambio} from '@/lib/whatsapp-ai';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -16,7 +17,7 @@ export async function POST(request:Request){
   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
   if(!auth.user)return publicReply({error:'Inicia sesión.'},401);
-  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;desde?:string;hasta?:string;pausada?:boolean;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
+  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;adjuntos?:Adjunto[];desde?:string;hasta?:string;pausada?:boolean;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
   // «IA de WhatsApp» › Probar: answer a sample message with the settings being edited, without saving. Administration only.
   // WhatsApp 304 › Anuncios: per ad, chats → visits (virtual / in person) → attended → contracts, with spend and cost from Meta. Administration only.
   if(body.accion==='anuncios'){
@@ -61,11 +62,14 @@ export async function POST(request:Request){
    };
    try{
     if(body.accion==='conocimiento_decidir'){await say(await decide(body.aplicar===true));return publicReply({ok:true});}
-    const texto=String(body.texto||'').trim();
-    if(!texto||texto.length>4000)return publicReply({error:'Escribe tu mensaje (máximo 4000 caracteres).'},400);
+    // Attached files (price lists, policies, photos): read now; only their names are saved in the conversation.
+    const blocks=attachmentBlocks(body.adjuntos),nombres=(body.adjuntos||[]).map(a=>String(a?.nombre||'archivo').slice(0,120));
+    const escrito=String(body.texto||'').trim();
+    if((!escrito&&!blocks.length)||escrito.length>4000)return publicReply({error:'Escribe tu mensaje (máximo 4000 caracteres) o adjunta un archivo.'},400);
+    const texto=[escrito||'Analiza el archivo adjunto.',nombres.length?`📎 ${nombres.join(', ')}`:''].filter(Boolean).join('\n');
     const {data:prev}=await db.from('whatsapp_ia_conocimiento_chat').select('rol,texto').order('id',{ascending:false}).limit(15);
     const history=[...((prev||[]) as {rol:'admin'|'ia';texto:string}[]).reverse(),{rol:'admin' as const,texto}];
-    const turn=await knowledgeChatTurn(cfg,history,pend?(pend.propuesta as IaCambio[]):null,await loadContractClauses(db));
+    const turn=await knowledgeChatTurn(cfg,history,pend?(pend.propuesta as IaCambio[]):null,await loadContractClauses(db),blocks);
     // The admin message is saved only when the AI answered, so a failed attempt can simply be sent again.
     await db.from('whatsapp_ia_conocimiento_chat').insert({rol:'admin',texto,usuario_id:auth.user.id});
     if(turn.accion==='confirmar'&&pend)await say(await decide(true));
@@ -87,7 +91,7 @@ export async function POST(request:Request){
    const turns=(Array.isArray(body.conversacion)?body.conversacion:[]).filter(t=>t&&(t.rol==='clienta'||t.rol==='ambar')&&String(t.texto||'').trim()).slice(-20).map(t=>({rol:t.rol,texto:String(t.texto).slice(0,2000)}));
    if(!turns.length||turns[turns.length-1].rol!=='clienta')return publicReply({error:'Escribe el mensaje de prueba.'},400);
    const cfg={conocimientos:String(body.conocimientos||'').slice(0,30000),instrucciones:String(body.instrucciones||'').slice(0,15000),escalamiento:String(body.escalamiento||'').slice(0,15000)};
-   try{return publicReply(await testWhatsappAI(publicServerClient(),cfg,turns));}catch(e){return publicReply({error:aiErrorText(e)},502);}
+   try{return publicReply(await testWhatsappAI(publicServerClient(),cfg,turns,body.adjuntos));}catch(e){return publicReply({error:aiErrorText(e)},502);}
   }
   if(!UUID_RE.test(String(body.conversacion_id||'')))return publicReply({error:'Chat no válido.'},400);
   // The user's own permissions decide: RLS returns the chat only if they can see it.

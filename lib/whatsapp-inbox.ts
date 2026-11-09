@@ -1,3 +1,4 @@
+import {Buffer} from 'node:buffer';
 import type {SupabaseClient} from '@supabase/supabase-js';
 
 /** Ventas y CRM › WhatsApp 304: stores what customers write, what is answered from the phone (coexistence echoes) and delivery statuses. */
@@ -40,7 +41,9 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    const phone=digits(m.from);if(!/^\d{8,15}$/.test(phone)||!m.id)continue;
    const conv=await conversationFor(db,phone,names.get(phone));
    const text=messageText(m).slice(0,4000),at=when(m.timestamp);
-   const {error}=await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:String(m.id),direccion:'entrante',origen:'clienta',tipo:String(m.type||'text'),texto:text,created_at:at});
+   const {error}=await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:String(m.id),direccion:'entrante',origen:'clienta',tipo:String(m.type||'text'),texto:text,created_at:at,
+    // Photos keep their WhatsApp id so the AI can look at them when suggesting the reply.
+    ...(m.type==='image'&&m.image?.id?{media_id:String(m.image.id),media_tipo:String(m.image.mime_type||'image/jpeg')}:{})});
    if(error){if(error.code==='23505')continue;throw error;}
    await db.from('whatsapp_conversaciones').update({ultimo_mensaje:text.slice(0,200),ultimo_at:at,ultimo_entrante_at:at,no_leidos:(conv.no_leidos||0)+1,...(!conv.nombre&&names.get(phone)?{nombre:names.get(phone)}:{})}).eq('id',conv.id);
    conv.no_leidos=(conv.no_leidos||0)+1;
@@ -84,3 +87,14 @@ export async function sendWhatsappText(settings:{token:string;phoneNumberId:stri
  return d.messages[0].id;
 }
 export const WINDOW_MS=24*3600*1000;
+
+/** Downloads a photo sent by a customer (WhatsApp media id) as base64; null when it is not available or too big. */
+export async function downloadWhatsappImage(settings:{token:string},mediaId:string){
+ const version=process.env.META_GRAPH_VERSION||'v21.0',auth={Authorization:`Bearer ${settings.token}`};
+ const meta=await fetch(`https://graph.facebook.com/${version}/${mediaId}`,{headers:auth,signal:AbortSignal.timeout(10000)}).then(r=>r.ok?r.json():null).catch(()=>null) as {url?:string;mime_type?:string;file_size?:number}|null;
+ if(!meta?.url||(meta.file_size||0)>4_000_000)return null;
+ const r=await fetch(meta.url,{headers:auth,signal:AbortSignal.timeout(15000)}).catch(()=>null);
+ if(!r?.ok)return null;
+ const buf=Buffer.from(await r.arrayBuffer());
+ return buf.length>4_000_000?null:{tipo:meta.mime_type||'image/jpeg',datos:buf.toString('base64')};
+}
