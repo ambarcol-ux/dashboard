@@ -4,7 +4,7 @@ import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendWhatsappText,downloadWhatsappImage,WINDOW_MS} from '@/lib/whatsapp-inbox';
 import {resolveAd,adsSpend,adsTokenReady} from '@/lib/meta-ads';
 import {attachmentBlocks,type Adjunto} from '@/lib/ai-attachments';
-import {suggestWhatsappReply,testWhatsappAI,knowledgeChatTurn,applyIaChanges,loadContractClauses,aiErrorText,type IaCambio} from '@/lib/whatsapp-ai';
+import {suggestWhatsappReply,testWhatsappAI,knowledgeChatTurn,applyIaChanges,loadContractClauses,loadErpContext,aiErrorText,type IaCambio} from '@/lib/whatsapp-ai';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
@@ -69,7 +69,7 @@ export async function POST(request:Request){
     const texto=[escrito||'Analiza el archivo adjunto.',nombres.length?`📎 ${nombres.join(', ')}`:''].filter(Boolean).join('\n');
     const {data:prev}=await db.from('whatsapp_ia_conocimiento_chat').select('rol,texto').order('id',{ascending:false}).limit(15);
     const history=[...((prev||[]) as {rol:'admin'|'ia';texto:string}[]).reverse(),{rol:'admin' as const,texto}];
-    const turn=await knowledgeChatTurn(cfg,history,pend?(pend.propuesta as IaCambio[]):null,await loadContractClauses(db),blocks);
+    const turn=await knowledgeChatTurn(cfg,history,pend?(pend.propuesta as IaCambio[]):null,await loadContractClauses(db),blocks,await loadErpContext(db));
     // The admin message is saved only when the AI answered, so a failed attempt can simply be sent again.
     await db.from('whatsapp_ia_conocimiento_chat').insert({rol:'admin',texto,usuario_id:auth.user.id});
     if(turn.accion==='confirmar'&&pend)await say(await decide(true));
