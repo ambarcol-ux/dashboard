@@ -1,7 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {loadWhatsappSettings} from './whatsapp-config';
-import {sendWhatsappText} from './whatsapp-inbox';
+import {sendWhatsappText,downloadWhatsappImage} from './whatsapp-inbox';
+import {attachmentBlocks} from './ai-attachments';
 import {allySlug} from './ally-validation';
 import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
 
@@ -18,6 +19,8 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Usa solo direcciones, teléfonos y enlaces que aparezcan en los datos de las sedes.
 - No des datos de dinero de un contrato (saldos, valores).
 - No saludes de nuevo si ya hubo saludo reciente en la conversación.
+- Inventario del catálogo: en <catalogos> tienes los vestidos que las clientas pueden ver (código, tipo, categoría, talla, color y precio de alquiler). Úsalo para responder lo que pidan (por ejemplo «¿tienen vestidos azules talla M?»): menciona hasta 4 códigos que cumplan, con su precio de alquiler, y el enlace del catálogo. Esos precios son públicos y sí puedes darlos. Nunca confirmes que un vestido está libre para una fecha: eso lo confirma una asesora.
+- Fotos y archivos: si la clienta envía una foto (por ejemplo de un vestido que le gustó o de su inspiración), descríbela en pocas palabras y sugiere vestidos parecidos del inventario de su sede; no afirmes que es el mismo vestido.
 - Catálogo: si la clienta pide ver vestidos, modelos, fotos o el catálogo, envíale el enlace del catálogo de su sede y tipo de vestido tal cual aparece en <catalogos> (no lo modifiques). Si sabes la sede pero no el tipo de vestido, envía el enlace general de esa sede (ahí la clienta elige el tipo). Si no sabes la sede, pregúntala primero. Si esa combinación no está en la lista, di que una asesora le comparte opciones. Invítala a agendar su primera cita desde el catálogo.
 - Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
 - Marca atender_persona=true cuando la clienta pida hablar con una persona, reclame o discuta un cobro, una multa o una cláusula, pida una excepción, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
@@ -62,7 +65,7 @@ export async function loadContractClauses(db:SupabaseClient){
 export async function loadCatalogLinks(db:SupabaseClient){
  const origin=(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'');
  const [{data:dresses},{data:sites},{data:types}]=await Promise.all([
-  db.from('vestidos').select('sede_actual_id,clasificacion_id,foto_frente,foto_espalda,foto_detalle,imagen_url,precio_sugerido,para_alquiler,estado').eq('archivado',false),
+  db.from('vestidos').select('codigo,categoria,talla,color,sede_actual_id,clasificacion_id,foto_frente,foto_espalda,foto_detalle,imagen_url,precio_sugerido,para_alquiler,estado').eq('archivado',false).order('precio_sugerido'),
   db.from('sedes').select('id,nombre').eq('activo',true).order('nombre'),
   db.from('clasificaciones_vestido').select('id,nombre').eq('activo',true).order('nombre'),
  ]);
@@ -76,6 +79,14 @@ export async function loadCatalogLinks(db:SupabaseClient){
   for(const t of (types||[]) as {id:number;nombre:string}[]){
   const n=count.get(`${s.id}|${t.id}`);if(n)lines.push(`- ${s.nombre} · ${t.nombre} (${n} vestidos): ${origin}/${allySlug(s.nombre)}/${allySlug(t.nombre)}?o=ia-whatsapp`);
   }
+ }
+ // Dresses customers can see, so the AI can answer what they ask for (color, size, category, price).
+ const tipoNombre=new Map(((types||[]) as {id:number;nombre:string}[]).map(t=>[t.id,t.nombre]));
+ const inv=((dresses||[]) as (CatalogDress&{codigo:string;categoria:string|null;talla:string|null;color:string|null;sede_actual_id:string|null;clasificacion_id:number|null})[]).filter(d=>d.sede_actual_id&&isPublicCatalogDress(d));
+ for(const s of (sites||[]) as {id:string;nombre:string}[]){
+  const del=inv.filter(d=>d.sede_actual_id===s.id);if(!del.length)continue;
+  lines.push(`\nInventario visible en ${s.nombre} (código · tipo · categoría · talla · color · alquiler):`);
+  for(const d of del)lines.push(`${String(d.codigo).trim()} · ${tipoNombre.get(d.clasificacion_id!)||'—'} · ${d.categoria||'—'} · ${d.talla||'—'} · ${d.color||'—'} · $${Number(d.precio_sugerido).toLocaleString('es-CO')}`);
  }
  return lines.join('\n');
 }
@@ -91,14 +102,15 @@ async function loadBasics(db:SupabaseClient){
 }
 
 /** One AI call. Used by the inbox and by the «Probar» box of the settings screen. */
-export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,chat:string,clauses='',catalogs=''):Promise<IaOutput>{
+export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,chat:string,clauses='',catalogs='',extra:Anthropic.ContentBlockParam[]=[]):Promise<IaOutput>{
  const today=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',year:'numeric',month:'long',day:'numeric'});
  const client=new Anthropic();
  const response=await client.messages.create({
   model:MODEL,max_tokens:2000,
   system:[{type:'text',text:systemPrompt(cfg,sites,clauses,catalogs),cache_control:{type:'ephemeral'}}],
   output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},
-  messages:[{role:'user',content:`Hoy es ${today}.\n\nDatos de la clienta en el ERP (nombre, sede, primeras citas y contratos):\n${JSON.stringify(customer)}\n\nConversación (la más reciente al final):\n${chat}`}],
+  // Photos and files the customer sent go first, then the conversation.
+  messages:[{role:'user',content:[...extra,{type:'text',text:`Hoy es ${today}.\n\nDatos de la clienta en el ERP (nombre, sede, primeras citas y contratos):\n${JSON.stringify(customer)}\n\nConversación (la más reciente al final):\n${chat}${extra.length?'\n\n(Los archivos de arriba los envió la clienta en sus últimos mensajes.)':''}`}]}],
  });
  if(response.stop_reason==='refusal')throw Error('La IA no quiso responder este chat.');
  const text=response.content.find(b=>b.type==='text');
@@ -108,9 +120,10 @@ export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,c
 export const aiErrorText=(e:unknown)=>e instanceof Anthropic.APIError?`Anthropic ${e.status}: ${e.message}`:e instanceof Error?e.message:'Error de la IA';
 
 /** «Probar»: what the AI would answer to a sample message with the given (unsaved) settings. */
-export async function testWhatsappAI(db:SupabaseClient,cfg:IaConfig,turns:{rol:'clienta'|'ambar';texto:string}[]){
+export async function testWhatsappAI(db:SupabaseClient,cfg:IaConfig,turns:{rol:'clienta'|'ambar';texto:string}[],adjuntos?:unknown){
+ const blocks=attachmentBlocks(adjuntos);
  const {sites,clauses,catalogs}=await loadBasics(db);
- return runWhatsappAI(cfg,sites,{nombre:null,citas:[],contratos:[]},turns.map(t=>`${t.rol==='clienta'?'Clienta':'Ámbar'}: ${t.texto}`).join('\n'),clauses,catalogs);
+ return runWhatsappAI(cfg,sites,{nombre:null,citas:[],contratos:[]},turns.map(t=>`${t.rol==='clienta'?'Clienta':'Ámbar'}: ${t.texto}`).join('\n'),clauses,catalogs,blocks);
 }
 
 /** Builds the suggestion for one chat and saves it. Errors are saved in ia_error so the screen can show them. */
@@ -119,7 +132,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
  try{
   const [{data:conv},{data:msgs},{cfg,sites,clauses,catalogs}]=await Promise.all([
    db.from('whatsapp_conversaciones').select('id,telefono,nombre,sede_id,ia_pausada,ia_pausada_at').eq('id',conversationId).single(),
-   db.from('whatsapp_mensajes').select('id,direccion,texto,created_at').eq('conversacion_id',conversationId).order('created_at',{ascending:false}).limit(20),
+   db.from('whatsapp_mensajes').select('id,direccion,texto,created_at,media_id,media_tipo').eq('conversacion_id',conversationId).order('created_at',{ascending:false}).limit(20),
    loadBasics(db),
   ]);
   if(!conv||!msgs?.length)return;
@@ -127,7 +140,13 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   if(history[history.length-1].direccion!=='entrante')return;// already answered
   const {data:ctx}=await db.rpc('whatsapp_contexto_servidor',{p_tel:conv.telefono});
   const chat=history.map(m=>`[${new Date(m.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'})}] ${m.direccion==='entrante'?'Clienta':'Ámbar'}: ${m.texto||''}`).join('\n');
-  const out=await runWhatsappAI(cfg,sites,{nombre_whatsapp:conv.nombre,...(ctx||{})},chat,clauses,catalogs);
+  // Photos the customer sent since Ámbar's last reply (up to 2), so the AI can see them.
+  const pendientes:(Msg&{media_id?:string|null})[]=[];for(let i=history.length-1;i>=0&&history[i].direccion==='entrante';i--)pendientes.push(history[i]);
+  const fotos=pendientes.filter(m=>m.media_id).slice(0,2);
+  const extra:Anthropic.ContentBlockParam[]=[];
+  if(fotos.length){const settings=await loadWhatsappSettings(db);if(settings.token)for(const m of fotos){const img=await downloadWhatsappImage(settings,String(m.media_id)).catch(()=>null);
+   if(img&&['image/jpeg','image/png','image/webp','image/gif'].includes(img.tipo))extra.push({type:'image',source:{type:'base64',media_type:img.tipo as 'image/jpeg',data:img.datos}});}}
+  const out=await runWhatsappAI(cfg,sites,{nombre_whatsapp:conv.nombre,...(ctx||{})},chat,clauses,catalogs,extra);
   const sede=sites.find(s=>s.nombre.toLowerCase()===out.sede.trim().toLowerCase());
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:out.respuesta.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
@@ -192,14 +211,15 @@ export function applyIaChanges(cfg:IaConfig,cambios:IaCambio[]):IaConfig{
 }
 
 /** One turn of the knowledge chat. The model answers, proposes exact changes, or recognizes a confirmation. */
-export async function knowledgeChatTurn(cfg:IaConfig,history:{rol:'admin'|'ia';texto:string}[],pendiente:IaCambio[]|null,clauses=''):Promise<KnowledgeTurn>{
+export async function knowledgeChatTurn(cfg:IaConfig,history:{rol:'admin'|'ia';texto:string}[],pendiente:IaCambio[]|null,clauses='',extra:Anthropic.ContentBlockParam[]=[]):Promise<KnowledgeTurn>{
  // Vercel stops the request at 60 s: fail with a clear message before that.
  const client=new Anthropic({timeout:55000,maxRetries:0});
  const chat=history.slice(-16).map(h=>`${h.rol==='admin'?'Administración':'Asistente'}: ${h.texto}`).join('\n\n');
  const response=await client.messages.create({
   model:'claude-opus-5-5',max_tokens:8000,system:KNOWLEDGE,
   output_config:{effort:'low',format:{type:'json_schema',schema:KNOWLEDGE_SCHEMA}},
-  messages:[{role:'user',content:`<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<escalamiento>\n${cfg.escalamiento}\n</escalamiento>\n</configuracion_actual>\n\n<clausulas_del_contrato>\n${clauses||'(sin cláusulas)'}\n</clausulas_del_contrato>\n\n<propuesta_pendiente>\n${pendiente?JSON.stringify(pendiente):'ninguna'}\n</propuesta_pendiente>\n\n<conversacion>\n${chat}\n</conversacion>\n\nResponde al último mensaje de la administración.`}],
+  // Files the administration attached (price lists, policies, photos) go first, then the request.
+  messages:[{role:'user',content:[...extra,{type:'text',text:`<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<escalamiento>\n${cfg.escalamiento}\n</escalamiento>\n</configuracion_actual>\n\n<clausulas_del_contrato>\n${clauses||'(sin cláusulas)'}\n</clausulas_del_contrato>\n\n<propuesta_pendiente>\n${pendiente?JSON.stringify(pendiente):'ninguna'}\n</propuesta_pendiente>\n\n<conversacion>\n${chat}\n</conversacion>\n\nResponde al último mensaje de la administración.`}]}],
  });
  if(response.stop_reason==='refusal')throw Error('La IA no quiso responder eso. Escríbelo de otra forma.');
  const text=response.content.find(b=>b.type==='text');

@@ -1,7 +1,8 @@
 'use client';
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import Link from 'next/link';
-import {MessageCircle,RefreshCw,Sparkles,Send,ArrowLeft} from 'lucide-react';
+import {MessageCircle,RefreshCw,Sparkles,Send,ArrowLeft,Paperclip} from 'lucide-react';
+import {prepareAttachments,ACCEPT_ADJUNTOS,type AdjuntoCliente} from '@/lib/attach-client';
 import SupplierShell from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
 import styles from '@/app/dashboard/caja/caja.module.css';
@@ -83,6 +84,9 @@ function IaSettings(){
  const [auto,setAuto]=useState<{activa:boolean;horas:number}|null>(null);
  type Turno={rol:'clienta'|'ambar';texto:string;info?:{etiqueta:string;resumen:string;atender_persona:boolean;motivo:string;sede:string}};
  const [prueba,setPrueba]=useState(''),[simulacion,setSimulacion]=useState<Turno[]>([]);
+ // Files attached to the next message of each chat (images, PDF, Word, text).
+ const [adjK,setAdjK]=useState<AdjuntoCliente[]>([]),[adjP,setAdjP]=useState<AdjuntoCliente[]>([]);
+ const elegir=async(files:FileList|null,set:(f:(a:AdjuntoCliente[])=>AdjuntoCliente[])=>void)=>{if(!files?.length)return;setError('');try{const nuevos=await prepareAttachments(files);set(a=>[...a,...nuevos].slice(0,4));}catch(e){setError(e instanceof Error?e.message:'No se pudo leer el archivo.');}};
  const load=useCallback(async()=>{
   const [{data:c,error:e},{data:h}]=await Promise.all([supabase.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento,actualizado_at,auto_activa,reactivar_horas').eq('id',1).maybeSingle(),
    supabase.from('whatsapp_ia_historial').select('id,conocimientos,instrucciones,escalamiento,created_at').order('id',{ascending:false}).limit(10)]);
@@ -107,17 +111,18 @@ function IaSettings(){
   try{await api(body);await load();}
   catch(e){if(texto){setChat(c=>c.filter(m=>m.id>=0));setPedido(texto);}setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}
  };
- const ajustar=()=>{const texto=pedido.trim();if(texto)void conversar({accion:'conocimiento',texto},texto);};
+ const ajustar=()=>{const texto=pedido.trim();if(!texto&&!adjK.length)return;const adj=adjK;setAdjK([]);void conversar({accion:'conocimiento',texto,adjuntos:adj},[texto||'Analiza el archivo adjunto.',adj.length?`📎 ${adj.map(a=>a.nombre).join(', ')}`:''].filter(Boolean).join('\n'));};
  const SECCION:Record<string,string>={conocimientos:'Conocimientos',instrucciones:'Instrucciones y tono',escalamiento:'Reglas de paso a una persona'};
  // Simulated chat: you write as the customer, the AI answers as Ámbar with the settings above (saved or not).
  const probar=async()=>{
-  const texto=prueba.trim();if(!texto)return;
+  const adj=adjP,escrito=prueba.trim();if(!escrito&&!adj.length)return;
+  const texto=[escrito||'(envió un archivo)',adj.length?`📎 ${adj.map(a=>a.nombre).join(', ')}`:''].filter(Boolean).join('\n');
   const turnos:Turno[]=[...simulacion,{rol:'clienta',texto}];
-  setSimulacion(turnos);setPrueba('');setBusy('probar');setError('');
+  setSimulacion(turnos);setPrueba('');setAdjP([]);setBusy('probar');setError('');
   try{
-   const r=await api({accion:'probar',conversacion:turnos.map(t=>({rol:t.rol,texto:t.texto})),...cfg}) as {etiqueta:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;sede:string};
+   const r=await api({accion:'probar',conversacion:turnos.map(t=>({rol:t.rol,texto:t.texto})),adjuntos:adj,...cfg}) as {etiqueta:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;sede:string};
    setSimulacion([...turnos,{rol:'ambar',texto:r.respuesta,info:r}]);
-  }catch(e){setSimulacion(simulacion);setPrueba(texto);setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}
+  }catch(e){setSimulacion(simulacion);setPrueba(escrito);setAdjP(adj);setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}
  };
  return <div style={{display:'grid',gap:16}}>
   {auto&&<section className={styles.card} style={{display:'grid',gap:8,borderColor:auto.activa?'#10b981':undefined}}>
@@ -151,7 +156,9 @@ function IaSettings(){
     {busy==='ajustar'&&<small className={styles.help}>La IA está pensando… (puede tardar hasta un minuto)</small>}
    </div>
    <div style={{display:'flex',gap:8,alignItems:'flex-end'}}><textarea rows={2} value={pedido} onChange={e=>setPedido(e.target.value)} maxLength={4000} placeholder="Ej.: ¿Qué sabes del depósito? · Agrega que los domingos solo atendemos con cita" style={{flex:1,minWidth:0,resize:'vertical'}}/>
-    <button className={`${styles.button} ${styles.primary}`} disabled={!pedido.trim()||!!busy} onClick={ajustar}><Send size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Enviar</button></div>
+    <Adjuntar archivos={adjK} disabled={!!busy} onElegir={f=>void elegir(f,setAdjK)} onQuitar={i=>setAdjK(a=>a.filter((_,j)=>j!==i))}/>
+    <button className={`${styles.button} ${styles.primary}`} disabled={(!pedido.trim()&&!adjK.length)||!!busy} onClick={ajustar}><Send size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Enviar</button></div>
+   <AdjuntosLista archivos={adjK} onQuitar={i=>setAdjK(a=>a.filter((_,j)=>j!==i))}/>
    {error&&<p role="alert" className={styles.error}>{error}</p>}{notice&&<p role="status" className={styles.notice}>{notice}</p>}
    <small className={styles.help}>{meta}</small>
   </section>
@@ -174,13 +181,26 @@ function IaSettings(){
     {busy==='probar'&&<small className={styles.help} style={{justifySelf:'end'}}>Ámbar está escribiendo…</small>}
    </div>}
    <div style={{display:'flex',gap:8,alignItems:'flex-end'}}><textarea rows={2} value={prueba} onChange={e=>setPrueba(e.target.value)} maxLength={2000} placeholder={simulacion.length?'Responde como la clienta…':'Ej.: Hola, quiero ver el catálogo de XV'} style={{flex:1,minWidth:0,resize:'vertical'}}/>
-    <button className={`${styles.button} ${styles.primary}`} disabled={!prueba.trim()||!!busy} onClick={()=>void probar()}><Send size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Enviar</button></div>
+    <Adjuntar archivos={adjP} disabled={!!busy} onElegir={f=>void elegir(f,setAdjP)} onQuitar={i=>setAdjP(a=>a.filter((_,j)=>j!==i))}/>
+    <button className={`${styles.button} ${styles.primary}`} disabled={(!prueba.trim()&&!adjP.length)||!!busy} onClick={()=>void probar()}><Send size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Enviar</button></div>
+   <AdjuntosLista archivos={adjP} onQuitar={i=>setAdjP(a=>a.filter((_,j)=>j!==i))}/>
   </section>
   {hist.length>0&&<section className={styles.card}><h2>Historial de cambios</h2><div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Fecha</th><th>Resumen</th><th></th></tr></thead>
    <tbody>{hist.map(h=><tr key={h.id}><td>{hora(h.created_at)}</td><td><small>{h.conocimientos.length} car. de conocimientos · {h.instrucciones.length} de instrucciones · {h.escalamiento.length} de reglas</small></td>
     <td><button className={styles.button} onClick={()=>setCfg({conocimientos:h.conocimientos,instrucciones:h.instrucciones,escalamiento:h.escalamiento})}>Cargar esta versión</button></td></tr>)}</tbody></table></div>
    <p className={styles.help}>«Cargar esta versión» la pone en los campos de arriba; se aplica al tocar «Guardar cambios».</p></section>}
  </div>;
+}
+
+/** Paperclip button: images, PDF, Word or text for the AI to analyze (audio and video are not supported yet). */
+function Adjuntar({archivos,disabled,onElegir}:{archivos:AdjuntoCliente[];disabled:boolean;onElegir:(f:FileList|null)=>void;onQuitar:(i:number)=>void}){
+ return <label className={styles.button} title="Adjuntar foto, PDF o Word" style={{cursor:disabled||archivos.length>=4?'default':'pointer',opacity:disabled||archivos.length>=4?.5:1}}>
+  <Paperclip size={14} style={{display:'inline',verticalAlign:'-2px'}}/><input type="file" multiple accept={ACCEPT_ADJUNTOS} disabled={disabled||archivos.length>=4} hidden onChange={e=>{onElegir(e.target.files);e.target.value='';}}/></label>;
+}
+function AdjuntosLista({archivos,onQuitar}:{archivos:AdjuntoCliente[];onQuitar:(i:number)=>void}){
+ if(!archivos.length)return null;
+ return <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>{archivos.map((a,i)=><span key={i} className={styles.badge} style={{display:'inline-flex',gap:6,alignItems:'center'}}>📎 {a.nombre}<button type="button" onClick={()=>onQuitar(i)} aria-label={`Quitar ${a.nombre}`} style={{border:0,background:'none',cursor:'pointer'}}>×</button></span>)}
+  <small className={styles.help}>La IA puede leer fotos, PDF, Word y texto. Audios y videos todavía no.</small></div>;
 }
 
 function Inbox(){
