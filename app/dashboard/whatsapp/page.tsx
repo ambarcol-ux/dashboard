@@ -134,7 +134,8 @@ function IaSettings(){
     {' '}<select value={auto.horas} disabled={!!busy} onChange={e=>void guardarAuto({...auto,horas:Number(e.target.value)})}>{[1,2,4,6,8,12,24,48,72].map(h=><option key={h} value={h}>{h} hora{h===1?'':'s'}</option>)}</select> sin que la asesora escriba.</p>
   </section>}
   <section className={styles.card} style={{display:'grid',gap:10}}>
-   <h2>Conocimientos de la IA</h2>
+   <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><h2 style={{margin:0,flex:1}}>Conocimientos de la IA</h2>
+    <button className={styles.button} disabled={!!busy} title="Compara los chats que terminaron en cita con los que no y propone mejoras. También se hace solo cada lunes." onClick={()=>void conversar({accion:'analisis'})}>{busy==='ajustar'?'Analizando…':'📊 Analizar la última semana'}</button></div>
    <p className={styles.help}>Conversa con ella como con una persona: pregúntale qué sabe («¿qué sabes del depósito?»), enséñale algo nuevo o corrígela. Antes de cambiar algo te muestra el antes y el después y te pide confirmar; nada se guarda sin tu «sí».</p>
    <div style={{background:'#f8fafc',borderRadius:12,padding:10,display:'grid',gap:6,maxHeight:'55vh',overflowY:'auto'}}>
     {!chat.length&&<p className={styles.empty}>Escribe tu primera pregunta o lo que quieres que aprenda.</p>}
