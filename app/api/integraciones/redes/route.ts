@@ -25,7 +25,19 @@ export async function POST(request:Request){
   // Subscribes the page to the app webhook: new messages and replies typed in Meta Business Suite.
   const sub=await get(`${s.pageId}/subscribed_apps?subscribed_fields=messages,message_echoes`,{method:'POST'});
   if(!sub.ok)return fail(`No se pudo suscribir la página a los mensajes: ${String(sub.d.error?.message||'').slice(0,160)}. Revisa que el token tenga pages_messaging y pages_manage_metadata.`);
-  const detalle=`Página «${page.d.name}»${ig?.username?` · Instagram @${ig.username}`:' · sin Instagram unido a la página'}`;
+  // Diagnosis: is the page subscribed to this app, and where does the app send page/Instagram events?
+  const subs=await get(`${s.pageId}/subscribed_apps`);
+  const apps=((subs.d.data||[]) as {id?:string;name?:string;subscribed_fields?:string[]}[]);
+  const me=await get('app');
+  const appId=String(me.d.id||''),secret=process.env.META_APP_SECRET||'';
+  const mine=apps.find(a=>a.id===appId);
+  let destino='';
+  if(appId&&secret){
+   const r=await fetch(`https://graph.facebook.com/${v}/${appId}/subscriptions?access_token=${encodeURIComponent(`${appId}|${secret}`)}`,{signal:AbortSignal.timeout(15000)});
+   const d=await r.json().catch(()=>({})) as {data?:{object:string;callback_url:string;active:boolean;fields:{name:string}[]}[];error?:{message?:string}};
+   destino=r.ok?(d.data||[]).filter(x=>x.object==='page'||x.object==='instagram').map(x=>`${x.object}: ${x.active?'activo':'inactivo'} → ${x.callback_url} [${x.fields.map(f=>f.name).join(', ')}]`).join(' | ')||'la app no tiene webhooks de page ni instagram':`no se pudo leer (${String(d.error?.message||r.status).slice(0,120)}; ¿META_APP_SECRET es de otra app?)`;
+  }
+  const detalle=`Página «${page.d.name}»${ig?.username?` · Instagram @${ig.username}`:' · sin Instagram unido a la página'} · App ${appId}: página ${mine?`suscrita (${(mine.subscribed_fields||[]).join(', ')})`:'NO suscrita'}${apps.length>1?` · otras apps suscritas: ${apps.filter(a=>a.id!==appId).map(a=>a.name||a.id).join(', ')}`:''} · Webhooks: ${destino||'sin datos'}`;
   await db.from('integraciones').update({estado:'conectada',ultimo_error:null,probado_at:new Date().toISOString(),config:{page_id:s.pageId,instagram_id:s.instagramId||ig?.id||'',nombre_pagina:String(page.d.name||''),instagram_usuario:ig?.username||''}}).eq('id','redes');
   return publicReply({ok:true,detalle});
  }catch{return publicReply({error:'No se pudo probar la conexión.'},500);}
