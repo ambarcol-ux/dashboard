@@ -3,6 +3,7 @@ import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendWhatsappText,downloadWhatsappImage,sendWhatsappFollowup,followupText,conversationFor,WINDOW_MS} from '@/lib/whatsapp-inbox';
 import {resolveAd,adsSpend,adsTokenReady} from '@/lib/meta-ads';
+import {loadSocialSettings,sendSocialText} from '@/lib/social-inbox';
 import {attachmentBlocks,type Adjunto} from '@/lib/ai-attachments';
 import {weeklyChatAnalysis} from '@/lib/whatsapp-analysis';
 import {suggestWhatsappReply,testWhatsappAI,knowledgeChatTurn,applyIaChanges,loadContractClauses,loadErpContext,aiErrorText,type IaCambio} from '@/lib/whatsapp-ai';
@@ -126,7 +127,7 @@ export async function POST(request:Request){
   }
   if(!UUID_RE.test(String(body.conversacion_id||'')))return publicReply({error:'Chat no válido.'},400);
   // The user's own permissions decide: RLS returns the chat only if they can see it.
-  const {data:conv}=await userDb.from('whatsapp_conversaciones').select('id,telefono,ultimo_entrante_at').eq('id',body.conversacion_id!).maybeSingle();
+  const {data:conv}=await userDb.from('whatsapp_conversaciones').select('id,telefono,ultimo_entrante_at,canal,contacto_id').eq('id',body.conversacion_id!).maybeSingle();
   if(!conv)return publicReply({error:'No tienes acceso a este chat.'},403);
   const db=publicServerClient();
   // Per-chat switch: a person pauses the AI to take the chat, and reactivates it when done.
@@ -161,10 +162,16 @@ export async function POST(request:Request){
    if(!texto||texto.length>4000)return publicReply({error:'Escribe el mensaje (máximo 4000 caracteres).'},400);
    if(!conv.ultimo_entrante_at||Date.now()-Date.parse(conv.ultimo_entrante_at)>WINDOW_MS)
     return publicReply({error:'Pasaron más de 24 horas desde el último mensaje de la clienta: Meta solo deja escribirle con una plantilla. Respóndele desde el celular del 304.'},409);
-   const settings=await loadWhatsappSettings(db);
-   if(!settings.token||!settings.phoneNumberId)return publicReply({error:'WhatsApp no está configurado.'},503);
    let waId:string;
-   try{waId=await sendWhatsappText(settings,conv.telefono,texto);}catch(e){return publicReply({error:e instanceof Error?e.message:'No se pudo enviar.'},502);}
+   if(conv.canal&&conv.canal!=='whatsapp'){
+    const s=await loadSocialSettings(db);
+    if(!s||!conv.contacto_id)return publicReply({error:'Instagram/Messenger no está conectado en Integraciones.'},503);
+    try{waId=await sendSocialText(s,conv.contacto_id,texto);}catch(e){return publicReply({error:e instanceof Error?e.message:'No se pudo enviar.'},502);}
+   }else{
+    const settings=await loadWhatsappSettings(db);
+    if(!settings.token||!settings.phoneNumberId)return publicReply({error:'WhatsApp no está configurado.'},503);
+    try{waId=await sendWhatsappText(settings,conv.telefono,texto);}catch(e){return publicReply({error:e instanceof Error?e.message:'No se pudo enviar.'},502);}
+   }
    const now=new Date().toISOString();
    await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:waId,direccion:'saliente',origen:'erp',tipo:'text',texto,estado:'sent',enviado_por:auth.user.id,created_at:now});
    await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,no_leidos:0,ia_sugerencia:null,ia_atender:false,ia_motivo:null,ia_pausada:true,ia_pausada_at:now,ia_pausada_por:auth.user.id}).eq('id',conv.id);

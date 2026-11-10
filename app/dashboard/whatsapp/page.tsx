@@ -7,14 +7,15 @@ import SupplierShell from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Conv={id:string;telefono:string;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null;ia_pausada:boolean;ia_pausada_at:string|null;anuncio_id:string|null;anuncio_titulo:string|null};
+type Conv={id:string;telefono:string;canal?:string|null;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null;ia_pausada:boolean;ia_pausada_at:string|null;anuncio_id:string|null;anuncio_titulo:string|null};
 type Msg={id:string;direccion:'entrante'|'saliente';origen:'clienta'|'erp'|'celular'|'ia';texto:string|null;estado:string|null;created_at:string;media_id?:string|null};
 type Ficha={nombre:string|null;citas:{id:string;fecha:string;hora:string;estado:string;modalidad:string;sede:string|null;tipo_vestido:string|null}[];contratos:{id:string;numero_contrato:string;estado:string;fecha_evento:string|null;sede:string|null}[]};
 const WINDOW_MS=24*3600*1000;
 // List: time only for today, date only for earlier days, so it always fits next to the name.
 const horaCorta=(iso:string)=>{const d=new Date(iso),dia=(x:Date)=>x.toLocaleDateString('es-CO',{timeZone:'America/Bogota'});return dia(d)===dia(new Date())?d.toLocaleTimeString('es-CO',{timeZone:'America/Bogota',hour:'numeric',minute:'2-digit'}):d.toLocaleDateString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'numeric'});};
 const hora=(iso:string)=>{const d=new Date(iso),hoy=new Date().toDateString()===d.toDateString();return d.toLocaleString('es-CO',{timeZone:'America/Bogota',...(hoy?{timeStyle:'short'}:{dateStyle:'short',timeStyle:'short'})});};
-const tel=(t:string)=>t.startsWith('57')&&t.length===12?`+57 ${t.slice(2,5)} ${t.slice(5,8)} ${t.slice(8)}`:`+${t}`;
+const CANAL:Record<string,string>={instagram:'Instagram',messenger:'Messenger'};
+const tel=(t:string)=>t.startsWith('ig:')?'Instagram':t.startsWith('fb:')?'Messenger':t.startsWith('57')&&t.length===12?`+57 ${t.slice(2,5)} ${t.slice(5,8)} ${t.slice(8)}`:`+${t}`;
 const ORIGEN:Record<string,string>={erp:'ERP',celular:'Celular',ia:'IA',clienta:''};
 const ESTADO:Record<string,string>={sent:'✓',delivered:'✓✓',read:'✓✓ leído',failed:'⚠ no entregado'};
 
@@ -258,7 +259,7 @@ function Inbox(){
        {c.no_leidos>0&&<span style={{flexShrink:0,background:'#10b981',color:'#fff',borderRadius:999,fontSize:11,fontWeight:800,padding:'1px 7px'}}>{c.no_leidos}</span>}
       </span>
       <small style={{display:'block',minWidth:0,color:'#475569',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.ultimo_mensaje||'—'}</small>
-      <small style={{display:'block',minWidth:0,color:'#94a3b8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sedeName(c.sede_id)}{c.etiqueta?` · ${c.etiqueta}`:''}{c.ia_atender&&<b style={{color:'#b91c1c'}}> · ● Atender persona</b>}{auto&&c.ia_pausada&&<b style={{color:'#b45309'}}> · IA pausada</b>}</small>
+      <small style={{display:'block',minWidth:0,color:'#94a3b8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.canal&&CANAL[c.canal]&&<b style={{color:'#9333ea'}}>{CANAL[c.canal]} · </b>}{sedeName(c.sede_id)}{c.etiqueta?` · ${c.etiqueta}`:''}{c.ia_atender&&<b style={{color:'#b91c1c'}}> · ● Atender persona</b>}{auto&&c.ia_pausada&&<b style={{color:'#b45309'}}> · IA pausada</b>}</small>
      </button>)}
     </div>}
    </section>
@@ -299,12 +300,12 @@ function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{i
  },[conv.id,loadMsgs]);
  useEffect(()=>{if(conv.no_leidos>0)void api({accion:'leido',conversacion_id:conv.id}).then(onChange).catch(()=>{});},[conv.id,conv.no_leidos,onChange]);
  useEffect(()=>{end.current?.scrollIntoView({block:'end'});},[msgs.length]);
- const abierta=!!conv.ultimo_entrante_at&&Date.now()-Date.parse(conv.ultimo_entrante_at)<WINDOW_MS;
+ const abierta=!!conv.ultimo_entrante_at&&Date.now()-Date.parse(conv.ultimo_entrante_at)<WINDOW_MS,social=/^(fb|ig):/.test(conv.telefono);
  const run=async(name:string,body:Record<string,unknown>,after?:()=>void)=>{setBusy(name);setError('');try{await api({...body,conversacion_id:conv.id});after?.();await Promise.all([onChange(),loadMsgs()]);}catch(e){setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}};
  return <section className={styles.card} style={{padding:12,display:'grid',gap:10}}>
   <div style={{display:'flex',gap:10,alignItems:'center',flexWrap:'wrap'}}>
    <button className={styles.button} onClick={onBack} aria-label="Volver a la lista"><ArrowLeft size={14}/></button>
-   <div style={{flex:1,minWidth:160}}><strong>{conv.nombre||tel(conv.telefono)}</strong><br/><small>{tel(conv.telefono)} · <a href={`https://wa.me/${conv.telefono}`} target="_blank" rel="noreferrer">abrir en WhatsApp</a>{conv.anuncio_id&&<><br/>📣 Llegó por anuncio{conv.anuncio_titulo?`: ${conv.anuncio_titulo}`:''}</>}</small></div>
+   <div style={{flex:1,minWidth:160}}><strong>{conv.nombre||tel(conv.telefono)}</strong><br/><small>{social?`Chat de ${tel(conv.telefono)}`:<>{tel(conv.telefono)} · <a href={`https://wa.me/${conv.telefono}`} target="_blank" rel="noreferrer">abrir en WhatsApp</a></>}{conv.anuncio_id&&<><br/>📣 Llegó por anuncio{conv.anuncio_titulo?`: ${conv.anuncio_titulo}`:''}</>}</small></div>
    {auto&&<button className={`${styles.button} ${conv.ia_pausada?'':styles.primary}`} disabled={!!busy} title={conv.ia_pausada?'La IA no contesta sola en este chat':'La IA contesta sola en este chat'} onClick={()=>void run('pausa',{accion:'pausa',pausada:!conv.ia_pausada})}>{conv.ia_pausada?'IA pausada · Reactivar':'IA activa · Pausar'}</button>}
    <label style={{fontSize:12}}>Sede <select value={conv.sede_id||''} disabled={!!busy} onChange={e=>void run('sede',{accion:'sede',sede_id:e.target.value||null})}><option value="">Sin sede</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
   </div>
@@ -330,7 +331,8 @@ function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{i
     <div><button className={styles.button} onClick={()=>setTexto(conv.ia_sugerencia||'')}>Usar sugerencia</button></div></>
     :!conv.ia_error&&<small style={{color:'#64748b'}}>Sin sugerencia pendiente. Aparece cuando la clienta escribe.</small>}
   </div>
-  {!abierta&&<p className={styles.help}>Pasaron más de 24 horas desde el último mensaje de la clienta: Meta solo deja escribirle con una plantilla. <button type="button" className={styles.button} disabled={!!busy} onClick={()=>void run('iniciar',{accion:'iniciar',telefono:conv.telefono})}>{busy==='iniciar'?'Enviando…':'Enviarle un saludo para retomar'}</button> Cuando responda, le escribes normal.</p>}
+  {!abierta&&social&&<p className={styles.help}>Pasaron más de 24 horas desde el último mensaje de la clienta: Meta no deja responderle por aquí. Escríbele desde Meta Business Suite.</p>}
+  {!abierta&&!social&&<p className={styles.help}>Pasaron más de 24 horas desde el último mensaje de la clienta: Meta solo deja escribirle con una plantilla. <button type="button" className={styles.button} disabled={!!busy} onClick={()=>void run('iniciar',{accion:'iniciar',telefono:conv.telefono})}>{busy==='iniciar'?'Enviando…':'Enviarle un saludo para retomar'}</button> Cuando responda, le escribes normal.</p>}
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   <div style={{display:'flex',gap:8,alignItems:'flex-end'}}>
    <textarea aria-label="Mensaje" rows={3} maxLength={4000} value={texto} onChange={e=>setTexto(e.target.value)} disabled={!abierta||!!busy} placeholder={abierta?'Escribe la respuesta…':'Ventana de 24 h cerrada'} style={{flex:1,minWidth:0,resize:'vertical'}}/>
