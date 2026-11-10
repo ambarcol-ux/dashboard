@@ -5,14 +5,14 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
 import {
-  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle
+  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen
 } from 'lucide-react';
 
 interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos';
 }
 
 // Deposit and balance reminders live in the Inicio alert strip (DashboardAlerts), not in the menu.
@@ -98,6 +98,13 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
         { id: 'depositos', label: 'DEPÓSITOS Y DEVOLUCIONES', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
         { id: 'proveedores-pagos', label: 'PAGOS A PROVEEDORES', icon: Banknote, href: '/dashboard/proveedores/pagos', color: 'violet', adminOnly: true },
         { id: 'siigo', label: 'FACTURACIÓN POR SEDE', icon: KeyRound, href: '/admin/config/siigo', color: 'emerald' },
+      ]
+    },
+    {
+      title: 'MARCA',
+      adminOnly: false,
+      items: [
+        { id: 'documentos', label: 'DOCUMENTOS DE LA MARCA', icon: FolderOpen, href: '/dashboard/documentos', color: 'rose' },
       ]
     },
     {
