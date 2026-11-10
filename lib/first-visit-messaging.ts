@@ -44,6 +44,16 @@ export function openWindowPayload(type:string,c:NotificationVisit,siteName:strin
   return {texto,payload:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
  return null;
 }
+/** Readable copy of an automatic message for the 304 chat in the ERP (templates are shown by what they say, not their full text). */
+export function inboxCopy(type:string,c:NotificationVisit,site:string,payload:Record<string,any>):string{ // eslint-disable-line @typescript-eslint/no-explicit-any
+ if(payload.type==='text')return String(payload.text?.body||'');
+ if(payload.type==='interactive'){const i=payload.interactive||{};const opts=(i.action?.buttons||[]).map((b:{reply?:{title?:string}})=>b.reply?.title).concat((i.action?.sections||[]).flatMap((s:{rows?:{title?:string}[]})=>(s.rows||[]).map(r=>r.title))).filter(Boolean);
+  return `${String(i.body?.text||'')}${opts.length?`\n[${opts.join(' · ')}]`:''}`;}
+ const when=`${visitDate(c.fecha)} a las ${visitTime(c.hora)}`,name=String(payload.template?.name||'');
+ const label:Record<string,string>={confirmacion:`✅ Confirmación de su primera cita: ${when} · ${c.modalidad==='virtual'?'virtual':site}`,recordatorio24:`⏰ Recordatorio: su cita es mañana, ${when} · ${site}`,recordatorio2:`⏰ Recordatorio: su cita es hoy, ${when} · ${site}`,
+  post_cita:'¿Asististe a tu cita?\n[Asistí · No asistí]',recuperar:'💛 Te esperábamos en tu cita: elige una nueva fecha (enlace para reprogramar).'};
+ return `${label[type]||'Mensaje automático'}${name===REMINDER_CONFIRM_TEMPLATE?'\n[Confirmo · Reagendar]':''}\n(plantilla ${name})`;
+}
 /** Meta's delivery error codes, in words the team can act on. */
 export function metaErrorText(code:unknown,title:unknown){
  const known:Record<number,string>={131049:'Meta limitó el mensaje para no saturar a la clienta (suele pasar con plantillas de Marketing o clientas que reciben muchos mensajes de empresas).',131026:'El número no tiene WhatsApp, no aceptó los términos nuevos o su app está desactualizada.',131047:'Pasaron más de 24 horas desde el último mensaje de la clienta: solo se puede escribir con plantilla.',131050:'La clienta pidió no recibir mensajes de marketing de Ámbar.',131042:'Problema con el método de pago de la cuenta de WhatsApp en Meta.',131048:'Meta limitó los envíos de este número por calidad (bloqueos o reportes).',131056:'Demasiados mensajes seguidos a esta misma clienta.',130472:'Meta no entregó el mensaje por un experimento propio de Meta.',131021:'El número de destino es el mismo que envía.'};

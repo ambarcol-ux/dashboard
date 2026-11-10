@@ -53,7 +53,9 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
     await db.from('whatsapp_conversaciones').update({anuncio_id:String(ref.source_id),anuncio_titulo:String(ref.headline||ref.body||'').slice(0,300)||null,anuncio_url:String(ref.source_url||'').slice(0,500)||null,ctwa_clid:ref.ctwa_clid?String(ref.ctwa_clid).slice(0,300):null,anuncio_at:at}).eq('id',conv.id);
     ads.push({conversacion:conv.id,anuncio:String(ref.source_id)});
    }
-   if(m.type!=='reaction')touched.add(conv.id);
+   // Buttons of the automatic first-visit messages (Asistí, Sí alquilé, Confirmo, motives…) are handled by the ERP: the AI does not answer them.
+   const flowReply=/^(pc|rc|mot)_/.test(String(m.button?.payload||m.interactive?.button_reply?.id||m.interactive?.list_reply?.id||''));
+   if(m.type!=='reaction'&&!flowReply)touched.add(conv.id);
   }
   // Replies typed in the WhatsApp Business app of the phone (coexistence): field smb_message_echoes.
   for(const m of v.message_echoes||[]){

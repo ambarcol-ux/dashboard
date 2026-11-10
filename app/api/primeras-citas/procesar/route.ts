@@ -1,6 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {visitManagementLink} from '@/lib/first-visit-links';
-import {confirmationPayload,isTemplateError,whatsappPayload,reminderConfirmPayload,openWindowPayload,REMINDER_CONFIRM_TEMPLATE,RECOVERY_TEMPLATE} from '@/lib/first-visit-messaging';
+import {confirmationPayload,isTemplateError,whatsappPayload,reminderConfirmPayload,openWindowPayload,inboxCopy,REMINDER_CONFIRM_TEMPLATE,RECOVERY_TEMPLATE} from '@/lib/first-visit-messaging';
 import {whatsappPhone} from '@/lib/first-visit-links';
 import {claimVisitEmails,deliverVisitEmails} from '@/lib/first-visit-email';
 import {Resend} from 'resend';
@@ -37,7 +37,7 @@ export async function POST(request:Request){
  for(let i=0;i<5;i++){
   const {data:job,error}=await db.rpc('tomar_mensaje_primera_cita');if(error)return Response.json({error:'No se pudo consultar la cola'},{status:503});if(!job)break;if(job.omitido)continue;
   const {mensaje:m,cita:c,sede}=job;
-  let state='revisar',providerId:string|null=null,issue:string|null=null,template:string|null=null;
+  let state='revisar',providerId:string|null=null,issue:string|null=null,template:string|null=null,copy:string|null=null;
   try{
    if(m.tipo==='correo_interno'){
     const recipients:Record<string,string[]>=JSON.parse(process.env.FIRST_VISIT_INTERNAL_RECIPIENTS||'{}');
@@ -59,7 +59,7 @@ export async function POST(request:Request){
     for(const [n,payload] of payloads.entries()){
      const r=await fetch(`https://graph.facebook.com/${version}/${phone}/messages`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
      const d=await r.json();if(r.ok&&d.messages?.[0]?.id){state='enviado';providerId=d.messages[0].id;issue=null;template=(payload as {template?:{name?:string}}).template?.name||null;
-      if(direct&&payload===direct.payload&&conv)await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:providerId,direccion:'saliente',origen:'erp',tipo:'text',texto:direct.texto,estado:'sent'});
+      copy=direct&&payload===direct.payload?direct.texto:inboxCopy(m.tipo,c,sede,payload as Record<string,unknown>);
       break;}
      if(r.status>=400&&r.status<500){state='error';
       const name=(payload as {template?:{name?:string}}).template?.name;
@@ -70,6 +70,12 @@ export async function POST(request:Request){
     }
    }
   }catch{issue='Resultado incierto; revisar proveedor antes de reintentar';}
+  // The same message shows in the customer's 304 chat in the ERP (only if she already has one), as sent by the ERP.
+  if(state==='enviado'&&copy&&providerId){try{
+   const {data:chat}=await db.from('whatsapp_conversaciones').select('id').eq('telefono',whatsappPhone(c.telefono)).maybeSingle();
+   if(chat){const at=new Date().toISOString();await db.from('whatsapp_mensajes').insert({conversacion_id:chat.id,wa_id:providerId,direccion:'saliente',origen:'erp',tipo:'automatico',texto:copy.slice(0,4000),estado:'sent',created_at:at});
+    await db.from('whatsapp_conversaciones').update({ultimo_mensaje:copy.slice(0,200),ultimo_at:at}).eq('id',chat.id);}
+  }catch{/* the chat copy is informative: never blocks the queue */}}
   const {error:saveError}=await db.from('primeras_citas_mensajes').update({estado:state,provider_id:providerId,error:issue,...(template?{plantilla:template}:{}),updated_at:new Date().toISOString(),...(state==='error'?{programado_at:new Date(Date.now()+10*60000).toISOString()}: {})}).eq('id',m.id).eq('estado','enviando');
   if(saveError)return Response.json({error:'No se pudo registrar el resultado; requiere revisión'},{status:503});
   if(state==='enviado')sent++;else review++;
