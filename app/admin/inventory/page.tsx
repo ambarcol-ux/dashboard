@@ -41,6 +41,8 @@ export default function InventoryPage() {
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('table');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  // The 3 photos of a new dress (front, back, detail): required to save.
+  const [newFotos, setNewFotos] = useState<Partial<Record<string, File>>>({});
   const [newDress, setNewDress] = useState({
     codigo: '',
     nombre: '',
@@ -129,9 +131,9 @@ export default function InventoryPage() {
   };
 
   const handleAddDress = async () => {
-    const faltan = dressMissing(newDress);
+    const faltan = dressMissing(newDress, newFotos);
     if (faltan.length) {
-       toast.error(`Completa: ${faltan.join(', ')}.`);
+       toast.error(`Para guardar, corrige: ${faltan.join(' ')}`);
        return;
     }
     setSaving(true);
@@ -145,7 +147,7 @@ export default function InventoryPage() {
         .maybeSingle();
 
       if (duplicate) {
-        toast.error(`El código ${newDress.codigo} ya existe en el inventario. Usa un código diferente.`);
+        toast.error(`El código ${newDress.codigo} ya existe en el inventario. Cambia el código (por ejemplo agrega una letra al final).`);
         return;
       }
 
@@ -165,12 +167,29 @@ export default function InventoryPage() {
         estado: 'Disponible'
       };
       
-      const { error } = await supabase
+      // Photos are prepared first, so a photo that cannot be read stops the save before anything is created.
+      const blobs: [string, Blob][] = [];
+      for (const [slot, label] of PHOTO_SLOTS) {
+        try { blobs.push([slot, await resizePhoto(newFotos[slot] as File)]); }
+        catch (e) { toast.error(`Foto ${label}: ${e instanceof Error ? e.message : 'no se pudo leer.'} Cámbiala y vuelve a guardar.`); return; }
+      }
+      const { data: creado, error } = await supabase
         .from('vestidos')
-        .insert([insertData]);
-      
-      if (error) throw error;
-      toast.success('Vestido registrado correctamente 💎');
+        .insert([insertData]).select('id').single();
+      if (error) { toast.error(dressSaveError(error, newDress.codigo)); return; }
+      const patch: Record<string, string> = {}, fallas: string[] = [];
+      for (const [slot, blob] of blobs) {
+        const path = `${creado.id}/${slot}-${Date.now()}.jpg`;
+        const { error: up } = await supabase.storage.from('vestidos_fotos').upload(path, blob, { contentType: 'image/jpeg' });
+        if (up) { fallas.push(PHOTO_SLOTS.find(([k]) => k === slot)?.[1] || slot); continue; }
+        await uploadMini(path, blob);
+        patch[slot] = supabase.storage.from('vestidos_fotos').getPublicUrl(path).data.publicUrl;
+      }
+      if (patch.foto_frente) patch.imagen_url = patch.foto_frente;
+      if (Object.keys(patch).length) await supabase.from('vestidos').update(patch).eq('id', creado.id);
+      if (fallas.length) toast.error(`El vestido quedó creado, pero no se pudo subir la foto ${fallas.join(', ')}. Ábrelo y súbela desde su ficha.`, { duration: 10000 });
+      else toast.success('Vestido registrado correctamente con sus 3 fotos 💎');
+      setNewFotos({});
       
       setIsModalOpen(false);
       setNewDress({ 
@@ -188,7 +207,7 @@ export default function InventoryPage() {
       loadData();
     } catch (err: any) {
       console.error('Error detallado de DB:', err.message, err.details, err.hint);
-      toast.error('Error al registrar: ' + (err.message || 'Error desconocido'));
+      toast.error(dressSaveError(err, newDress.codigo));
     } finally {
       setSaving(false);
     }
@@ -519,7 +538,7 @@ export default function InventoryPage() {
 
   const sedeExiste = (id: string | null | undefined) => !!id && sedes.some(s => s.id === id);
   // Data issues to clean before invoicing (Siigo).
-  const novedadesDe = (v: {clasificacion_id?: unknown; codigo?: unknown; sede_actual_id?: string | null; talla?: unknown; color?: unknown; nombre?: unknown; precio_sugerido?: unknown; precio_venta?: unknown; imagen_url?: unknown}) => {
+  const novedadesDe = (v: {clasificacion_id?: unknown; codigo?: unknown; sede_actual_id?: string | null; talla?: unknown; color?: unknown; nombre?: unknown; precio_sugerido?: unknown; precio_venta?: unknown; imagen_url?: unknown; foto_frente?: unknown; foto_espalda?: unknown; foto_detalle?: unknown}) => {
     const n: string[] = [];
     if (!v.clasificacion_id) n.push('Sin clasificación');
     if (!/^[A-Z0-9][A-Z0-9-]{1,19}$/.test(String(v.codigo || ''))) n.push('Código inválido');
@@ -529,7 +548,8 @@ export default function InventoryPage() {
     if (!String(v.nombre || '').trim()) n.push('Sin nombre');
     if (!(Number(v.precio_sugerido) > 0)) n.push('Sin precio de alquiler');
     if (v.precio_venta == null) n.push('Sin precio de venta');
-    if (!String(v.imagen_url || '').trim()) n.push('Sin fotos');
+    if (!String(v.imagen_url || v.foto_frente || '').trim()) n.push('Sin fotos');
+    else if (!v.foto_frente || !v.foto_espalda || !v.foto_detalle) n.push('Faltan fotos');
     return n;
   };
   const filtered = vestidos.filter(v => {
@@ -663,7 +683,7 @@ export default function InventoryPage() {
             >
               <option value="">⚠️ Novedades: todas</option>
               <option value="any">Con alguna novedad</option>
-              {['Sin clasificación','Código inválido','Sin sede','Sin talla','Sin color','Sin nombre','Sin precio de alquiler','Sin precio de venta','Sin fotos'].map(n => <option key={n} value={n}>{n}</option>)}
+              {['Sin clasificación','Código inválido','Sin sede','Sin talla','Sin color','Sin nombre','Sin precio de alquiler','Sin precio de venta','Sin fotos','Faltan fotos'].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>}
           <div className="w-full md:w-auto">
@@ -861,9 +881,19 @@ export default function InventoryPage() {
                   </div>
                 </div>
 
-                <button 
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">8. Fotos * (frente, espalda y detalle)</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {PHOTO_SLOTS.map(([slot, l]) => <label key={slot} className={`cursor-pointer rounded-xl border-2 border-dashed p-3 text-center text-[11px] font-bold ${newFotos[slot] ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-gray-200 text-gray-500'}`}>
+                      {newFotos[slot] ? `✓ ${l}` : `+ ${l}`}<br /><span className="font-normal break-all">{newFotos[slot]?.name || 'Elegir foto'}</span>
+                      <input type="file" accept="image/*" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) setNewFotos(f => ({ ...f, [slot]: file })); e.target.value = ''; }} />
+                    </label>)}
+                  </div>
+                </div>
+                <FixList items={dressMissing(newDress, newFotos)} />
+                <button
                   onClick={handleAddDress}
-                  disabled={saving || dressMissing(newDress).length > 0}
+                  disabled={saving || dressMissing(newDress, newFotos).length > 0}
                   className="w-full py-5 bg-rose-500 hover:bg-rose-600 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-rose-100 transition-all active:scale-95 flex items-center justify-center gap-3 disabled:opacity-50 mt-4"
                 >
                   {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
@@ -1602,9 +1632,34 @@ export default function InventoryPage() {
 /** Dress code: uppercase letters, numbers and dashes only (no spaces or descriptions). */
 function cleanDressCode(v: string) { return v.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20); }
 /** Required fields of a new dress, in the form order. */
-function dressMissing(d: { codigo: string; clasificacion_id: string; nombre: string; talla: string; color: string; precio: string; sede_actual_id: string; precio_venta?: string; para_alquiler?: boolean; para_venta?: boolean }) {
-  const alquiler = d.para_alquiler !== false, venta = !!d.para_venta;
-  return ([['Código', d.codigo.length >= 2], ['Clasificación', !!d.clasificacion_id], ['Nombre', d.nombre.trim().length >= 3], ['Talla', !!d.talla.trim()], ['Color', !!d.color.trim()], ['Disponible para (alquiler o venta)', alquiler || venta], ['Precio de alquiler', !alquiler || Number(d.precio) > 0], ['Precio de venta', !venta || Number(d.precio_venta) > 0], ['Sede base', !!d.sede_actual_id]] as [string, boolean][]).filter(([, ok]) => !ok).map(([l]) => l);
+/** What is wrong in a dress form, each with what to fix. New dresses also need the 3 photos. */
+function dressMissing(d: { codigo: string; clasificacion_id: string; nombre: string; talla: string; color: string; precio: string; sede_actual_id: string; precio_venta?: string; para_alquiler?: boolean; para_venta?: boolean }, fotos?: Partial<Record<string, File>>) {
+  const alquiler = d.para_alquiler !== false, venta = !!d.para_venta, out: string[] = [];
+  if (d.codigo.length < 2) out.push('Código: escribe la referencia del vestido (mínimo 2 caracteres, ej.: CD384A).');
+  else if (!/^[A-Z0-9][A-Z0-9-]{1,19}$/.test(d.codigo)) out.push('Código: debe empezar por letra o número y tener solo letras, números o guiones, sin espacios (máximo 20).');
+  if (!d.clasificacion_id) out.push('Clasificación: elige si es XV Años, Gala, Novia, Pajecita u otro.');
+  if (d.nombre.trim().length < 3) out.push('Nombre: escribe una descripción de al menos 3 letras.');
+  if (!d.talla.trim()) out.push('Talla: escribe la talla (ej.: S, M, 10).');
+  if (!d.color.trim()) out.push('Color: escribe el color.');
+  if (!alquiler && !venta) out.push('Disponible para: marca alquiler, venta o los dos.');
+  if (alquiler && !(Number(d.precio) > 0)) out.push('Precio de alquiler: escribe un valor mayor a 0.');
+  if (venta && !(Number(d.precio_venta) > 0)) out.push('Precio de venta: escribe un valor mayor a 0 (está marcado para venta).');
+  if (!d.sede_actual_id) out.push('Sede base: elige la sede donde queda el vestido.');
+  if (fotos) { const f = PHOTO_SLOTS.filter(([k]) => !fotos[k]).map(([, l]) => l); if (f.length) out.push(`Fotos: falta${f.length > 1 ? 'n' : ''} ${f.join(', ')}. Sube las 3 (frente, espalda y detalle).`); }
+  return out;
+}
+/** Database errors in words that say what to correct. */
+function dressSaveError(e: { code?: string; message?: string } | null | undefined, codigo: string) {
+  const m = String(e?.message || '');
+  if (e?.code === '23505' || /duplicate|unique/i.test(m)) return `Ya existe un vestido con el código ${codigo} en esa sede. Cambia el código (por ejemplo agrega una letra al final).`;
+  if (e?.code === '42501' || /permission|policy|row-level/i.test(m)) return 'No tienes permiso para guardar vestidos en esa sede. Elige una sede tuya o pide acceso a administración.';
+  if (e?.code === '23514' || /check constraint/i.test(m)) return 'Algún dato no tiene el formato permitido (precio, talla o estado). Revisa los campos y vuelve a guardar.';
+  return `No se pudo guardar: ${m || 'error desconocido'}. Revisa los datos; si sigue, avísale a administración.`;
+}
+/** Red box listing what to fix before saving. */
+function FixList({ items }: { items: string[] }) {
+  if (!items.length) return null;
+  return <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-700 space-y-1"><p className="font-black uppercase tracking-widest text-[10px]">Para guardar, corrige:</p><ul className="list-disc ml-4 space-y-0.5">{items.map(t => <li key={t}>{t}</li>)}</ul></div>;
 }
 
 type EditableDress = { id: number; codigo: string; nombre: string | null; clasificacion_id: number | null; talla: string | null; color: string | null; precio_sugerido: number | null; precio_venta?: number | null; para_alquiler?: boolean | null; para_venta?: boolean | null };
@@ -1612,9 +1667,10 @@ type EditableDress = { id: number; codigo: string; nombre: string | null; clasif
 function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: EditableDress; clasificaciones: { id: number; nombre: string; activo: boolean }[]; onClose: () => void; onSaved: () => void }) {
   const [f, setF] = useState({ codigo: dress.codigo.trim(), clasificacion_id: dress.clasificacion_id ? String(dress.clasificacion_id) : '', nombre: dress.nombre || '', talla: dress.talla || '', color: dress.color || '', precio: dress.precio_sugerido ? String(dress.precio_sugerido) : '', precio_venta: dress.precio_venta ? String(dress.precio_venta) : '', sede_actual_id: 'x', para_alquiler: dress.para_alquiler !== false, para_venta: !!dress.para_venta });
   const [saving, setSaving] = useState(false);
-  const faltan = dressMissing(f);
+  // An old code with a format no longer allowed does not block editing other data (only a new code must follow the rule).
+  const faltan = dressMissing(f).filter(m => !(m.startsWith('Código: debe') && f.codigo === dress.codigo.trim()));
   const save = async () => {
-    if (faltan.length) { toast.error(`Completa: ${faltan.join(', ')}.`); return; }
+    if (faltan.length) { toast.error(`Para guardar, corrige: ${faltan.join(' ')}`); return; }
     if (f.codigo !== dress.codigo && !window.confirm(`¿Cambiar el código ${dress.codigo} por ${f.codigo}? Cambia también la etiqueta física del vestido.`)) return;
     setSaving(true);
     const changes: Record<string, unknown> = {};
@@ -1630,7 +1686,7 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
     if (!Object.keys(changes).length) { setSaving(false); onClose(); return; }
     const { error } = await supabase.from('vestidos').update(changes).eq('id', dress.id);
     setSaving(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) { toast.error(dressSaveError(error, f.codigo)); return; }
     toast.success('Vestido actualizado 💎');
     onSaved();
   };
@@ -1651,7 +1707,7 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
         <label className={label}>6. Precio de alquiler {f.para_alquiler ? '*' : '(opcional)'}<input type="text" inputMode="numeric" className={input} value={miles(f.precio)} onChange={(e) => setF({ ...f, precio: soloDigitos(e.target.value) })} /></label>
         <label className={label}>Precio de venta {f.para_venta ? '*' : 'sugerido'}<input type="text" inputMode="numeric" placeholder="Opcional" className={input} value={miles(f.precio_venta)} onChange={(e) => setF({ ...f, precio_venta: soloDigitos(e.target.value) })} /></label>
       </div>
-      {faltan.length > 0 && <p role="alert" className="text-xs font-bold text-rose-600">Para guardar falta: {faltan.join(', ')}.{faltan.includes('Precio de alquiler') ? ' Si este vestido no se alquila, desmarca «Alquiler».' : ''}</p>}
+      <FixList items={faltan} />
       <p className="text-[11px] text-gray-400">La sede se cambia con la lista «Sede actual» de la fila (traslado) y el estado con sus botones de siempre.</p>
       <div className="flex gap-3 justify-end"><button onClick={onClose} disabled={saving} className="px-5 py-3 rounded-xl border font-bold text-sm">Cancelar</button>
         <button onClick={() => void save()} disabled={saving || faltan.length > 0} className="px-5 py-3 rounded-xl bg-rose-500 text-white font-black text-sm disabled:opacity-50">{saving ? 'Guardando…' : 'Guardar'}</button></div>
