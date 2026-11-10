@@ -6,6 +6,7 @@ import {attachmentBlocks} from './ai-attachments';
 import {allySlug} from './ally-validation';
 import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
 import {WHATSAPP_TOOLS,runWhatsappTool} from './whatsapp-tools';
+import {loadSocialSettings,sendSocialText} from './social-inbox';
 
 /** Ventas y CRM › WhatsApp 304: the AI reads the chat, labels it, detects the store, flags chats a person must take and leaves a suggested reply. It never sends anything. */
 export const WHATSAPP_TAGS=['cita','disponibilidad','precio','pago','contrato','reclamo','aliado','otro'] as const;
@@ -20,6 +21,7 @@ Cómo suenas (lo más importante es que se sienta atendida por una persona cerca
 - Responde primero exactamente lo que preguntó, con datos concretos, y luego da un solo paso siguiente.
 - No repitas información ni enlaces que ya se enviaron en la conversación, salvo que los vuelva a pedir.
 - Varía tus frases: no empieces siempre igual ni cierres siempre con la misma pregunta.
+- Canal: en los datos de la clienta viene «canal» (whatsapp, instagram o messenger). Si escribe por Instagram o Messenger no tienes su celular: cuando quiera agendar o separar, pídele con naturalidad su número de WhatsApp para que la sede la contacte, y sigue atendiéndola por ese mismo canal.
 - Usa su nombre cuando lo sepas. Nunca digas que eres una IA, un bot o un asistente virtual, salvo que lo pregunte directamente.
 
 Resuelve tú primero (pasar a una persona es el último recurso):
@@ -166,14 +168,15 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
  if(!process.env.ANTHROPIC_API_KEY)return;
  try{
   const [{data:conv},{data:msgs},{cfg,sites,clauses,catalogs}]=await Promise.all([
-   db.from('whatsapp_conversaciones').select('id,telefono,nombre,sede_id,ia_pausada,ia_pausada_at').eq('id',conversationId).single(),
+   db.from('whatsapp_conversaciones').select('id,telefono,nombre,sede_id,ia_pausada,ia_pausada_at,canal,contacto_id').eq('id',conversationId).single(),
    db.from('whatsapp_mensajes').select('id,direccion,texto,created_at,media_id,media_tipo').eq('conversacion_id',conversationId).order('created_at',{ascending:false}).limit(20),
    loadBasics(db),
   ]);
   if(!conv||!msgs?.length)return;
   const history=(msgs as Msg[]).reverse();
   if(history[history.length-1].direccion!=='entrante')return;// already answered
-  const {data:ctx}=await db.rpc('whatsapp_contexto_servidor',{p_tel:conv.telefono});
+  const social=conv.canal&&conv.canal!=='whatsapp';
+  const {data:ctx}=social?{data:null}:await db.rpc('whatsapp_contexto_servidor',{p_tel:conv.telefono});
   const chat=history.map(m=>`[${new Date(m.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'})}] ${m.direccion==='entrante'?'Clienta':'Ámbar'}: ${m.texto||''}`).join('\n');
   // Photos the customer sent since Ámbar's last reply (up to 2), so the AI can see them.
   const pendientes:(Msg&{media_id?:string|null})[]=[];for(let i=history.length-1;i>=0&&history[i].direccion==='entrante';i--)pendientes.push(history[i]);
@@ -181,7 +184,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   const extra:Anthropic.ContentBlockParam[]=[];
   if(fotos.length){const settings=await loadWhatsappSettings(db);if(settings.token)for(const m of fotos){const img=await downloadWhatsappImage(settings,String(m.media_id)).catch(()=>null);
    if(img&&['image/jpeg','image/png','image/webp','image/gif'].includes(img.tipo))extra.push({type:'image',source:{type:'base64',media_type:img.tipo as 'image/jpeg',data:img.datos}});}}
-  const out=await runWhatsappAI(cfg,sites,{nombre_whatsapp:conv.nombre,...(ctx||{})},chat,clauses,catalogs,extra,db);
+  const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(ctx||{})},chat,clauses,catalogs,extra,db);
   const sede=sites.find(s=>s.nombre.toLowerCase()===out.sede.trim().toLowerCase());
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:out.respuesta.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
@@ -197,9 +200,10 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   ]);
   const lastId=(history[history.length-1] as Msg&{id?:string}).id;
   if(!last||last.id!==lastId||(now?.ia_pausada&&now.ia_pausada_at!==conv.ia_pausada_at))return;
-  const settings=await loadWhatsappSettings(db);
-  if(!settings.token||!settings.phoneNumberId)return;
-  const texto=out.respuesta.trim().slice(0,4000),waId=await sendWhatsappText(settings,conv.telefono,texto),at=new Date().toISOString();
+  const texto=out.respuesta.trim().slice(0,4000);let waId:string;
+  if(social){const s=await loadSocialSettings(db);if(!s||!conv.contacto_id)return;waId=await sendSocialText(s,conv.contacto_id,texto);}
+  else{const settings=await loadWhatsappSettings(db);if(!settings.token||!settings.phoneNumberId)return;waId=await sendWhatsappText(settings,conv.telefono,texto);}
+  const at=new Date().toISOString();
   await db.from('whatsapp_mensajes').insert({conversacion_id:conversationId,wa_id:waId,direccion:'saliente',origen:'ia',tipo:'text',texto,estado:'sent',created_at:at});
   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:at,ia_sugerencia:null,...(expired?{ia_pausada:false,ia_pausada_at:null,ia_pausada_por:null}:{})}).eq('id',conversationId);
  }catch(e){

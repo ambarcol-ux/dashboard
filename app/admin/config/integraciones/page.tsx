@@ -7,6 +7,7 @@ import {Loader2,Mail,Plug} from 'lucide-react';
 import {toast,Toaster} from 'sonner';
 import {EMAIL_PROVIDERS,type EmailProviderId} from '@/lib/email-provider-list';
 import WhatsappIntegration from '@/components/WhatsappIntegration';
+import SocialIntegration from '@/components/SocialIntegration';
 
 type Row={proveedor:EmailProviderId;config:Record<string,string>;secreto_id:string|null;webhook_token:string;estado:string;ultimo_error:string|null;probado_at:string|null;sincronizado_at:string|null;sincronizados:number|null};
 type Event={id:number;proveedor:string;evento:string;email:string|null;revoco:boolean;created_at:string};
@@ -83,5 +84,6 @@ export default function IntegrationsPage(){
    </div>}
   </section>}
   {!loading&&<WhatsappIntegration/>}
+  {!loading&&<SocialIntegration/>}
  </div></main></div>;
 }
