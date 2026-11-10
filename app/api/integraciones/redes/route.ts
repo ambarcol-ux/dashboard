@@ -1,6 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply} from '@/lib/public-db';
-import {loadSocialSettings} from '@/lib/social-inbox';
+import {loadSocialSettings,pageToken} from '@/lib/social-inbox';
 export const dynamic='force-dynamic';
 
 /** Configuración › Integraciones › Instagram y Messenger: «Probar conexión» checks the page token, the Instagram account and subscribes the page to the ERP webhook. Admin only. */
@@ -15,7 +15,8 @@ export async function POST(request:Request){
   if(admin!==true)return publicReply({error:'Solo administración puede usar las integraciones.'},403);
   const db=publicServerClient(),s=await loadSocialSettings(db),v=process.env.META_GRAPH_VERSION||'v21.0';
   if(!s)return publicReply({error:'Primero guarda el ID de la página y el token.'},400);
-  const get=async(path:string,init?:RequestInit)=>{const r=await fetch(`https://graph.facebook.com/${v}/${path}${path.includes('?')?'&':'?'}access_token=${encodeURIComponent(s.token)}`,{...init,signal:AbortSignal.timeout(15000)});return {ok:r.ok,d:await r.json().catch(()=>({})) as Record<string,any>};}; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const pt=await pageToken(s);
+  const get=async(path:string,init?:RequestInit)=>{const r=await fetch(`https://graph.facebook.com/${v}/${path}${path.includes('?')?'&':'?'}access_token=${encodeURIComponent(pt)}`,{...init,signal:AbortSignal.timeout(15000)});return {ok:r.ok,d:await r.json().catch(()=>({})) as Record<string,any>};}; // eslint-disable-line @typescript-eslint/no-explicit-any
   const fail=async(msg:string)=>{await db.from('integraciones').update({estado:'error',ultimo_error:msg.slice(0,300),probado_at:new Date().toISOString()}).eq('id','redes');return publicReply({error:msg},400);};
   const page=await get(`${s.pageId}?fields=name,instagram_business_account{id,username}`);
   if(!page.ok)return fail(`Meta no aceptó el token o el ID de la página: ${String(page.d.error?.message||'').slice(0,160)}`);

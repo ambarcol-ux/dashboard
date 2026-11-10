@@ -12,6 +12,16 @@ export async function loadSocialSettings(db:SupabaseClient):Promise<SocialSettin
  if(!r?.activo||!r.secreto||!r.config?.page_id)return null;
  return {token:r.secreto,pageId:r.config.page_id,instagramId:r.config.instagram_id||'',verifyToken:String(r.webhook_token||''),estado:String(r.estado||'')};
 }
+/** The saved token may be a system-user token: Meta's Send API needs the page's own token, obtained from it (cached for 1 hour). */
+const pageTokens=new Map<string,{token:string;at:number}>();
+export async function pageToken(s:SocialSettings){
+ const k=`${s.pageId}|${s.token.slice(-12)}`,hit=pageTokens.get(k);
+ if(hit&&Date.now()-hit.at<3600000)return hit.token;
+ let token=s.token;
+ try{const r=await fetch(`https://graph.facebook.com/${version()}/${s.pageId}?fields=access_token&access_token=${encodeURIComponent(s.token)}`,{signal:AbortSignal.timeout(8000)});
+  const d=await r.json() as {access_token?:string};if(r.ok&&d.access_token)token=d.access_token;}catch{/* the saved token is used as is */}
+ pageTokens.set(k,{token,at:Date.now()});return token;
+}
 /** Chat key in the inbox: «fb:<id>» for Messenger, «ig:<id>» for Instagram (not a phone number). */
 export const socialKey=(canal:Canal,id:string)=>`${canal==='instagram'?'ig':'fb'}:${id}`;
 export const isSocial=(telefono:string)=>/^(fb|ig):/.test(telefono);
@@ -25,7 +35,7 @@ function text(m:Value){
 async function profileName(s:SocialSettings,canal:Canal,id:string){
  try{
   const fields=canal==='instagram'?'name,username':'first_name,last_name';
-  const r=await fetch(`https://graph.facebook.com/${version()}/${id}?fields=${fields}&access_token=${encodeURIComponent(s.token)}`,{signal:AbortSignal.timeout(8000)});
+  const r=await fetch(`https://graph.facebook.com/${version()}/${id}?fields=${fields}&access_token=${encodeURIComponent(await pageToken(s))}`,{signal:AbortSignal.timeout(8000)});
   const d=await r.json() as Value;if(!r.ok)return null;
   return canal==='instagram'?String(d.name||d.username||'')||null:[d.first_name,d.last_name].filter(Boolean).join(' ')||null;
  }catch{return null;}
@@ -58,7 +68,7 @@ export async function storeSocialEvents(db:SupabaseClient,s:SocialSettings,paylo
 
 /** Sends a text reply on Messenger or Instagram (within Meta's 24-hour window). Returns the message id. */
 export async function sendSocialText(s:SocialSettings,recipient:string,body:string){
- const r=await fetch(`https://graph.facebook.com/${version()}/${s.pageId}/messages?access_token=${encodeURIComponent(s.token)}`,{method:'POST',headers:{'Content-Type':'application/json'},
+ const r=await fetch(`https://graph.facebook.com/${version()}/${s.pageId}/messages?access_token=${encodeURIComponent(await pageToken(s))}`,{method:'POST',headers:{'Content-Type':'application/json'},
   body:JSON.stringify({recipient:{id:recipient},messaging_type:'RESPONSE',message:{text:body.slice(0,1000)}}),signal:AbortSignal.timeout(15000)});
  const d=await r.json().catch(()=>({})) as {message_id?:string;error?:{message?:string;code?:number}};
  if(!r.ok||!d.message_id)throw Error(d.error?.code===10||/outside of allowed window/i.test(String(d.error?.message))?'Pasaron más de 24 horas desde el último mensaje de la clienta: Meta no deja responderle por aquí. Escríbele desde Meta Business Suite.':`Meta no aceptó el mensaje: ${String(d.error?.message||r.status).slice(0,160)}`);
