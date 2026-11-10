@@ -17,13 +17,15 @@ export async function GET(request:Request){
 }
 export async function POST(request:Request){
  const raw=await request.text();if(raw.length>262144)return new Response('Demasiado grande',{status:413});
- if(!validMetaSignature(raw,request.headers.get('x-hub-signature-256')||'',process.env.META_APP_SECRET||''))return new Response('Firma inválida',{status:403});
+ console.log('Redes: aviso recibido',raw.slice(0,300));
+ if(!validMetaSignature(raw,request.headers.get('x-hub-signature-256')||'',process.env.META_APP_SECRET||'')){console.warn('Redes: firma inválida (¿la app de Meta no es la de META_APP_SECRET?)');return new Response('Firma inválida',{status:403});}
  try{
   const db=service(),s=await loadSocialSettings(db);
-  if(!s)return Response.json({activo:false});
+  if(!s){console.warn('Redes: sin conexión activa en Integraciones');return Response.json({activo:false});}
   const payload=JSON.parse(raw);
   if(payload.object!=='page'&&payload.object!=='instagram')return Response.json({ignorado:true});
   const touched=await storeSocialEvents(db,s,payload);
+  console.log('Redes: chats con mensajes nuevos',touched.length);
   if(touched.length)after(async()=>{for(const id of touched)await suggestWhatsappReply(db,id);});
   return Response.json({recibido:true});
  }catch(e){console.error('Redes:',e);return new Response('No se pudo procesar',{status:500});}
