@@ -28,7 +28,7 @@ export function MailAutomations({canEdit}:{canEdit:boolean}){
   {msg&&<p role="status" style={{fontWeight:700}}>{msg}</p>}
   {rows.map(a=>edit?.id===a.id?<fieldset key={a.id} style={box}>
    <b>{a.nombre}</b>
-   {a.id===AUTH_REQUEST_ID?<p style={{fontSize:12}}>Se envía una sola vez desde Correo › Envíos. Usa {'{enlace_autorizacion}'} para el botón de autorizar; no incluyas promociones.</p>:<>
+   {a.id===AUTH_REQUEST_ID?<p style={{fontSize:12}}>Encendida, se envía sola una única vez a cada persona nueva (también puedes enviarla en lote desde Correo › Envíos). Usa {'{enlace_autorizacion}'} para el botón de autorizar; no incluyas promociones.</p>:<>
    <label><input type="checkbox" checked={edit.activo} onChange={e=>setEdit({...edit,activo:e.target.checked})}/> Encendida</label>
    <label>Momento: <input type="number" min={0} max={8760} value={edit.momento_horas} onChange={e=>setEdit({...edit,momento_horas:Number(e.target.value)})} style={{width:90}}/> {MAIL_TRIGGER[a.disparador]}</label></>}
    <p style={{fontSize:12}}><b>Sedes</b> (ninguna = todas): {sedes.map(s=><label key={s.id} style={{marginRight:10}}><input type="checkbox" checked={(edit.sede_ids||[]).includes(s.id)} onChange={()=>setEdit({...edit,sede_ids:toggle(edit.sede_ids||[],s.id)})}/> {s.nombre}</label>)}</p>
@@ -37,10 +37,10 @@ export function MailAutomations({canEdit}:{canEdit:boolean}){
    <Help/>
    <div className={styles.toolbar}><button type="button" onClick={()=>setEdit(null)}>Cancelar</button><button type="button" className={styles.primary} disabled={edit.asunto.trim().length<2||edit.cuerpo.trim().length<10} onClick={()=>void save(edit)}>Guardar</button></div>
   </fieldset>:<article key={a.id} style={{...box,opacity:a.activo?1:.6}}>
-   <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><b>{a.id===AUTH_REQUEST_ID?'':`${a.orden}. `}{a.nombre}</b>{a.id!==AUTH_REQUEST_ID&&<b style={{color:a.activo?'#047857':'#6b7280'}}>{a.activo?'Encendida':'Apagada'}</b>}</div>
+   <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><b>{a.id===AUTH_REQUEST_ID?'':`${a.orden}. `}{a.nombre}</b><b style={{color:a.activo?'#047857':'#6b7280'}}>{a.activo?'Encendida':'Apagada'}</b></div>
    <span style={{fontSize:13}}>{a.id===AUTH_REQUEST_ID?'':a.momento_horas} {MAIL_TRIGGER[a.disparador]} · Sedes: {a.sede_ids?.length?a.sede_ids.map(id=>sedes.find(s=>s.id===id)?.nombre||'—').join(', '):'Todas'}</span>
    <span style={{fontSize:13}}><b>Asunto:</b> {a.asunto}</span>
-   {canEdit&&<div className={styles.toolbar}><button type="button" onClick={()=>setEdit(a)}>Editar</button>{a.id!==AUTH_REQUEST_ID&&<button type="button" onClick={()=>void save({...a,activo:!a.activo})}>{a.activo?'Apagar':'Encender'}</button>}</div>}
+   {canEdit&&<div className={styles.toolbar}><button type="button" onClick={()=>setEdit(a)}>Editar</button><button type="button" onClick={()=>void save({...a,activo:!a.activo})}>{a.activo?'Apagar':'Encender'}</button></div>}
   </article>)}
  </div>;
 }

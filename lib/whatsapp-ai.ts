@@ -5,6 +5,7 @@ import {sendWhatsappText,downloadWhatsappImage} from './whatsapp-inbox';
 import {attachmentBlocks} from './ai-attachments';
 import {allySlug} from './ally-validation';
 import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
+import {WHATSAPP_TOOLS,runWhatsappTool} from './whatsapp-tools';
 
 /** Ventas y CRM › WhatsApp 304: the AI reads the chat, labels it, detects the store, flags chats a person must take and leaves a suggested reply. It never sends anything. */
 export const WHATSAPP_TAGS=['cita','disponibilidad','precio','pago','contrato','reclamo','aliado','otro'] as const;
@@ -32,7 +33,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - No des datos de dinero de un contrato (saldos, valores).
 - No saludes de nuevo si ya hubo saludo reciente en la conversación.
 - Si el último mensaje de la clienta lleva varias horas sin respuesta, empieza con una disculpa breve y natural por la demora y luego respóndele.
-- Inventario del catálogo: en <catalogos> tienes los vestidos que las clientas pueden ver (código, tipo, categoría, talla, color y precio de alquiler). Úsalo para responder lo que pidan (por ejemplo «¿tienen vestidos azules talla M?»): menciona hasta 4 códigos que cumplan, con su precio de alquiler, y el enlace del catálogo. Esos precios son públicos y sí puedes darlos. Nunca confirmes que un vestido está libre para una fecha: eso lo confirma una asesora.
+- Inventario del catálogo: en <catalogos> tienes los vestidos que las clientas pueden ver (código, tipo, categoría, talla, color y precio de alquiler). Úsalo para responder lo que pidan (por ejemplo «¿tienen vestidos azules talla M?»): menciona hasta 4 códigos que cumplan, con su precio de alquiler, y el enlace del catálogo. Esos precios son públicos y sí puedes darlos. Disponibilidad y citas con datos reales del ERP: si la clienta pregunta si un vestido está libre para su fecha, usa la herramienta disponibilidad_vestido; si busca opciones para su fecha (por tipo, talla o color), usa vestidos_libres; si pregunta qué días u horas hay para la cita, usa cupos_cita. Responde con lo que digan (por ejemplo «¡Sí, el CD384A está libre para el 12 de diciembre!») y aclara con naturalidad que el vestido se separa al firmar el contrato. Si está ocupado, ofrécele los libres parecidos. Pregunta la fecha del evento si no la sabes. No pases el chat a una persona por disponibilidad o cupos si las herramientas responden.
 - Fotos y archivos: si la clienta envía una foto (por ejemplo de un vestido que le gustó o de su inspiración), descríbela en pocas palabras y sugiere vestidos parecidos del inventario de su sede; no afirmes que es el mismo vestido.
 - Catálogo: si la clienta pide ver vestidos, modelos, fotos o el catálogo, envíale el enlace del catálogo de su sede y tipo de vestido tal cual aparece en <catalogos> (no lo modifiques). Si sabes la sede pero no el tipo de vestido, envía el enlace general de esa sede (ahí la clienta elige el tipo). Si no sabes la sede, pregúntala primero. Si esa combinación no está en la lista, di que una asesora le comparte opciones. Invítala a agendar su primera cita desde el catálogo.
 - Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
@@ -123,16 +124,29 @@ export async function loadErpContext(db:SupabaseClient){
 }
 
 /** One AI call. Used by the inbox and by the «Probar» box of the settings screen. */
-export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,chat:string,clauses='',catalogs='',extra:Anthropic.ContentBlockParam[]=[]):Promise<IaOutput>{
+export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,chat:string,clauses='',catalogs='',extra:Anthropic.ContentBlockParam[]=[],db?:SupabaseClient):Promise<IaOutput>{
  const today=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',year:'numeric',month:'long',day:'numeric'});
  const client=new Anthropic();
- const response=await client.messages.create({
-  model:MODEL,max_tokens:2000,
-  system:[{type:'text',text:systemPrompt(cfg,sites,clauses,catalogs),cache_control:{type:'ephemeral'}}],
-  output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},
-  // Photos and files the customer sent go first, then the conversation.
-  messages:[{role:'user',content:[...extra,{type:'text',text:`Hoy es ${today}.\n\nDatos de la clienta en el ERP (nombre, sede, primeras citas y contratos):\n${JSON.stringify(customer)}\n\nConversación (la más reciente al final):\n${chat}${extra.length?'\n\n(Los archivos de arriba los envió la clienta en sus últimos mensajes.)':''}`}]}],
- });
+ // Photos and files the customer sent go first, then the conversation.
+ const messages:Anthropic.MessageParam[]=[{role:'user',content:[...extra,{type:'text',text:`Hoy es ${today}.\n\nDatos de la clienta en el ERP (nombre, sede, primeras citas y contratos):\n${JSON.stringify(customer)}\n\nConversación (la más reciente al final):\n${chat}${extra.length?'\n\n(Los archivos de arriba los envió la clienta en sus últimos mensajes.)':''}`}]}];
+ // With the database, the AI can look up dress availability and free visit slots (up to 4 rounds of lookups).
+ let response:Anthropic.Message;
+ for(let round=0;;round++){
+  response=await client.messages.create({
+   model:MODEL,max_tokens:2000,
+   system:[{type:'text',text:systemPrompt(cfg,sites,clauses,catalogs),cache_control:{type:'ephemeral'}}],
+   output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},
+   ...(db?{tools:WHATSAPP_TOOLS,tool_choice:{type:'auto' as const}}:{}),
+   messages,
+  });
+  if(response.stop_reason!=='tool_use'||!db||round>=4)break;
+  const calls=response.content.filter((b):b is Anthropic.ToolUseBlock=>b.type==='tool_use');
+  const results=await Promise.all(calls.map(async c=>{
+   try{return {type:'tool_result' as const,tool_use_id:c.id,content:await runWhatsappTool(db,sites,c.name,c.input as Record<string,unknown>)};}
+   catch{return {type:'tool_result' as const,tool_use_id:c.id,content:'No se pudo consultar ahora.',is_error:true};}
+  }));
+  messages.push({role:'assistant',content:response.content},{role:'user',content:results});
+ }
  if(response.stop_reason==='refusal')throw Error('La IA no quiso responder este chat.');
  const text=response.content.find(b=>b.type==='text');
  if(!text||text.type!=='text')throw Error('La IA no devolvió respuesta.');
@@ -144,7 +158,7 @@ export const aiErrorText=(e:unknown)=>e instanceof Anthropic.APIError?`Anthropic
 export async function testWhatsappAI(db:SupabaseClient,cfg:IaConfig,turns:{rol:'clienta'|'ambar';texto:string}[],adjuntos?:unknown){
  const blocks=attachmentBlocks(adjuntos);
  const {sites,clauses,catalogs}=await loadBasics(db);
- return runWhatsappAI(cfg,sites,{nombre:null,citas:[],contratos:[]},turns.map(t=>`${t.rol==='clienta'?'Clienta':'Ámbar'}: ${t.texto}`).join('\n'),clauses,catalogs,blocks);
+ return runWhatsappAI(cfg,sites,{nombre:null,citas:[],contratos:[]},turns.map(t=>`${t.rol==='clienta'?'Clienta':'Ámbar'}: ${t.texto}`).join('\n'),clauses,catalogs,blocks,db);
 }
 
 /** Builds the suggestion for one chat and saves it. Errors are saved in ia_error so the screen can show them. */
@@ -167,7 +181,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   const extra:Anthropic.ContentBlockParam[]=[];
   if(fotos.length){const settings=await loadWhatsappSettings(db);if(settings.token)for(const m of fotos){const img=await downloadWhatsappImage(settings,String(m.media_id)).catch(()=>null);
    if(img&&['image/jpeg','image/png','image/webp','image/gif'].includes(img.tipo))extra.push({type:'image',source:{type:'base64',media_type:img.tipo as 'image/jpeg',data:img.datos}});}}
-  const out=await runWhatsappAI(cfg,sites,{nombre_whatsapp:conv.nombre,...(ctx||{})},chat,clauses,catalogs,extra);
+  const out=await runWhatsappAI(cfg,sites,{nombre_whatsapp:conv.nombre,...(ctx||{})},chat,clauses,catalogs,extra,db);
   const sede=sites.find(s=>s.nombre.toLowerCase()===out.sede.trim().toLowerCase());
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:out.respuesta.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
