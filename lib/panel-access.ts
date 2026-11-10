@@ -47,6 +47,7 @@ export const PANELS:Panel[]=[
  {id:'siigo',label:'Facturación por sede',href:'/admin/config/siigo',block:'ADMINISTRACIÓN',paths:['/admin/config/siigo'],grantable:false},
  {id:'integraciones',label:'Integraciones',href:'/admin/config/integraciones',block:'ADMINISTRACIÓN',paths:['/admin/config/integraciones'],grantable:false},
  {id:'accesos',label:'Accesos por perfil',href:'/admin/accesos',block:'ADMINISTRACIÓN',paths:['/admin/accesos'],grantable:false},
+ {id:'documentos',label:'Documentos de la marca',href:'/dashboard/documentos',block:'ADMINISTRACIÓN',paths:['/dashboard/documentos'],staff:true,grantable:true},
  {id:'manual',label:'Manual de usuario',href:'/dashboard/manuales',block:'SOPORTE Y AYUDA',paths:['/dashboard/manuales'],staff:true,grantable:true},
 ];
 export const panelById=(id:string)=>PANELS.find(p=>p.id===id);
