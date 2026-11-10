@@ -37,26 +37,30 @@ export async function POST(request:Request){
     if(solicitud?(!aut||aut.estado==='revocada'||aut.comercial):(!aut||aut.estado!=='autorizada'||!aut.comercial)){estadoFinal='omitido';motivo=solicitud?'Ya respondió la autorización':'Sin autorización comercial vigente';}
     else{
      const o=`correo-${j.automatizacion_id||'campana'}`;
+     let tel='';
      const values:Record<string,string>={nombre:(j.nombre||'').split(/\s+/)[0]||'',sede:'',enlace_cita:`${origin}/agendar-primera-cita?o=${o}`,catalogo:'',promocion:'',beneficio:'',condiciones:'',vigencia:'',fecha_evento:'',resena:''};
      if(j.cita_id){
-      const {data:c}=await db.from('primeras_citas').select('sede_id,tipo_vestido,fecha_evento').eq('id',j.cita_id).single();
-      const sede=(sedes||[]).find(s=>s.id===c?.sede_id)?.nombre||'';
+      const {data:c}=await db.from('primeras_citas').select('sede_id,tipo_vestido,fecha_evento,telefono').eq('id',j.cita_id).single();
+      const sede=(sedes||[]).find(s=>s.id===c?.sede_id)?.nombre||'';tel=c?.telefono||'';
       Object.assign(values,{sede,fecha_evento:dmy(c?.fecha_evento),enlace_cita:`${origin}/agendar-primera-cita?${new URLSearchParams({...(c?.sede_id?{sede:c.sede_id}:{}),o})}`});
       values.catalogo=catalogLink(origin,sede,c?.tipo_vestido,o)||values.enlace_cita;
      }
-     if(j.contrato_id){const {data:k}=await db.from('contratos').select('sede_id').eq('id',j.contrato_id).single();values.sede=(sedes||[]).find(s=>s.id===k?.sede_id)?.nombre||'';}
+     if(j.contrato_id){const {data:k}=await db.from('contratos').select('sede_id,cliente_whatsapp,whatsapp').eq('id',j.contrato_id).single();values.sede=(sedes||[]).find(s=>s.id===k?.sede_id)?.nombre||'';tel=k?.cliente_whatsapp||k?.whatsapp||'';}
      if(j.promocion_id){
       const {data:p}=await db.from('promociones').select('*').eq('id',j.promocion_id).single();
       if(p)Object.assign(values,{promocion:p.nombre,beneficio:promoBenefit(p as Promotion),condiciones:p.condiciones||'',vigencia:dmy(p.hasta)});
      }
      values.resena=(sedes||[]).find(s=>s.nombre===values.sede)?.resena_url||'';
+     // At most one review request every 6 months per person, and never with an open complaint in the 304 chat.
+     if(values.resena&&plantilla.cuerpo.includes('{resena}')){const {data:ok,error:e}=await db.rpc('resena_permitida',{p_telefono:tel,p_email:j.email});if(e||ok!==true)values.resena='';}
      values.enlace_autorizacion=authLink(origin,aut!.token);
      // Without the store's Google review link, the paragraph that asks for the review is left out.
      const cuerpo=values.resena?plantilla.cuerpo:plantilla.cuerpo.split(/\n{2,}/).filter((p:string)=>!p.includes('{resena}')).join('\n\n');
      const mail=renderMail(plantilla.asunto,cuerpo,values,authLink(origin,aut!.token),solicitud);
      asunto=mail.asunto;
      const r=await sendEmail(conn as EmailConnection,{to:j.email,nombre:j.nombre,...mail});
-     if(r.ok){estadoFinal='enviado';providerId=r.detalle||null;enviados++;}
+     if(r.ok){estadoFinal='enviado';providerId=r.detalle||null;enviados++;
+      if(values.resena&&plantilla.cuerpo.includes('{resena}'))await db.from('resenas_solicitudes').insert({telefono:String(tel).replace(/\D/g,'').slice(-10)||null,email:j.email,canal:'correo',origen:j.contrato_id?'contrato':'visita',cita_id:j.cita_id||null,contrato_id:j.contrato_id||null,sede_id:(sedes||[]).find(s=>s.nombre===values.sede)?.id||null});}
      else{motivo=r.error;errores++;}
     }
    }catch(e){motivo=e instanceof Error?e.message:'Error al preparar el correo';errores++;}

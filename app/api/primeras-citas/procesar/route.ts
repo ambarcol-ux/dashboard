@@ -51,11 +51,17 @@ export async function POST(request:Request){
     const link=visitManagementLink(origin,c.id,Date.parse(c.fecha+'T23:59:59-05:00')+30*86400000,process.env.FIRST_VISIT_LINK_SECRET||key);
     // If the customer wrote to the 304 in the last 24 hours, reminders go as normal messages (they also show in the inbox).
     const tel=whatsappPhone(c.telefono);
-    const {data:conv}=['recordatorio24','recordatorio2','recuperar'].includes(m.tipo)?await db.from('whatsapp_conversaciones').select('id,ultimo_entrante_at').eq('telefono',tel).maybeSingle():{data:null};
+    const {data:conv}=['recordatorio24','recordatorio2','recuperar','resena'].includes(m.tipo)?await db.from('whatsapp_conversaciones').select('id,ultimo_entrante_at').eq('telefono',tel).maybeSingle():{data:null};
     const open=!!conv?.ultimo_entrante_at&&Date.now()-Date.parse(conv.ultimo_entrante_at)<23.5*3600000;
-    const direct=open?openWindowPayload(m.tipo,c,sede,link,sites):null;
+    // Google review request after «Asistí»: a normal message while her 24 hours are open (no template), with her store's review link.
+    let resena:string|null=null;
+    if(m.tipo==='resena'){const {data:s}=await db.from('sedes').select('resena_url').eq('id',c.sede_id).maybeSingle();resena=s?.resena_url||null;}
+    const direct=m.tipo==='resena'?(open&&resena?{texto:`¡Gracias por venir, ${String(c.cliente_nombre).split(' ')[0]}! 💛 ¿Nos regalas 1 minuto para contar tu experiencia en Google? Tu opinión ayuda a otras quinceañeras y novias a encontrar su vestido: ${resena}`,payload:null as Record<string,unknown>|null}:null)
+     :open?openWindowPayload(m.tipo,c,sede,link,sites):null;
+    if(direct&&m.tipo==='resena')direct.payload={messaging_product:'whatsapp',to:tel,type:'text',text:{preview_url:false,body:direct.texto}};
     // Confirmations use the detailed per-store template; the 24-hour reminder asks to confirm. While Meta has not approved a template, the next one goes out.
-    const payloads=[direct?.payload??null,m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang):null,whatsappPayload(m.tipo,c,sede,link,wa.templateLang)].filter(p=>p!==null);
+    const payloads=m.tipo==='resena'?(direct?.payload?[direct.payload]:[]):[direct?.payload??null,m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang):null,whatsappPayload(m.tipo,c,sede,link,wa.templateLang)].filter(p=>p!==null);
+    if(!payloads.length){state='omitido';issue='Sin las 24 horas abiertas o sin enlace de reseña de la sede';}
     for(const [n,payload] of payloads.entries()){
      const r=await fetch(`https://graph.facebook.com/${version}/${phone}/messages`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(8000)});
      const d=await r.json();if(r.ok&&d.messages?.[0]?.id){state='enviado';providerId=d.messages[0].id;issue=null;template=(payload as {template?:{name?:string}}).template?.name||null;
@@ -70,6 +76,7 @@ export async function POST(request:Request){
     }
    }
   }catch{issue='Resultado incierto; revisar proveedor antes de reintentar';}
+  if(state==='enviado'&&m.tipo==='resena')await db.from('resenas_solicitudes').insert({telefono:String(c.telefono).replace(/\D/g,'').slice(-10),email:c.email||null,canal:'whatsapp',origen:'visita',cita_id:c.id,sede_id:c.sede_id});
   // The same message shows in the customer's 304 chat in the ERP (only if she already has one), as sent by the ERP.
   if(state==='enviado'&&copy&&providerId){try{
    const {data:chat}=await db.from('whatsapp_conversaciones').select('id').eq('telefono',whatsappPhone(c.telefono)).maybeSingle();
