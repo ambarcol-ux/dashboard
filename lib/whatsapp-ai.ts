@@ -7,6 +7,7 @@ import {allySlug} from './ally-validation';
 import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
 import {WHATSAPP_TOOLS,runWhatsappTool} from './whatsapp-tools';
 import {loadSocialSettings,sendSocialText} from './social-inbox';
+import {marcarCanal} from './event-channel';
 
 /** Ventas y CRM › WhatsApp 304: the AI reads the chat, labels it, detects the store, flags chats a person must take and leaves a suggested reply. It never sends anything. */
 export const WHATSAPP_TAGS=['cita','disponibilidad','precio','pago','contrato','reclamo','aliado','otro'] as const;
@@ -61,7 +62,7 @@ type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:stri
 /** System prompt: fixed rules plus what administration wrote in «IA de WhatsApp». Stable between chats so it can be cached. */
 function systemPrompt(cfg:IaConfig,sites:Site[],clauses:string,catalogs=''){
  const origin=(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'');
- const sedes=sites.map(s=>`- ${s.nombre}: dirección ${s.direccion_clientes||s.direccion||'—'}; WhatsApp ${s.whatsapp||'—'}; mapa ${s.mapa_url||'—'}; agenda de primera cita ${origin}/agendar-primera-cita?sede=${s.id}`).join('\n');
+ const sedes=sites.map(s=>`- ${s.nombre}: dirección ${s.direccion_clientes||s.direccion||'—'}; WhatsApp ${s.whatsapp||'—'}; mapa ${s.mapa_url||'—'}; agenda de primera cita ${origin}/agendar-primera-cita?sede=${s.id}&o=ia-whatsapp`).join('\n');
  return [BASE,
   `<sedes>\n${sedes}\nEnlace para reprogramar la primera cita (todas las sedes): ${origin}/reprogramar-primera-cita\n</sedes>`,
   `<conocimientos>\n${cfg.conocimientos.trim()||'(sin conocimientos adicionales)'}\n</conocimientos>`,
@@ -185,6 +186,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   if(fotos.length){const settings=await loadWhatsappSettings(db);if(settings.token)for(const m of fotos){const img=await downloadWhatsappImage(settings,String(m.media_id)).catch(()=>null);
    if(img&&['image/jpeg','image/png','image/webp','image/gif'].includes(img.tipo))extra.push({type:'image',source:{type:'base64',media_type:img.tipo as 'image/jpeg',data:img.datos}});}}
   const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(ctx||{})},chat,clauses,catalogs,extra,db);
+  out.respuesta=marcarCanal(out.respuesta,conv.canal);
   const sede=sites.find(s=>s.nombre.toLowerCase()===out.sede.trim().toLowerCase());
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:out.respuesta.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
