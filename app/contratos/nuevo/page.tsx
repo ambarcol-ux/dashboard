@@ -1,5 +1,6 @@
 'use client';
 import { isRetiredDress } from '@/lib/inventory';
+import { fichaBloquea, fichaFaltantes, plazoTexto } from '@/lib/dress-completeness';
 import PaymentSupportUpload from '@/components/PaymentSupportUpload';
 import type { UploadedSupport } from '@/lib/payment-support';
 import {canEditSavedRecords} from '@/lib/saved-record-editing';
@@ -950,6 +951,7 @@ export default function NuevoContratoPage() {
       sede_nombre: string;
       estado: string;
     }[] = [];
+    const fichas: { id: string; codigo: string; faltan: string[] }[] = [];
 
     for (let i = 0; i < vestidosList.length; i++) {
       const v = vestidosList[i];
@@ -958,7 +960,7 @@ export default function NuevoContratoPage() {
 
       let query = supabase
         .from('vestidos')
-        .select('id, codigo, nombre, estado, sede_actual_id, stock_total, precio_sugerido, para_alquiler, sedes(nombre)')
+        .select('id, codigo, nombre, estado, sede_actual_id, stock_total, precio_sugerido, para_alquiler, clasificacion_id, talla, color, foto_frente, foto_espalda, foto_detalle, sedes(nombre)')
         .eq('archivado', false);
 
       if (v.vestido_id) {
@@ -1001,8 +1003,22 @@ export default function NuevoContratoPage() {
           sede_nombre: formData.sede,
           estado: existing.estado 
         });
+        fichas.push({ id: String(existing.id), codigo: existing.codigo || codigoUpper, faltan: fichaFaltantes(existing) });
       } else {
         throw new Error(`❌ El vestido '${codigoUpper}' no se encontró en el inventario global. Verifica si el código o nombre es correcto.`);
+      }
+    }
+    // Complete record: warning until the deadline, then only with an administration exception. Dresses already in the contract are not re-checked.
+    const previos = new Set<string>(((editingSnapshot?.items || []) as { vestido_id: unknown }[]).map(i => String(i.vestido_id)));
+    const incompletos = fichas.filter(f => !previos.has(f.id) && f.faltan.length);
+    if (incompletos.length) {
+      const detalle = (l: typeof incompletos) => l.map(f => `${f.codigo}: falta ${f.faltan.join(', ')}`).join(' · ');
+      if (!fichaBloquea()) toast.warning(`Ficha incompleta — ${detalle(incompletos)}. Desde el ${plazoTexto()} no se podrá contratar sin completarla en Inventario.`, { duration: 12000 });
+      else {
+        const { data: exc } = await supabase.from('vestido_excepciones_ficha').select('vestido_id').in('vestido_id', incompletos.map(f => f.id)).gt('vence', new Date().toISOString());
+        const autorizados = new Set(((exc || []) as { vestido_id: unknown }[]).map(e => String(e.vestido_id)));
+        const bloqueados = incompletos.filter(f => !autorizados.has(f.id));
+        if (bloqueados.length) throw new Error(`❌ Completa la ficha en Inventario antes de contratar — ${detalle(bloqueados)}. Si es urgente, administración puede autorizar una excepción desde la ficha del vestido.`);
       }
     }
     return resolved;
