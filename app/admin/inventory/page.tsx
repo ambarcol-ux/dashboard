@@ -3,6 +3,7 @@ import DressThumb from '@/components/DressThumb';
 import { createPortal } from 'react-dom';
 import { downloadCatalogPdf } from '@/lib/dress-catalog-pdf';
 import { codeCandidates, miniPath } from '@/lib/dress-photos';
+import { EXCEPCION_DIAS, diasParaPlazo, fichaBloquea, fichaFaltantes, plazoTexto } from '@/lib/dress-completeness';
 import {usePermissions} from '@/lib/use-permissions';
 import {canEditSavedRecords} from '@/lib/saved-record-editing';
 import {useVerifiedAccess} from '@/components/VerifiedAccessProvider';
@@ -644,6 +645,18 @@ export default function InventoryPage() {
             <button type="button" className="underline font-bold" onClick={() => { setDemorados(null); window.history.replaceState(null, '', '/admin/inventory'); }}>Ver todo el inventario</button></div>
           <div className="flex flex-wrap gap-2 mt-2">{demorados.map(x => <span key={x.vestido_id} className="px-2 py-1 rounded-lg bg-white border border-blue-200 font-bold">{x.codigo} · {x.dias} días</span>)}</div>
         </div>}
+        {(() => { // Records that cannot be contracted from the deadline on, per branch.
+          const visibles = new Set((misSedes || sedes).map(x => String(x.id)));
+          const porSede = new Map<string, number>();
+          for (const v of vestidos) if (!v.archivado && (!misSedes || visibles.has(String(v.sede_actual_id))) && fichaFaltantes(v).length) { const k = sedes.find(x => x.id === v.sede_actual_id)?.nombre || 'Sin sede'; porSede.set(k, (porSede.get(k) || 0) + 1); }
+          const total = [...porSede.values()].reduce((a, b) => a + b, 0);
+          if (!total) return null;
+          return <div className={`${fichaBloquea() ? 'bg-red-50 border-red-200 text-red-900' : 'bg-amber-50 border-amber-200 text-amber-900'} border rounded-2xl p-4 text-sm`}>
+            <b>{total} vestido{total === 1 ? '' : 's'} o accesorio{total === 1 ? '' : 's'} con ficha incompleta (fotos de frente, espalda y detalle, talla, color, clasificación o precio de alquiler). </b>
+            {fichaBloquea() ? 'Ya no se pueden incluir en contratos nuevos hasta completarlos.' : `Desde el ${plazoTexto()} (faltan ${diasParaPlazo()} días) no se podrán incluir en contratos nuevos.`}
+            <div className="flex flex-wrap gap-2 mt-2">{[...porSede.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => <span key={k} className="px-2 py-1 rounded-lg bg-white border font-bold">{k}: {n}</span>)}</div>
+          </div>;
+        })()}
         {/* Filters & Actions */}
         <div className="bg-white p-4 rounded-[2rem] shadow-sm border border-gray-100 flex flex-col gap-4">
           <div className="relative w-full">
@@ -1429,6 +1442,7 @@ export default function InventoryPage() {
                  {/* Content Area */}
                  <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-[#f8fafc]">
                     <DressPhotos dress={selectedDressDossier} canEdit={canEditDress(selectedDressDossier)} onSaved={(patch) => { setSelectedDressDossier((d: Record<string, unknown>) => ({ ...d, ...patch })); setVestidos(prev => prev.map(v => v.id === selectedDressDossier.id ? { ...v, ...patch } : v)); }} />
+                    <FichaExcepcion dress={selectedDressDossier} isAdmin={String(user?.rol || '').toLowerCase() === 'admin'} />
                     
                     {/* Atributos Quick View */}
                     <div className="grid grid-cols-4 gap-3 mb-8">
@@ -1931,4 +1945,38 @@ function DressPhotos({ dress, canEdit, onSaved }: { dress: Record<string, unknow
       ))}
     </div>
   );
+}
+
+/** Complete-record warning in the dossier; administration can authorize a temporary exception to contract it anyway. */
+function FichaExcepcion({ dress, isAdmin }: { dress: Record<string, unknown>; isAdmin: boolean }) {
+  const faltan = fichaFaltantes(dress);
+  const [excepcion, setExcepcion] = useState<{ id: string; vence: string | null }>({ id: '', vence: null });
+  const vence = excepcion.id === String(dress.id) ? excepcion.vence : null;
+  const setVence = (v: string | null) => setExcepcion({ id: String(dress.id), vence: v });
+  const [motivo, setMotivo] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    const id = String(dress.id);
+    if (faltan.length) void supabase.from('vestido_excepciones_ficha').select('vence').eq('vestido_id', id).gt('vence', new Date().toISOString()).order('vence', { ascending: false }).limit(1).then(({ data }) => { if (vivo) setExcepcion({ id, vence: data?.[0]?.vence || null }); });
+    return () => { vivo = false; };
+  }, [dress.id, faltan.length]);
+  if (!faltan.length) return null;
+  const autorizar = async () => {
+    if (motivo.trim().length < 5) { toast.error('Escribe el motivo de la excepción (mínimo 5 letras).'); return; }
+    setBusy(true);
+    const hasta = new Date(Date.now() + EXCEPCION_DIAS * 86400000).toISOString();
+    const { error } = await supabase.from('vestido_excepciones_ficha').insert({ vestido_id: dress.id, motivo: motivo.trim(), vence: hasta });
+    setBusy(false);
+    if (error) { toast.error(`No se pudo autorizar: ${error.message}`); return; }
+    setVence(hasta); setMotivo(''); toast.success(`Excepción autorizada por ${EXCEPCION_DIAS} días.`);
+  };
+  return <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+    <b>Ficha incompleta: falta {faltan.join(', ')}.</b> {fichaBloquea() ? 'No se puede incluir en contratos nuevos hasta completarla.' : `Desde el ${plazoTexto()} no se podrá incluir en contratos nuevos.`}
+    {vence && <div className="mt-2 font-bold text-emerald-700">Excepción de administración activa hasta el {new Date(vence).toLocaleDateString('es-CO')}.</div>}
+    {isAdmin && !vence && <div className="mt-3 flex flex-col sm:flex-row gap-2">
+      <input value={motivo} onChange={e => setMotivo(e.target.value)} maxLength={300} placeholder="Motivo de la excepción (ej.: contrato urgente, fotos en camino)" className="flex-1 rounded-xl border border-amber-200 bg-white px-3 py-2" />
+      <button type="button" disabled={busy} onClick={() => void autorizar()} className="rounded-xl bg-amber-600 px-4 py-2 text-xs font-black uppercase text-white disabled:opacity-50">{busy ? 'Guardando…' : `Autorizar ${EXCEPCION_DIAS} días`}</button>
+    </div>}
+  </div>;
 }
