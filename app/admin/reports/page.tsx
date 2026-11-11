@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { Toaster, toast } from 'sonner';
 import { TrendingUp, RefreshCw, Loader2, DollarSign, Calendar } from 'lucide-react';
 import Sidebar from '@/components/Sidebar';
+import EventTypeByChannel from '@/components/EventTypeByChannel';
 
 export default function ReportsPage() {
   const readAccess = useVerifiedAccess();
@@ -398,6 +399,8 @@ export default function ReportsPage() {
               </div>
             )}
           </div>
+
+          <EventTypeByChannel sede={filters.sede} {...getStartEndDates(filters.dateRange, filters.customStart, filters.customEnd)} />
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-center text-gray-300">
              <div className="p-20 border-4 border-dashed border-gray-100 rounded-[3rem] flex flex-col items-center gap-4">
