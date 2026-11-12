@@ -15,6 +15,31 @@ type Version={id:number;version:number;ruta:string|null;enlace:string|null;tipo?
 /** Only documents: programs and shortcuts (.exe, .lnk…) are not accepted. */
 const ACEPTA='.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,.gif,.heic,.mp4,.mov,.mp3,.m4a,.zip';
 const PROGRAMA=/\.(exe|msi|bat|cmd|com|lnk|url|scr|vbs|js|ps1|dll|apk|jar|app|dmg)$/i;
+/** Uploads a file as the new version of a document (a link becomes a file; the earlier version stays in «Versiones»). */
+async function versionConArchivo(doc:Doc,file:File){
+ revisarArchivo(file);
+ if(file.size>50*1024*1024)throw Error(`«${file.name}» pesa más de 50 MB.`);
+ const path=`${doc.area_id}/${crypto.randomUUID()}-${limpio(file.name)}`;
+ const {error:e}=await supabase.storage.from(BUCKET).upload(path,file,{contentType:file.type||undefined});if(e)throw Error(`No se pudo subir «${file.name}»: ${e.message}`);
+ const {data:vs}=await supabase.from('doc_versiones').select('version').eq('archivo_id',doc.id).order('version',{ascending:false}).limit(1);
+ const v=Math.max(doc.version,Number(vs?.[0]?.version)||0)+1;
+ const {error:e2}=await supabase.from('doc_archivos').update({ruta:path,enlace:null,tipo:file.type||null,tamano:file.size,version:v,updated_at:new Date().toISOString()}).eq('id',doc.id);if(e2)throw Error(e2.message);
+ await supabase.from('doc_versiones').insert({archivo_id:doc.id,version:v,ruta:path,tipo:file.type||null,tamano:file.size});
+}
+/** Creates a new document in an area from a file, with the given details. */
+async function documentoConArchivo(area_id:string,file:File,extra:{descripcion:string|null;sede_id:string|null;vence:string|null}){
+ revisarArchivo(file);
+ if(file.size>50*1024*1024)throw Error(`«${file.name}» pesa más de 50 MB.`);
+ const ruta=`${area_id}/${crypto.randomUUID()}-${limpio(file.name)}`;
+ const {error:e}=await supabase.storage.from(BUCKET).upload(ruta,file,{contentType:file.type||undefined});if(e)throw Error(`No se pudo subir «${file.name}»: ${e.message}`);
+ const base=file.name.replace(/\.[^.]+$/,'').trim();
+ const {data,error:e2}=await supabase.from('doc_archivos').insert({area_id,nombre:(base.length<2?`${base} doc`:base).slice(0,160),...extra,ruta,tipo:file.type||null,tamano:file.size}).select('id').single();
+ if(e2)throw Error(/row-level|policy/i.test(e2.message)?'No tienes permiso para subir archivos en esta área.':e2.message);
+ await supabase.from('doc_versiones').insert({archivo_id:data.id,version:1,ruta,tipo:file.type||null,tamano:file.size});
+ return data.id as string;
+}
+const esDriveArchivo=(u:string)=>/(docs|drive)\.google\.com\/(document|spreadsheets|presentation|file)\/d\//.test(u);
+const esDriveCarpeta=(u:string)=>/drive\.google\.com\/drive\/(u\/\d+\/)?folders\//.test(u);
 const revisarArchivo=(f:File)=>{if(PROGRAMA.test(f.name))throw Error(`«${f.name}» es un programa o un acceso directo, no un documento. Si el archivo está en Google Drive, usa «Subir documento › Desde Google Drive».`);};
 const BUCKET='documentos_marca';
 const fecha=(v:string)=>new Date(v).toLocaleDateString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'short',year:'numeric'});
@@ -128,7 +153,8 @@ function Documentos({profile}:{profile:ShellProfile}){
   </div>
   {modo==='subir'&&area&&<Subir area={area} sedes={sedes} onClose={()=>setModo('')} onDone={async(ids)=>{setModo('');setNotice(`${ids&&ids.length>1?`${ids.length} documentos guardados`:'Documento guardado'}.${iaLee(area.id)&&ids?.length?' La IA los está leyendo para usarlos con las clientas.':''}`);await load();
    if(ids?.length&&iaLee(area.id))void (async()=>{for(const id of ids.slice(0,10))await leerConIA(id);await load();})();}}/>}
-  {editando&&<Editar doc={editando} sedes={sedes} onClose={()=>setEditando(null)} onDone={async()=>{setEditando(null);setNotice('Cambios guardados.');await load();}}/>}
+  {editando&&<Editar doc={editando} sedes={sedes} onClose={()=>setEditando(null)} onDone={async(ids)=>{const a=editando.area_id;setEditando(null);setNotice(ids?.length?`Cambios guardados: ${ids.length} archivo${ids.length>1?'s':''} subido${ids.length>1?'s':''}.`:'Cambios guardados.');await load();
+   if(ids?.length&&iaLee(a))void (async()=>{for(const id of ids.slice(0,10))await leerConIA(id);await load();})();}}/>}
   {modo==='areas'&&admin&&<AdminAreas areas={areas} roles={roles} onClose={()=>setModo('')} onChange={load}/>}
   {versiones&&<div role="dialog" aria-label="Versiones" style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',display:'grid',placeItems:'center',zIndex:50,padding:16}} onClick={()=>setVersiones(null)}>
    <div className={styles.card} style={{maxWidth:480,width:'100%',display:'grid',gap:8}} onClick={e=>e.stopPropagation()}>
@@ -142,15 +168,29 @@ function Documentos({profile}:{profile:ShellProfile}){
 }
 
 /** Edit a document's details: name, description, store, expiry and, for links, the address. Same permission as uploading in its area. */
-function Editar({doc,sedes,onClose,onDone}:{doc:Doc;sedes:{id:string;nombre:string}[];onClose:()=>void;onDone:()=>Promise<void>}){
+function Editar({doc,sedes,onClose,onDone}:{doc:Doc;sedes:{id:string;nombre:string}[];onClose:()=>void;onDone:(ids?:string[])=>Promise<void>}){
  const soloEnlace=!!doc.enlace&&!doc.ruta;
+ const [archivos,setArchivos]=useState<File[]>([]),[progreso,setProgreso]=useState('');
  const [f,setF]=useState({nombre:doc.nombre,descripcion:doc.descripcion||'',sede_id:doc.sede_id||'',vence:doc.vence||'',enlace:doc.enlace||''}),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const faltan=[f.nombre.trim().length<2&&'el nombre',soloEnlace&&!/^https?:\/\//.test(f.enlace.trim())&&'el enlace (debe empezar por https://)'].filter(Boolean) as string[];
  const save=async()=>{setBusy(true);setError('');try{
   const {error:e}=await supabase.from('doc_archivos').update({nombre:f.nombre.trim(),descripcion:f.descripcion.trim()||null,sede_id:f.sede_id||null,vence:f.vence||null,...(soloEnlace?{enlace:f.enlace.trim()}:{}),updated_at:new Date().toISOString()}).eq('id',doc.id);
   if(e)throw Error(/row-level|policy/i.test(e.message)?'No tienes permiso para editar documentos de esta área.':e.message);
-  await onDone();
- }catch(e){setError(e instanceof Error?e.message:'No se pudo guardar.');}finally{setBusy(false);}};
+  // Files chosen: the first replaces this document (new version), the rest become new documents with the same details.
+  const ids:string[]=[];
+  if(archivos.length){
+   setProgreso(`Subiendo 1 de ${archivos.length}…`);await versionConArchivo(doc,archivos[0]);ids.push(doc.id);
+   for(const [i,file] of archivos.slice(1).entries()){setProgreso(`Subiendo ${i+2} de ${archivos.length}…`);ids.push(await documentoConArchivo(doc.area_id,file,{descripcion:f.descripcion.trim()||null,sede_id:f.sede_id||null,vence:f.vence||null}));}
+  }
+  await onDone(ids);
+ }catch(e){setError(e instanceof Error?e.message:'No se pudo guardar.');}finally{setBusy(false);setProgreso('');}};
+ // Google Drive link of one file: brought into the ERP as this document's file.
+ const traerDeDrive=async()=>{setBusy(true);setError('');try{
+  const {data}=await supabase.auth.getSession();
+  const r=await fetch('/api/documentos/drive',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${data.session?.access_token||''}`},body:JSON.stringify({accion:'reemplazar',archivo_id:doc.id,enlace:f.enlace.trim()})});
+  const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo traer el archivo de Drive.');
+  await onDone([doc.id]);
+ }catch(e){setError(e instanceof Error?e.message:'No se pudo traer el archivo.');}finally{setBusy(false);}};
  const input={width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:10,boxSizing:'border-box' as const};
  return <div role="dialog" aria-label="Editar documento" style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',display:'grid',placeItems:'center',zIndex:50,padding:16}} onClick={onClose}>
   <div className={styles.card} style={{maxWidth:520,width:'100%',display:'grid',gap:10}} onClick={e=>e.stopPropagation()}>
@@ -162,7 +202,14 @@ function Editar({doc,sedes,onClose,onDone}:{doc:Doc;sedes:{id:string;nombre:stri
     <label>Sede<select style={input} value={f.sede_id} onChange={e=>setF({...f,sede_id:e.target.value})}><option value="">Todas las sedes</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
     <label>Vence (opcional)<input style={input} type="date" value={f.vence} onChange={e=>setF({...f,vence:e.target.value})}/></label>
    </div>
-   <p className={styles.help}>{soloEnlace?'Para cambiar este enlace por un archivo, cierra y usa el botón de subir (⬆) en la fila del documento: el enlace queda en «Versiones».':'Para cambiar el archivo usa el botón de subir nueva versión (la anterior queda guardada).'}</p>
+   <div style={{border:'1px dashed #e2e8f0',borderRadius:12,padding:10,display:'grid',gap:6}}>
+    <strong style={{fontSize:13}}>{soloEnlace?'Cambiar el enlace por archivo(s)':'Reemplazar el archivo'}</strong>
+    {soloEnlace&&esDriveArchivo(f.enlace)&&<button type="button" className={styles.button} disabled={busy} onClick={()=>void traerDeDrive()}>Traer este archivo desde Google Drive</button>}
+    {soloEnlace&&esDriveCarpeta(f.enlace)&&<small className={styles.help}>Este enlace es una carpeta de Drive: para traer sus archivos usa «Subir documento › Desde Google Drive» y luego archiva este documento.</small>}
+    <input type="file" multiple accept={ACEPTA} onChange={e=>setArchivos([...(e.target.files||[])])} style={input}/>
+    <small className={styles.help}>{archivos.length>1?`El primero (${archivos[0].name}) reemplaza este documento y los otros ${archivos.length-1} quedan como documentos nuevos con la misma sede y vencimiento.`:soloEnlace?'El archivo reemplaza el enlace (el enlace queda guardado en «Versiones»). Puedes elegir varios: el primero reemplaza este documento y los demás quedan como documentos nuevos.':'La versión anterior queda guardada en «Versiones». Puedes elegir varios: los demás quedan como documentos nuevos.'}</small>
+   </div>
+   {progreso&&<p className={styles.help}>{progreso}</p>}
    {faltan.length>0&&<p className={styles.help}>Para guardar falta: {faltan.join(' y ')}.</p>}
    {error&&<p role="alert" className={styles.error}>{error}</p>}
    <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}><button type="button" className={styles.button} onClick={onClose} disabled={busy}>Cancelar</button><button type="button" className={`${styles.button} ${styles.primary}`} disabled={busy||faltan.length>0} onClick={()=>void save()}>{busy?'Guardando…':'Guardar cambios'}</button></div>
