@@ -3,10 +3,10 @@ import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendWhatsappText,downloadWhatsappImage,sendWhatsappFollowup,followupText,conversationFor,WINDOW_MS} from '@/lib/whatsapp-inbox';
 import {resolveAd,adsSpend,adsTokenReady} from '@/lib/meta-ads';
-import {loadSocialSettings,sendSocialText} from '@/lib/social-inbox';
+import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment} from '@/lib/social-inbox';
 import {attachmentBlocks,type Adjunto} from '@/lib/ai-attachments';
 import {weeklyChatAnalysis} from '@/lib/whatsapp-analysis';
-import {suggestWhatsappReply,testWhatsappAI,knowledgeChatTurn,applyIaChanges,loadContractClauses,loadErpContext,aiErrorText,type IaCambio} from '@/lib/whatsapp-ai';
+import {suggestWhatsappReply,suggestCommentReply,testWhatsappAI,knowledgeChatTurn,applyIaChanges,loadContractClauses,loadErpContext,aiErrorText,type IaCambio} from '@/lib/whatsapp-ai';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
@@ -19,7 +19,7 @@ export async function POST(request:Request){
   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
   if(!auth.user)return publicReply({error:'Inicia sesión.'},401);
-  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;adjuntos?:Adjunto[];desde?:string;hasta?:string;pausada?:boolean;mensaje_id?:string;telefono?:string;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
+  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;adjuntos?:Adjunto[];desde?:string;hasta?:string;pausada?:boolean;mensaje_id?:string;comentario_id?:string;modo?:string;telefono?:string;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
   // «IA de WhatsApp» › Probar: answer a sample message with the settings being edited, without saving. Administration only.
   // WhatsApp 304 › Anuncios: per ad, chats → visits (virtual / in person) → attended → contracts, with spend and cost from Meta. Administration only.
   if(body.accion==='anuncios'){
@@ -124,6 +124,27 @@ export async function POST(request:Request){
    // The person who wrote takes the chat: the AI stays paused here until it is reactivated (or the configured hours pass).
    await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,ia_pausada:true,ia_pausada_at:now,ia_pausada_por:auth.user.id,...(!conv.sede_id&&cita?.sede_id?{sede_id:cita.sede_id}:{})}).eq('id',conv.id);
    return publicReply({ok:true,conversacion_id:conv.id});
+  }
+  // WhatsApp 304 › Comentarios: reply in public or by private message, ask the AI again, or set aside. RLS decides who sees them.
+  if(body.accion?.startsWith('comentario_')){
+   if(!UUID_RE.test(String(body.comentario_id||'')))return publicReply({error:'Comentario no válido.'},400);
+   const {data:c}=await userDb.from('redes_comentarios').select('id,comentario_id,estado').eq('id',body.comentario_id!).maybeSingle();
+   if(!c)return publicReply({error:'No tienes acceso a este comentario.'},403);
+   const db=publicServerClient();
+   if(body.accion==='comentario_ia'){if(!process.env.ANTHROPIC_API_KEY)return publicReply({error:'Falta ANTHROPIC_API_KEY en Vercel.'},503);await suggestCommentReply(db,c.id);return publicReply({ok:true});}
+   if(body.accion==='comentario_ignorar'){await db.from('redes_comentarios').update({estado:'ignorado',respondido_por:auth.user.id,respondido_at:new Date().toISOString()}).eq('id',c.id);return publicReply({ok:true});}
+   if(body.accion==='comentario_responder'){
+    const texto=String(body.texto||'').trim(),privado=body.modo==='privado';
+    if(!texto||texto.length>(privado?1000:2200))return publicReply({error:`Escribe la respuesta (máximo ${privado?1000:2200} caracteres).`},400);
+    const s=await loadSocialSettings(db);
+    if(!s)return publicReply({error:'Instagram no está conectado en Integraciones.'},503);
+    let rid:string;
+    try{rid=privado?await privateReplyComment(s,c.comentario_id,texto):await replyComment(s,c.comentario_id,texto);}
+    catch(e){return publicReply({error:e instanceof Error?e.message:'No se pudo responder.'},502);}
+    await db.from('redes_comentarios').update({estado:privado?'privado':'respondido',respuesta:texto,respuesta_id:rid,respondido_por:auth.user.id,respondido_at:new Date().toISOString()}).eq('id',c.id);
+    return publicReply({ok:true});
+   }
+   return publicReply({error:'Acción no válida.'},400);
   }
   if(!UUID_RE.test(String(body.conversacion_id||'')))return publicReply({error:'Chat no válido.'},400);
   // The user's own permissions decide: RLS returns the chat only if they can see it.

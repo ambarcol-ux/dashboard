@@ -34,11 +34,52 @@ export default function WhatsappPage(){
 }
 
 function Tabs({admin}:{admin:boolean}){
- const [tab,setTab]=useState<'chats'|'ia'|'anuncios'>('chats');
+ const [tab,setTab]=useState<'chats'|'comentarios'|'ia'|'anuncios'>('chats');
+ const tabs=([['chats','Chats'],['comentarios','Comentarios de Instagram'],['ia','IA de WhatsApp'],['anuncios','Anuncios']] as const).filter(([k])=>admin||k==='chats'||k==='comentarios');
  return <>
-  {admin&&<div className={styles.toolbar} style={{marginBottom:12}}>{([['chats','Chats'],['ia','IA de WhatsApp'],['anuncios','Anuncios']] as const).map(([k,l])=><button key={k} type="button" className={tab===k?styles.primary:undefined} onClick={()=>setTab(k)}>{l}</button>)}</div>}
-  {tab==='chats'?<Inbox/>:tab==='ia'?<IaSettings/>:<AdsPanel/>}
+  <div className={styles.toolbar} style={{marginBottom:12}}>{tabs.map(([k,l])=><button key={k} type="button" className={tab===k?styles.primary:undefined} onClick={()=>setTab(k)}>{l}</button>)}</div>
+  {tab==='chats'?<Inbox/>:tab==='comentarios'?<Comments/>:tab==='ia'?<IaSettings/>:<AdsPanel/>}
  </>;
+}
+
+type Comentario={id:string;comentario_id:string;publicacion_url:string|null;publicacion_texto:string|null;padre_id:string|null;autor_nombre:string|null;texto:string|null;created_at:string;estado:string;ia_sugerencia:string|null;ia_error:string|null;respuesta:string|null;respondido_at:string|null};
+const ESTADO_COM:Record<string,string>={pendiente:'Pendientes',respondido:'Respondidos en público',privado:'Respondidos por privado',ignorado:'Sin responder (descartados)'};
+/** WhatsApp 304 › Comentarios de Instagram: what customers comment on our posts, with the AI's suggested reply; a person answers in public or by private message. */
+function Comments(){
+ const [estado,setEstado]=useState('pendiente'),[rows,setRows]=useState<Comentario[]|null>(null),[error,setError]=useState('');
+ const load=useCallback(async()=>{setError('');const {data,error:e}=await supabase.from('redes_comentarios').select('id,comentario_id,publicacion_url,publicacion_texto,padre_id,autor_nombre,texto,created_at,estado,ia_sugerencia,ia_error,respuesta,respondido_at').eq('estado',estado).order('created_at',{ascending:false}).limit(100);
+  if(e)setError(e.message);else setRows((data||[]) as Comentario[]);},[estado]);
+ useEffect(()=>{const t=setTimeout(()=>void load(),0);const ch=supabase.channel('redes_comentarios').on('postgres_changes',{event:'*',schema:'public',table:'redes_comentarios'},()=>void load()).subscribe();return()=>{clearTimeout(t);void supabase.removeChannel(ch);};},[load]);
+ return <section className={styles.card} style={{display:'grid',gap:10}}>
+  <h2>Comentarios de Instagram</h2>
+  <p className={styles.help}>Lo que comentan en las publicaciones de @ambarcouture. La IA deja una respuesta sugerida: revísala y respóndela en público (debajo del comentario) o por mensaje privado (Meta permite uno, dentro de los 7 días del comentario; la conversación sigue en Chats).</p>
+  <div className={styles.toolbar}>{Object.entries(ESTADO_COM).map(([k,l])=><button key={k} type="button" className={estado===k?styles.primary:undefined} onClick={()=>setEstado(k)}>{l}</button>)}
+   <button type="button" className={styles.button} onClick={()=>void load()}><RefreshCw size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Actualizar</button></div>
+  {error&&<p role="alert" className={styles.error}>{error}</p>}
+  {rows&&!rows.length&&<p className={styles.empty}>{estado==='pendiente'?'No hay comentarios pendientes.':'Nada por aquí.'}</p>}
+  {rows?.map(c=><CommentCard key={c.id} c={c} onDone={()=>void load()}/>)}
+ </section>;
+}
+function CommentCard({c,onDone}:{c:Comentario;onDone:()=>void}){
+ const [texto,setTexto]=useState(c.ia_sugerencia||''),[busy,setBusy]=useState(''),[error,setError]=useState('');
+ const run=async(accion:string,extra:Record<string,unknown>={})=>{setBusy(accion);setError('');try{await api({accion,comentario_id:c.id,...extra});onDone();}catch(e){setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}};
+ const pendiente=c.estado==='pendiente',dias=(Date.now()-Date.parse(c.created_at))/86400000;
+ return <article style={{border:'1px solid #f1e4e8',borderRadius:14,padding:12,display:'grid',gap:8}}>
+  <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><strong>@{c.autor_nombre||'cliente'}{c.padre_id?' · respuesta a otro comentario':''}</strong><small>{hora(c.created_at)}</small></div>
+  <p style={{margin:0,whiteSpace:'pre-wrap'}}>{c.texto}</p>
+  {(c.publicacion_texto||c.publicacion_url)&&<small style={{color:'#6b7280'}}>En la publicación: {c.publicacion_texto?`«${c.publicacion_texto.slice(0,120)}${c.publicacion_texto.length>120?'…':''}»`:''} {c.publicacion_url&&<a href={c.publicacion_url} target="_blank" rel="noreferrer">Ver publicación</a>}</small>}
+  {pendiente?<>
+   {c.ia_error&&<small style={{color:'#b91c1c'}}>La IA no pudo sugerir: {c.ia_error}</small>}
+   <textarea value={texto} onChange={e=>setTexto(e.target.value)} rows={3} placeholder={c.ia_sugerencia?'':'Escribe la respuesta o pide una sugerencia a la IA'} style={{width:'100%'}}/>
+   <div className={styles.toolbar}>
+    <button type="button" className={styles.primary} disabled={!!busy||!texto.trim()} onClick={()=>void run('comentario_responder',{texto,modo:'publico'})}><Send size={14} style={{display:'inline',verticalAlign:'-2px'}}/> {busy==='comentario_responder'?'Enviando…':'Responder en público'}</button>
+    <button type="button" className={styles.button} disabled={!!busy||!texto.trim()||dias>7} title={dias>7?'Pasaron más de 7 días: Meta ya no deja escribirle por privado.':undefined} onClick={()=>void run('comentario_responder',{texto,modo:'privado'})}>Responder por privado</button>
+    <button type="button" className={styles.button} disabled={!!busy} onClick={()=>void run('comentario_ia')}><Sparkles size={14} style={{display:'inline',verticalAlign:'-2px'}}/> {busy==='comentario_ia'?'Pensando…':'Sugerir con IA'}</button>
+    <button type="button" className={styles.button} disabled={!!busy} onClick={()=>void run('comentario_ignorar')}>No responder</button>
+   </div></>
+  :c.respuesta&&<p style={{margin:0,color:'#047857'}}><strong>Respondido{c.estado==='privado'?' por privado':''}:</strong> {c.respuesta}</p>}
+  {error&&<p role="alert" className={styles.error}>{error}</p>}
+ </article>;
 }
 
 type AdRow={anuncio_id:string;nombre:string|null;campana:string|null;sede:string|null;chats:number;citas:number;citas_virtuales:number;citas_presenciales:number;asistieron:number;contratos:number;gasto:number|null};

@@ -119,6 +119,19 @@ async function loadBasics(db:SupabaseClient){
  return {clauses,catalogs,cfg:(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}) as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
 }
 
+/** Suggested reply to a public Instagram comment: same knowledge as the chats, short and public-safe. */
+export async function suggestCommentReply(db:SupabaseClient,id:string){
+ if(!process.env.ANTHROPIC_API_KEY)return;
+ const {data:c}=await db.from('redes_comentarios').select('texto,autor_nombre,publicacion_texto').eq('id',id).maybeSingle();
+ if(!c?.texto)return;
+ try{
+  const {cfg,sites,clauses,catalogs}=await loadBasics(db);
+  const chat=`(COMENTARIO PÚBLICO en una publicación de Instagram${c.publicacion_texto?` cuyo texto es: «${String(c.publicacion_texto).slice(0,300)}»`:''}. Tu respuesta se publica debajo del comentario y la ve todo el mundo: máximo 2 frases cálidas, sin datos personales ni de contratos, sin enlaces largos; si pregunta precio, disponibilidad o quiere agendar, invítala a escribirnos por mensaje directo o al WhatsApp de su sede.)\nClienta @${c.autor_nombre||'cliente'}: ${c.texto}`;
+  const out=await runWhatsappAI(cfg,sites,{canal:'instagram_comentario',nombre_perfil:c.autor_nombre},chat,clauses,catalogs,[],db);
+  await db.from('redes_comentarios').update({ia_sugerencia:marcarCanal(out.respuesta,'instagram').slice(0,2000),ia_error:null,ia_at:new Date().toISOString()}).eq('id',id);
+ }catch(e){await db.from('redes_comentarios').update({ia_error:aiErrorText(e).slice(0,300),ia_at:new Date().toISOString()}).eq('id',id);}
+}
+
 /** What the WhatsApp AI gets from the ERP on every chat (fixed rules, stores, catalogs and inventory), for the knowledge chat. */
 export async function loadErpContext(db:SupabaseClient){
  const {sites,catalogs}=await loadBasics(db);
