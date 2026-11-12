@@ -152,7 +152,7 @@ export async function handleComment(db:SupabaseClient,id:string,auto=true){
    await chatFromPrivateReply(db,dm,c,privado,'ia');
    Object.assign(cambios,{estado:'privado',respuesta:privado,respuesta_id:dm.id});
   }
-  if(publica){try{const pid=await replyComment(s,c.comentario_id,publica,c.canal);Object.assign(cambios,{respuesta_publica:publica,respuesta_publica_id:pid});if(!cambios.estado)Object.assign(cambios,{estado:'respondido',respuesta:publica,respuesta_id:pid});}catch(e){if(!cambios.estado)throw e;}}
+  if(publica){try{const pid=await replyComment(s,c.comentario_id,publica,c.canal);Object.assign(cambios,{respuesta_publica:publica,respuesta_publica_id:pid});if(!cambios.estado)Object.assign(cambios,{estado:'respondido',respuesta:publica,respuesta_id:pid});}catch(e){if(!cambios.estado)throw e;cambios.ia_error=`Mensaje privado enviado; la respuesta pública falló: ${aiErrorText(e)}`.slice(0,300);}}
   if(cambios.estado)await db.from('redes_comentarios').update(cambios).eq('id',id);
  }catch(e){await db.from('redes_comentarios').update({ia_error:aiErrorText(e).slice(0,300),ia_at:new Date().toISOString()}).eq('id',id);}
 }
