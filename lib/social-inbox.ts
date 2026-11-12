@@ -74,3 +74,32 @@ export async function sendSocialText(s:SocialSettings,recipient:string,body:stri
  if(!r.ok||!d.message_id)throw Error(d.error?.code===10||/outside of allowed window/i.test(String(d.error?.message))?'Pasaron más de 24 horas desde el último mensaje de la clienta: Meta no deja responderle por aquí. Escríbele desde Meta Business Suite.':`Meta no aceptó el mensaje: ${String(d.error?.message||r.status).slice(0,160)}`);
  return d.message_id;
 }
+
+/** Instagram comments webhook (field «comments»): stores customer comments on our posts. Returns the new comment ids to suggest a reply. */
+export async function storeSocialComments(db:SupabaseClient,s:SocialSettings,payload:{object?:string;entry?:Value[]}){
+ if(payload.object!=='instagram')return [];
+ const nuevos:string[]=[];
+ for(const entry of payload.entry||[])for(const ch of entry.changes||[]){
+  if(ch.field!=='comments')continue;
+  const v=ch.value||{},autor=String(v.from?.id||'');
+  if(!v.id||!autor||autor===s.instagramId||autor===s.pageId)continue;// our own replies
+  let url:string|null=null,caption:string|null=null;
+  if(v.media?.id)try{const r=await fetch(`https://graph.facebook.com/${version()}/${v.media.id}?fields=permalink,caption&access_token=${encodeURIComponent(await pageToken(s))}`,{signal:AbortSignal.timeout(8000)});
+   const d=await r.json() as Value;if(r.ok){url=d.permalink||null;caption=d.caption?String(d.caption).slice(0,500):null;}}catch{/* without the post link */}
+  const {data,error}=await db.from('redes_comentarios').insert({canal:'instagram',comentario_id:String(v.id),publicacion_id:v.media?.id?String(v.media.id):null,publicacion_url:url,publicacion_texto:caption,
+   padre_id:v.parent_id?String(v.parent_id):null,autor_id:autor,autor_nombre:v.from?.username?String(v.from.username):null,texto:String(v.text||'').slice(0,2000)}).select('id').single();
+  if(error){if(error.code==='23505')continue;throw error;}
+  nuevos.push(data.id);
+ }
+ return nuevos;
+}
+async function graphPost(path:string,s:SocialSettings,body:Value){
+ const r=await fetch(`https://graph.facebook.com/${version()}/${path}?access_token=${encodeURIComponent(await pageToken(s))}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(15000)});
+ const d=await r.json().catch(()=>({})) as {id?:string;message_id?:string;error?:{message?:string}};
+ if(!r.ok||!(d.id||d.message_id))throw Error(`Meta no aceptó la respuesta: ${String(d.error?.message||r.status).slice(0,160)}`);
+ return String(d.id||d.message_id);
+}
+/** Public reply under the Instagram comment. */
+export const replyComment=(s:SocialSettings,commentId:string,texto:string)=>graphPost(`${commentId}/replies`,s,{message:texto.slice(0,2200)});
+/** Private reply: one Direct message to the person who commented (Meta allows it within 7 days of the comment). */
+export const privateReplyComment=(s:SocialSettings,commentId:string,texto:string)=>graphPost(`${s.pageId}/messages`,s,{recipient:{comment_id:commentId},message:{text:texto.slice(0,1000)}});
