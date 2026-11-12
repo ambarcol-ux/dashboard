@@ -1,11 +1,11 @@
 import type {SupabaseClient} from '@supabase/supabase-js';
-import {visitManagementLink} from './first-visit-links';
+import {visitManagementLink,visitVideoLink} from './first-visit-links';
 import {visitDate as plainDate,visitSite,visitTime,loadVisitSites,type VisitSite} from './first-visit-sites';
 export {visitTime} from './first-visit-sites';
 
 export type VisitEmailEvent='reserva'|'reprogramacion'|'cancelacion'|'confirmacion'|'enlace_virtual';
 type Slot={fecha:string;hora:string;modalidad:string;sede:string|null};
-export type VisitEmailDetail=Slot&{motivo?:string;enlace_virtual?:string;anterior?:Slot|null};
+export type VisitEmailDetail=Slot&{motivo?:string;enlace_virtual?:string;codigo?:string;anterior?:Slot|null};
 
 const escape=(value:unknown)=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 const longDate=(day:string)=>new Date(day+'T12:00:00Z').toLocaleDateString('es-CO',{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
@@ -33,6 +33,7 @@ export function appointmentEmail(event:'reserva'|'confirmacion'|'reprogramacion'
  else if(site)blocks.push({icon:'📍',label:'Dirección',value:site.direccion},{icon:'🗺️',label:site.mapaEtiqueta,href:site.mapa});
  else if(siteName)blocks.push({icon:'📍',label:'Sede',value:siteName});
  if(site)blocks.push({icon:'📲',label:'¿Tienes alguna pregunta?',note:`Contacta a nuestra sede ${site.nombre}: ${site.telefono}`},{icon:'',label:'Escribir por WhatsApp',href:`https://wa.me/${site.whatsapp}`});
+ if(detail.codigo)blocks.push({icon:'🔑',label:'Código de tu cita',value:virtual?detail.codigo:`${detail.codigo} (escríbelo en el QR de la entrada al llegar)`});
  blocks.push({icon:'🔄',label:'¿Necesitas cambiar la fecha o la hora de tu cita?',note:'Puedes reprogramarla fácilmente aquí:',href:rescheduleUrl});
  const closing='¡Te esperamos para ayudarte a encontrar el vestido ideal! 👗✨';
  const head=(b:Block)=>`${b.icon?b.icon+' ':''}${b.label}${b.label.endsWith('?')?'':':'}`;
@@ -59,7 +60,7 @@ export function visitChangeEmail(event:VisitEmailEvent,detail:VisitEmailDetail,n
 }
 
 export type ClaimedVisitEmail={id:string;para:string;asunto:string;texto:string;html:string};
-type Job={omitido?:boolean;correo:{id:string;evento:VisitEmailEvent;detalle:VisitEmailDetail};cita:{id:string;fecha:string;cliente_nombre:string;email:string}};
+type Job={omitido?:boolean;correo:{id:string;evento:VisitEmailEvent;detalle:VisitEmailDetail};cita:{id:string;fecha:string;cliente_nombre:string;email:string;codigo?:string|null;modalidad?:string}};
 
 /** Claims queued change emails and renders them for the Apps Script sender. */
 export async function claimVisitEmails(db:SupabaseClient,origin:string,linkSecret:string,limit=10){
@@ -72,6 +73,9 @@ export async function claimVisitEmails(db:SupabaseClient,origin:string,linkSecre
   if(!data)break;
   const job=data as Job;if(job.omitido)continue;
   const {correo,cita}=job;
+  // The meeting link goes through the ERP so opening it registers attendance; the code is for the store QR.
+  if(correo.detalle.enlace_virtual)correo.detalle={...correo.detalle,enlace_virtual:visitVideoLink(origin,cita.id,Date.parse(correo.detalle.fecha+'T23:59:59-05:00')+86400000,linkSecret)};
+  if(cita.codigo)correo.detalle={...correo.detalle,codigo:cita.codigo};
   const link=correo.evento==='cancelacion'?`${origin}/agendar-primera-cita`:visitManagementLink(origin,cita.id,Date.parse(cita.fecha+'T23:59:59-05:00')+30*86400000,linkSecret);
   const message=correo.evento==='reserva'||correo.evento==='confirmacion'||correo.evento==='reprogramacion'
    ?appointmentEmail(correo.evento,correo.detalle,cita.cliente_nombre,`${origin}/reprogramar-primera-cita`,sites)

@@ -31,3 +31,12 @@ export function verifyRescheduleLink(token:string,key:string,now=Date.now()){
  if(!key||!token.startsWith('r.'))return null;
  return verifyVisitLink(token.slice(2),createHmac('sha256',key).update('first-visit-reschedule-only').digest('hex'),now);
 }
+
+// Tracked video-call links: open the meeting and register the arrival; they authorize nothing else.
+const videoKey=(key:string)=>createHmac('sha256',key).update('first-visit-video-only').digest('hex');
+export function visitVideoLink(origin:string,id:string,expires:number,key:string){
+ return `${origin}/api/primeras-citas/llegada?t=${signVisitLink(id,expires,videoKey(key))}`;
+}
+export function verifyVideoLink(token:string,key:string,now=Date.now()){
+ return key?verifyVisitLink(token,videoKey(key),now):null;
+}
