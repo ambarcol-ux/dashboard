@@ -48,9 +48,11 @@ Seguimiento (clientas que ya tuvieron cita o visitaron la tienda y no alquilaron
 - Solo si «autoriza_promociones» es true puedes mencionar promociones o descuentos; si no, habla solo de su cita, su vestido y el catálogo.
 - En «cierre_seguimiento» marca alquilo_otro si dice que ya alquiló o compró en otro lugar, no_interesa si dice que ya no lo necesita o no le interesa, no_contactar si pide que no le escriban más (en ese caso despídete con respeto y no insistas). En cualquier otro caso, cadena vacía.
 
+Lo que no sabes: si la clienta pregunta algo que no está en tus conocimientos ni en los datos del ERP, no lo inventes. Dile con naturalidad que lo confirmas y, en «falta_informacion», escribe en una frase corta qué dato le falta a Ámbar darte (ej.: «Horario de atención los domingos en Pereira», «Si se puede pagar con tarjeta de crédito»), para que administración lo complete y la próxima vez respondas sola. Si no falta nada, cadena vacía.
+
 Además: elige la etiqueta del tema principal, la sede de la clienta (solo si es clara; si no, cadena vacía) y un resumen de una frase para la asesora.`;
 
-const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento'],properties:{
+const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento','falta_informacion'],properties:{
  etiqueta:{type:'string',enum:[...WHATSAPP_TAGS]},
  sede:{type:'string',description:'Nombre exacto de una de las sedes, o cadena vacía'},
  resumen:{type:'string'},
@@ -58,10 +60,11 @@ const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sed
  atender_persona:{type:'boolean'},
  motivo:{type:'string',description:'Por qué debe atenderla una persona; cadena vacía si no hace falta'},
  cierre_seguimiento:{type:'string',enum:['','alquilo_otro','no_interesa','no_contactar'],description:'Solo si la clienta lo dice en este chat; si no, cadena vacía'},
+ falta_informacion:{type:'string',description:'Dato del negocio que no tienes y que administración debe darte; cadena vacía si no falta nada'},
 }};
 
 export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string};
-export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string};
+export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string};
 type Msg={direccion:string;texto:string|null;created_at:string};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null};
 
@@ -235,6 +238,14 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   out.respuesta=marcarCanal(out.respuesta,conv.canal);
   // She said she already rented, is not interested or wants no more messages: the follow-up of her phone is closed.
   if(!social&&out.cierre_seguimiento)await db.rpc('seguimiento_cerrar_por_chat',{p_tel:conv.telefono,p_motivo:out.cierre_seguimiento});
+  // Information the AI did not have: administration is told what to add (repeated questions add up instead of duplicating).
+  const falta=String(out.falta_informacion||'').trim().slice(0,300);
+  if(falta.length>=3){
+   const pregunta=history.filter(m=>m.direccion==='entrante').slice(-1)[0]?.texto?.slice(0,300)||null;
+   const {data:igual}=await db.from('whatsapp_ia_faltantes').select('id,veces').eq('estado','pendiente').ilike('falta',falta.replace(/[%_]/g,'')).maybeSingle();
+   if(igual)await db.from('whatsapp_ia_faltantes').update({veces:igual.veces+1,ultima_at:new Date().toISOString(),pregunta,conversacion_id:conversationId}).eq('id',igual.id);
+   else await db.from('whatsapp_ia_faltantes').insert({falta,pregunta,conversacion_id:conversationId});
+  }
   const sede=sites.find(s=>s.nombre.toLowerCase()===out.sede.trim().toLowerCase());
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:out.respuesta.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
