@@ -95,11 +95,21 @@ export async function storeSocialComments(db:SupabaseClient,s:SocialSettings,pay
 }
 async function graphPost(path:string,s:SocialSettings,body:Value){
  const r=await fetch(`https://graph.facebook.com/${version()}/${path}?access_token=${encodeURIComponent(await pageToken(s))}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(15000)});
- const d=await r.json().catch(()=>({})) as {id?:string;message_id?:string;error?:{message?:string}};
+ const d=await r.json().catch(()=>({})) as {id?:string;message_id?:string;recipient_id?:string;error?:{message?:string}};
  if(!r.ok||!(d.id||d.message_id))throw Error(`Meta no aceptó la respuesta: ${String(d.error?.message||r.status).slice(0,160)}`);
- return String(d.id||d.message_id);
+ return {id:String(d.id||d.message_id),recipient:d.recipient_id?String(d.recipient_id):''};
 }
-/** Public reply under the Instagram comment. */
-export const replyComment=(s:SocialSettings,commentId:string,texto:string)=>graphPost(`${commentId}/replies`,s,{message:texto.slice(0,2200)});
-/** Private reply: one Direct message to the person who commented (Meta allows it within 7 days of the comment). */
+/** Public reply under the Instagram comment. Returns the reply id. */
+export const replyComment=async(s:SocialSettings,commentId:string,texto:string)=>(await graphPost(`${commentId}/replies`,s,{message:texto.slice(0,2200)})).id;
+/** Private reply: one Direct message to the person who commented (Meta allows it within 7 days of the comment). Returns the message id and the person's Instagram id. */
 export const privateReplyComment=(s:SocialSettings,commentId:string,texto:string)=>graphPost(`${s.pageId}/messages`,s,{recipient:{comment_id:commentId},message:{text:texto.slice(0,1000)}});
+/** After a private reply, the conversation opens in the inbox as an Instagram chat (saved before Meta's echo arrives, so the AI is not paused). */
+export async function chatFromPrivateReply(db:SupabaseClient,dm:{id:string;recipient:string},c:{autor_id?:string|null;autor_nombre?:string|null;texto?:string|null},texto:string,origen:'ia'|'erp',enviadoPor?:string){
+ const contacto=dm.recipient||String(c.autor_id||'');
+ if(!/^\d{3,40}$/.test(contacto))return;
+ const now=new Date().toISOString();
+ const {data:conv}=await db.from('whatsapp_conversaciones').upsert({telefono:socialKey('instagram',contacto),canal:'instagram',contacto_id:contacto,nombre:c.autor_nombre||null},{onConflict:'telefono'}).select('id,ia_resumen').single();
+ if(!conv)return;
+ await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:dm.id,direccion:'saliente',origen,tipo:'text',texto,estado:'sent',created_at:now,...(enviadoPor?{enviado_por:enviadoPor}:{})});
+ await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,...(conv.ia_resumen?{}:{ia_resumen:`Llegó por un comentario en Instagram: «${String(c.texto||'').slice(0,200)}»`})}).eq('id',conv.id);
+}

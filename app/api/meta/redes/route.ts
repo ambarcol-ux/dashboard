@@ -2,7 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {after} from 'next/server';
 import {validMetaSignature} from '@/lib/first-visit-messaging';
 import {loadSocialSettings,storeSocialEvents,storeSocialComments} from '@/lib/social-inbox';
-import {suggestWhatsappReply,suggestCommentReply} from '@/lib/whatsapp-ai';
+import {suggestWhatsappReply,handleComment} from '@/lib/whatsapp-ai';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
@@ -28,7 +28,7 @@ export async function POST(request:Request){
   console.log('Redes: chats con mensajes nuevos',touched.length);
   const comentarios=await storeSocialComments(db,s,payload);
   if(comentarios.length)console.log('Redes: comentarios nuevos',comentarios.length);
-  if(touched.length||comentarios.length)after(async()=>{for(const id of touched)await suggestWhatsappReply(db,id);for(const id of comentarios)await suggestCommentReply(db,id);});
+  if(touched.length||comentarios.length)after(async()=>{for(const id of touched)await suggestWhatsappReply(db,id);for(const id of comentarios)await handleComment(db,id);});
   return Response.json({recibido:true});
  }catch(e){console.error('Redes:',e);return new Response('No se pudo procesar',{status:500});}
 }
