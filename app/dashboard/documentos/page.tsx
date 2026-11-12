@@ -57,7 +57,7 @@ function Documentos({profile}:{profile:ShellProfile}){
  const lista=useMemo(()=>{const t=q.trim().toLowerCase();
   return docs.filter(d=>t?`${d.nombre} ${d.descripcion||''}`.toLowerCase().includes(t):d.area_id===sel);},[docs,q,sel]);
  const porVencer=docs.filter(d=>d.vence&&diasPara(d.vence)<=30);
- const run=async(name:string,fn:()=>Promise<void>)=>{setBusy(name);setError('');setNotice('');try{await fn();}catch(e){setError(e instanceof Error?e.message:'No se pudo completar.');}finally{setBusy('');}};
+ const run=async(name:string,fn:()=>Promise<void>)=>{setBusy(name);setError('');setNotice('');try{await fn();}catch(e){const m=e instanceof Error?e.message:String((e as {message?:string})?.message||'');setError(/row-level|policy/i.test(m)?'No tienes permiso para hacer esto en esta área.':m||'No se pudo completar.');}finally{setBusy('');}};
  const abrir=(d:{ruta:string|null;enlace:string|null})=>run('abrir',async()=>{
   if(d.enlace&&!d.ruta){window.open(d.enlace,'_blank','noopener');return;}
   const {data,error:e}=await supabase.storage.from(BUCKET).createSignedUrl(String(d.ruta),300);
