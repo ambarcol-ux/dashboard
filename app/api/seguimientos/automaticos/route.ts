@@ -18,7 +18,7 @@ export async function POST(request:Request){
  if(!cfg?.auto_activa)return Response.json({activo:false,motivo:'Respuestas automáticas de la IA apagadas'});
  const settings=await loadWhatsappSettings(db);
  if(!settings.token||!settings.phoneNumberId)return Response.json({activo:false,motivo:'WhatsApp sin configurar'});
- const {data,error}=await db.rpc('seguimientos_auto_tomar',{p_limite:20});
+ const {data,error}=await db.rpc('seguimientos_auto_tomar',{p_limite:40});
  if(error)return Response.json({error:error.message},{status:500});
  let enviados=0;const errores:string[]=[];
  for(const e of (data||[]) as Etapa[]){
