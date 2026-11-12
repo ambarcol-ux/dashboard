@@ -20,6 +20,7 @@ import { toast, Toaster } from 'sonner';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import InventoryByStatus from '@/components/InventoryByStatus';
+import InventoryRotation from '@/components/InventoryRotation';
 import DressRemovalDialog from '@/components/DressRemovalDialog';
 import {CLASSIFICATION_STYLES, UNCLASSIFIED_STYLE, type DressClassification} from '@/lib/inventory';
 import DressSaleDialog from '@/components/DressSaleDialog';
@@ -61,7 +62,7 @@ export default function InventoryPage() {
   const [categoriaFilter, setCategoriaFilter] = useState<string>('');
   const [catalogBusy, setCatalogBusy] = useState(false), [bulkOpen, setBulkOpen] = useState(false); // '' todas, 'none' sin categoría, o nombre
   const [showArchived, setShowArchived] = useState(false);
-  const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado'>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('vista') === 'estado' ? 'estado' : 'bandeja');
+  const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado' | 'rotacion'>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('vista') === 'estado' ? 'estado' : 'bandeja');
   const [removalTarget, setRemovalTarget] = useState<{id: string; codigo: string} | null>(null);
   const [user, setUser] = useState<any>(null);
   const userPermissions = usePermissions(user?.id ? String(user.id) : null);
@@ -626,7 +627,7 @@ export default function InventoryPage() {
 
         {/* Vista: bandeja o por estado */}
         <div className="flex items-center gap-1 bg-white p-1 rounded-2xl shadow-sm border border-gray-100 w-fit">
-          {([['bandeja', 'Por sede'], ['estado', 'Por estado']] as const).map(([id, label]) => (
+          {([['bandeja', 'Por sede'], ['estado', 'Por estado'], ['rotacion', 'Rotación']] as const).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setInventoryTab(id)}
@@ -637,7 +638,9 @@ export default function InventoryPage() {
           ))}
         </div>
 
-        {inventoryTab === 'estado' ? (
+        {inventoryTab === 'rotacion' ? (
+          <InventoryRotation />
+        ) : inventoryTab === 'estado' ? (
           <InventoryByStatus vestidos={vestidos.filter(v => !v.archivado)} sedes={sedes} clasificaciones={clasificaciones} />
         ) : (<>
         {demorados && <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm text-blue-900">
