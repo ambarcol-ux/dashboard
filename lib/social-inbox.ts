@@ -75,19 +75,29 @@ export async function sendSocialText(s:SocialSettings,recipient:string,body:stri
  return d.message_id;
 }
 
-/** Instagram comments webhook (field «comments»): stores customer comments on our posts. Returns the new comment ids to suggest a reply. */
+/** Comments webhooks: Instagram (field «comments») and the Facebook page (field «feed», item «comment»). Stores customer comments on our posts.
+ *  Returns the new comment ids so the AI can answer them. */
 export async function storeSocialComments(db:SupabaseClient,s:SocialSettings,payload:{object?:string;entry?:Value[]}){
- if(payload.object!=='instagram')return [];
+ if(payload.object!=='instagram'&&payload.object!=='page')return [];
  const nuevos:string[]=[];
  for(const entry of payload.entry||[])for(const ch of entry.changes||[]){
-  if(ch.field!=='comments')continue;
-  const v=ch.value||{},autor=String(v.from?.id||'');
-  if(!v.id||!autor||autor===s.instagramId||autor===s.pageId)continue;// our own replies
+  const v=ch.value||{};
+  let row:Record<string,unknown>|null=null,postId='',postFields='';
+  if(payload.object==='instagram'&&ch.field==='comments'){
+   const autor=String(v.from?.id||'');
+   if(!v.id||!autor||autor===s.instagramId||autor===s.pageId)continue;// our own replies
+   postId=v.media?.id?String(v.media.id):'';postFields='permalink,caption';
+   row={canal:'instagram',comentario_id:String(v.id),padre_id:v.parent_id?String(v.parent_id):null,autor_id:autor,autor_nombre:v.from?.username?String(v.from.username):null,texto:String(v.text||'').slice(0,2000)};
+  }else if(payload.object==='page'&&ch.field==='feed'&&v.item==='comment'&&v.verb==='add'){
+   const autor=String(v.from?.id||'');
+   if(!v.comment_id||!autor||autor===s.pageId)continue;// our own replies
+   postId=v.post_id?String(v.post_id):'';postFields='permalink_url,message';
+   row={canal:'facebook',comentario_id:String(v.comment_id),padre_id:v.parent_id&&v.parent_id!==v.post_id?String(v.parent_id):null,autor_id:autor,autor_nombre:v.from?.name?String(v.from.name):null,texto:String(v.message||'').slice(0,2000)};
+  }else continue;
   let url:string|null=null,caption:string|null=null;
-  if(v.media?.id)try{const r=await fetch(`https://graph.facebook.com/${version()}/${v.media.id}?fields=permalink,caption&access_token=${encodeURIComponent(await pageToken(s))}`,{signal:AbortSignal.timeout(8000)});
-   const d=await r.json() as Value;if(r.ok){url=d.permalink||null;caption=d.caption?String(d.caption).slice(0,500):null;}}catch{/* without the post link */}
-  const {data,error}=await db.from('redes_comentarios').insert({canal:'instagram',comentario_id:String(v.id),publicacion_id:v.media?.id?String(v.media.id):null,publicacion_url:url,publicacion_texto:caption,
-   padre_id:v.parent_id?String(v.parent_id):null,autor_id:autor,autor_nombre:v.from?.username?String(v.from.username):null,texto:String(v.text||'').slice(0,2000)}).select('id').single();
+  if(postId)try{const r=await fetch(`https://graph.facebook.com/${version()}/${postId}?fields=${postFields}&access_token=${encodeURIComponent(await pageToken(s))}`,{signal:AbortSignal.timeout(8000)});
+   const d=await r.json() as Value;if(r.ok){url=d.permalink||d.permalink_url||null;const t=d.caption||d.message;caption=t?String(t).slice(0,500):null;}}catch{/* without the post link */}
+  const {data,error}=await db.from('redes_comentarios').insert({...row,publicacion_id:postId||null,publicacion_url:url,publicacion_texto:caption}).select('id').single();
   if(error){if(error.code==='23505')continue;throw error;}
   nuevos.push(data.id);
  }
@@ -99,17 +109,19 @@ async function graphPost(path:string,s:SocialSettings,body:Value){
  if(!r.ok||!(d.id||d.message_id))throw Error(`Meta no aceptó la respuesta: ${String(d.error?.message||r.status).slice(0,160)}`);
  return {id:String(d.id||d.message_id),recipient:d.recipient_id?String(d.recipient_id):''};
 }
-/** Public reply under the Instagram comment. Returns the reply id. */
-export const replyComment=async(s:SocialSettings,commentId:string,texto:string)=>(await graphPost(`${commentId}/replies`,s,{message:texto.slice(0,2200)})).id;
+/** Public reply under the comment (Instagram or Facebook). Returns the reply id. */
+export const replyComment=async(s:SocialSettings,commentId:string,texto:string,canal='instagram')=>(await graphPost(canal==='facebook'?`${commentId}/comments`:`${commentId}/replies`,s,{message:texto.slice(0,2200)})).id;
 /** Private reply: one Direct message to the person who commented (Meta allows it within 7 days of the comment). Returns the message id and the person's Instagram id. */
 export const privateReplyComment=(s:SocialSettings,commentId:string,texto:string)=>graphPost(`${s.pageId}/messages`,s,{recipient:{comment_id:commentId},message:{text:texto.slice(0,1000)}});
-/** After a private reply, the conversation opens in the inbox as an Instagram chat (saved before Meta's echo arrives, so the AI is not paused). */
-export async function chatFromPrivateReply(db:SupabaseClient,dm:{id:string;recipient:string},c:{autor_id?:string|null;autor_nombre?:string|null;texto?:string|null},texto:string,origen:'ia'|'erp',enviadoPor?:string){
- const contacto=dm.recipient||String(c.autor_id||'');
+/** After a private reply, the conversation opens in the inbox as an Instagram or Messenger chat (saved before Meta's echo arrives, so the AI is not paused). */
+export async function chatFromPrivateReply(db:SupabaseClient,dm:{id:string;recipient:string},c:{autor_id?:string|null;autor_nombre?:string|null;texto?:string|null;canal?:string|null},texto:string,origen:'ia'|'erp',enviadoPor?:string){
+ const red:Canal=c.canal==='facebook'?'messenger':'instagram';
+ // Facebook comments carry a different id than Messenger: only the id Meta returns for the message opens the chat.
+ const contacto=dm.recipient||(red==='instagram'?String(c.autor_id||''):'');
  if(!/^\d{3,40}$/.test(contacto))return;
  const now=new Date().toISOString();
- const {data:conv}=await db.from('whatsapp_conversaciones').upsert({telefono:socialKey('instagram',contacto),canal:'instagram',contacto_id:contacto,nombre:c.autor_nombre||null},{onConflict:'telefono'}).select('id,ia_resumen').single();
+ const {data:conv}=await db.from('whatsapp_conversaciones').upsert({telefono:socialKey(red,contacto),canal:red,contacto_id:contacto,nombre:c.autor_nombre||null},{onConflict:'telefono'}).select('id,ia_resumen').single();
  if(!conv)return;
  await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:dm.id,direccion:'saliente',origen,tipo:'text',texto,estado:'sent',created_at:now,...(enviadoPor?{enviado_por:enviadoPor}:{})});
- await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,...(conv.ia_resumen?{}:{ia_resumen:`Llegó por un comentario en Instagram: «${String(c.texto||'').slice(0,200)}»`})}).eq('id',conv.id);
+ await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,...(conv.ia_resumen?{}:{ia_resumen:`Llegó por un comentario en ${red==='instagram'?'Instagram':'Facebook'}: «${String(c.texto||'').slice(0,200)}»`})}).eq('id',conv.id);
 }

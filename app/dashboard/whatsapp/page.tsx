@@ -35,25 +35,25 @@ export default function WhatsappPage(){
 
 function Tabs({admin}:{admin:boolean}){
  const [tab,setTab]=useState<'chats'|'comentarios'|'ia'|'anuncios'>('chats');
- const tabs=([['chats','Chats'],['comentarios','Comentarios de Instagram'],['ia','IA de WhatsApp'],['anuncios','Anuncios']] as const).filter(([k])=>admin||k==='chats'||k==='comentarios');
+ const tabs=([['chats','Chats'],['comentarios','Comentarios de redes'],['ia','IA de WhatsApp'],['anuncios','Anuncios']] as const).filter(([k])=>admin||k==='chats'||k==='comentarios');
  return <>
   <div className={styles.toolbar} style={{marginBottom:12}}>{tabs.map(([k,l])=><button key={k} type="button" className={tab===k?styles.primary:undefined} onClick={()=>setTab(k)}>{l}</button>)}</div>
   {tab==='chats'?<Inbox/>:tab==='comentarios'?<Comments/>:tab==='ia'?<IaSettings/>:<AdsPanel/>}
  </>;
 }
 
-type Comentario={id:string;comentario_id:string;publicacion_url:string|null;publicacion_texto:string|null;padre_id:string|null;autor_nombre:string|null;texto:string|null;created_at:string;estado:string;ia_sugerencia:string|null;ia_error:string|null;respuesta:string|null;respondido_at:string|null;ia_tipo:string|null;ia_privado:string|null;respuesta_publica:string|null};
+type Comentario={id:string;canal:string;comentario_id:string;publicacion_url:string|null;publicacion_texto:string|null;padre_id:string|null;autor_nombre:string|null;texto:string|null;created_at:string;estado:string;ia_sugerencia:string|null;ia_error:string|null;respuesta:string|null;respondido_at:string|null;ia_tipo:string|null;ia_privado:string|null;respuesta_publica:string|null};
 const TIPO_COM:Record<string,[string,string]>={interes:['Interés en alquilar','#047857'],elogio:['Elogio','#7c3aed'],negativo:['Queja: atiende una persona','#b91c1c'],otro:['Otro','#64748b']};
 const ESTADO_COM:Record<string,string>={pendiente:'Pendientes',respondido:'Respondidos en público',privado:'Respondidos por privado',ignorado:'Sin responder (descartados)'};
 /** WhatsApp 304 › Comentarios de Instagram: what customers comment on our posts, with the AI's suggested reply; a person answers in public or by private message. */
 function Comments(){
  const [estado,setEstado]=useState('pendiente'),[rows,setRows]=useState<Comentario[]|null>(null),[error,setError]=useState('');
- const load=useCallback(async()=>{setError('');const {data,error:e}=await supabase.from('redes_comentarios').select('id,comentario_id,publicacion_url,publicacion_texto,padre_id,autor_nombre,texto,created_at,estado,ia_sugerencia,ia_error,respuesta,respondido_at,ia_tipo,ia_privado,respuesta_publica').eq('estado',estado).order('created_at',{ascending:false}).limit(100);
+ const load=useCallback(async()=>{setError('');const {data,error:e}=await supabase.from('redes_comentarios').select('id,canal,comentario_id,publicacion_url,publicacion_texto,padre_id,autor_nombre,texto,created_at,estado,ia_sugerencia,ia_error,respuesta,respondido_at,ia_tipo,ia_privado,respuesta_publica').eq('estado',estado).order('created_at',{ascending:false}).limit(100);
   if(e)setError(e.message);else setRows((data||[]) as Comentario[]);},[estado]);
  useEffect(()=>{const t=setTimeout(()=>void load(),0);const ch=supabase.channel('redes_comentarios').on('postgres_changes',{event:'*',schema:'public',table:'redes_comentarios'},()=>void load()).subscribe();return()=>{clearTimeout(t);void supabase.removeChannel(ch);};},[load]);
  return <section className={styles.card} style={{display:'grid',gap:10}}>
-  <h2>Comentarios de Instagram</h2>
-  <p className={styles.help}>Lo que comentan en las publicaciones de @ambarcouture. Con las respuestas automáticas de la IA encendidas: si hay interés en alquilar, la IA le escribe por mensaje privado (el chat sigue en Chats y la IA lo atiende) y responde corto en público; los elogios reciben un agradecimiento. Las quejas y lo demás quedan aquí pendientes para una persona. Meta permite un mensaje privado por comentario, dentro de los 7 días.</p>
+  <h2>Comentarios de Instagram y Facebook</h2>
+  <p className={styles.help}>Lo que comentan en las publicaciones de Instagram (@ambarcouture) y de la página de Facebook. Con las respuestas automáticas de la IA encendidas: si hay interés en alquilar, la IA le escribe por mensaje privado (el chat sigue en Chats y la IA lo atiende) y responde corto en público; los elogios reciben un agradecimiento. Las quejas y lo demás quedan aquí pendientes para una persona. Meta permite un mensaje privado por comentario, dentro de los 7 días.</p>
   <div className={styles.toolbar}>{Object.entries(ESTADO_COM).map(([k,l])=><button key={k} type="button" className={estado===k?styles.primary:undefined} onClick={()=>setEstado(k)}>{l}</button>)}
    <button type="button" className={styles.button} onClick={()=>void load()}><RefreshCw size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Actualizar</button></div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
@@ -66,7 +66,7 @@ function CommentCard({c,onDone}:{c:Comentario;onDone:()=>void}){
  const run=async(accion:string,extra:Record<string,unknown>={})=>{setBusy(accion);setError('');try{await api({accion,comentario_id:c.id,...extra});onDone();}catch(e){setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}};
  const pendiente=c.estado==='pendiente',dias=(Date.now()-Date.parse(c.created_at))/86400000;
  return <article style={{border:'1px solid #f1e4e8',borderRadius:14,padding:12,display:'grid',gap:8}}>
-  <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><strong>@{c.autor_nombre||'cliente'}{c.padre_id?' · respuesta a otro comentario':''}{c.ia_tipo&&<small style={{marginLeft:8,color:TIPO_COM[c.ia_tipo]?.[1]}}>● {TIPO_COM[c.ia_tipo]?.[0]}</small>}</strong><small>{hora(c.created_at)}</small></div>
+  <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><strong><small style={{marginRight:6,color:c.canal==='facebook'?'#1d4ed8':'#be185d'}}>{c.canal==='facebook'?'Facebook':'Instagram'}</small>{c.canal==='facebook'?'':'@'}{c.autor_nombre||'cliente'}{c.padre_id?' · respuesta a otro comentario':''}{c.ia_tipo&&<small style={{marginLeft:8,color:TIPO_COM[c.ia_tipo]?.[1]}}>● {TIPO_COM[c.ia_tipo]?.[0]}</small>}</strong><small>{hora(c.created_at)}</small></div>
   <p style={{margin:0,whiteSpace:'pre-wrap'}}>{c.texto}</p>
   {(c.publicacion_texto||c.publicacion_url)&&<small style={{color:'#6b7280'}}>En la publicación: {c.publicacion_texto?`«${c.publicacion_texto.slice(0,120)}${c.publicacion_texto.length>120?'…':''}»`:''} {c.publicacion_url&&<a href={c.publicacion_url} target="_blank" rel="noreferrer">Ver publicación</a>}</small>}
   {pendiente?<>
