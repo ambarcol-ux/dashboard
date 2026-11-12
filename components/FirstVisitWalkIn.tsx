@@ -3,7 +3,7 @@ import {useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {supabase} from '@/lib/supabase';
 import {emptyConfig,loadModuleConfig,minChars} from '@/lib/module-config';
-import {bogotaLocalToIso,nowBogotaLocal} from '@/lib/first-visits';
+import {bogotaLocalToIso,nowBogotaLocal,noRentalReasons} from '@/lib/first-visits';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
 import DataAuthorization,{saveDataAuthorization} from '@/components/DataAuthorization';
 import {commercialPending,COMMERCIAL_REQUIRED} from '@/lib/data-authorization';
@@ -21,6 +21,7 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
  const [sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[asesoras,setAsesoras]=useState<{id:string;nombre:string|null;email:string|null}[]>([]);
  const [dups,setDups]=useState<Duplicates|null>(null),[link,setLink]=useState(''),[asNew,setAsNew]=useState(false);
  const [saving,setSaving]=useState(false),[error,setError]=useState(''),[cfg,setCfg]=useState(emptyConfig);
+ const [lost,setLost]=useState('');
  const [auth,setAuth]=useState<AuthChoice>({tratamiento:false,comercial:null}),[authState,setAuthState]=useState<AuthState>(null);
  useEffect(()=>{void loadModuleConfig('primeras_visitas','pv_').then(setCfg);},[]);
  const min=minChars(cfg);
@@ -48,6 +49,8 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
   if(f.nombre.trim().length<2)return setError('Escribe el nombre completo.');
   if(!/^\d{10,15}$/.test(digits(f.telefono)))return setError('Revisa el teléfono: entre 10 y 15 números.');
   if(!sede||!f.tipo_evento||!f.resultado||!fecha_hora||!asesora)return setError('Completa los campos obligatorios (*).');
+  // Why she did not rent: required so the weekly funnel report can tell why sales are lost.
+  if(!alContratar&&(f.resultado==='En seguimiento'||f.resultado==='No cerró')&&!lost)return setError('Elige el motivo por el que no alquiló.');
   if(f.resultado==='No cerró'&&f.motivo.trim().length<min)return setError(`Para no hacer seguimiento escribe el motivo (mínimo ${min} caracteres).`);
   if(hasDups&&!link&&!asNew)return setError('El teléfono o la cédula ya existen: vincula el registro existente o elige «Continuar como vitrina nueva».');
   if(authState?.estado!=='autorizada'&&!auth.tratamiento)return setError('Marca la autorización de tratamiento de datos (obligatoria).');
@@ -58,6 +61,7 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
   const {data,error}=await supabase.rpc('registrar_vitrina',{p_datos:{...f,al_contratar:alContratar,telefono:digits(f.telefono),documento:digits(f.documento),sede_id:sede,fecha_hora,asesora_id:asesora,vincular_id:link||null,forzar:asNew,sin_seguimiento:f.resultado==='No cerró'}});
   setSaving(false);
   if(error)return setError(error.message.replace(/^DUPLICADO: /,''));
+  if(lost&&(f.resultado==='En seguimiento'||f.resultado==='No cerró')){const {error:me}=await supabase.rpc('registrar_motivo_no_alquiler',{p_id:data,p_motivo:lost});if(me)return setError(`Vitrina guardada, pero no el motivo: ${me.message}`);}
   if(onCreated){onCreated(String(data));return;}
   if(createContract){router.push(`/contratos/nuevo?primeraCita=${data}`);return;}
   onSaved(link?'Visita registrada sobre el registro existente.':'Vitrina registrada como atendida.');
@@ -94,6 +98,7 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
    </div>
    <label>Cómo se enteró<select value={f.como_se_entero} onChange={set('como_se_entero')}><option value="">Sin dato</option>{(cfg.lists.pv_como_se_entero||[]).map(t=><option key={t}>{t}</option>)}</select></label>
    {!alContratar&&<label>¿Alquiló? *<select required value={f.resultado==='Cerrado'?'si':f.resultado?'no':''} onChange={e=>setF({...f,resultado:e.target.value==='si'?'Cerrado':e.target.value==='no'?'En seguimiento':''})}><option value="">Elige…</option><option value="si">Alquiló</option><option value="no">No alquiló</option></select></label>}
+   {!alContratar&&f.resultado&&f.resultado!=='Cerrado'&&<label>¿Por qué no alquiló? *<select required value={lost} onChange={e=>setLost(e.target.value)}><option value="">Elige…</option>{noRentalReasons.map(m=><option key={m}>{m}</option>)}</select></label>}
    {!alContratar&&f.resultado&&f.resultado!=='Cerrado'&&<label><input type="checkbox" checked={f.resultado==='No cerró'} onChange={e=>setF({...f,resultado:e.target.checked?'No cerró':'En seguimiento'})}/> No hacer seguimiento (motivo de mínimo {min} caracteres)</label>}
    <label>{f.resultado==='No cerró'?'Motivo *':'Observaciones'}<textarea maxLength={1000} value={f.motivo} onChange={set('motivo')} required={f.resultado==='No cerró'} minLength={f.resultado==='No cerró'?min:undefined}/></label>
    <DataAuthorization documento={f.documento} telefono={f.telefono} value={auth} onChange={setAuth} onState={setAuthState}/>
