@@ -35,11 +35,43 @@ export default function WhatsappPage(){
 
 function Tabs({admin}:{admin:boolean}){
  const [tab,setTab]=useState<'chats'|'comentarios'|'ia'|'anuncios'>('chats');
+ const [faltan,setFaltan]=useState(0);
+ useEffect(()=>{if(!admin)return;void supabase.from('whatsapp_ia_faltantes').select('id',{count:'exact',head:true}).eq('estado','pendiente').then(({count})=>setFaltan(count||0));},[admin,tab]);
  const tabs=([['chats','Chats'],['comentarios','Comentarios de redes'],['ia','IA de WhatsApp'],['anuncios','Anuncios']] as const).filter(([k])=>admin||k==='chats'||k==='comentarios');
  return <>
+  {admin&&faltan>0&&tab!=='ia'&&<button type="button" onClick={()=>setTab('ia')} style={{width:'100%',textAlign:'left',marginBottom:10,padding:'10px 14px',borderRadius:12,border:'1px solid #fcd34d',background:'#fffbeb',color:'#92400e',fontWeight:700,cursor:'pointer'}}>
+   📝 La IA necesita {faltan} dato{faltan===1?'':'s'} para responder sola sin pasar chats a una persona. Tócame para completarlos.</button>}
   <div className={styles.toolbar} style={{marginBottom:12}}>{tabs.map(([k,l])=><button key={k} type="button" className={tab===k?styles.primary:undefined} onClick={()=>setTab(k)}>{l}</button>)}</div>
   {tab==='chats'?<Inbox/>:tab==='comentarios'?<Comments/>:tab==='ia'?<IaSettings/>:<AdsPanel/>}
  </>;
+}
+
+type Faltante={id:number;falta:string;pregunta:string|null;veces:number;ultima_at:string};
+/** «IA de WhatsApp»: what the AI could not answer (it passed the chat to a person). Administration answers once and it is added to the knowledge. */
+function Faltantes({onChange}:{onChange:()=>void}){
+ const [rows,setRows]=useState<Faltante[]>([]),[resp,setResp]=useState<Record<number,string>>({}),[aprender,setAprender]=useState<boolean|null>(null),[busy,setBusy]=useState(0),[error,setError]=useState('');
+ const load=useCallback(async()=>{const [{data},{data:c}]=await Promise.all([supabase.from('whatsapp_ia_faltantes').select('id,falta,pregunta,veces,ultima_at').eq('estado','pendiente').order('veces',{ascending:false}).order('ultima_at',{ascending:false}).limit(50),
+  supabase.from('whatsapp_ia_config').select('auto_aprender').eq('id',1).maybeSingle()]);setRows((data||[]) as Faltante[]);setAprender(c?.auto_aprender!==false);},[]);
+ useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
+ const completar=async(f:Faltante,descartar=false)=>{setBusy(f.id);setError('');const {error:e}=await supabase.rpc('completar_dato_ia',{p_id:f.id,p_respuesta:resp[f.id]||'',p_descartar:descartar});setBusy(0);
+  if(e)setError(e.message);else{await load();if(!descartar)onChange();}};
+ const toggle=async()=>{const next=!aprender;setBusy(-1);const {error:e}=await supabase.rpc('guardar_whatsapp_ia_aprender',{p_activa:next});setBusy(0);if(e)setError(e.message);else setAprender(next);};
+ return <section className={styles.card} style={{display:'grid',gap:10,borderColor:rows.length?'#f59e0b':undefined}}>
+  <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+   <h2 style={{margin:0,flex:1}}>Lo que le falta a la IA {rows.length>0&&<span className={styles.badge} style={{background:'#fef3c7',color:'#92400e'}}>{rows.length}</span>}</h2>
+   {aprender!==null&&<button type="button" className={`${styles.button} ${aprender?styles.primary:''}`} disabled={busy!==0} onClick={()=>void toggle()}>Aprende sola cada día: {aprender?'ENCENDIDO':'APAGADO'}</button>}
+  </div>
+  <p className={styles.help}>Cada mañana (7:40 a. m.) la IA analiza los chats de los últimos 7 días y aplica sola sus mejoras para agendar más citas y sonar más humana (el historial de abajo guarda cada versión para volver atrás). Aquí aparecen las preguntas que no pudo responder porque le falta información del negocio: respóndelas una vez y se agregan a sus conocimientos, así la próxima vez responde sola.</p>
+  {error&&<p role="alert" className={styles.error}>{error}</p>}
+  {!rows.length&&<p className={styles.empty}>No le falta ningún dato por ahora. 🎉</p>}
+  {rows.map(f=><div key={f.id} style={{border:'1px solid #fde68a',borderRadius:12,padding:10,display:'grid',gap:6}}>
+   <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><strong>{f.falta}</strong><small style={{color:'#92400e'}}>{f.veces} {f.veces===1?'vez':'veces'} · {hora(f.ultima_at)}</small></div>
+   {f.pregunta&&<small style={{color:'#64748b'}}>Ejemplo de lo que preguntó la clienta: «{f.pregunta}»</small>}
+   <textarea rows={2} value={resp[f.id]||''} onChange={e=>setResp(r=>({...r,[f.id]:e.target.value}))} placeholder="Escribe la respuesta tal como quieres que la IA la sepa" style={{width:'100%'}}/>
+   <div className={styles.toolbar}><button type="button" className={styles.primary} disabled={busy!==0||(resp[f.id]||'').trim().length<2} onClick={()=>void completar(f)}>{busy===f.id?'Guardando…':'Enseñar a la IA'}</button>
+    <button type="button" className={styles.button} disabled={busy!==0} onClick={()=>void completar(f,true)}>No aplica</button></div>
+  </div>)}
+ </section>;
 }
 
 type Comentario={id:string;canal:string;comentario_id:string;publicacion_url:string|null;publicacion_texto:string|null;padre_id:string|null;autor_nombre:string|null;texto:string|null;created_at:string;estado:string;ia_sugerencia:string|null;ia_error:string|null;respuesta:string|null;respondido_at:string|null;ia_tipo:string|null;ia_privado:string|null;respuesta_publica:string|null};
@@ -178,6 +210,7 @@ function IaSettings(){
    <p className={styles.help}>{auto.activa?'La IA contesta sola en los chats activos.':'La IA solo deja sugerencias; las asesoras envían.'} Nunca responde sola los chats marcados «Atender persona». Cuando una asesora escribe en un chat (desde el ERP o el celular), la IA se pausa en ese chat; la asesora la reactiva con su botón o vuelve sola después de:
     {' '}<select value={auto.horas} disabled={!!busy} onChange={e=>void guardarAuto({...auto,horas:Number(e.target.value)})}>{[1,2,4,6,8,12,24,48,72].map(h=><option key={h} value={h}>{h} hora{h===1?'':'s'}</option>)}</select> sin que la asesora escriba.</p>
   </section>}
+  <Faltantes onChange={()=>void load()}/>
   <section className={styles.card} style={{display:'grid',gap:10}}>
    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><h2 style={{margin:0,flex:1}}>Conocimientos de la IA</h2>
     <button className={styles.button} disabled={!!busy} title="Compara los chats que terminaron en cita con los que no y propone mejoras. También se hace solo cada lunes." onClick={()=>void conversar({accion:'analisis'})}>{busy==='ajustar'?'Analizando…':'📊 Analizar la última semana'}</button></div>

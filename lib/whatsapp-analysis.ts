@@ -10,10 +10,11 @@ type Msg={conversacion_id:string;direccion:string;origen:string;texto:string|nul
 type Cita={telefono:string;created_at:string;estado:string};
 
 const SYSTEM=`Eres la analista comercial de Ámbar Couture (alquiler de vestidos de XV años, gala, novia y pajecitas en Colombia).
-Cada semana revisas los chats de WhatsApp de la línea 304, que atiende una IA (a veces una asesora), para que cada semana se agenden más primeras citas.
+Cada día revisas los chats de WhatsApp de la línea 304 de los últimos 7 días, que atiende una IA (a veces una asesora), para que cada día se agenden más primeras citas, la IA suene más humana y cercana, y haga falta cada vez menos una persona.
+También recibes los datos que la IA dijo que le faltaban (preguntas que no pudo responder): no inventes esas respuestas; si el dato ya está en lo que el ERP entrega, propón la instrucción para que la IA lo use; si no, déjalo para que administración lo complete.
 Recibes: métricas de la semana y de la semana anterior, la configuración actual de la IA (conocimientos, instrucciones, escalamiento), lo que la IA ya recibe del ERP, y chats de muestra marcados con su resultado (CITA = agendó primera cita; SIN CITA = no agendó).
 Escribe en "resumen" un informe breve en español claro para la dueña (sin tecnicismos, máximo 12 líneas):
-1. Cómo le fue a la semana comparada con la anterior (con las cifras).
+1. Cómo le fue a estos 7 días comparado con el análisis anterior (con las cifras).
 2. Qué hicieron distinto los chats que terminaron en cita.
 3. En qué momento se pierden las clientas que no agendan (con ejemplos cortos y concretos de los chats, sin nombres completos ni teléfonos).
 4. Qué cambiarías y por qué.
@@ -48,7 +49,9 @@ export async function weeklyChatAnalysis(db:SupabaseClient,now=Date.now()){
   anuncios:anuncio.length,anuncios_con_cita:anuncio.filter(r=>r.agendo).length,solo_ia:soloIa.length,solo_ia_con_cita:soloIa.filter(r=>r.agendo).length,
   sin_respuesta:rows.filter(r=>r.sinRespuesta).length,un_solo_mensaje:rows.filter(r=>r.unSolo).length,para_persona:rows.filter(r=>r.c.ia_atender).length};
  const {data:prev}=await db.from('whatsapp_ia_analisis').select('metricas,created_at').order('id',{ascending:false}).limit(1).maybeSingle();
- const {data:row}=await db.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento').eq('id',1).single();
+ const {data:row}=await db.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento,auto_aprender').eq('id',1).single();
+ const {data:faltantes}=await db.from('whatsapp_ia_faltantes').select('falta,veces').eq('estado','pendiente').order('veces',{ascending:false}).limit(30);
+ const faltaTxt=((faltantes||[]) as {falta:string;veces:number}[]).map(f=>`- ${f.falta} (${f.veces} ${f.veces===1?'vez':'veces'})`).join('\n');
  const cfg:IaConfig={conocimientos:row?.conocimientos||'',instrucciones:row?.instrucciones||'',escalamiento:row?.escalamiento||''};
  const {count:ajustes}=await db.from('whatsapp_ia_historial').select('id',{count:'exact',head:true}).gte('created_at',desde.toISOString());
  // Sample: every chat that booked plus those that did not (with at least 2 customer messages first: they show where she was lost).
@@ -58,17 +61,25 @@ export async function weeklyChatAnalysis(db:SupabaseClient,now=Date.now()){
  if(n&&process.env.ANTHROPIC_API_KEY){
   const client=new Anthropic({timeout:50000,maxRetries:0});
   const r=await client.messages.create({model:MODEL,max_tokens:4000,system:SYSTEM,output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},
-   messages:[{role:'user',content:`<metricas_semana>\n${JSON.stringify(metricas)}\n</metricas_semana>\n<metricas_semana_anterior>\n${prev?JSON.stringify(prev.metricas):'(primera semana analizada)'}\n</metricas_semana_anterior>\n<ajustes_a_la_ia_esta_semana>${ajustes||0}</ajustes_a_la_ia_esta_semana>\n<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<escalamiento>\n${cfg.escalamiento}\n</escalamiento>\n</configuracion_actual>\n<datos_del_erp>\n${(await loadErpContext(db)).slice(0,20000)}\n</datos_del_erp>\n<chats>\n${chats}\n</chats>`}]});
+   messages:[{role:'user',content:`<datos_que_le_faltan_a_la_ia>\n${faltaTxt||'(ninguno)'}\n</datos_que_le_faltan_a_la_ia>\n<metricas_semana>\n${JSON.stringify(metricas)}\n</metricas_semana>\n<metricas_semana_anterior>\n${prev?JSON.stringify(prev.metricas):'(primera semana analizada)'}\n</metricas_semana_anterior>\n<ajustes_a_la_ia_esta_semana>${ajustes||0}</ajustes_a_la_ia_esta_semana>\n<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<escalamiento>\n${cfg.escalamiento}\n</escalamiento>\n</configuracion_actual>\n<datos_del_erp>\n${(await loadErpContext(db)).slice(0,20000)}\n</datos_del_erp>\n<chats>\n${chats}\n</chats>`}]});
   const t=r.content.find(b=>b.type==='text');
   if(t&&t.type==='text'){const out=JSON.parse(t.text) as {resumen:string;cambios:IaCambio[]};resumen=out.resumen;
    // Only changes that still apply to the current text are proposed.
    cambios=(out.cambios||[]).filter(ch=>{try{applyIaChanges(cfg,[ch]);return true;}catch{return false;}}).slice(0,4);
    try{applyIaChanges(cfg,cambios);}catch{cambios=[];}}
  }
- const cifras=`📊 Análisis semanal de los chats (${metricas.desde} a ${metricas.hasta})\n${n} chats · ${conCita} con primera cita (${metricas.conversion} %) · anuncios: ${metricas.anuncios_con_cita} de ${metricas.anuncios} · solo IA: ${metricas.solo_ia_con_cita} de ${metricas.solo_ia} · sin respuesta: ${metricas.sin_respuesta} · un solo mensaje: ${metricas.un_solo_mensaje}`;
- const texto=`${cifras}\n\n${resumen}${cambios.length?'\n\nTe propongo los cambios de abajo. ¿Los aplico?':''}`.slice(0,8000);
+ // Authorized by administration: the improvements are applied right away (the history keeps every version to go back).
+ let aplicados=false;
+ if(cambios.length&&row?.auto_aprender!==false){
+  const nuevo=applyIaChanges(cfg,cambios);
+  const {error}=await db.rpc('guardar_whatsapp_ia_servidor',{p_conocimientos:nuevo.conocimientos,p_instrucciones:nuevo.instrucciones,p_escalamiento:nuevo.escalamiento});
+  aplicados=!error;
+ }
+ const cifras=`📊 Análisis diario de los chats (${metricas.desde} a ${metricas.hasta})\n${n} chats · ${conCita} con primera cita (${metricas.conversion} %) · anuncios: ${metricas.anuncios_con_cita} de ${metricas.anuncios} · solo IA: ${metricas.solo_ia_con_cita} de ${metricas.solo_ia} · sin respuesta: ${metricas.sin_respuesta} · un solo mensaje: ${metricas.un_solo_mensaje}`;
+ const pendientes=(faltantes||[]).length?`\n\n📝 Para responder sola necesito que completes ${(faltantes||[]).length} dato${(faltantes||[]).length===1?'':'s'} en «Lo que le falta a la IA».`:'';
+ const texto=`${cifras}\n\n${resumen}${aplicados?'\n\n✅ Ya apliqué los cambios de abajo (puedes volver a una versión anterior en el historial).':cambios.length?'\n\nTe propongo los cambios de abajo. ¿Los aplico?':''}${pendientes}`.slice(0,8000);
  await db.from('whatsapp_ia_analisis').insert({desde:metricas.desde,hasta:metricas.hasta,metricas,resumen,propuesta:cambios});
- if(cambios.length)await db.from('whatsapp_ia_conocimiento_chat').update({estado:'descartada'}).eq('estado','pendiente');
- await db.from('whatsapp_ia_conocimiento_chat').insert({rol:'ia',texto,...(cambios.length?{propuesta:cambios,estado:'pendiente'}:{})});
+ if(cambios.length&&!aplicados)await db.from('whatsapp_ia_conocimiento_chat').update({estado:'descartada'}).eq('estado','pendiente');
+ await db.from('whatsapp_ia_conocimiento_chat').insert({rol:'ia',texto,...(cambios.length?{propuesta:cambios,estado:aplicados?'aplicada':'pendiente'}:{})});
  return {metricas,cambios:cambios.length};
 }
