@@ -42,17 +42,18 @@ function Tabs({admin}:{admin:boolean}){
  </>;
 }
 
-type Comentario={id:string;comentario_id:string;publicacion_url:string|null;publicacion_texto:string|null;padre_id:string|null;autor_nombre:string|null;texto:string|null;created_at:string;estado:string;ia_sugerencia:string|null;ia_error:string|null;respuesta:string|null;respondido_at:string|null};
+type Comentario={id:string;comentario_id:string;publicacion_url:string|null;publicacion_texto:string|null;padre_id:string|null;autor_nombre:string|null;texto:string|null;created_at:string;estado:string;ia_sugerencia:string|null;ia_error:string|null;respuesta:string|null;respondido_at:string|null;ia_tipo:string|null;ia_privado:string|null;respuesta_publica:string|null};
+const TIPO_COM:Record<string,[string,string]>={interes:['Interés en alquilar','#047857'],elogio:['Elogio','#7c3aed'],negativo:['Queja: atiende una persona','#b91c1c'],otro:['Otro','#64748b']};
 const ESTADO_COM:Record<string,string>={pendiente:'Pendientes',respondido:'Respondidos en público',privado:'Respondidos por privado',ignorado:'Sin responder (descartados)'};
 /** WhatsApp 304 › Comentarios de Instagram: what customers comment on our posts, with the AI's suggested reply; a person answers in public or by private message. */
 function Comments(){
  const [estado,setEstado]=useState('pendiente'),[rows,setRows]=useState<Comentario[]|null>(null),[error,setError]=useState('');
- const load=useCallback(async()=>{setError('');const {data,error:e}=await supabase.from('redes_comentarios').select('id,comentario_id,publicacion_url,publicacion_texto,padre_id,autor_nombre,texto,created_at,estado,ia_sugerencia,ia_error,respuesta,respondido_at').eq('estado',estado).order('created_at',{ascending:false}).limit(100);
+ const load=useCallback(async()=>{setError('');const {data,error:e}=await supabase.from('redes_comentarios').select('id,comentario_id,publicacion_url,publicacion_texto,padre_id,autor_nombre,texto,created_at,estado,ia_sugerencia,ia_error,respuesta,respondido_at,ia_tipo,ia_privado,respuesta_publica').eq('estado',estado).order('created_at',{ascending:false}).limit(100);
   if(e)setError(e.message);else setRows((data||[]) as Comentario[]);},[estado]);
  useEffect(()=>{const t=setTimeout(()=>void load(),0);const ch=supabase.channel('redes_comentarios').on('postgres_changes',{event:'*',schema:'public',table:'redes_comentarios'},()=>void load()).subscribe();return()=>{clearTimeout(t);void supabase.removeChannel(ch);};},[load]);
  return <section className={styles.card} style={{display:'grid',gap:10}}>
   <h2>Comentarios de Instagram</h2>
-  <p className={styles.help}>Lo que comentan en las publicaciones de @ambarcouture. La IA deja una respuesta sugerida: revísala y respóndela en público (debajo del comentario) o por mensaje privado (Meta permite uno, dentro de los 7 días del comentario; la conversación sigue en Chats).</p>
+  <p className={styles.help}>Lo que comentan en las publicaciones de @ambarcouture. Con las respuestas automáticas de la IA encendidas: si hay interés en alquilar, la IA le escribe por mensaje privado (el chat sigue en Chats y la IA lo atiende) y responde corto en público; los elogios reciben un agradecimiento. Las quejas y lo demás quedan aquí pendientes para una persona. Meta permite un mensaje privado por comentario, dentro de los 7 días.</p>
   <div className={styles.toolbar}>{Object.entries(ESTADO_COM).map(([k,l])=><button key={k} type="button" className={estado===k?styles.primary:undefined} onClick={()=>setEstado(k)}>{l}</button>)}
    <button type="button" className={styles.button} onClick={()=>void load()}><RefreshCw size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Actualizar</button></div>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
@@ -61,23 +62,25 @@ function Comments(){
  </section>;
 }
 function CommentCard({c,onDone}:{c:Comentario;onDone:()=>void}){
- const [texto,setTexto]=useState(c.ia_sugerencia||''),[busy,setBusy]=useState(''),[error,setError]=useState('');
+ const [texto,setTexto]=useState(c.ia_sugerencia||''),[privado,setPrivado]=useState(c.ia_privado||''),[busy,setBusy]=useState(''),[error,setError]=useState('');
  const run=async(accion:string,extra:Record<string,unknown>={})=>{setBusy(accion);setError('');try{await api({accion,comentario_id:c.id,...extra});onDone();}catch(e){setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}};
  const pendiente=c.estado==='pendiente',dias=(Date.now()-Date.parse(c.created_at))/86400000;
  return <article style={{border:'1px solid #f1e4e8',borderRadius:14,padding:12,display:'grid',gap:8}}>
-  <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><strong>@{c.autor_nombre||'cliente'}{c.padre_id?' · respuesta a otro comentario':''}</strong><small>{hora(c.created_at)}</small></div>
+  <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><strong>@{c.autor_nombre||'cliente'}{c.padre_id?' · respuesta a otro comentario':''}{c.ia_tipo&&<small style={{marginLeft:8,color:TIPO_COM[c.ia_tipo]?.[1]}}>● {TIPO_COM[c.ia_tipo]?.[0]}</small>}</strong><small>{hora(c.created_at)}</small></div>
   <p style={{margin:0,whiteSpace:'pre-wrap'}}>{c.texto}</p>
   {(c.publicacion_texto||c.publicacion_url)&&<small style={{color:'#6b7280'}}>En la publicación: {c.publicacion_texto?`«${c.publicacion_texto.slice(0,120)}${c.publicacion_texto.length>120?'…':''}»`:''} {c.publicacion_url&&<a href={c.publicacion_url} target="_blank" rel="noreferrer">Ver publicación</a>}</small>}
   {pendiente?<>
    {c.ia_error&&<small style={{color:'#b91c1c'}}>La IA no pudo sugerir: {c.ia_error}</small>}
-   <textarea value={texto} onChange={e=>setTexto(e.target.value)} rows={3} placeholder={c.ia_sugerencia?'':'Escribe la respuesta o pide una sugerencia a la IA'} style={{width:'100%'}}/>
+   <label style={{display:'grid',gap:4}}><small>Respuesta pública</small><textarea value={texto} onChange={e=>setTexto(e.target.value)} rows={2} placeholder={c.ia_sugerencia?'':'Escribe la respuesta o pide una sugerencia a la IA'} style={{width:'100%'}}/></label>
+   <label style={{display:'grid',gap:4}}><small>Mensaje privado (abre el chat en Chats)</small><textarea value={privado} onChange={e=>setPrivado(e.target.value)} rows={3} placeholder="Opcional: primer mensaje directo a la persona" style={{width:'100%'}}/></label>
    <div className={styles.toolbar}>
     <button type="button" className={styles.primary} disabled={!!busy||!texto.trim()} onClick={()=>void run('comentario_responder',{texto,modo:'publico'})}><Send size={14} style={{display:'inline',verticalAlign:'-2px'}}/> {busy==='comentario_responder'?'Enviando…':'Responder en público'}</button>
-    <button type="button" className={styles.button} disabled={!!busy||!texto.trim()||dias>7} title={dias>7?'Pasaron más de 7 días: Meta ya no deja escribirle por privado.':undefined} onClick={()=>void run('comentario_responder',{texto,modo:'privado'})}>Responder por privado</button>
+    <button type="button" className={styles.button} disabled={!!busy||!privado.trim()||dias>7} title={dias>7?'Pasaron más de 7 días: Meta ya no deja escribirle por privado.':undefined} onClick={()=>void run('comentario_responder',{texto:privado,modo:'privado'})}>Responder por privado</button>
     <button type="button" className={styles.button} disabled={!!busy} onClick={()=>void run('comentario_ia')}><Sparkles size={14} style={{display:'inline',verticalAlign:'-2px'}}/> {busy==='comentario_ia'?'Pensando…':'Sugerir con IA'}</button>
     <button type="button" className={styles.button} disabled={!!busy} onClick={()=>void run('comentario_ignorar')}>No responder</button>
    </div></>
-  :c.respuesta&&<p style={{margin:0,color:'#047857'}}><strong>Respondido{c.estado==='privado'?' por privado':''}:</strong> {c.respuesta}</p>}
+  :<>{c.respuesta&&<p style={{margin:0,color:'#047857'}}><strong>{c.estado==='privado'?'Mensaje privado':c.estado==='ignorado'?'Descartado':'Respuesta pública'}:</strong> {c.respuesta}</p>}
+   {c.respuesta_publica&&c.respuesta_publica!==c.respuesta&&<p style={{margin:0,color:'#047857'}}><strong>Respuesta pública:</strong> {c.respuesta_publica}</p>}</>}
   {error&&<p role="alert" className={styles.error}>{error}</p>}
  </article>;
 }

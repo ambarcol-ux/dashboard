@@ -6,7 +6,7 @@ import {attachmentBlocks} from './ai-attachments';
 import {allySlug} from './ally-validation';
 import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
 import {WHATSAPP_TOOLS,runWhatsappTool} from './whatsapp-tools';
-import {loadSocialSettings,sendSocialText} from './social-inbox';
+import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply} from './social-inbox';
 import {marcarCanal} from './event-channel';
 
 /** Ventas y CRM › WhatsApp 304: the AI reads the chat, labels it, detects the store, flags chats a person must take and leaves a suggested reply. It never sends anything. */
@@ -119,18 +119,45 @@ async function loadBasics(db:SupabaseClient){
  return {clauses,catalogs,cfg:(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}) as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
 }
 
-/** Suggested reply to a public Instagram comment: same knowledge as the chats, short and public-safe. */
-export async function suggestCommentReply(db:SupabaseClient,id:string){
+const COMMENT_SCHEMA={type:'object',additionalProperties:false,required:['tipo','publica','privado'],properties:{
+ tipo:{type:'string',enum:['interes','elogio','negativo','otro'],description:'interes: pregunta precio, disponibilidad, tallas, sedes, citas, «info» o muestra intención de alquilar. elogio: halagos, emojis, etiquetas a amigas. negativo: queja, reclamo o crítica. otro: lo demás o spam.'},
+ publica:{type:'string',description:'Respuesta pública bajo el comentario: máximo 2 frases cortas y cálidas, sin precios exactos ni datos personales. Si es interés, di que le escribimos por mensaje directo.'},
+ privado:{type:'string',description:'Solo si es interés: primer mensaje directo a la persona, como una asesora, respondiendo lo que preguntó con los datos del ERP y dando un paso siguiente (catálogo de su sede o agendar). Si no es interés, cadena vacía.'},
+}};
+
+/** Instagram comment: the AI classifies it and writes the public reply and, if there is buying interest, the first private message.
+ *  With automatic replies on: interest → private message (it becomes a chat the AI keeps answering) + short public reply; praise → public thanks;
+ *  complaints and the rest stay pending for a person. */
+export async function handleComment(db:SupabaseClient,id:string,auto=true){
  if(!process.env.ANTHROPIC_API_KEY)return;
- const {data:c}=await db.from('redes_comentarios').select('texto,autor_nombre,publicacion_texto').eq('id',id).maybeSingle();
+ const {data:c}=await db.from('redes_comentarios').select('id,comentario_id,texto,autor_id,autor_nombre,publicacion_texto,estado,created_at').eq('id',id).maybeSingle();
  if(!c?.texto)return;
  try{
   const {cfg,sites,clauses,catalogs}=await loadBasics(db);
-  const chat=`(COMENTARIO PÚBLICO en una publicación de Instagram${c.publicacion_texto?` cuyo texto es: «${String(c.publicacion_texto).slice(0,300)}»`:''}. Tu respuesta se publica debajo del comentario y la ve todo el mundo: máximo 2 frases cálidas, sin datos personales ni de contratos, sin enlaces largos; si pregunta precio, disponibilidad o quiere agendar, invítala a escribirnos por mensaje directo o al WhatsApp de su sede.)\nClienta @${c.autor_nombre||'cliente'}: ${c.texto}`;
-  const out=await runWhatsappAI(cfg,sites,{canal:'instagram_comentario',nombre_perfil:c.autor_nombre},chat,clauses,catalogs,[],db);
-  await db.from('redes_comentarios').update({ia_sugerencia:marcarCanal(out.respuesta,'instagram').slice(0,2000),ia_error:null,ia_at:new Date().toISOString()}).eq('id',id);
+  const today=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const response=await new Anthropic().messages.create({model:MODEL,max_tokens:1500,
+   system:[{type:'text',text:systemPrompt(cfg,sites,clauses,catalogs),cache_control:{type:'ephemeral'}}],
+   output_config:{effort:'low',format:{type:'json_schema',schema:COMMENT_SCHEMA}},
+   messages:[{role:'user',content:`Hoy es ${today}. Recibimos un COMENTARIO PÚBLICO en una publicación de Instagram de Ámbar Couture${c.publicacion_texto?` (texto de la publicación: «${String(c.publicacion_texto).slice(0,400)}»)`:''}.\nComentario de @${c.autor_nombre||'cliente'}: ${c.texto}\n\nClasifícalo y escribe la respuesta pública y, si hay interés, el primer mensaje directo. El mensaje directo empieza mencionando con naturalidad que vimos su comentario. Si no sabes su ciudad, pregúntala para enviarle el catálogo de su sede.`}]});
+  const text=response.content.find(b=>b.type==='text');
+  if(!text||text.type!=='text')throw Error('La IA no devolvió respuesta.');
+  const out=JSON.parse(text.text) as {tipo:string;publica:string;privado:string};
+  const publica=out.publica.trim().slice(0,2000),privado=marcarCanal(out.privado.trim(),'instagram').slice(0,1000);
+  await db.from('redes_comentarios').update({ia_tipo:out.tipo,ia_sugerencia:publica||null,ia_privado:privado||null,ia_error:null,ia_at:new Date().toISOString()}).eq('id',id);
+  if(!auto||!cfg.auto_activa||c.estado!=='pendiente'||!['interes','elogio'].includes(out.tipo))return;
+  const s=await loadSocialSettings(db);if(!s)return;
+  const now=new Date().toISOString(),cambios:Record<string,unknown>={respondido_at:now};
+  if(out.tipo==='interes'&&privado&&Date.now()-Date.parse(c.created_at)<7*86400000){
+   const dm=await privateReplyComment(s,c.comentario_id,privado);
+   await chatFromPrivateReply(db,dm,c,privado,'ia');
+   Object.assign(cambios,{estado:'privado',respuesta:privado,respuesta_id:dm.id});
+  }
+  if(publica){try{const pid=await replyComment(s,c.comentario_id,publica);Object.assign(cambios,{respuesta_publica:publica,respuesta_publica_id:pid});if(!cambios.estado)Object.assign(cambios,{estado:'respondido',respuesta:publica,respuesta_id:pid});}catch(e){if(!cambios.estado)throw e;}}
+  if(cambios.estado)await db.from('redes_comentarios').update(cambios).eq('id',id);
  }catch(e){await db.from('redes_comentarios').update({ia_error:aiErrorText(e).slice(0,300),ia_at:new Date().toISOString()}).eq('id',id);}
 }
+/** «Sugerir con IA» in the comments tab: new suggestion only, nothing is sent. */
+export const suggestCommentReply=(db:SupabaseClient,id:string)=>handleComment(db,id,false);
 
 /** What the WhatsApp AI gets from the ERP on every chat (fixed rules, stores, catalogs and inventory), for the knowledge chat. */
 export async function loadErpContext(db:SupabaseClient){
