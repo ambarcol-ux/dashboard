@@ -3,6 +3,7 @@
 import { usePermissions } from '@/lib/use-permissions';
 import React, { useState } from 'react';
 import Link from 'next/link';
+import UpcomingVisitsAlert from '@/components/UpcomingVisitsAlert';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
 import {
   FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen
@@ -309,6 +310,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       <aside className="w-64 bg-white border-r border-gray-100 hidden lg:flex flex-col sticky top-0 h-screen">
         {renderSidebarContent()}
       </aside>
+      {canSee('primeras-citas') && <UpcomingVisitsAlert />}
     </>
   );
 }
