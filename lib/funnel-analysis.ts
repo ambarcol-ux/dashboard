@@ -12,11 +12,12 @@ const SYSTEM=`Eres la directora comercial de Ámbar Couture (alquiler de vestido
 Cada lunes analizas el embudo de primeras visitas: AGENDÓ → ASISTIÓ → ALQUILÓ (citas presenciales y virtuales) y las vitrinas (clientas que entraron sin cita).
 Recibes las métricas de la semana cerrada (citas de hace 9 a 3 días, ya con la asistencia resuelta) y las de las 4 semanas anteriores, el historial de tus reportes anteriores y la configuración de la IA de WhatsApp que agenda las citas.
 Qué hace hoy el sistema solo: confirmación y recordatorios por WhatsApp (al agendar, 24 h y 2 h antes), QR de llegada en la sede, enlace de videollamada que registra asistencia, «No asistió» automático a las 48 h, seguimientos automáticos por WhatsApp a quienes no asistieron o no alquilaron, y avisos a la sede de citas próximas.
-Escribe "resumen" para la dueña, en español claro, sin tecnicismos, máximo 15 líneas:
+Escribe "resumen" para la dueña, en español claro, sin tecnicismos, máximo 18 líneas:
 1. Cómo le fue a la semana frente a las 4 anteriores (asistencia y alquiler, con cifras y %).
 2. Por qué no asisten: cruza confirmación, WhatsApp entregado, anticipación con que agendan, día y hora, modalidad y sede.
-3. Por qué asisten y no alquilan: sede, asesora, tipo de vestido, meses al evento, motivos registrados (y cuántos quedaron sin motivo).
-4. Qué cambió desde el reporte anterior y si las acciones anteriores funcionaron.
+3. Ventas por sede: contratos, valor y valor promedio por contrato por mes (el mes actual va incompleto). Si alguna fila tiene "alerta": true (el promedio cayó más del 25 % frente a los 3 meses anteriores), explícalo y da una acción para esa sede (revisar descuentos, referencias más económicas o contratos incompletos).
+4. Por qué asisten y no alquilan: sede, asesora, tipo de vestido, meses al evento, motivos registrados (y cuántos quedaron sin motivo).
+5. Qué cambió desde el reporte anterior y si las acciones anteriores funcionaron.
 En "acciones" da de 3 a 8 acciones concretas y medibles, ordenadas por impacto en alquileres. Cada una con:
 - responsable: "sistema" (lo ajusta la IA de WhatsApp sola: cómo agenda, qué horarios sugiere, cómo confirma), "administracion", "sede" o "asesora".
 - quien: nombre de la sede o de la asesora (o "Todas"/"IA de WhatsApp").
@@ -34,11 +35,12 @@ const SCHEMA={type:'object',additionalProperties:false,required:['resumen','acci
 /** Builds and saves the report; changes to the WhatsApp AI are applied when administration enabled automatic learning. */
 export async function weeklyFunnelReport(db:SupabaseClient,now=Date.now()){
  const hasta=day(now-3*DAY),desde=day(now-9*DAY),antesHasta=day(now-10*DAY),antesDesde=day(now-37*DAY);
- const [{data:metricas,error},{data:anteriores},{data:prev},{data:row}]=await Promise.all([
+ const [{data:metricas,error},{data:anteriores},{data:prev},{data:row},{data:ventas}]=await Promise.all([
   db.rpc('embudo_metricas',{p_desde:desde,p_hasta:hasta}),
   db.rpc('embudo_metricas',{p_desde:antesDesde,p_hasta:antesHasta}),
   db.from('embudo_reportes').select('created_at,resumen,acciones').order('id',{ascending:false}).limit(3),
   db.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento,auto_aprender').eq('id',1).maybeSingle(),
+  db.rpc('ventas_sede_mensual',{p_meses:4}),
  ]);
  if(error)throw Error('No se pudieron calcular las métricas del embudo.');
  const cfg:IaConfig={conocimientos:row?.conocimientos||'',instrucciones:row?.instrucciones||'',escalamiento:row?.escalamiento||''};
@@ -46,7 +48,7 @@ export async function weeklyFunnelReport(db:SupabaseClient,now=Date.now()){
  if(process.env.ANTHROPIC_API_KEY){
   const client=new Anthropic({timeout:55000,maxRetries:0});
   const r=await client.messages.create({model:MODEL,max_tokens:5000,system:SYSTEM,output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},
-   messages:[{role:'user',content:`<semana_cerrada>\n${JSON.stringify(metricas)}\n</semana_cerrada>\n<cuatro_semanas_anteriores>\n${JSON.stringify(anteriores)}\n</cuatro_semanas_anteriores>\n<reportes_anteriores>\n${(prev||[]).map(p=>`${String(p.created_at).slice(0,10)}: ${p.resumen}\nAcciones: ${JSON.stringify(p.acciones)}`).join('\n\n')||'(primer reporte)'}\n</reportes_anteriores>\n<configuracion_ia_whatsapp>\n## conocimientos\n${cfg.conocimientos}\n## instrucciones\n${cfg.instrucciones}\n## escalamiento\n${cfg.escalamiento}\n</configuracion_ia_whatsapp>`}]});
+   messages:[{role:'user',content:`<semana_cerrada>\n${JSON.stringify(metricas)}\n</semana_cerrada>\n<cuatro_semanas_anteriores>\n${JSON.stringify(anteriores)}\n</cuatro_semanas_anteriores>\n<contratos_por_sede_y_mes>\n${JSON.stringify(ventas||[])}\n</contratos_por_sede_y_mes>\n<reportes_anteriores>\n${(prev||[]).map(p=>`${String(p.created_at).slice(0,10)}: ${p.resumen}\nAcciones: ${JSON.stringify(p.acciones)}`).join('\n\n')||'(primer reporte)'}\n</reportes_anteriores>\n<configuracion_ia_whatsapp>\n## conocimientos\n${cfg.conocimientos}\n## instrucciones\n${cfg.instrucciones}\n## escalamiento\n${cfg.escalamiento}\n</configuracion_ia_whatsapp>`}]});
   const t=r.content.find(b=>b.type==='text');
   if(t&&t.type==='text'){
    const out=JSON.parse(t.text) as {resumen:string;acciones:FunnelAction[];cambios_ia:IaCambio[]};

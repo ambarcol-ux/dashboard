@@ -9,6 +9,7 @@ import { TrendingUp, RefreshCw, Loader2, DollarSign, Calendar } from 'lucide-rea
 import Sidebar from '@/components/Sidebar';
 import EventTypeByChannel from '@/components/EventTypeByChannel';
 import FunnelReport from '@/components/FunnelReport';
+import SalesBySite from '@/components/SalesBySite';
 
 export default function ReportsPage() {
   const readAccess = useVerifiedAccess();
@@ -400,6 +401,8 @@ export default function ReportsPage() {
               </div>
             )}
           </div>
+
+          <SalesBySite />
 
           <FunnelReport />
 
