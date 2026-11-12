@@ -6,7 +6,7 @@ import FirstVisitCommercial from './FirstVisitCommercial';
 import FirstVisitWalkIn from './FirstVisitWalkIn';
 import ArrivalQr from './ArrivalQr';
 import {supabase} from '@/lib/supabase';
-import {VISIT_STATUS,visitAttendance,visitMetrics,visitRented,visitStatus,outcomeLabel,visitOrigin,type FirstVisit} from '@/lib/first-visits';
+import {noRentalReasons,VISIT_STATUS,visitAttendance,visitMetrics,visitRented,visitStatus,outcomeLabel,visitOrigin,type FirstVisit} from '@/lib/first-visits';
 import styles from '@/app/agendar-primera-cita/visits.module.css';
 import {followupTypeLabel} from '@/lib/first-visit-followup';
 import {usePermissions} from '@/lib/use-permissions';
@@ -63,7 +63,7 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
  useEffect(()=>{setPick([]);setTarget('');if(!fSede){setTargets([]);return;}void supabase.rpc('asesoras_reasignables',{p_sede:fSede}).then(({data})=>setTargets((data||[]) as {id:string;nombre:string}[]));},[fSede]);
  async function reassign(){if(!pick.length||!target)return;setError('');const {data,error}=await supabase.rpc('reasignar_seguimientos',{p_citas:pick,p_asesora:target});if(error){setError(error.message);return;}setNotice(`${data} clientas reasignadas.`);setPick([]);setSegReload(n=>n+1);}
  const [search,setSearch]=useState(''),[site,setSite]=useState(''),[state,setState]=useState(''),[mode,setMode]=useState(''),[page,setPage]=useState(1);
- const [selected,setSelected]=useState<FirstVisit|null>(null),[result,setResult]=useState(''),[reason,setReason]=useState(''),[attended,setAttended]=useState(''),[rented,setRented]=useState(''),[followup,setFollowup]=useState(''),[note,setNote]=useState(''),[saving,setSaving]=useState(false),[history,setHistory]=useState<{id:string;created_at:string;accion:string;detalle:string}[]>([]);
+ const [selected,setSelected]=useState<FirstVisit|null>(null),[result,setResult]=useState(''),[reason,setReason]=useState(''),[attended,setAttended]=useState(''),[rented,setRented]=useState(''),[followup,setFollowup]=useState(''),[note,setNote]=useState(''),[lost,setLost]=useState(''),[saving,setSaving]=useState(false),[history,setHistory]=useState<{id:string;created_at:string;accion:string;detalle:string}[]>([]);
  const [canDelete,setCanDelete]=useState(false),[deleteReason,setDeleteReason]=useState('');
  // Configuración: lists, parameters and form states of Primeras visitas.
  const [cfg,setCfg]=useState(emptyConfig),[noShow,setNoShow]=useState(''),[eventDate,setEventDate]=useState('');
@@ -82,17 +82,19 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
  async function copy(reschedule=false){const link=reschedule?`${window.location.origin}/reprogramar-primera-cita`:`${window.location.origin}/agendar-primera-cita${site?'?sede='+encodeURIComponent(site):''}`;try{await navigator.clipboard.writeText(link);setNotice('Enlace copiado. Puedes compartirlo con tus clientes.');}catch{setNotice(`Enlace para compartir: ${link}`);}}
  async function remove(){if(!selected||busy.current||!window.confirm(`¿Eliminar definitivamente la cita de ${selected.cliente_nombre} (${selected.fecha} · ${selected.hora.slice(0,5)})? No se puede deshacer.`))return;busy.current=true;setSaving(true);setError('');try{const {data:session}=await supabase.auth.getSession();const r=await fetch('/api/primeras-citas/gestionar',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.session?.access_token||''}`},body:JSON.stringify({accion:'eliminar',id:selected.id,motivo:deleteReason,version:selected.updated_at})});const d=await r.json();if(!r.ok)throw Error(d.error||'No se pudo eliminar la cita.');setSelected(null);setNotice('Cita eliminada.');await load();}catch(e){setError(e instanceof Error?e.message:'No se pudo eliminar.');}finally{busy.current=false;setSaving(false);}}
  const yesNo=(b:boolean|null|undefined)=>b===true?'si':b===false?'no':'';
- function open(v:FirstVisit){const a=visitAttendance(v);setDeleteReason('');setSelected(v);setResult('confirmada');setReason('');setNote('');setError('');
+ function open(v:FirstVisit){const a=visitAttendance(v);setDeleteReason('');setSelected(v);setResult('confirmada');setReason('');setLost(v.motivo_no_alquiler||'');setNote('');setError('');
   setAttended(a==='asistio'?'si':a==='no_asistio'?'no':'');setNoShow('');setEventDate(v.fecha_evento||'');setRented(a==='asistio'?yesNo(visitRented(v)):'');setFollowup(v.posible_seguimiento===false?'no':'');}
  async function saveResult(e:React.FormEvent){e.preventDefault();if(!selected||busy.current)return;
   if(!attended){setError('Elige si asistió o no asistió.');return;}
   if(attended==='si'&&!rented){setError('Elige si alquiló o no alquiló.');return;}
+  if(attended==='si'&&rented==='no'&&!lost){setError('Elige el motivo por el que no alquiló.');return;}
   const isRented=attended==='si'&&rented==='si';
   if(!isRented&&attended==='si'&&followup==='no'&&note.trim().length<min){setError(`Para no hacer seguimiento escribe el motivo (mínimo ${min} caracteres).`);return;}
   if(noteState==='obligatorio'&&!note.trim()){setError('Escribe la nota.');return;}
   const fullNote=attended==='no'&&noShow?`${noShow}${note.trim()?': '+note.trim():''}`:note;
   busy.current=true;setSaving(true);setError('');
   try{const {error}=await supabase.rpc('registrar_resultado_primera_cita',{p_id:selected.id,p_asistio:attended==='si',p_alquilo:attended==='si'?isRented:false,p_seguimiento:isRented?null:!(attended==='si'&&followup==='no'),p_nota:fullNote,p_version:selected.updated_at});if(error)throw Error(error.message);
+   if(attended==='si'&&rented==='no'&&lost!==(selected.motivo_no_alquiler||'')){const {error:me}=await supabase.rpc('registrar_motivo_no_alquiler',{p_id:selected.id,p_motivo:lost});if(me)throw Error(me.message);}
    // Fecha del evento (locked field): saved with the commercial data, which recalculates the plan.
    if(!isRented&&eventDate!==(selected.fecha_evento||'')){const {data:cur}=await supabase.from('primeras_citas').select('updated_at,resultado_comercial').eq('id',selected.id).single();const {error:ee}=await supabase.rpc('editar_comercial_primera_cita',{p_id:selected.id,p_version:cur?.updated_at,p_datos:{fecha_evento:eventDate,enlace_virtual:selected.enlace_virtual||'',resultado:cur?.resultado_comercial||'EN SEGUIMIENTO',nota:''}});if(ee)throw Error(ee.message);}
    setSelected(null);setNotice('Resultado guardado.');await load();}
@@ -141,6 +143,7 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
   {attended==='no'&&<label>Motivo de no asistencia<select value={noShow} onChange={e=>setNoShow(e.target.value)}><option value="">Sin dato</option>{(cfg.lists.pv_motivos_no_asistencia||[]).map(m=><option key={m}>{m}</option>)}</select></label>}
   {attended==='no'&&<p>Se crea automáticamente el seguimiento de cita no asistida.</p>}
   <label>Fecha del evento<input type="date" value={eventDate} min={selected.fecha} onChange={e=>setEventDate(e.target.value)}/></label>
+  {attended==='si'&&rented==='no'&&<label>¿Por qué no alquiló? (obligatoria)<select required value={lost} onChange={e=>setLost(e.target.value)}><option value="">Elige…</option>{[...noRentalReasons,...(lost&&!noRentalReasons.includes(lost)?[lost]:[])].map(m=><option key={m}>{m}</option>)}</select></label>}
   {attended==='si'&&rented==='no'&&<label><input type="checkbox" checked={followup==='no'} onChange={e=>setFollowup(e.target.checked?'no':'')}/> No hacer seguimiento (escribe el motivo, mínimo {min} caracteres)</label>}
   {(noteState!=='oculto'||followup==='no')&&<label>{noteState==='obligatorio'?'Nota':'Nota (opcional)'}{attended==='no'&&noShow==='Otro'?` · cuál (mínimo ${min} caracteres)`:''}<textarea maxLength={1000} value={note} onChange={e=>setNote(e.target.value)}/></label>}
   {selected.contrato_id&&<p className={styles.notice}>Tiene contrato {selected.numero_contrato}: cuenta como Asistió · Alquiló.</p>}
