@@ -128,7 +128,7 @@ export async function POST(request:Request){
   // WhatsApp 304 › Comentarios: reply in public or by private message, ask the AI again, or set aside. RLS decides who sees them.
   if(body.accion?.startsWith('comentario_')){
    if(!UUID_RE.test(String(body.comentario_id||'')))return publicReply({error:'Comentario no válido.'},400);
-   const {data:c}=await userDb.from('redes_comentarios').select('id,comentario_id,estado,autor_id,autor_nombre,texto').eq('id',body.comentario_id!).maybeSingle();
+   const {data:c}=await userDb.from('redes_comentarios').select('id,canal,comentario_id,estado,autor_id,autor_nombre,texto').eq('id',body.comentario_id!).maybeSingle();
    if(!c)return publicReply({error:'No tienes acceso a este comentario.'},403);
    const db=publicServerClient();
    if(body.accion==='comentario_ia'){if(!process.env.ANTHROPIC_API_KEY)return publicReply({error:'Falta ANTHROPIC_API_KEY en Vercel.'},503);await suggestCommentReply(db,c.id);return publicReply({ok:true});}
@@ -137,9 +137,9 @@ export async function POST(request:Request){
     const texto=String(body.texto||'').trim(),privado=body.modo==='privado';
     if(!texto||texto.length>(privado?1000:2200))return publicReply({error:`Escribe la respuesta (máximo ${privado?1000:2200} caracteres).`},400);
     const s=await loadSocialSettings(db);
-    if(!s)return publicReply({error:'Instagram no está conectado en Integraciones.'},503);
+    if(!s)return publicReply({error:'Instagram y Facebook no están conectados en Integraciones.'},503);
     let rid:string;
-    try{if(privado){const dm=await privateReplyComment(s,c.comentario_id,texto);rid=dm.id;await chatFromPrivateReply(db,dm,c,texto,'erp',auth.user.id);}else rid=await replyComment(s,c.comentario_id,texto);}
+    try{if(privado){const dm=await privateReplyComment(s,c.comentario_id,texto);rid=dm.id;await chatFromPrivateReply(db,dm,c,texto,'erp',auth.user.id);}else rid=await replyComment(s,c.comentario_id,texto,c.canal);}
     catch(e){return publicReply({error:e instanceof Error?e.message:'No se pudo responder.'},502);}
     await db.from('redes_comentarios').update({estado:privado?'privado':'respondido',respuesta:texto,respuesta_id:rid,respondido_por:auth.user.id,respondido_at:new Date().toISOString()}).eq('id',c.id);
     return publicReply({ok:true});
