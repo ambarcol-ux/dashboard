@@ -43,19 +43,25 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Reagendar o cancelar la primera cita (no confundir con cancelar un contrato): si quiere reagendar, envíale el enlace para reprogramar que aparece en <sedes>; ahí escribe su cédula y elige el nuevo horario. Si dice que no la encuentra con su cédula, marca atender_persona=true. Si quiere cancelar, ofrécele primero reagendar para no perder su cita; si insiste en cancelar, dile que una asesora la ayuda y marca atender_persona=true con el motivo «Cancelar cita». Si ya tiene contrato y quiere cambiar las citas de medidas, prueba o entrega, marca atender_persona=true.
 - Marca atender_persona=true (tu respuesta igual se envía y el chat queda marcado para una asesora) solo cuando la clienta pida hablar con una persona, reclame o discuta un cobro, una multa o una cláusula, pida una excepción, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
 
+Seguimiento (clientas que ya tuvieron cita o visitaron la tienda y no alquilaron):
+- Si en los datos de la clienta viene «seguimiento», Ámbar le escribió para retomar su búsqueda. Retómala con calidez según «tipo»: si no asistió, ayúdale a reagendar; si asistió o vino a la tienda y no alquiló, pregúntale cómo va con su vestido y, según «motivo_no_alquiler», ofrécele una salida concreta (otro modelo o categoría del inventario, el catálogo de su sede, separar la fecha). El objetivo es que agende una nueva cita.
+- Solo si «autoriza_promociones» es true puedes mencionar promociones o descuentos; si no, habla solo de su cita, su vestido y el catálogo.
+- En «cierre_seguimiento» marca alquilo_otro si dice que ya alquiló o compró en otro lugar, no_interesa si dice que ya no lo necesita o no le interesa, no_contactar si pide que no le escriban más (en ese caso despídete con respeto y no insistas). En cualquier otro caso, cadena vacía.
+
 Además: elige la etiqueta del tema principal, la sede de la clienta (solo si es clara; si no, cadena vacía) y un resumen de una frase para la asesora.`;
 
-const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo'],properties:{
+const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento'],properties:{
  etiqueta:{type:'string',enum:[...WHATSAPP_TAGS]},
  sede:{type:'string',description:'Nombre exacto de una de las sedes, o cadena vacía'},
  resumen:{type:'string'},
  respuesta:{type:'string'},
  atender_persona:{type:'boolean'},
  motivo:{type:'string',description:'Por qué debe atenderla una persona; cadena vacía si no hace falta'},
+ cierre_seguimiento:{type:'string',enum:['','alquilo_otro','no_interesa','no_contactar'],description:'Solo si la clienta lo dice en este chat; si no, cadena vacía'},
 }};
 
 export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string};
-export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string};
+export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string};
 type Msg={direccion:string;texto:string|null;created_at:string};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null};
 
@@ -217,7 +223,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   const history=(msgs as Msg[]).reverse();
   if(history[history.length-1].direccion!=='entrante')return;// already answered
   const social=conv.canal&&conv.canal!=='whatsapp';
-  const {data:ctx}=social?{data:null}:await db.rpc('whatsapp_contexto_servidor',{p_tel:conv.telefono});
+  const [{data:ctx},{data:seguimiento}]=social?[{data:null},{data:null}]:await Promise.all([db.rpc('whatsapp_contexto_servidor',{p_tel:conv.telefono}),db.rpc('seguimiento_info_chat',{p_tel:conv.telefono})]);
   const chat=history.map(m=>`[${new Date(m.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'})}] ${m.direccion==='entrante'?'Clienta':'Ámbar'}: ${m.texto||''}`).join('\n');
   // Photos the customer sent since Ámbar's last reply (up to 2), so the AI can see them.
   const pendientes:(Msg&{media_id?:string|null})[]=[];for(let i=history.length-1;i>=0&&history[i].direccion==='entrante';i--)pendientes.push(history[i]);
@@ -225,8 +231,10 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   const extra:Anthropic.ContentBlockParam[]=[];
   if(fotos.length){const settings=await loadWhatsappSettings(db);if(settings.token)for(const m of fotos){const img=await downloadWhatsappImage(settings,String(m.media_id)).catch(()=>null);
    if(img&&['image/jpeg','image/png','image/webp','image/gif'].includes(img.tipo))extra.push({type:'image',source:{type:'base64',media_type:img.tipo as 'image/jpeg',data:img.datos}});}}
-  const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(ctx||{})},chat,clauses,catalogs,extra,db);
+  const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(ctx||{}),...(seguimiento?{seguimiento}:{})},chat,clauses,catalogs,extra,db);
   out.respuesta=marcarCanal(out.respuesta,conv.canal);
+  // She said she already rented, is not interested or wants no more messages: the follow-up of her phone is closed.
+  if(!social&&out.cierre_seguimiento)await db.rpc('seguimiento_cerrar_por_chat',{p_tel:conv.telefono,p_motivo:out.cierre_seguimiento});
   const sede=sites.find(s=>s.nombre.toLowerCase()===out.sede.trim().toLowerCase());
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:out.respuesta.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
