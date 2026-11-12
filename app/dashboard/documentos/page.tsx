@@ -1,6 +1,6 @@
 'use client';
 import {useCallback,useEffect,useMemo,useState} from 'react';
-import {FolderOpen,Upload,Link2,Settings2,Plus,History,Archive,ExternalLink,Search} from 'lucide-react';
+import {FolderOpen,Upload,Link2,Settings2,Plus,History,Archive,ExternalLink,Search,Pencil} from 'lucide-react';
 import SupplierShell,{type ShellProfile} from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
 import styles from '@/app/dashboard/caja/caja.module.css';
@@ -26,7 +26,7 @@ function Documentos({profile}:{profile:ShellProfile}){
  const admin=profile.rol==='admin';
  const [areas,setAreas]=useState<Area[]>([]),[docs,setDocs]=useState<Doc[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[roles,setRoles]=useState<{id:string;nombre:string}[]>([]);
  const [sel,setSel]=useState(''),[q,setQ]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(''),[modo,setModo]=useState<''|'areas'|'subir'>('');
- const [versiones,setVersiones]=useState<{doc:Doc;lista:Version[]}|null>(null);
+ const [versiones,setVersiones]=useState<{doc:Doc;lista:Version[]}|null>(null),[editando,setEditando]=useState<Doc|null>(null);
  const load=useCallback(async()=>{
   const [a,d,s,r]=await Promise.all([
    supabase.from('doc_areas').select('*').order('orden').order('nombre'),
@@ -98,6 +98,7 @@ function Documentos({profile}:{profile:ShellProfile}){
       <td>{d.vence?<span className={styles.badge} style={dias!==null&&dias<=30?{background:'#fee2e2',color:'#b91c1c'}:undefined}>{fecha(d.vence)}{dias!==null&&dias<0?' · vencido':''}</span>:'—'}</td>
       <td style={{whiteSpace:'nowrap'}}>
        <button type="button" className={styles.button} disabled={!!busy} onClick={()=>abrir(d)} title="Abrir"><ExternalLink size={13}/></button>
+       {editable&&<button type="button" className={styles.button} disabled={!!busy} onClick={()=>setEditando(d)} title="Editar nombre, sede o vencimiento"><Pencil size={13}/></button>}
        {editable&&d.ruta&&<label className={styles.button} title="Subir nueva versión" style={{cursor:'pointer'}}><Upload size={13}/><input type="file" hidden onChange={e=>{const f=e.target.files?.[0];if(f)void nuevaVersion(d,f);e.target.value='';}}/></label>}
        {editable&&<button type="button" className={styles.button} disabled={!!busy} onClick={()=>archivar(d)} title="Archivar"><Archive size={13}/></button>}
       </td></tr>;})}
@@ -105,6 +106,7 @@ function Documentos({profile}:{profile:ShellProfile}){
    </section>
   </div>
   {modo==='subir'&&area&&<Subir area={area} sedes={sedes} onClose={()=>setModo('')} onDone={async()=>{setModo('');setNotice('Documento guardado.');await load();}}/>}
+  {editando&&<Editar doc={editando} sedes={sedes} onClose={()=>setEditando(null)} onDone={async()=>{setEditando(null);setNotice('Cambios guardados.');await load();}}/>}
   {modo==='areas'&&admin&&<AdminAreas areas={areas} roles={roles} onClose={()=>setModo('')} onChange={load}/>}
   {versiones&&<div role="dialog" aria-label="Versiones" style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',display:'grid',placeItems:'center',zIndex:50,padding:16}} onClick={()=>setVersiones(null)}>
    <div className={styles.card} style={{maxWidth:480,width:'100%',display:'grid',gap:8}} onClick={e=>e.stopPropagation()}>
@@ -113,6 +115,34 @@ function Documentos({profile}:{profile:ShellProfile}){
     <button type="button" className={styles.button} onClick={()=>setVersiones(null)}>Cerrar</button>
    </div></div>}
  </div>;
+}
+
+/** Edit a document's details: name, description, store, expiry and, for links, the address. Same permission as uploading in its area. */
+function Editar({doc,sedes,onClose,onDone}:{doc:Doc;sedes:{id:string;nombre:string}[];onClose:()=>void;onDone:()=>Promise<void>}){
+ const soloEnlace=!!doc.enlace&&!doc.ruta;
+ const [f,setF]=useState({nombre:doc.nombre,descripcion:doc.descripcion||'',sede_id:doc.sede_id||'',vence:doc.vence||'',enlace:doc.enlace||''}),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const faltan=[f.nombre.trim().length<2&&'el nombre',soloEnlace&&!/^https?:\/\//.test(f.enlace.trim())&&'el enlace (debe empezar por https://)'].filter(Boolean) as string[];
+ const save=async()=>{setBusy(true);setError('');try{
+  const {error:e}=await supabase.from('doc_archivos').update({nombre:f.nombre.trim(),descripcion:f.descripcion.trim()||null,sede_id:f.sede_id||null,vence:f.vence||null,...(soloEnlace?{enlace:f.enlace.trim()}:{}),updated_at:new Date().toISOString()}).eq('id',doc.id);
+  if(e)throw Error(/row-level|policy/i.test(e.message)?'No tienes permiso para editar documentos de esta área.':e.message);
+  await onDone();
+ }catch(e){setError(e instanceof Error?e.message:'No se pudo guardar.');}finally{setBusy(false);}};
+ const input={width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:10,boxSizing:'border-box' as const};
+ return <div role="dialog" aria-label="Editar documento" style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',display:'grid',placeItems:'center',zIndex:50,padding:16}} onClick={onClose}>
+  <div className={styles.card} style={{maxWidth:520,width:'100%',display:'grid',gap:10}} onClick={e=>e.stopPropagation()}>
+   <h2 style={{margin:0}}>Editar «{doc.nombre}»</h2>
+   <label>Nombre<input style={input} value={f.nombre} onChange={e=>setF({...f,nombre:e.target.value})}/></label>
+   <label>Descripción (opcional)<input style={input} value={f.descripcion} onChange={e=>setF({...f,descripcion:e.target.value})}/></label>
+   {soloEnlace&&<label>Enlace<input style={input} value={f.enlace} onChange={e=>setF({...f,enlace:e.target.value})} placeholder="https://…"/></label>}
+   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+    <label>Sede<select style={input} value={f.sede_id} onChange={e=>setF({...f,sede_id:e.target.value})}><option value="">Todas las sedes</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
+    <label>Vence (opcional)<input style={input} type="date" value={f.vence} onChange={e=>setF({...f,vence:e.target.value})}/></label>
+   </div>
+   {!soloEnlace&&<p className={styles.help}>Para cambiar el archivo usa el botón de subir nueva versión (la anterior queda guardada).</p>}
+   {faltan.length>0&&<p className={styles.help}>Para guardar falta: {faltan.join(' y ')}.</p>}
+   {error&&<p role="alert" className={styles.error}>{error}</p>}
+   <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}><button type="button" className={styles.button} onClick={onClose} disabled={busy}>Cancelar</button><button type="button" className={`${styles.button} ${styles.primary}`} disabled={busy||faltan.length>0} onClick={()=>void save()}>{busy?'Guardando…':'Guardar cambios'}</button></div>
+  </div></div>;
 }
 
 /** Upload a file (or save a link, for videos) to an area. */
