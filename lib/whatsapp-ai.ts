@@ -8,6 +8,7 @@ import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
 import {WHATSAPP_TOOLS,runWhatsappTool} from './whatsapp-tools';
 import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply} from './social-inbox';
 import {marcarCanal} from './event-channel';
+import {documentsForAI} from './doc-ia';
 
 /** Ventas y CRM › WhatsApp 304: the AI reads the chat, labels it, detects the store, flags chats a person must take and leaves a suggested reply. It never sends anything. */
 export const WHATSAPP_TAGS=['cita','disponibilidad','precio','pago','contrato','reclamo','aliado','otro'] as const;
@@ -63,7 +64,7 @@ const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sed
  falta_informacion:{type:'string',description:'Dato del negocio que no tienes y que administración debe darte; cadena vacía si no falta nada'},
 }};
 
-export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string};
+export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string};
 export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string};
 type Msg={direccion:string;texto:string|null;created_at:string};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null};
@@ -78,7 +79,8 @@ function systemPrompt(cfg:IaConfig,sites:Site[],clauses:string,catalogs=''){
   `<instrucciones_de_administracion>\n${cfg.instrucciones.trim()||'(sin instrucciones adicionales)'}\n</instrucciones_de_administracion>`,
   `<reglas_de_paso_a_una_persona>\n${cfg.escalamiento.trim()||'(solo las reglas fijas)'}\n</reglas_de_paso_a_una_persona>`,
   `<clausulas_del_contrato>\n${clauses||'(sin cláusulas)'}\n</clausulas_del_contrato>`,
-  `<catalogos>\n${catalogs||'(sin catálogos disponibles)'}\n</catalogos>`].join('\n\n');
+  `<catalogos>\n${catalogs||'(sin catálogos disponibles)'}\n</catalogos>`,
+  `<documentos_de_la_marca>\nResumen de documentos vigentes de la marca (planes, precios, condiciones, promociones). Úsalos como tus conocimientos; si un documento es de una sede, aplícalo solo a clientas de esa sede.\n${cfg.documentos||'(sin documentos)'}\n</documentos_de_la_marca>`].join('\n\n');
 }
 
 /** Current contract clauses (Administración › Cláusulas del contrato), as plain text: the same ones the customer signs. */
@@ -125,7 +127,8 @@ async function loadBasics(db:SupabaseClient){
   loadContractClauses(db),
   loadCatalogLinks(db),
  ]);
- return {clauses,catalogs,cfg:(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}) as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
+ const documentos=await documentsForAI(db).catch(()=>'');
+ return {clauses,catalogs,cfg:{...(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}),documentos} as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
 }
 
 const COMMENT_SCHEMA={type:'object',additionalProperties:false,required:['tipo','publica','privado'],properties:{
@@ -209,8 +212,8 @@ export const aiErrorText=(e:unknown)=>e instanceof Anthropic.APIError?`Anthropic
 /** «Probar»: what the AI would answer to a sample message with the given (unsaved) settings. */
 export async function testWhatsappAI(db:SupabaseClient,cfg:IaConfig,turns:{rol:'clienta'|'ambar';texto:string}[],adjuntos?:unknown){
  const blocks=attachmentBlocks(adjuntos);
- const {sites,clauses,catalogs}=await loadBasics(db);
- return runWhatsappAI(cfg,sites,{nombre:null,citas:[],contratos:[]},turns.map(t=>`${t.rol==='clienta'?'Clienta':'Ámbar'}: ${t.texto}`).join('\n'),clauses,catalogs,blocks,db);
+ const {sites,clauses,catalogs,cfg:actual}=await loadBasics(db);
+ return runWhatsappAI({...cfg,documentos:actual.documentos},sites,{nombre:null,citas:[],contratos:[]},turns.map(t=>`${t.rol==='clienta'?'Clienta':'Ámbar'}: ${t.texto}`).join('\n'),clauses,catalogs,blocks,db);
 }
 
 /** Builds the suggestion for one chat and saves it. Errors are saved in ia_error so the screen can show them. */
