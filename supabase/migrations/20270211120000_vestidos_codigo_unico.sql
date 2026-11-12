@@ -11,6 +11,7 @@ create table if not exists public.vestidos_unificaciones(
  usuario_id uuid, created_at timestamptz not null default now(), deshecho_at timestamptz, deshecho_por uuid
 );
 alter table public.vestidos_unificaciones enable row level security;
+drop policy if exists vestidos_unificaciones_ver on public.vestidos_unificaciones;
 create policy vestidos_unificaciones_ver on public.vestidos_unificaciones for select to authenticated using ((select public.es_admin()));
 revoke insert,update,delete on public.vestidos_unificaciones from anon, authenticated;
 
@@ -25,8 +26,7 @@ begin
  if found then raise exception 'El código % ya existe en %. Si el vestido cambió de sede, usa Traslados; si es otro vestido, usa un código distinto.',btrim(new.codigo),s using errcode='23505'; end if;
  return new;
 end $$;
-drop trigger if exists vestidos_codigo_unico on public.vestidos;
-create trigger vestidos_codigo_unico before insert or update of codigo, archivado on public.vestidos for each row execute function private.vestido_codigo_unico();
+create or replace trigger vestidos_codigo_unico before insert or update of codigo, archivado on public.vestidos for each row execute function private.vestido_codigo_unico();
 
 -- Active codes with more than one record, with what each record has (administration only).
 create or replace function public.vestidos_duplicados() returns jsonb language plpgsql stable security definer set search_path='' as $$
