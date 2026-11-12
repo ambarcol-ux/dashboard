@@ -1,5 +1,6 @@
 'use client';
 import {useCallback,useEffect,useMemo,useState} from 'react';
+import type {DriveDoc} from '@/lib/drive-docs';
 import {FolderOpen,Upload,Link2,Settings2,Plus,History,Archive,ExternalLink,Search,Pencil} from 'lucide-react';
 import SupplierShell,{type ShellProfile} from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
@@ -107,13 +108,14 @@ function Documentos({profile}:{profile:ShellProfile}){
       <td style={{whiteSpace:'nowrap'}}>
        <button type="button" className={styles.button} disabled={!!busy} onClick={()=>abrir(d)} title="Abrir"><ExternalLink size={13}/></button>
        {editable&&<button type="button" className={styles.button} disabled={!!busy} onClick={()=>setEditando(d)} title="Editar nombre, sede o vencimiento"><Pencil size={13}/></button>}
-       {editable&&d.ruta&&<label className={styles.button} title="Subir nueva versión" style={{cursor:'pointer'}}><Upload size={13}/><input type="file" hidden onChange={e=>{const f=e.target.files?.[0];if(f)void nuevaVersion(d,f);e.target.value='';}}/></label>}
+       {editable&&<label className={styles.button} title={d.ruta?'Subir nueva versión':'Cambiar el enlace por un archivo'} style={{cursor:'pointer'}}><Upload size={13}/><input type="file" hidden onChange={e=>{const f=e.target.files?.[0];if(f)void nuevaVersion(d,f);e.target.value='';}}/></label>}
        {editable&&<button type="button" className={styles.button} disabled={!!busy} onClick={()=>archivar(d)} title="Archivar"><Archive size={13}/></button>}
       </td></tr>;})}
     </tbody></table></div>}
    </section>
   </div>
-  {modo==='subir'&&area&&<Subir area={area} sedes={sedes} onClose={()=>setModo('')} onDone={async(id)=>{setModo('');setNotice(`Documento guardado.${iaLee(area.id)?' La IA lo está leyendo para usarlo con las clientas.':''}`);await load();if(id&&iaLee(area.id))void leerConIA(id).then(()=>load());}}/>}
+  {modo==='subir'&&area&&<Subir area={area} sedes={sedes} onClose={()=>setModo('')} onDone={async(ids)=>{setModo('');setNotice(`${ids&&ids.length>1?`${ids.length} documentos guardados`:'Documento guardado'}.${iaLee(area.id)&&ids?.length?' La IA los está leyendo para usarlos con las clientas.':''}`);await load();
+   if(ids?.length&&iaLee(area.id))void (async()=>{for(const id of ids.slice(0,10))await leerConIA(id);await load();})();}}/>}
   {editando&&<Editar doc={editando} sedes={sedes} onClose={()=>setEditando(null)} onDone={async()=>{setEditando(null);setNotice('Cambios guardados.');await load();}}/>}
   {modo==='areas'&&admin&&<AdminAreas areas={areas} roles={roles} onClose={()=>setModo('')} onChange={load}/>}
   {versiones&&<div role="dialog" aria-label="Versiones" style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',display:'grid',placeItems:'center',zIndex:50,padding:16}} onClick={()=>setVersiones(null)}>
@@ -146,45 +148,79 @@ function Editar({doc,sedes,onClose,onDone}:{doc:Doc;sedes:{id:string;nombre:stri
     <label>Sede<select style={input} value={f.sede_id} onChange={e=>setF({...f,sede_id:e.target.value})}><option value="">Todas las sedes</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
     <label>Vence (opcional)<input style={input} type="date" value={f.vence} onChange={e=>setF({...f,vence:e.target.value})}/></label>
    </div>
-   {!soloEnlace&&<p className={styles.help}>Para cambiar el archivo usa el botón de subir nueva versión (la anterior queda guardada).</p>}
+   <p className={styles.help}>{soloEnlace?'Para cambiar este enlace por un archivo, cierra y usa el botón de subir (⬆) en la fila del documento: el enlace queda en «Versiones».':'Para cambiar el archivo usa el botón de subir nueva versión (la anterior queda guardada).'}</p>
    {faltan.length>0&&<p className={styles.help}>Para guardar falta: {faltan.join(' y ')}.</p>}
    {error&&<p role="alert" className={styles.error}>{error}</p>}
    <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}><button type="button" className={styles.button} onClick={onClose} disabled={busy}>Cancelar</button><button type="button" className={`${styles.button} ${styles.primary}`} disabled={busy||faltan.length>0} onClick={()=>void save()}>{busy?'Guardando…':'Guardar cambios'}</button></div>
   </div></div>;
 }
 
-/** Upload a file (or save a link, for videos) to an area. */
-function Subir({area,sedes,onClose,onDone}:{area:Area;sedes:{id:string;nombre:string}[];onClose:()=>void;onDone:(id?:string)=>Promise<void>}){
- const [f,setF]=useState({nombre:'',descripcion:'',sede_id:'',vence:'',enlace:''}),[file,setFile]=useState<File|null>(null),[esEnlace,setEsEnlace]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const faltan=[f.nombre.trim().length<2&&'el nombre',esEnlace?!/^https?:\/\//.test(f.enlace.trim())&&'el enlace (debe empezar por https://)':!file&&'el archivo'].filter(Boolean) as string[];
+/** Upload one or several files, save a link (videos), or import files from a shared Google Drive folder. */
+function Subir({area,sedes,onClose,onDone}:{area:Area;sedes:{id:string;nombre:string}[];onClose:()=>void;onDone:(ids?:string[])=>Promise<void>}){
+ const [f,setF]=useState({nombre:'',descripcion:'',sede_id:'',vence:'',enlace:'',carpeta:''}),[files,setFiles]=useState<File[]>([]),[modo,setModo]=useState<'archivo'|'enlace'|'drive'>('archivo'),[busy,setBusy]=useState(false),[error,setError]=useState(''),[progreso,setProgreso]=useState('');
+ const [drive,setDrive]=useState<DriveDoc[]|null>(null),[marcados,setMarcados]=useState<Set<string>>(new Set());
+ const varios=modo==='archivo'&&files.length>1;
+ const faltan=(modo==='enlace'?[f.nombre.trim().length<2&&'el nombre',!/^https?:\/\//.test(f.enlace.trim())&&'el enlace (debe empezar por https://)']
+  :modo==='archivo'?[!files.length&&'el archivo',!varios&&files.length===1&&f.nombre.trim().length<2&&'el nombre']:[!drive&&'buscar los archivos de la carpeta',drive&&!marcados.size&&'elegir al menos un archivo']).filter(Boolean) as string[];
+ const api=async(body:Record<string,unknown>)=>{const {data}=await supabase.auth.getSession();const r=await fetch('/api/documentos/drive',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${data.session?.access_token||''}`},body:JSON.stringify(body)});
+  const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo completar.');return d;};
+ const buscar=async()=>{setBusy(true);setError('');try{const d=await api({accion:'listar',carpeta:f.carpeta}) as {archivos:DriveDoc[]};setDrive(d.archivos);setMarcados(new Set(d.archivos.map(x=>x.id)));if(!d.archivos.length)setError('La carpeta no tiene archivos que se puedan importar.');}catch(e){setError(e instanceof Error?e.message:'Error');}finally{setBusy(false);}};
+ const uno=async(file:File,nombre:string)=>{
+  if(file.size>50*1024*1024)throw Error(`«${file.name}» pesa más de 50 MB. Súbelo a Drive o YouTube y guarda el enlace.`);
+  const ruta=`${area.id}/${crypto.randomUUID()}-${limpio(file.name)}`;
+  const {error:e}=await supabase.storage.from(BUCKET).upload(ruta,file,{contentType:file.type||undefined});if(e)throw Error(`No se pudo subir «${file.name}»: ${e.message}`);
+  const {data,error:e2}=await supabase.from('doc_archivos').insert({area_id:area.id,nombre:nombre.slice(0,160),descripcion:f.descripcion.trim()||null,sede_id:f.sede_id||null,vence:f.vence||null,ruta,tipo:file.type||null,tamano:file.size}).select('id').single();
+  if(e2)throw Error(/row-level|policy/i.test(e2.message)?'No tienes permiso para subir archivos en esta área.':e2.message);
+  await supabase.from('doc_versiones').insert({archivo_id:data.id,version:1,ruta,tipo:file.type||null,tamano:file.size});
+  return data.id as string;
+ };
  const save=async()=>{setBusy(true);setError('');try{
-  let ruta:string|null=null;
-  if(!esEnlace&&file){
-   if(file.size>50*1024*1024)throw Error('El archivo pesa más de 50 MB. Súbelo a Drive o YouTube y guarda el enlace.');
-   ruta=`${area.id}/${crypto.randomUUID()}-${limpio(file.name)}`;
-   const {error:e}=await supabase.storage.from(BUCKET).upload(ruta,file,{contentType:file.type||undefined});if(e)throw Error(`No se pudo subir: ${e.message}`);
+  if(modo==='enlace'){
+   const {data,error:e}=await supabase.from('doc_archivos').insert({area_id:area.id,nombre:f.nombre.trim(),descripcion:f.descripcion.trim()||null,sede_id:f.sede_id||null,vence:f.vence||null,enlace:f.enlace.trim()}).select('id').single();
+   if(e)throw Error(/row-level|policy/i.test(e.message)?'No tienes permiso para subir archivos en esta área.':e.message);
+   await supabase.from('doc_versiones').insert({archivo_id:data.id,version:1,enlace:f.enlace.trim()});await onDone();return;
   }
-  const {data,error:e}=await supabase.from('doc_archivos').insert({area_id:area.id,nombre:f.nombre.trim(),descripcion:f.descripcion.trim()||null,sede_id:f.sede_id||null,vence:f.vence||null,ruta,enlace:esEnlace?f.enlace.trim():null,tipo:file?.type||null,tamano:file?.size||null}).select('id').single();
-  if(e)throw Error(/row-level|policy/i.test(e.message)?'No tienes permiso para subir archivos en esta área.':e.message);
-  await supabase.from('doc_versiones').insert({archivo_id:data.id,version:1,ruta,enlace:esEnlace?f.enlace.trim():null,tipo:file?.type||null,tamano:file?.size||null});
-  await onDone(ruta?data.id:undefined);
- }catch(e){setError(e instanceof Error?e.message:'No se pudo guardar.');}finally{setBusy(false);}};
+  const ids:string[]=[];
+  if(modo==='archivo'){
+   for(const [i,file] of files.entries()){setProgreso(`Subiendo ${i+1} de ${files.length}…`);
+    const base=file.name.replace(/\.[^.]+$/,'').trim();ids.push(await uno(file,varios?(base.length<2?`${base} doc`:base):f.nombre.trim()));}
+  }else{
+   const lista=(drive||[]).filter(x=>marcados.has(x.id)),fallos:string[]=[];
+   for(let i=0;i<lista.length;i+=4){setProgreso(`Importando de Drive ${Math.min(i+4,lista.length)} de ${lista.length}…`);
+    const d=await api({accion:'importar',area_id:area.id,archivos:lista.slice(i,i+4),sede_id:f.sede_id||null,vence:f.vence||null,descripcion:f.descripcion}) as {resultados:{nombre:string;ok:boolean;mensaje:string;id?:string}[]};
+    for(const r of d.resultados){if(r.id)ids.push(r.id);if(!r.ok)fallos.push(`${r.nombre}: ${r.mensaje}`);}}
+   if(fallos.length){setError(`Se importaron ${ids.length}. No se pudieron: ${fallos.slice(0,5).join(' · ')}`);await onDone(ids);return;}
+  }
+  await onDone(ids);
+ }catch(e){setError(e instanceof Error?e.message:'No se pudo guardar.');}finally{setBusy(false);setProgreso('');}};
  const input={width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:10,boxSizing:'border-box' as const};
+ const boton=(m:typeof modo,icon:React.ReactNode,t:string)=><button type="button" className={`${styles.button} ${modo===m?styles.primary:''}`} onClick={()=>{setModo(m);setError('');}}>{icon} {t}</button>;
  return <div role="dialog" aria-label="Subir documento" style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',display:'grid',placeItems:'center',zIndex:50,padding:16}} onClick={onClose}>
-  <div className={styles.card} style={{maxWidth:520,width:'100%',display:'grid',gap:10}} onClick={e=>e.stopPropagation()}>
+  <div className={styles.card} style={{maxWidth:560,width:'100%',maxHeight:'90vh',overflowY:'auto',display:'grid',gap:10}} onClick={e=>e.stopPropagation()}>
    <h2 style={{margin:0}}>Subir a «{area.nombre}»</h2>
-   <div style={{display:'flex',gap:8}}><button type="button" className={`${styles.button} ${!esEnlace?styles.primary:''}`} onClick={()=>setEsEnlace(false)}><Upload size={13} style={{display:'inline',verticalAlign:'-2px'}}/> Archivo</button><button type="button" className={`${styles.button} ${esEnlace?styles.primary:''}`} onClick={()=>setEsEnlace(true)}><Link2 size={13} style={{display:'inline',verticalAlign:'-2px'}}/> Enlace (videos, Drive)</button></div>
-   {esEnlace?<label>Enlace<input style={input} value={f.enlace} onChange={e=>setF({...f,enlace:e.target.value})} placeholder="https://…"/></label>
-    :<label>Archivo (PDF, Word, Excel, imágenes, presentaciones · máx. 50 MB)<input style={input} type="file" onChange={e=>{const x=e.target.files?.[0]||null;setFile(x);if(x&&!f.nombre)setF({...f,nombre:x.name.replace(/\.[^.]+$/,'')});}}/></label>}
-   <label>Nombre<input style={input} value={f.nombre} onChange={e=>setF({...f,nombre:e.target.value})}/></label>
+   <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>{boton('archivo',<Upload size={13} style={{display:'inline',verticalAlign:'-2px'}}/>,'Archivos')}{boton('drive',<FolderOpen size={13} style={{display:'inline',verticalAlign:'-2px'}}/>,'Desde Google Drive')}{boton('enlace',<Link2 size={13} style={{display:'inline',verticalAlign:'-2px'}}/>,'Enlace (videos)')}</div>
+   {modo==='enlace'&&<label>Enlace<input style={input} value={f.enlace} onChange={e=>setF({...f,enlace:e.target.value})} placeholder="https://…"/></label>}
+   {modo==='archivo'&&<label>Archivos (puedes elegir varios a la vez · PDF, Word, Excel, imágenes, presentaciones · máx. 50 MB c/u)<input style={input} type="file" multiple onChange={e=>{const x=[...(e.target.files||[])];setFiles(x);if(x.length===1&&!f.nombre)setF({...f,nombre:x[0].name.replace(/\.[^.]+$/,'')});}}/></label>}
+   {modo==='drive'&&<div style={{display:'grid',gap:6}}>
+    <label>Link de la carpeta de Google Drive<input style={input} value={f.carpeta} onChange={e=>{setF({...f,carpeta:e.target.value});setDrive(null);}} placeholder="https://drive.google.com/drive/folders/…"/></label>
+    <small className={styles.help}>En Drive comparte la carpeta como «Cualquier persona con el enlace» (lector). Se copian los archivos al ERP (los videos quedan por fuera: guárdalos como enlace). Los Documentos, Hojas y Presentaciones de Google se guardan como PDF o Excel.</small>
+    <button type="button" className={styles.button} disabled={busy||!f.carpeta.trim()} onClick={()=>void buscar()}>{busy&&!drive?'Buscando…':'Buscar archivos'}</button>
+    {drive&&drive.length>0&&<div style={{border:'1px solid #e2e8f0',borderRadius:10,padding:8,maxHeight:220,overflowY:'auto',display:'grid',gap:4}}>
+     <label style={{fontWeight:700}}><input type="checkbox" checked={marcados.size===drive.length} onChange={()=>setMarcados(marcados.size===drive.length?new Set():new Set(drive.map(x=>x.id)))}/> Todos ({drive.length})</label>
+     {drive.map(x=><label key={x.id} style={{fontSize:13}}><input type="checkbox" checked={marcados.has(x.id)} onChange={()=>{const n=new Set(marcados);if(n.has(x.id))n.delete(x.id);else n.add(x.id);setMarcados(n);}}/> {x.carpeta?`${x.carpeta} / `:''}{x.nombre}</label>)}
+    </div>}
+   </div>}
+   {(modo==='enlace'||(modo==='archivo'&&!varios))&&<label>Nombre<input style={input} value={f.nombre} onChange={e=>setF({...f,nombre:e.target.value})}/></label>}
+   {(varios||modo==='drive')&&<p className={styles.help}>Cada archivo queda como un documento con su propio nombre; la descripción, la sede y el vencimiento se aplican a todos.</p>}
    <label>Descripción (opcional)<input style={input} value={f.descripcion} onChange={e=>setF({...f,descripcion:e.target.value})}/></label>
    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
     <label>Sede<select style={input} value={f.sede_id} onChange={e=>setF({...f,sede_id:e.target.value})}><option value="">Todas las sedes</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
     <label>Vence (opcional)<input style={input} type="date" value={f.vence} onChange={e=>setF({...f,vence:e.target.value})}/></label>
    </div>
    {faltan.length>0&&<p className={styles.help}>Para guardar falta: {faltan.join(' y ')}.</p>}
+   {progreso&&<p className={styles.help}>{progreso}</p>}
    {error&&<p role="alert" className={styles.error}>{error}</p>}
-   <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}><button type="button" className={styles.button} onClick={onClose} disabled={busy}>Cancelar</button><button type="button" className={`${styles.button} ${styles.primary}`} disabled={busy||faltan.length>0} onClick={()=>void save()}>{busy?'Guardando…':'Guardar'}</button></div>
+   <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}><button type="button" className={styles.button} onClick={onClose} disabled={busy}>Cancelar</button><button type="button" className={`${styles.button} ${styles.primary}`} disabled={busy||faltan.length>0} onClick={()=>void save()}>{busy?'Guardando…':modo==='drive'?`Importar ${marcados.size||''}`:varios?`Subir ${files.length} archivos`:'Guardar'}</button></div>
   </div></div>;
 }
 
