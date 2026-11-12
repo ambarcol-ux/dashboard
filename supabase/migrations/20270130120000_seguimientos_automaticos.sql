@@ -44,7 +44,7 @@ begin
   for update of s skip locked),
  marcados as (update public.primeras_citas_seguimientos s set auto_at=now(),auto_error=null from due where s.id=due.id returning s.id,s.cita_id,s.etapa)
  select m.id,c.id,m.etapa,(select count(*)::int from public.primeras_citas_seguimientos t where t.cita_id=c.id and t.anulado_at is null),
-  c.cliente_nombre,c.telefono,coalesce(sd.nombre,''),coalesce(c.tipo_seguimiento,'asistida'),coalesce(nullif(c.motivo_no_alquiler,''),c.motivo),c.tipo_vestido,c.fecha_evento,
+  c.cliente_nombre,c.telefono,coalesce(sd.nombre,'')::text,coalesce(c.tipo_seguimiento,'asistida'),coalesce(nullif(c.motivo_no_alquiler,''),c.motivo),c.tipo_vestido,c.fecha_evento,
   private.correo_persona(c.cliente_documento,c.telefono,c.email) is not null
  from marcados m join public.primeras_citas c on c.id=m.cita_id left join public.sedes sd on sd.id=c.sede_id;
 end $$;
