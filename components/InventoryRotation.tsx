@@ -1,6 +1,7 @@
 'use client';
 import {useEffect,useMemo,useState} from 'react';
 import {supabase} from '@/lib/supabase';
+import {toExcelCsv} from '@/lib/inventory';
 
 type Row={id:string;codigo:string;nombre:string|null;talla:string|null;color:string|null;estado:string|null;sede:string|null;clasificacion:string|null;categoria:string|null;precio:number|null;creado:string;veces:number;veces_90d:number;proximos:number;ultimo:string|null;dias_sin_alquiler:number;foto:boolean};
 type Filtro='nunca'|'quietos'|'pocas'|'estrellas'|'todos';
@@ -49,6 +50,15 @@ export default function InventoryRotation(){
  const visibles=base.filter(filtro==='nunca'?nunca:filtro==='quietos'?quieto:filtro==='pocas'?pocas:filtro==='estrellas'?estrella:()=>true)
   .sort((a,b)=>filtro==='estrellas'||filtro==='todos'?b.veces-a.veces:b.dias_sin_alquiler-a.dias_sin_alquiler);
  const sinFoto=base.filter(r=>!r.foto).length;
+ // Excel download of the whole filtered list (not only the 200 shown), same CSV format as «Por estado».
+ const descargar=()=>{
+  const csv=toExcelCsv(['Código','Nombre','Talla','Color','Sede','Tipo','Categoría','Estado','Precio','Veces alquilado','Últimos 90 días','Próximos','Último alquiler','Días sin alquilar','Foto','Sugerencia'],
+   visibles.map(r=>[r.codigo,r.nombre,r.talla,r.color,r.sede,r.clasificacion||'Sin tipo',r.categoria,r.estado,r.precio,r.veces,r.veces_90d,r.proximos,r.ultimo||'Nunca',r.dias_sin_alquiler,r.foto?'Sí':'No',sugerencia(r,mejorSede).join(' ')]));
+  const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  const nombre=[FILTROS.find(f=>f[0]===filtro)?.[1],sede||'todas las sedes',q].filter(Boolean).join(' ');
+  const a=document.createElement('a');a.href=url;a.download=`rotacion-${nombre.replace(/[^\p{L}\p{N}]+/gu,'-').toLowerCase()}.csv`;a.click();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+ };
  if(error)return <p className="text-red-600 font-bold">No se pudo cargar la rotación: {error}</p>;
  if(!rows)return <p className="text-gray-400 font-bold">Calculando rotación…</p>;
  return <div className="space-y-6 text-gray-800">
@@ -67,11 +77,12 @@ export default function InventoryRotation(){
     <select value={filtro} onChange={e=>setFiltro(e.target.value as Filtro)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold">{FILTROS.map(([k,l])=><option key={k} value={k}>{l} ({cuenta[k]})</option>)}</select>
     <select value={sede} onChange={e=>setSede(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold"><option value="">Todas las sedes</option>{sedes.map(s=><option key={s}>{s}</option>)}</select>
     <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar código, nombre o color" className="border border-gray-200 rounded-xl px-3 py-2 text-sm flex-1 min-w-[12rem]"/>
+    <button type="button" onClick={descargar} disabled={!visibles.length} className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest disabled:opacity-50">Descargar Excel ({visibles.length})</button>
    </div>
    <div className="overflow-x-auto rounded-2xl border border-gray-100"><table className="w-full text-sm">
-    <thead className="bg-gray-50"><tr className="text-left text-[10px] uppercase tracking-widest text-gray-500"><th className="py-3 px-4 sticky left-0 bg-gray-50">Vestido</th><th className="py-3 px-3">Sede</th><th className="py-3 px-3">Tipo</th><th className="py-3 px-3 text-right">Veces</th><th className="py-3 px-3 text-right">Últ. 90 días</th><th className="py-3 px-3 text-right">Próximos</th><th className="py-3 px-3">Último alquiler</th><th className="py-3 px-3 text-right">Días sin alquilar</th><th className="py-3 px-3">Precio</th><th className="py-3 px-4 min-w-[16rem]">Sugerencia</th></tr></thead>
+    <thead className="bg-gray-50"><tr className="text-left text-[10px] uppercase tracking-widest text-gray-500"><th className="py-3 px-4 sticky left-0 z-10 bg-gray-50">Vestido</th><th className="py-3 px-3">Sede</th><th className="py-3 px-3">Tipo</th><th className="py-3 px-3 text-right">Veces</th><th className="py-3 px-3 text-right">Últ. 90 días</th><th className="py-3 px-3 text-right">Próximos</th><th className="py-3 px-3">Último alquiler</th><th className="py-3 px-3 text-right">Días sin alquilar</th><th className="py-3 px-3">Precio</th><th className="py-3 px-4 min-w-[16rem]">Sugerencia</th></tr></thead>
     <tbody>{visibles.slice(0,200).map(r=>{const s=sugerencia(r,mejorSede);return <tr key={r.id} className="border-t border-gray-100 align-top">
-     <td className="py-3 px-4 sticky left-0 bg-white"><p className="font-black text-gray-900">{r.codigo}</p><p className="text-xs text-gray-500">{[r.nombre,r.talla&&`T. ${r.talla}`,r.color].filter(Boolean).join(' · ')}</p></td>
+     <td className="py-3 px-4 sticky left-0 z-10 bg-white shadow-[2px_0_4px_rgba(0,0,0,0.04)]"><p className="font-black text-gray-900">{r.codigo}</p><p className="text-xs text-gray-500">{[r.nombre,r.talla&&`T. ${r.talla}`,r.color].filter(Boolean).join(' · ')}</p></td>
      <td className="py-3 px-3">{r.sede||'—'}</td><td className="py-3 px-3">{r.clasificacion||'Sin tipo'}{r.categoria?<p className="text-xs text-gray-500">{r.categoria}</p>:null}</td>
      <td className="py-3 px-3 text-right font-black">{r.veces}</td><td className="py-3 px-3 text-right">{r.veces_90d}</td><td className="py-3 px-3 text-right">{r.proximos}</td>
      <td className="py-3 px-3 whitespace-nowrap">{r.ultimo||'Nunca'}</td><td className={`py-3 px-3 text-right font-bold ${r.dias_sin_alquiler>90?'text-red-600':''}`}>{r.dias_sin_alquiler}</td>
