@@ -185,7 +185,8 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
         <p className="mb-6 text-base md:text-lg">
           Entre los suscritos, de una parte, <strong>AMBAR COUTURE</strong>, representada por <strong>{contractOwner(data.sede).nombre.toUpperCase()}</strong>,
           identificado(a) con cédula de ciudadanía No. <strong>{contractOwner(data.sede).cedula}</strong>,
-          con domicilio en {contractOwner(data.sede).ciudad}, Colombia, de aquí en adelante llamada <strong>EL PRESTADOR/ARRENDADOR</strong>,
+          con domicilio en {contractOwner(data.sede).direccion}, {contractOwner(data.sede).ciudad}, Colombia, teléfono {contractOwner(data.sede).telefono},
+          de aquí en adelante llamada <strong>EL PRESTADOR/ARRENDADOR</strong>,
           y de la otra, <strong>{data.cliente_nombre.toUpperCase()}</strong>, identificado(a) con
           {docNombre(data.tipo_documento_cliente)} No. <strong>{data.cliente_documento}</strong>, con domicilio en <strong>{data.cliente_direccion}</strong>,
           de aquí en adelante llamado(a) <strong>EL CONTRATANTE/ARRENDATARIO</strong>, hemos acordado celebrar este contrato mixto.
@@ -405,6 +406,8 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
               <p className="font-bold text-sm">AMBAR COUTURE</p>
               <p className="text-xs">{contractOwner(data.sede).nombre}</p>
               <p className="text-xs">Cédula #{contractOwner(data.sede).cedula}</p>
+              <p className="text-xs">{contractOwner(data.sede).direccion}, {contractOwner(data.sede).ciudad}</p>
+              <p className="text-xs">Tel. {contractOwner(data.sede).telefono}</p>
             </div>
           </div>
 
