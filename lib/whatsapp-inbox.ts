@@ -91,6 +91,20 @@ export async function sendWhatsappFollowup(settings:{token:string;phoneNumberId:
  }
  return d.messages[0].id;
 }
+/** Follow-up greeting with the promotion that applies to the customer (template ambar_seguimiento_promo, see docs/plantillas-whatsapp.md). */
+export const FOLLOWUP_PROMO_TEMPLATE='ambar_seguimiento_promo';
+export const followupPromoText=(nombre:string,sede:string,promo:string)=>`Hola ${nombre} 💛 Te escribimos de Ámbar Couture ${sede} para acompañarte con tu vestido. Tenemos una promoción para ti: ${promo}. ¿Te ayudamos a separar tu cita?`;
+/** Sends the follow-up with its promotion; null when the template is not approved in Meta yet (the caller sends the plain greeting). */
+export async function sendWhatsappFollowupPromo(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,sede:string,promo:string){
+ const version=process.env.META_GRAPH_VERSION||'v21.0';
+ const r=await fetch(`https://graph.facebook.com/${version}/${settings.phoneNumberId}/messages`,{method:'POST',headers:{Authorization:`Bearer ${settings.token}`,'Content-Type':'application/json'},
+  body:JSON.stringify({messaging_product:'whatsapp',to,type:'template',template:{name:FOLLOWUP_PROMO_TEMPLATE,language:{code:settings.templateLang||'es_CO'},components:[{type:'body',parameters:[nombre,sede,promo].map(text=>({type:'text',text}))}]}}),signal:AbortSignal.timeout(15000)});
+ const d=await r.json().catch(()=>({})) as {messages?:{id:string}[];error?:{message?:string;code?:number}};
+ if(r.ok&&d.messages?.[0]?.id)return d.messages[0].id;
+ const code=Number(d.error?.code);
+ if(code>=132000&&code<133000)return null;
+ throw Error(`WhatsApp no aceptó el mensaje: ${String(d.error?.message||r.status).slice(0,160)}`);
+}
 export async function sendWhatsappText(settings:{token:string;phoneNumberId:string},to:string,body:string){
  const version=process.env.META_GRAPH_VERSION||'v21.0';
  const r=await fetch(`https://graph.facebook.com/${version}/${settings.phoneNumberId}/messages`,{method:'POST',headers:{Authorization:`Bearer ${settings.token}`,'Content-Type':'application/json'},
