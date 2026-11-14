@@ -252,7 +252,9 @@ export async function testWhatsappAI(db:SupabaseClient,cfg:IaConfig,turns:{rol:'
 }
 
 /** Builds the suggestion for one chat and saves it. Errors are saved in ia_error so the screen can show them. */
-export async function suggestWhatsappReply(db:SupabaseClient,conversationId:string){
+/** Nudge: we answered last and she has not come back nor booked; one short message before the 24 h window closes. */
+const EMPUJON='\n\n[Nota del sistema, no la cites: la clienta no ha vuelto a escribir desde hace unas 20 horas y aún no agenda. Escríbele UN mensaje corto y cálido para retomar: recuerda lo que buscaba, ofrécele la promoción vigente si aplica a su tipo de vestido y propón agendar con el enlace de su sede (o pregúntale su ciudad si no la sabes). No repitas lo que ya le dijiste ni pidas disculpas.]';
+export async function suggestWhatsappReply(db:SupabaseClient,conversationId:string,opts:{empujon?:boolean}={}){
  if(!process.env.ANTHROPIC_API_KEY)return;
  try{
   const [{data:conv},{data:msgs},{cfg,sites,clauses,catalogs}]=await Promise.all([
@@ -262,7 +264,8 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   ]);
   if(!conv||!msgs?.length)return;
   const history=(msgs as Msg[]).reverse();
-  if(history[history.length-1].direccion!=='entrante')return;// already answered
+  if(history[history.length-1].direccion!=='entrante'&&!opts.empujon)return;// already answered
+  if(opts.empujon&&history[history.length-1].direccion==='entrante')return;// she wrote meanwhile: the normal reply handles it
   const social=conv.canal&&conv.canal!=='whatsapp';
   const [{data:ctx},{data:seguimiento}]=social?[{data:null},{data:null}]:await Promise.all([db.rpc('whatsapp_contexto_servidor',{p_tel:conv.telefono}),db.rpc('seguimiento_info_chat',{p_tel:conv.telefono})]);
   const chat=history.map(m=>`[${new Date(m.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'})}] ${m.direccion==='entrante'?'Clienta':'Ámbar'}: ${m.texto||''}`).join('\n');
@@ -274,7 +277,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
    if(img&&['image/jpeg','image/png','image/webp','image/gif'].includes(img.tipo))extra.push({type:'image',source:{type:'base64',media_type:img.tipo as 'image/jpeg',data:img.datos}});}}
   // Her photos are compared with the inventory: the closest dresses go to the AI with their data and photo.
   if(extra.length)extra.push(...await inventoryCandidates(db,extra).catch(()=>[]));
-  const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(ctx||{}),...(seguimiento?{seguimiento}:{})},chat,clauses,catalogs,extra,db);
+  const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(ctx||{}),...(seguimiento?{seguimiento}:{})},chat+(opts.empujon?EMPUJON:''),clauses,catalogs,extra,db);
   out.respuesta=marcarCanal(out.respuesta,conv.canal);
   // She said she already rented, is not interested or wants no more messages: the follow-up of her phone is closed.
   if(!social&&out.cierre_seguimiento)await db.rpc('seguimiento_cerrar_por_chat',{p_tel:conv.telefono,p_motivo:out.cierre_seguimiento});

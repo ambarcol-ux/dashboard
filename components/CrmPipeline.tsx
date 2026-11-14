@@ -5,7 +5,7 @@ import {supabase} from '@/lib/supabase';
 
 type Lead={clave:string;etapa:Etapa;nombre:string;telefono:string|null;canal:string;anuncio:boolean;sede_id:string|null;sede:string|null;conv_id:string|null;cita_id:string|null;codigo:string|null;
  origen:string|null;modalidad:string|null;fecha_cita:string|null;hora:string|null;fecha_evento:string|null;tipo_vestido:string|null;asesora:string|null;tipo_seguimiento:string|null;
- seguimiento:{enviadas:number;total:number;ultima:string|null;proxima:string|null}|null;contrato:{numero:string|null;estado:string|null;saldo:number|null}|null;cierre:string|null;dias:number;alerta:string|null};
+ seguimiento:{enviadas:number;total:number;ultima:string|null;proxima:string|null}|null;contrato:{numero:string|null;estado:string|null;saldo:number|null}|null;cierre:string|null;dias:number;alerta:string|null;reactivacion:{n:number;at:string}|null};
 type Etapa='interesada'|'agendada'|'asistio'|'seguimiento'|'contrato'|'cerrada';
 const ETAPAS:{id:Etapa;titulo:string;color:string;ayuda:string}[]=[
  {id:'interesada',titulo:'Interesada',color:'#0ea5e9',ayuda:'Escribió por WhatsApp, Instagram o Messenger y aún no tiene cita'},
@@ -26,7 +26,7 @@ function detalle(l:Lead){
  if(l.etapa==='seguimiento'){const s=l.seguimiento;return `Seguimiento ${s?.enviadas||0}/${s?.total||0}${l.tipo_seguimiento?` · ${SEG[l.tipo_seguimiento]||l.tipo_seguimiento}`:''}${s?.proxima?` · próximo ${fecha(s.proxima)}`:''}`;}
  if(l.etapa==='contrato')return l.contrato?`Contrato ${l.contrato.numero||''}${l.contrato.saldo?` · saldo ${money(l.contrato.saldo)}`:''}`:'Alquiló';
  if(l.etapa==='cerrada')return l.cierre||'Cerrada';
- return `${CANAL[l.canal]||l.canal}${l.anuncio?' · llegó por anuncio':''}`;
+ return `${CANAL[l.canal]||l.canal}${l.anuncio?' · llegó por anuncio':''}${l.reactivacion?` · mensaje automático ${l.reactivacion.n}/2 enviado ${new Date(l.reactivacion.at).toLocaleDateString('es-CO',{day:'numeric',month:'short'})}`:''}`;
 }
 
 /** Ventas y CRM › Pipeline: every customer in her stage. The stage changes by itself with what the ERP records; each card says what to do. */
@@ -41,7 +41,10 @@ export default function CrmPipeline({admin,sedeId}:{admin:boolean;sedeId:string|
  useEffect(()=>{const t=setTimeout(()=>void load(),0);const i=setInterval(()=>void load(),60000);return()=>{clearTimeout(t);clearInterval(i);};},[load]);
  useEffect(()=>{void supabase.from('sedes').select('id,nombre').eq('activo',true).order('nombre').then(({data})=>setSedes((data||[]) as {id:string;nombre:string}[]));},[]);
  const filtrados=useMemo(()=>(leads||[]).filter(l=>(!soloAlertas||l.alerta)&&(!q||`${l.nombre} ${l.telefono||''} ${l.codigo||''} ${l.tipo_vestido||''}`.toLowerCase().includes(q.toLowerCase()))),[leads,q,soloAlertas]);
- const por=(e:Etapa)=>filtrados.filter(l=>l.etapa===e).sort((a,b)=>Number(!!b.alerta)-Number(!!a.alerta)||b.dias-a.dias);
+ // «Needs a person» first, then any other alert, then the longest in the stage.
+ const peso=(l:Lead)=>l.alerta==='Pide atención de una persona'?2:l.alerta?1:0;
+ const por=(e:Etapa)=>filtrados.filter(l=>l.etapa===e).sort((a,b)=>peso(b)-peso(a)||b.dias-a.dias);
+ const pendientes=(e:Etapa)=>(leads||[]).filter(l=>l.etapa===e&&l.alerta).length;
  const total=(e:Etapa)=>(leads||[]).filter(l=>l.etapa===e).length;
  const alertas=(leads||[]).filter(l=>l.alerta).length;
  const tarjeta=(l:Lead)=><article key={l.clave} className="rounded-2xl border border-gray-100 bg-white p-3 shadow-sm text-gray-800 space-y-1">
@@ -65,16 +68,18 @@ export default function CrmPipeline({admin,sedeId}:{admin:boolean;sedeId:string|
    {act&&<span className="text-[11px] text-gray-400">Se actualiza solo · {act}</span>}
   </div>
   {!leads?<p className="text-gray-400 font-bold">Cargando pipeline…</p>:<>
-   <div className="flex gap-2 overflow-x-auto pb-1">{ETAPAS.map((e,i)=>{const n=total(e.id),prev=i>0?total(ETAPAS[i-1].id):0;return <button key={e.id} type="button" onClick={()=>setTab(e.id)} title={e.ayuda}
+   <div className="flex gap-2 overflow-x-auto pb-1">{ETAPAS.map(e=>{const n=total(e.id),p=pendientes(e.id);return <button key={e.id} type="button" onClick={()=>setTab(e.id)} title={e.ayuda}
     className={`shrink-0 rounded-2xl px-3 py-2 text-left border ${tab===e.id?'bg-white shadow border-gray-300':'bg-gray-50 border-transparent'}`}>
     <p className="text-[10px] font-black uppercase tracking-widest" style={{color:e.color}}>{e.titulo}</p><p className="text-xl font-black text-gray-900">{n}</p>
-    {i>0&&i<5&&prev>0&&<p className="text-[10px] text-gray-400">{Math.round(n*100/(n+prev))} % avanza</p>}</button>;})}</div>
+    <p className={`text-[10px] font-bold ${p?'text-red-600':'text-gray-400'}`}>{p?`${p} por hacer`:'al día'}</p></button>;})}</div>
+   {(()=>{const k=total('contrato'),base=k+total('seguimiento')+(leads||[]).filter(l=>l.etapa==='cerrada'&&l.cita_id).length;
+    return base>0&&<p className="text-xs text-gray-500">Conversión de las clientas que ya tuvieron cita: <b>{Math.round(k*100/base)} %</b> ({k} contratos de {base}).</p>;})()}
    {/* Phone: one stage at a time. Computer: all columns. */}
    <div className="lg:hidden space-y-2"><p className="text-xs text-gray-500">{ETAPAS.find(e=>e.id===tab)?.ayuda}</p>{por(tab).slice(0,150).map(tarjeta)}{!por(tab).length&&<p className="text-sm text-gray-400">Nada en esta etapa.</p>}</div>
    <div className="hidden lg:grid grid-cols-6 gap-3 items-start">{ETAPAS.map(e=><section key={e.id} className="rounded-[1.5rem] bg-gray-50 p-2 space-y-2 max-h-[75vh] overflow-y-auto">
     <h3 className="text-[11px] font-black uppercase tracking-widest px-1 sticky top-0 bg-gray-50 py-1" style={{color:e.color}}>{e.titulo} · {por(e.id).length}</h3>
     {por(e.id).slice(0,150).map(tarjeta)}</section>)}</div>
-   <p className="text-xs text-gray-400">La etapa cambia sola con lo que registra el ERP: chats, citas, llegada por QR o videollamada, resultado, seguimientos automáticos, contratos y cierres. «Por hacer» muestra solo las tarjetas con algo pendiente. Se ven los chats de los últimos 45 días; las asesoras solo ven sus sedes.</p>
+   <p className="text-xs text-gray-400">La etapa cambia sola con lo que registra el ERP: chats, citas, llegada por QR o videollamada, resultado, seguimientos automáticos, contratos y cierres. «Por hacer» muestra solo las tarjetas con algo pendiente. Se ven los chats de los últimos 45 días; las asesoras solo ven sus sedes. Las interesadas sin cita reciben solas un mensaje de la IA a las ~20 h y, si no responden, dos mensajes automáticos (día 2 y día 7); sin respuesta, pasan a «Cerrada».</p>
   </>}
  </div>;
 }

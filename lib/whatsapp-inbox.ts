@@ -64,8 +64,8 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    const text=messageText(m).slice(0,4000),at=when(m.timestamp);
    const {error}=await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:String(m.id),direccion:'saliente',origen:'celular',tipo:String(m.type||'text'),texto:text,estado:'sent',created_at:at});
    if(error){if(error.code==='23505')continue;throw error;}
-   // A person answered from the phone: the AI pauses in this chat.
-   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:text.slice(0,200),ultimo_at:at,no_leidos:0,ia_pausada:true,ia_pausada_at:at,ia_pausada_por:null}).eq('id',conv.id);
+   // A person answered from the phone: the AI pauses in this chat and the «needs a person» alert is done.
+   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:text.slice(0,200),ultimo_at:at,no_leidos:0,ia_pausada:true,ia_pausada_at:at,ia_pausada_por:null,ia_atender:false,ia_motivo:null}).eq('id',conv.id);
   }
   // Delivery statuses of what the ERP sent from this screen.
   for(const s of v.statuses||[]){
@@ -102,6 +102,14 @@ export const followupV2Text=(nombre:string,sede:string)=>`Hola ${nombre} 💛 So
 /** Improved follow-up and follow-up with promotion: null while their template is not approved in Meta. */
 export const sendWhatsappFollowupV2=(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,sede:string)=>sendOptionalTemplate(settings,to,FOLLOWUP_V2_TEMPLATE,[nombre.trim()||'hola',lugar(sede)]);
 export const sendWhatsappFollowupPromo=(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,sede:string,promo:string)=>sendOptionalTemplate(settings,to,FOLLOWUP_PROMO_TEMPLATE,[nombre.trim()||'hola',lugar(sede),promo]);
+/** Best approved follow-up greeting: with promotion, then the improved one, then the original. Returns the message id and its text for the inbox. */
+export async function sendBestFollowup(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,sede:string,promo:string|null){
+ let waId=promo?await sendWhatsappFollowupPromo(settings,to,nombre,sede,promo):null;
+ if(waId&&promo)return {waId,texto:followupPromoText(nombre,sede,promo)};
+ waId=await sendWhatsappFollowupV2(settings,to,nombre,sede);
+ if(waId)return {waId,texto:followupV2Text(nombre,sede)};
+ return {waId:await sendWhatsappFollowup(settings,to,nombre,sede),texto:followupText(nombre,sede)};
+}
 /** Sends a template that may not be approved in Meta yet: null then, so the caller falls back to the approved one. */
 async function sendOptionalTemplate(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,name:string,values:string[]){
  const version=process.env.META_GRAPH_VERSION||'v21.0';

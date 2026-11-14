@@ -295,7 +295,9 @@ function Inbox(){
  const [iniciando,setIniciando]=useState(false);
  const iniciar=async(t:string)=>{setIniciando(true);setError('');try{const d=await api({accion:'iniciar',telefono:t});setSinChat('');await load();if(d.conversacion_id)setSel(d.conversacion_id);}catch(e){setError(e instanceof Error?e.message:'No se pudo enviar.');}finally{setIniciando(false);}};
  const [abrirTel,setAbrirTel]=useState(''),[sinChat,setSinChat]=useState('');
- useEffect(()=>{const t=new URLSearchParams(window.location.search).get('tel')?.replace(/\D/g,'')||'';if(t.length>=10)setTimeout(()=>setAbrirTel(t),0);},[]);
+ useEffect(()=>{const p=new URLSearchParams(window.location.search),t=p.get('tel')?.replace(/\D/g,'')||'';if(t.length>=10)setTimeout(()=>setAbrirTel(t),0);
+  // ?filtro=atender: from the «Atención de una persona» pop-up.
+  if(p.get('filtro')==='atender')setTimeout(()=>setFiltro('atender'),0);},[]);
  useEffect(()=>{if(!abrirTel||loading)return;const t=abrirTel;setTimeout(()=>setAbrirTel(''),0);
   // Older chats may be beyond the 300 loaded: look the phone up directly.
   void (async()=>{const c=convs.find(x=>x.telefono.slice(-10)===t.slice(-10))||((await supabase.from('whatsapp_conversaciones').select('*').like('telefono',`%${t.slice(-10)}`).limit(1).maybeSingle()).data as Conv|null);

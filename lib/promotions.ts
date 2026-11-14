@@ -13,3 +13,15 @@ const any=<T,>(list:T[]|null|undefined,values:(T|null|undefined)[])=>!list?.leng
 /** Active today and matching sede, types and categories (empty lists = all). */
 export const promoApplies=(p:Promotion,f:{sede?:string|null;tipos?:(number|null|undefined)[];categorias?:(string|null|undefined)[]},today=bogotaToday())=>
  promoState(p,today)==='Vigente'&&(!p.sede_ids?.length||!f.sede||p.sede_ids.includes(f.sede))&&any(p.clasificacion_ids,f.tipos||[])&&any(p.categorias,f.categorias||[]);
+
+const TIPO_ID:[RegExp,number][]=[[/xv|quince/i,2],[/novia/i,1],[/gala|grado/i,3],[/pajecita/i,4]];
+/** Promotion for a follow-up greeting: the one in force for her store and dress type (read from any text that names it) that ends soonest,
+ *  as «20% de descuento … hasta el 30 de noviembre»; null if none applies. */
+export function promoForGreeting(promos:Promotion[]|null,sedeId:string|null,tipoVestido:string|null){
+ const tipo=TIPO_ID.find(([re])=>re.test(String(tipoVestido||'')))?.[1];
+ if(!promos||!tipo)return null;
+ const p=promos.filter(x=>promoApplies(x,{sede:sedeId,tipos:[tipo]})).sort((a,b)=>a.hasta.localeCompare(b.hasta))[0];
+ if(!p)return null;
+ const fin=Date.parse(p.hasta+'T12:00:00Z')-Date.now()<90*86400000?` hasta el ${new Date(p.hasta+'T12:00:00Z').toLocaleDateString('es-CO',{day:'numeric',month:'long',timeZone:'UTC'})}`:'';
+ return `${p.nombre.replace(/\s*\([^)]*\)\s*$/,'')}${fin}`;
+}
