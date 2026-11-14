@@ -161,6 +161,28 @@ const IA_FIELDS:[keyof IaCfg,string,string,string][]=[
 ];
 
 /** «IA de WhatsApp» (administration): knowledge, instructions and hand-off rules, with a test box and history. */
+const FUNCION_IA:Record<string,string>={whatsapp_respuesta:'Respuestas de WhatsApp (incluye empujones)',comentarios_redes:'Comentarios de redes',fotos_describir:'Describir fotos del inventario',fotos_comparar:'Comparar fotos de clientas',faltantes_parecidos:'Faltantes parecidos',ia_chat_conocimientos:'Chat de conocimientos de la IA',documentos_resumen:'Resumen de documentos de la marca',analisis_embudo:'Análisis del embudo',analisis_whatsapp:'Análisis diario de WhatsApp'};
+/** IA de WhatsApp › Consumo: what the AI of the ERP costs (estimated from the tokens of each call), by function and day. */
+function IaConsumo(){
+ type Row={dia:string;funcion:string;llamadas:number;entrada:number;salida:number;cache_lectura:number;cache_escritura:number;costo_usd:number};
+ const [rows,setRows]=useState<Row[]|null>(null),[dias,setDias]=useState(7),[error,setError]=useState('');
+ useEffect(()=>{void supabase.rpc('ia_consumo_resumen',{p_dias:dias}).then(({data,error:e})=>{if(e)setError(e.message);else{setError('');setRows((data||[]) as Row[]);}});},[dias]);
+ const usd=(n:number)=>`US$ ${Number(n).toFixed(n<1?3:2)}`;
+ const total=(rows||[]).reduce((a,r)=>a+Number(r.costo_usd),0),llamadas=(rows||[]).reduce((a,r)=>a+Number(r.llamadas),0);
+ const porFuncion=Object.entries((rows||[]).reduce((m,r)=>{const x=m[r.funcion]||{c:0,l:0};x.c+=Number(r.costo_usd);x.l+=Number(r.llamadas);m[r.funcion]=x;return m;},{} as Record<string,{c:number;l:number}>)).sort((a,b)=>b[1].c-a[1].c);
+ const diasConDatos=new Set((rows||[]).map(r=>r.dia)).size||1;
+ return <section className={styles.card}>
+  <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap',alignItems:'center'}}><h3 style={{margin:0}}>Consumo de IA</h3>
+   <select value={dias} onChange={e=>setDias(Number(e.target.value))}><option value={1}>Hoy</option><option value={7}>Últimos 7 días</option><option value={30}>Últimos 30 días</option></select></div>
+  {error?<p className={styles.error}>{error}</p>:!rows?<p className={styles.empty}>Cargando…</p>:!rows.length?<p className={styles.empty}>Aún no hay llamadas medidas. La medición empezó con esta versión; los datos aparecen a medida que la IA trabaja.</p>:<>
+   <p style={{fontSize:22,fontWeight:900,margin:'8px 0 0'}}>{usd(total)}</p>
+   <p className={styles.help}>{llamadas} llamadas · promedio {usd(total/diasConDatos)} por día · proyección {usd(total/diasConDatos*30)} al mes. Costo estimado con los precios de lista de Claude (la factura real está en Claude Platform).</p>
+   <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Función</th><th>Llamadas</th><th>Costo</th><th>%</th></tr></thead>
+    <tbody>{porFuncion.map(([f,x])=><tr key={f}><td>{FUNCION_IA[f]||f}</td><td>{x.l}</td><td>{usd(x.c)}</td><td>{total?Math.round(x.c*100/total):0} %</td></tr>)}</tbody></table></div>
+  </>}
+ </section>;
+}
+
 function IaSettings(){
  const [cfg,setCfg]=useState<IaCfg>({conocimientos:'',instrucciones:'',escalamiento:''}),[saved,setSaved]=useState<IaCfg|null>(null),[meta,setMeta]=useState('');
  const [hist,setHist]=useState<(IaCfg&{id:number;created_at:string})[]>([]),[busy,setBusy]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState('');
@@ -210,6 +232,7 @@ function IaSettings(){
   }catch(e){setSimulacion(simulacion);setPrueba(escrito);setAdjP(adj);setError(e instanceof Error?e.message:'Error');}finally{setBusy('');}
  };
  return <div style={{display:'grid',gap:16}}>
+  <IaConsumo/>
   {auto&&<section className={styles.card} style={{display:'grid',gap:8,borderColor:auto.activa?'#10b981':undefined}}>
    <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
     <h2 style={{margin:0,flex:1}}>Respuesta automática: {auto.activa?'ENCENDIDA':'APAGADA'}</h2>

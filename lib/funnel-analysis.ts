@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import {aiClient} from './ai-usage';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {applyIaChanges,type IaCambio,type IaConfig} from './whatsapp-ai';
 
@@ -46,7 +46,7 @@ export async function weeklyFunnelReport(db:SupabaseClient,now=Date.now()){
  const cfg:IaConfig={conocimientos:row?.conocimientos||'',instrucciones:row?.instrucciones||'',escalamiento:row?.escalamiento||''};
  let resumen='No hay suficientes datos para analizar esta semana.',acciones:FunnelAction[]=[],cambios:IaCambio[]=[];
  if(process.env.ANTHROPIC_API_KEY){
-  const client=new Anthropic({timeout:55000,maxRetries:0});
+  const client=aiClient('analisis_embudo',{timeout:55000,maxRetries:0});
   const r=await client.messages.create({model:MODEL,max_tokens:5000,system:SYSTEM,output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},
    messages:[{role:'user',content:`<semana_cerrada>\n${JSON.stringify(metricas)}\n</semana_cerrada>\n<cuatro_semanas_anteriores>\n${JSON.stringify(anteriores)}\n</cuatro_semanas_anteriores>\n<contratos_por_sede_y_mes>\n${JSON.stringify(ventas||[])}\n</contratos_por_sede_y_mes>\n<reportes_anteriores>\n${(prev||[]).map(p=>`${String(p.created_at).slice(0,10)}: ${p.resumen}\nAcciones: ${JSON.stringify(p.acciones)}`).join('\n\n')||'(primer reporte)'}\n</reportes_anteriores>\n<configuracion_ia_whatsapp>\n## conocimientos\n${cfg.conocimientos}\n## instrucciones\n${cfg.instrucciones}\n## escalamiento\n${cfg.escalamiento}\n</configuracion_ia_whatsapp>`}]});
   const t=r.content.find(b=>b.type==='text');

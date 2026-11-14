@@ -10,6 +10,7 @@ import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatF
 import {marcarCanal} from './event-channel';
 import {documentsForAI} from './doc-ia';
 import {inventoryCandidates} from './dress-photo-match';
+import {aiClient} from './ai-usage';
 import {PROMO_FIELDS,promoState,promoBenefit,type Promotion} from './promotions';
 
 /** Ventas y CRM › WhatsApp 304: the AI reads the chat, labels it, detects the store, flags chats a person must take and leaves a suggested reply. It never sends anything. */
@@ -190,7 +191,7 @@ export async function handleComment(db:SupabaseClient,id:string,auto=true){
  try{
   const {cfg,sites,clauses,catalogs}=await loadBasics(db);
   const today=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',year:'numeric',month:'long',day:'numeric'});
-  const response=await new Anthropic().messages.create({model:MODEL,max_tokens:1500,
+  const response=await aiClient('comentarios_redes').messages.create({model:MODEL,max_tokens:1500,
    system:[{type:'text',text:systemPrompt(cfg,sites,clauses,catalogs),cache_control:{type:'ephemeral'}}],
    output_config:{effort:'low',format:{type:'json_schema',schema:COMMENT_SCHEMA}},
    messages:[{role:'user',content:`Hoy es ${today}. Recibimos un COMENTARIO PÚBLICO en una publicación de ${c.canal==='facebook'?'Facebook':'Instagram'} de Ámbar Couture${c.publicacion_texto?` (texto de la publicación: «${String(c.publicacion_texto).slice(0,400)}»)`:''}.\nComentario de ${c.canal==='facebook'?'':'@'}${c.autor_nombre||'cliente'}: ${c.texto}\n\nClasifícalo y escribe la respuesta pública y, si hay interés, el primer mensaje directo. El mensaje directo empieza mencionando con naturalidad que vimos su comentario. Si no sabes su ciudad, pregúntala para enviarle el catálogo de su sede.`}]});
@@ -224,7 +225,7 @@ export async function loadErpContext(db:SupabaseClient){
 /** One AI call. Used by the inbox and by the «Probar» box of the settings screen. */
 export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,chat:string,clauses='',catalogs='',extra:Anthropic.ContentBlockParam[]=[],db?:SupabaseClient):Promise<IaOutput>{
  const today=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',year:'numeric',month:'long',day:'numeric'});
- const client=new Anthropic();
+ const client=aiClient('whatsapp_respuesta');
  // Photos and files the customer sent go first, then the conversation.
  const messages:Anthropic.MessageParam[]=[{role:'user',content:[...extra,{type:'text',text:`Hoy es ${today}.\n\nDatos de la clienta en el ERP (nombre, sede, primeras citas y contratos):\n${JSON.stringify(customer)}\n\nConversación (la más reciente al final):\n${chat}${extra.length?'\n\n(Los archivos de arriba los envió la clienta en sus últimos mensajes, salvo los de <candidatos_inventario>, que son del inventario de Ámbar.)':''}`}]}];
  // With the database, the AI can look up dress availability and free visit slots (up to 4 rounds of lookups).
@@ -370,7 +371,7 @@ export function applyIaChanges(cfg:IaConfig,cambios:IaCambio[]):IaConfig{
 /** One turn of the knowledge chat. The model answers, proposes exact changes, or recognizes a confirmation. */
 export async function knowledgeChatTurn(cfg:IaConfig,history:{rol:'admin'|'ia';texto:string}[],pendiente:IaCambio[]|null,clauses='',extra:Anthropic.ContentBlockParam[]=[],erp=''):Promise<KnowledgeTurn>{
  // Vercel stops the request at 60 s: fail with a clear message before that.
- const client=new Anthropic({timeout:55000,maxRetries:0});
+ const client=aiClient('ia_chat_conocimientos',{timeout:55000,maxRetries:0});
  const chat=history.slice(-16).map(h=>`${h.rol==='admin'?'Administración':'Asistente'}: ${h.texto}`).join('\n\n');
  const response=await client.messages.create({
   model:'claude-opus-5-5',max_tokens:8000,system:KNOWLEDGE,

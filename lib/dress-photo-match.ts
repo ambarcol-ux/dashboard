@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
+import {aiClient} from './ai-usage';
 
 const MODEL='claude-haiku-5-5';
 type Dress=CatalogDress&{id:string;codigo:string;talla:string|null;color:string|null;categoria:string|null;sede_actual_id:string|null;clasificacion_id:number|null};
@@ -16,7 +17,7 @@ export async function describeDressPhotos(db:SupabaseClient,limit=25){
  ]);
  const have=new Map(((done||[]) as {vestido_id:string;foto_url:string}[]).map(r=>[r.vestido_id,r.foto_url]));
  const todo=((dresses||[]) as Dress[]).filter(d=>isPublicCatalogDress(d)&&mainPhoto(d)&&have.get(d.id)!==mainPhoto(d)).slice(0,limit);
- const client=new Anthropic();let n=0;
+ const client=aiClient('fotos_describir');let n=0;
  for(let i=0;i<todo.length;i+=5)await Promise.all(todo.slice(i,i+5).map(async d=>{
   const url=mainPhoto(d)!;
   try{
@@ -47,7 +48,7 @@ export async function inventoryCandidates(db:SupabaseClient,photos:Anthropic.Con
  if(!list.length)return [];
  const data=(x:Dress)=>`código ${String(x.codigo).trim()} · sede ${sede.get(x.sede_actual_id||'')||'—'} · ${tipo.get(x.clasificacion_id!)||'—'} · ${x.categoria||'—'} · talla ${x.talla||'—'} · color ${x.color||'—'} · alquiler $${Number(x.precio_sugerido).toLocaleString('es-CO')}`;
  const lines=list.map((x,i)=>`${i+1}. ${data(x)} · ${d.get(x.id)!.descripcion}`).join('\n');
- const r=await new Anthropic().messages.create({model:MODEL,max_tokens:300,output_config:{effort:'low',format:{type:'json_schema',schema:PICK}},
+ const r=await aiClient('fotos_comparar').messages.create({model:MODEL,max_tokens:300,output_config:{effort:'low',format:{type:'json_schema',schema:PICK}},
   messages:[{role:'user',content:[...photos,{type:'text',text:`Arriba están las fotos que envió una clienta. Abajo, el inventario de vestidos de Ámbar con la descripción de su foto. Elige los vestidos más parecidos a los de la clienta (mismo modelo primero, luego los más parecidos en silueta, color y adornos).\n\n${lines}`}]}]});
  const block=r.content.find((b):b is Anthropic.TextBlock=>b.type==='text');
  const nums=((block?JSON.parse(block.text):{candidatos:[]}) as {candidatos:number[]}).candidatos.filter(n=>n>=1&&n<=list.length);
