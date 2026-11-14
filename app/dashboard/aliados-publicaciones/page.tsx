@@ -14,7 +14,7 @@ const hoy=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).forma
 
 /** Red de aliados › Publicaciones: what to publish for each ally (welcome, each event with Ámbar dresses, steady allies) and its record. */
 export default function AliadosPublicacionesPage(){
- return <SupplierShell activePage="aliados_publicaciones" crumb="Red de aliados / Publicaciones" title="Publicaciones de aliados" icon={<Megaphone/>}
+ return <SupplierShell activePage="aliados_publicaciones" crumb="Marketing / Redes sociales" title="Redes sociales" icon={<Megaphone/>}
   description="Visibilidad del programa de aliados: bienvenida, 3 historias y 1 reel en colaboración por cada evento con vestido Ámbar, y publicación semanal para aliados constantes. Se crean solas cada día.">
   {()=><Board/>}
  </SupplierShell>;

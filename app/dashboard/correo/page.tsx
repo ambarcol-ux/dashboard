@@ -19,6 +19,8 @@ const TABS=[['promociones','Promociones'],['automatizaciones','Automatizaciones'
 function MailTabs({profile}:{profile:ShellProfile}){
  const admin=profile.rol==='admin';
  const [tab,setTab]=useState<(typeof TABS)[number][0]>('promociones');
+ // ?tab= from the Marketing menu (Correo opens the automations, Promociones the promotions).
+ useEffect(()=>{const t=new URLSearchParams(window.location.search).get('tab');const k=TABS.find(([x])=>x===t)?.[0];if(k)setTimeout(()=>setTab(k),0);},[]);
  return <>
   {admin&&<div className={styles.toolbar} style={{marginBottom:12}}>{TABS.map(([k,l])=><button key={k} type="button" className={tab===k?styles.primary:undefined} onClick={()=>setTab(k)}>{l}</button>)}</div>}
   {tab==='promociones'&&<Promotions profile={profile}/>}
