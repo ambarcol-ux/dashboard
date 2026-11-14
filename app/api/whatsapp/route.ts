@@ -6,6 +6,7 @@ import {resolveAd,adsSpend,adsTokenReady} from '@/lib/meta-ads';
 import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply} from '@/lib/social-inbox';
 import {attachmentBlocks,type Adjunto} from '@/lib/ai-attachments';
 import {weeklyChatAnalysis} from '@/lib/whatsapp-analysis';
+import {resolveSimilarMissing} from '@/lib/ia-faltantes';
 import {suggestWhatsappReply,suggestCommentReply,testWhatsappAI,knowledgeChatTurn,applyIaChanges,loadContractClauses,loadErpContext,aiErrorText,type IaCambio} from '@/lib/whatsapp-ai';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -41,6 +42,14 @@ export async function POST(request:Request){
   }
   // «IA de WhatsApp» › chat de conocimientos: saved conversation; changes are proposed (before → after) and applied only after confirmation.
   // «IA de WhatsApp» › Analizar la última semana now (it also runs by itself every Monday). Administration only.
+  // «Lo que le falta a la IA»: the pending questions with the same meaning get the answer just given (or «No aplica»).
+  if(body.accion==='faltantes_parecidos'){
+   const {data:admin}=await userDb.rpc('es_admin');
+   if(admin!==true)return publicReply({error:'Solo administración.'},403);
+   const fid=Number((body as {faltante_id?:unknown}).faltante_id);
+   if(!Number.isInteger(fid)||fid<=0)return publicReply({error:'Dato no válido.'},400);
+   try{return publicReply(await resolveSimilarMissing(publicServerClient(),fid));}catch(e){return publicReply({error:aiErrorText(e)},502);}
+  }
   if(body.accion==='analisis'){
    const {data:admin}=await userDb.rpc('es_admin');
    if(admin!==true)return publicReply({error:'Solo administración puede pedir el análisis.'},403);

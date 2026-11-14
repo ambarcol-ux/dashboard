@@ -49,12 +49,17 @@ function Tabs({admin}:{admin:boolean}){
 type Faltante={id:number;falta:string;pregunta:string|null;veces:number;ultima_at:string};
 /** «IA de WhatsApp»: what the AI could not answer (it passed the chat to a person). Administration answers once and it is added to the knowledge. */
 function Faltantes({onChange}:{onChange:()=>void}){
- const [rows,setRows]=useState<Faltante[]>([]),[resp,setResp]=useState<Record<number,string>>({}),[aprender,setAprender]=useState<boolean|null>(null),[busy,setBusy]=useState(0),[error,setError]=useState('');
+ const [rows,setRows]=useState<Faltante[]>([]),[resp,setResp]=useState<Record<number,string>>({}),[aprender,setAprender]=useState<boolean|null>(null),[busy,setBusy]=useState(0),[error,setError]=useState(''),[parecidas,setParecidas]=useState<{descartar:boolean;lista:string[]}|null>(null);
  const load=useCallback(async()=>{const [{data},{data:c}]=await Promise.all([supabase.from('whatsapp_ia_faltantes').select('id,falta,pregunta,veces,ultima_at').eq('estado','pendiente').order('veces',{ascending:false}).order('ultima_at',{ascending:false}).limit(50),
   supabase.from('whatsapp_ia_config').select('auto_aprender').eq('id',1).maybeSingle()]);setRows((data||[]) as Faltante[]);setAprender(c?.auto_aprender!==false);},[]);
  useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
- const completar=async(f:Faltante,descartar=false)=>{setBusy(f.id);setError('');const {error:e}=await supabase.rpc('completar_dato_ia',{p_id:f.id,p_respuesta:resp[f.id]||'',p_descartar:descartar});setBusy(0);
-  if(e)setError(e.message);else{await load();if(!descartar)onChange();}};
+ const completar=async(f:Faltante,descartar=false)=>{setBusy(f.id);setError('');const {error:e}=await supabase.rpc('completar_dato_ia',{p_id:f.id,p_respuesta:resp[f.id]||'',p_descartar:descartar});
+  if(e){setBusy(0);setError(e.message);return;}
+  // Same-meaning pending questions get the same answer (or «No aplica») at once.
+  setParecidas(null);const {data:ses}=await supabase.auth.getSession();
+  const r=await fetch('/api/whatsapp',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${ses.session?.access_token||''}`},body:JSON.stringify({accion:'faltantes_parecidos',faltante_id:f.id})}).catch(()=>null);
+  const d=r?await r.json().catch(()=>({})):{};if(r?.ok&&d.resueltas?.length)setParecidas({descartar,lista:d.resueltas});
+  setBusy(0);await load();if(!descartar)onChange();};
  const toggle=async()=>{const next=!aprender;setBusy(-1);const {error:e}=await supabase.rpc('guardar_whatsapp_ia_aprender',{p_activa:next});setBusy(0);if(e)setError(e.message);else setAprender(next);};
  return <section className={styles.card} style={{display:'grid',gap:10,borderColor:rows.length?'#f59e0b':undefined}}>
   <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
@@ -63,12 +68,13 @@ function Faltantes({onChange}:{onChange:()=>void}){
   </div>
   <p className={styles.help}>Cada mañana (7:40 a. m.) la IA analiza los chats de los últimos 7 días y aplica sola sus mejoras para agendar más citas y sonar más humana (el historial de abajo guarda cada versión para volver atrás). Aquí aparecen las preguntas que no pudo responder porque le falta información del negocio: respóndelas una vez y se agregan a sus conocimientos, así la próxima vez responde sola.</p>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
+  {parecidas&&<div style={{border:'1px solid #a7f3d0',background:'#ecfdf5',borderRadius:12,padding:10,color:'#065f46'}}><strong>✅ {parecidas.descartar?'También se marcaron «No aplica»':'También quedaron respondidas'} {parecidas.lista.length} pregunta{parecidas.lista.length===1?'':'s'} con el mismo sentido:</strong><ul style={{margin:'6px 0 0 18px'}}>{parecidas.lista.map(t=><li key={t}>{t}</li>)}</ul></div>}
   {!rows.length&&<p className={styles.empty}>No le falta ningún dato por ahora. 🎉</p>}
   {rows.map(f=><div key={f.id} style={{border:'1px solid #fde68a',borderRadius:12,padding:10,display:'grid',gap:6}}>
    <div style={{display:'flex',justifyContent:'space-between',gap:8,flexWrap:'wrap'}}><strong>{f.falta}</strong><small style={{color:'#92400e'}}>{f.veces} {f.veces===1?'vez':'veces'} · {hora(f.ultima_at)}</small></div>
    {f.pregunta&&<small style={{color:'#64748b'}}>Ejemplo de lo que preguntó la clienta: «{f.pregunta}»</small>}
    <textarea rows={2} value={resp[f.id]||''} onChange={e=>setResp(r=>({...r,[f.id]:e.target.value}))} placeholder="Escribe la respuesta tal como quieres que la IA la sepa" style={{width:'100%'}}/>
-   <div className={styles.toolbar}><button type="button" className={styles.primary} disabled={busy!==0||(resp[f.id]||'').trim().length<2} onClick={()=>void completar(f)}>{busy===f.id?'Guardando…':'Enseñar a la IA'}</button>
+   <div className={styles.toolbar}><button type="button" className={`${styles.button} ${styles.primary}`} disabled={busy!==0||(resp[f.id]||'').trim().length<2} onClick={()=>void completar(f)}>{busy===f.id?'Guardando y buscando parecidas…':'Enseñar a la IA'}</button>
     <button type="button" className={styles.button} disabled={busy!==0} onClick={()=>void completar(f,true)}>No aplica</button></div>
   </div>)}
  </section>;
