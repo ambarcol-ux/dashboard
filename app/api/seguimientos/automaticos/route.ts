@@ -1,7 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {authorizedVisitWorker} from '@/lib/first-visit-worker-config';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
-import {conversationFor,followupText,sendWhatsappFollowup,followupPromoText,sendWhatsappFollowupPromo} from '@/lib/whatsapp-inbox';
+import {conversationFor,followupText,sendWhatsappFollowup,followupPromoText,sendWhatsappFollowupPromo,followupV2Text,sendWhatsappFollowupV2} from '@/lib/whatsapp-inbox';
 import {PROMO_FIELDS,promoApplies,type Promotion} from '@/lib/promotions';
 import {whatsappPhone} from '@/lib/first-visit-links';
 export const dynamic='force-dynamic';
@@ -40,9 +40,11 @@ export async function POST(request:Request){
   try{
    // The promotion in force for her store and dress type goes in the greeting as the hook to answer (plain greeting if none or template pending).
    const promo=promoFor(promos,sedes.get(sede.toLowerCase())||null,e.tipo_vestido);
-   let waId=promo?await sendWhatsappFollowupPromo(settings,phone,nombre,sede,promo):null;
-   const texto=waId&&promo?followupPromoText(nombre,sede,promo):followupText(nombre,sede),now=new Date().toISOString();
-   if(!waId)waId=await sendWhatsappFollowup(settings,phone,nombre,sede);
+   // Best approved greeting first: with promotion, then the improved one, then the original.
+   let waId=promo?await sendWhatsappFollowupPromo(settings,phone,nombre,sede,promo):null,texto=waId&&promo?followupPromoText(nombre,sede,promo):'';
+   if(!waId){waId=await sendWhatsappFollowupV2(settings,phone,nombre,sede);if(waId)texto=followupV2Text(nombre,sede);}
+   if(!waId){waId=await sendWhatsappFollowup(settings,phone,nombre,sede);texto=followupText(nombre,sede);}
+   const now=new Date().toISOString();
    // Mirrored in the inbox: when she answers, the AI knows why we wrote and continues the conversation.
    const conv=await conversationFor(db,phone,e.nombre);
    await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:waId,direccion:'saliente',origen:'ia',tipo:'template',texto,estado:'sent',created_at:now});

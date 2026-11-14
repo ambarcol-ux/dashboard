@@ -93,12 +93,18 @@ export async function sendWhatsappFollowup(settings:{token:string;phoneNumberId:
 }
 /** Follow-up greeting with the promotion that applies to the customer (template ambar_seguimiento_promo, see docs/plantillas-whatsapp.md). */
 export const FOLLOWUP_PROMO_TEMPLATE='ambar_seguimiento_promo';
-export const followupPromoText=(nombre:string,sede:string,promo:string)=>`Hola ${nombre} 💛 Te escribimos de Ámbar Couture ${sede} para acompañarte con tu vestido. Tenemos una promoción para ti: ${promo}. ¿Te ayudamos a separar tu cita?`;
-/** Sends the follow-up with its promotion; null when the template is not approved in Meta yet (the caller sends the plain greeting). */
-export async function sendWhatsappFollowupPromo(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,sede:string,promo:string){
+export const followupPromoText=(nombre:string,sede:string,promo:string)=>`Hola ${nombre} 💛 Soy de Ámbar Couture ${sede}. ¿Ya encontraste tu vestido? Tenemos ${promo}. Responde este mensaje y te mostramos opciones o separamos tu cita.`;
+/** Improved plain follow-up (template ambar_seguimiento_v2); while it is not approved, ambar_seguimiento is used. */
+export const FOLLOWUP_V2_TEMPLATE='ambar_seguimiento_v2';
+export const followupV2Text=(nombre:string,sede:string)=>`Hola ${nombre} 💛 Soy de Ámbar Couture ${sede}. ¿Ya encontraste tu vestido? Tenemos modelos nuevos y te ayudamos a elegir el ideal para tu evento. Responde este mensaje y te mostramos opciones o te agendamos una cita.`;
+/** Improved follow-up and follow-up with promotion: null while their template is not approved in Meta. */
+export const sendWhatsappFollowupV2=(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,sede:string)=>sendOptionalTemplate(settings,to,FOLLOWUP_V2_TEMPLATE,[nombre,sede]);
+export const sendWhatsappFollowupPromo=(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,sede:string,promo:string)=>sendOptionalTemplate(settings,to,FOLLOWUP_PROMO_TEMPLATE,[nombre,sede,promo]);
+/** Sends a template that may not be approved in Meta yet: null then, so the caller falls back to the approved one. */
+async function sendOptionalTemplate(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,name:string,values:string[]){
  const version=process.env.META_GRAPH_VERSION||'v21.0';
  const r=await fetch(`https://graph.facebook.com/${version}/${settings.phoneNumberId}/messages`,{method:'POST',headers:{Authorization:`Bearer ${settings.token}`,'Content-Type':'application/json'},
-  body:JSON.stringify({messaging_product:'whatsapp',to,type:'template',template:{name:FOLLOWUP_PROMO_TEMPLATE,language:{code:settings.templateLang||'es_CO'},components:[{type:'body',parameters:[nombre,sede,promo].map(text=>({type:'text',text}))}]}}),signal:AbortSignal.timeout(15000)});
+  body:JSON.stringify({messaging_product:'whatsapp',to,type:'template',template:{name,language:{code:settings.templateLang||'es_CO'},components:[{type:'body',parameters:values.map(text=>({type:'text',text}))}]}}),signal:AbortSignal.timeout(15000)});
  const d=await r.json().catch(()=>({})) as {messages?:{id:string}[];error?:{message?:string;code?:number}};
  if(r.ok&&d.messages?.[0]?.id)return d.messages[0].id;
  const code=Number(d.error?.code);
