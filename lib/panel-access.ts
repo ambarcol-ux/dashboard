@@ -40,6 +40,7 @@ export const PANELS:Panel[]=[
  {id:'pipeline',label:'Pipeline',href:'/dashboard/pipeline',block:'VENTAS & CRM',paths:['/dashboard/pipeline'],staff:true,grantable:true},
  {id:'correo',label:'Correo (promociones)',href:'/dashboard/correo',block:'VENTAS & CRM',paths:['/dashboard/correo'],staff:true,grantable:true},
  {id:'aliados_directos',label:'Aliados directos',href:'/dashboard/aliados-directos',block:'RED DE ALIADOS',paths:['/dashboard/aliados-directos'],staff:true,grantable:true},
+ {id:'aliados_publicaciones',label:'Publicaciones de aliados',href:'/dashboard/aliados-publicaciones',block:'RED DE ALIADOS',paths:['/dashboard/aliados-publicaciones'],staff:true,grantable:true},
  {id:'aliados_admin',label:'Gestión de aliados',href:'/dashboard/admin/aliados',block:'RED DE ALIADOS',paths:['/dashboard/admin/aliados'],grantable:true},
  {id:'users',label:'Gestión de equipo',href:'/admin/users',block:'ADMINISTRACIÓN',paths:['/admin/users'],grantable:false},
  {id:'horarios',label:'Control de asistencia',href:'/dashboard/horarios',block:'ADMINISTRACIÓN',paths:['/dashboard/horarios'],grantable:true},

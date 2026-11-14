@@ -10,12 +10,12 @@ import {accountInputMode,accountLabel} from '@/lib/bank-keys';
 
 type Info={tipos:{id:number;nombre:string}[];sedes:{id:string;nombre:string}[];acuerdo:ContractSection[]|null;config:AllyContractConfig|null;autorizacion:ContractSection;comercial?:string|null};
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
-const FIELDS:[string,string,string?][]=[['nombre_completo','Nombre completo'],['cedula','Cédula (o pasaporte si eres de otro país)'],['celular','Celular','tel'],['correo','Correo electrónico','email'],['direccion','Dirección'],['banco','Banco'],['numero_cuenta','Número de cuenta','numeric'],['titular_cuenta','Titular de la cuenta']];
-const EMPTY:Record<string,string>={nombre_completo:'',cedula:'',celular:'',correo:'',direccion:'',tipo_aliado_id:'',sede_principal:'',banco:'',tipo_cuenta:'',numero_cuenta:'',titular_cuenta:''};
+const FIELDS:[string,string,string?][]=[['nombre_completo','Nombre completo'],['cedula','Cédula (o pasaporte si eres de otro país)'],['celular','Celular','tel'],['correo','Correo electrónico','email'],['direccion','Dirección'],['nombre_comercial','Nombre comercial o de tu marca (opcional)'],['instagram','Instagram (usuario, obligatorio)'],['tiktok','TikTok (usuario, opcional)'],['facebook','Facebook (enlace de tu página, opcional)'],['descripcion_servicios','Tus servicios en una frase (opcional)'],['banco','Banco'],['numero_cuenta','Número de cuenta','numeric'],['titular_cuenta','Titular de la cuenta']];
+const EMPTY:Record<string,string>={nombre_completo:'',cedula:'',celular:'',correo:'',direccion:'',nombre_comercial:'',instagram:'',tiktok:'',facebook:'',descripcion_servicios:'',tipo_aliado_id:'',sede_principal:'',banco:'',tipo_cuenta:'',numero_cuenta:'',titular_cuenta:''};
 
 /** Public sign-up of Aliados Directos: form, data authorization, agreement signature; the request stays Pendiente. */
 export default function AllySignupPage(){
- const [info,setInfo]=useState<Info|null>(null),[datos,setDatos]=useState(EMPTY),[cert,setCert]=useState<File|null>(null);
+ const [info,setInfo]=useState<Info|null>(null),[datos,setDatos]=useState(EMPTY),[cert,setCert]=useState<File|null>(null),[logo,setLogo]=useState<File|null>(null),[directorio,setDirectorio]=useState(true);
  const [aceptaDatos,setAceptaDatos]=useState(false),[comercial,setComercial]=useState<boolean|null>(null),[acepta,setAcepta]=useState(false),[error,setError]=useState(''),[busy,setBusy]=useState(false),[done,setDone]=useState<string|null>(null);
  const pad=useRef<SignatureCanvas>(null);
  useEffect(()=>{fetch('/api/aliados/vinculacion').then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudo cargar el formulario.');setInfo(d);const sede=new URLSearchParams(window.location.search).get('sede');if(sede&&d.sedes?.some((s:{id:string})=>s.id===sede))setDatos(v=>({...v,sede_principal:sede}));}).catch(e=>setError(e.message));},[]);
@@ -35,7 +35,7 @@ export default function AllySignupPage(){
   if(!pad.current||pad.current.isEmpty())return setError('Dibuja tu firma en el recuadro.');
   setBusy(true);
   try{
-   const form=new FormData();form.append('datos',JSON.stringify(datos));form.append('certificacion',cert);form.append('acepta_datos','true');form.append('comercial',String(comercial));form.append('acepta','true');form.append('origen',new URLSearchParams(window.location.search).get('o')||'');form.append('firma',pad.current.getTrimmedCanvas().toDataURL('image/png'));
+   const form=new FormData();form.append('datos',JSON.stringify(datos));form.append('certificacion',cert);form.append('acepta_datos','true');form.append('comercial',String(comercial));form.append('acepta','true');form.append('directorio',String(directorio));if(logo)form.append('logo',logo);form.append('origen',new URLSearchParams(window.location.search).get('o')||'');form.append('firma',pad.current.getTrimmedCanvas().toDataURL('image/png'));
    const r=await fetch('/api/aliados/vinculacion',{method:'POST',body:form}),d=await r.json().catch(()=>({}));
    if(!r.ok)throw Error(d.error||'No se pudo enviar tu solicitud.');
    setDone(d.codigo);window.scrollTo({top:0,behavior:'smooth'});
@@ -57,7 +57,9 @@ export default function AllySignupPage(){
       {FIELDS.map(([k,label,type])=><label key={k} className="text-xs font-bold text-gray-600">{k==='numero_cuenta'?accountLabel(datos.tipo_cuenta,label):label}<input className={input} inputMode={k==='numero_cuenta'?accountInputMode(datos.tipo_cuenta):type==='numeric'?'numeric':undefined} type={type==='email'?'email':type==='tel'?'tel':'text'} value={datos[k]} onChange={e=>setDatos({...datos,[k]:e.target.value})}/></label>)}
       <label className="text-xs font-bold text-gray-600">Tipo de cuenta o llave<select className={input} value={datos.tipo_cuenta} onChange={e=>setDatos({...datos,tipo_cuenta:e.target.value})}><option value="">Selecciona…</option><AccountTypeOptions base={ACCOUNT_TYPES} current={datos.tipo_cuenta}/></select></label>
       <label className="text-xs font-bold text-gray-600 sm:col-span-2">Certificación bancaria (PDF o foto, obligatoria)<input className={input} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setCert(e.target.files?.[0]||null)}/></label>
+      <label className="text-xs font-bold text-gray-600 sm:col-span-2">Logo o foto de tu marca (opcional, para el directorio de Aliados Ámbar)<input className={input} type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setLogo(e.target.files?.[0]||null)}/></label>
      </div>
+     <label className="flex gap-2 items-start text-sm text-gray-700 mt-4"><input type="checkbox" className="mt-1" checked={directorio} onChange={e=>setDirectorio(e.target.checked)}/>Autorizo a Ámbar Couture a publicar en su directorio de Aliados Ámbar y en sus redes mi nombre comercial, logo, servicios, ciudad, redes sociales y celular de contacto, y a etiquetarme en sus publicaciones (beneficio de visibilidad del programa).</label>
     </section>
     <section className={card}><h2 className="font-black text-gray-900 mb-3">2. Autorización de tratamiento de datos</h2>
      <AllyContractText sections={[info.autorizacion]}/>
