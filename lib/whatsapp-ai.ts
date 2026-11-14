@@ -9,6 +9,7 @@ import {WHATSAPP_TOOLS,runWhatsappTool} from './whatsapp-tools';
 import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply} from './social-inbox';
 import {marcarCanal} from './event-channel';
 import {documentsForAI} from './doc-ia';
+import {inventoryCandidates} from './dress-photo-match';
 
 /** Ventas y CRM › WhatsApp 304: the AI reads the chat, labels it, detects the store, flags chats a person must take and leaves a suggested reply. It never sends anything. */
 export const WHATSAPP_TAGS=['cita','disponibilidad','precio','pago','contrato','reclamo','aliado','otro'] as const;
@@ -38,7 +39,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - No saludes de nuevo si ya hubo saludo reciente en la conversación.
 - Si el último mensaje de la clienta lleva varias horas sin respuesta, empieza con una disculpa breve y natural por la demora y luego respóndele.
 - Inventario del catálogo: en <catalogos> tienes los vestidos que las clientas pueden ver (código, tipo, categoría, talla, color y precio de alquiler). Úsalo para responder lo que pidan (por ejemplo «¿tienen vestidos azules talla M?»): menciona hasta 4 códigos que cumplan, con su precio de alquiler, y el enlace del catálogo. Esos precios son públicos y sí puedes darlos. Disponibilidad y citas con datos reales del ERP: si la clienta pregunta si un vestido está libre para su fecha, usa la herramienta disponibilidad_vestido; si busca opciones para su fecha (por tipo, talla o color), usa vestidos_libres; si pregunta qué días u horas hay para la cita, usa cupos_cita. Responde con lo que digan (por ejemplo «¡Sí, el CD384A está libre para el 12 de diciembre!») y aclara con naturalidad que el vestido se separa al firmar el contrato. Si está ocupado, ofrécele los libres parecidos. Pregunta la fecha del evento si no la sabes. No pases el chat a una persona por disponibilidad o cupos si las herramientas responden.
-- Fotos y archivos: si la clienta envía una foto (por ejemplo de un vestido que le gustó o de su inspiración), descríbela en pocas palabras y sugiere vestidos parecidos del inventario de su sede; no afirmes que es el mismo vestido.
+- Fotos y archivos: si la clienta envía la foto de un vestido (de nuestro catálogo, de redes o de su inspiración), compárala con las fotos de <candidatos_inventario>. Si una es el mismo vestido (mismo modelo, color y adornos), dile que sí lo tenemos y responde lo que pregunta con sus datos (código, sede, talla, color, precio de alquiler); si está en su sede, pon su código en «fotos». Si ninguno es el mismo, dile con calidez que ese modelo exacto no lo tenemos y ofrécele hasta 3 opciones parecidas del inventario visible de la sede más cercana a ella (la de su chat, su cita o la ciudad que dijo; si no la sabes, pregúntale en qué ciudad está), con sus códigos en «fotos». Si en esa sede no hay nada parecido, ofrécele una cita virtual con una asesora para revisar si en otras sedes está lo que busca, con el enlace de agenda de su sede. Nunca afirmes que es el mismo vestido si no estás segura.
 - Fotos del inventario: los vestidos marcados con 📷 en el inventario tienen foto. Si la clienta pide ver un vestido concreto o le propones opciones (por color, talla, categoría o precio), pon en «fotos» hasta 3 códigos con 📷 del inventario visible de su sede y en la respuesta preséntalos en pocas palabras (las fotos llegan justo después de tu mensaje, cada una con su código). No envíes fotos de otra sede ni de vestidos sin 📷, ni repitas fotos que ya enviaste en el chat. Si pide ver muchos modelos, envía el catálogo de su sede.
 - Catálogo: si la clienta pide ver vestidos, modelos, fotos o el catálogo, envíale el enlace del catálogo de su sede y tipo de vestido tal cual aparece en <catalogos> (no lo modifiques). Si sabes la sede pero no el tipo de vestido, envía el enlace general de esa sede (ahí la clienta elige el tipo). Si no sabes la sede, pregúntala primero. Si esa combinación no está en la lista, di que una asesora le comparte opciones. Invítala a agendar su primera cita desde el catálogo.
 - Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
@@ -203,7 +204,7 @@ export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,c
  const today=new Date().toLocaleDateString('es-CO',{timeZone:'America/Bogota',weekday:'long',year:'numeric',month:'long',day:'numeric'});
  const client=new Anthropic();
  // Photos and files the customer sent go first, then the conversation.
- const messages:Anthropic.MessageParam[]=[{role:'user',content:[...extra,{type:'text',text:`Hoy es ${today}.\n\nDatos de la clienta en el ERP (nombre, sede, primeras citas y contratos):\n${JSON.stringify(customer)}\n\nConversación (la más reciente al final):\n${chat}${extra.length?'\n\n(Los archivos de arriba los envió la clienta en sus últimos mensajes.)':''}`}]}];
+ const messages:Anthropic.MessageParam[]=[{role:'user',content:[...extra,{type:'text',text:`Hoy es ${today}.\n\nDatos de la clienta en el ERP (nombre, sede, primeras citas y contratos):\n${JSON.stringify(customer)}\n\nConversación (la más reciente al final):\n${chat}${extra.length?'\n\n(Los archivos de arriba los envió la clienta en sus últimos mensajes, salvo los de <candidatos_inventario>, que son del inventario de Ámbar.)':''}`}]}];
  // With the database, the AI can look up dress availability and free visit slots (up to 4 rounds of lookups).
  let response:Anthropic.Message;
  for(let round=0;;round++){
@@ -257,6 +258,8 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   const extra:Anthropic.ContentBlockParam[]=[];
   if(fotos.length){const settings=await loadWhatsappSettings(db);if(settings.token)for(const m of fotos){const img=await downloadWhatsappImage(settings,String(m.media_id)).catch(()=>null);
    if(img&&['image/jpeg','image/png','image/webp','image/gif'].includes(img.tipo))extra.push({type:'image',source:{type:'base64',media_type:img.tipo as 'image/jpeg',data:img.datos}});}}
+  // Her photos are compared with the inventory: the closest dresses go to the AI with their data and photo.
+  if(extra.length)extra.push(...await inventoryCandidates(db,extra).catch(()=>[]));
   const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(ctx||{}),...(seguimiento?{seguimiento}:{})},chat,clauses,catalogs,extra,db);
   out.respuesta=marcarCanal(out.respuesta,conv.canal);
   // She said she already rented, is not interested or wants no more messages: the follow-up of her phone is closed.
