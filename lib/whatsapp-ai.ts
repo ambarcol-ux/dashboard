@@ -10,6 +10,7 @@ import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatF
 import {marcarCanal} from './event-channel';
 import {documentsForAI} from './doc-ia';
 import {inventoryCandidates} from './dress-photo-match';
+import {PROMO_FIELDS,promoState,promoBenefit,type Promotion} from './promotions';
 
 /** Ventas y CRM › WhatsApp 304: the AI reads the chat, labels it, detects the store, flags chats a person must take and leaves a suggested reply. It never sends anything. */
 export const WHATSAPP_TAGS=['cita','disponibilidad','precio','pago','contrato','reclamo','aliado','otro'] as const;
@@ -49,7 +50,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 
 Seguimiento (clientas que ya tuvieron cita o visitaron la tienda y no alquilaron):
 - Si en los datos de la clienta viene «seguimiento», Ámbar le escribió para retomar su búsqueda. Habla de la cita, la sede y la fecha que vienen en «seguimiento» (es la cita por la que le escribimos), no de otras citas que aparezcan en sus datos. Retómala con calidez según «tipo»: si no asistió, ayúdale a reagendar; si asistió o vino a la tienda y no alquiló, pregúntale cómo va con su vestido y, según «motivo_no_alquiler», ofrécele una salida concreta (otro modelo o categoría del inventario, el catálogo de su sede, separar la fecha). El objetivo es que agende una nueva cita.
-- Solo si «autoriza_promociones» es true puedes mencionar promociones o descuentos; si no, habla solo de su cita, su vestido y el catálogo.
+- Promociones: ofrécele las de <promociones> que apliquen a su sede y tipo de vestido, con su fecha límite, como gancho para que agende o separe. Nunca inventes promociones ni digas que se acumulan.
 - Fecha del evento: en los datos del ERP cada cita y contrato trae «evento_ya_paso». Si el evento ya pasó y hay contrato, mira su estado, «entregado_evento» y «finalizado_at» para saber si ya se realizó (no lo preguntes). Si no hay contrato, pregúntale a ella con naturalidad si ya fue su evento o si cambió la fecha; nunca lo pongas en «falta_informacion». Cuando la clienta te diga la fecha de su evento (nueva o por primera vez), escríbela en «fecha_evento_nueva» como AAAA-MM-DD; si no dio una fecha exacta, cadena vacía.
 - En «cierre_seguimiento» marca evento_realizado si dice que su evento ya pasó y no alquiló con nosotras; alquilo_otro si dice que ya alquiló o compró en otro lugar, no_interesa si dice que ya no lo necesita o no le interesa, no_contactar si pide que no le escriban más (en ese caso despídete con respeto y no insistas). En cualquier otro caso, cadena vacía.
 
@@ -70,7 +71,7 @@ const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sed
  fotos:{type:'array',items:{type:'string'},description:'Códigos (máximo 3) de vestidos con 📷 del inventario visible de su sede cuya foto se le envía con esta respuesta; lista vacía si no'},
 }};
 
-export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string};
+export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string;promociones?:string};
 export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string;fotos?:string[]};
 type Msg={direccion:string;texto:string|null;created_at:string};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null;parqueadero?:string|null};
@@ -86,7 +87,20 @@ function systemPrompt(cfg:IaConfig,sites:Site[],clauses:string,catalogs=''){
   `<reglas_de_paso_a_una_persona>\n${cfg.escalamiento.trim()||'(solo las reglas fijas)'}\n</reglas_de_paso_a_una_persona>`,
   `<clausulas_del_contrato>\n${clauses||'(sin cláusulas)'}\n</clausulas_del_contrato>`,
   `<catalogos>\n${catalogs||'(sin catálogos disponibles)'}\n</catalogos>`,
+  `<promociones>\nPromociones vigentes registradas en el ERP (Ventas y CRM › Promociones). Solo estas existen.\n${cfg.promociones||'(sin promociones vigentes)'}\n</promociones>`,
   `<documentos_de_la_marca>\nResumen de documentos vigentes de la marca (planes, precios, condiciones, promociones). Úsalos como tus conocimientos; si un documento es de una sede, aplícalo solo a clientas de esa sede.\n${cfg.documentos||'(sin documentos)'}\n</documentos_de_la_marca>`].join('\n\n');
+}
+
+/** Promotions in force today (Ventas y CRM › Promociones) with their stores, dress types, categories, conditions and end date. */
+export async function promotionsForAI(db:SupabaseClient){
+ const [{data:promos},{data:sites},{data:types}]=await Promise.all([
+  db.from('promociones').select(PROMO_FIELDS).eq('activo',true),
+  db.from('sedes').select('id,nombre'),
+  db.from('clasificaciones_vestido').select('id,nombre'),
+ ]);
+ const sede=new Map(((sites||[]) as {id:string;nombre:string}[]).map(s=>[s.id,s.nombre])),tipo=new Map(((types||[]) as {id:number;nombre:string}[]).map(t=>[t.id,t.nombre]));
+ const fecha=(d:string)=>new Date(d+'T12:00:00Z').toLocaleDateString('es-CO',{day:'numeric',month:'long',year:'numeric',timeZone:'UTC'});
+ return ((promos||[]) as Promotion[]).filter(p=>promoState(p)==='Vigente').map(p=>`- ${p.nombre}: ${promoBenefit(p)} · sedes: ${p.sede_ids?.length?p.sede_ids.map(id=>sede.get(id)||'—').join(', '):'todas'} · tipo: ${p.clasificacion_ids?.length?p.clasificacion_ids.map(id=>tipo.get(id)||'—').join(', '):'todos'}${p.categorias?.length?` · categorías: ${p.categorias.join(', ')}`:''} · hasta el ${fecha(p.hasta)}${p.codigo?` · código ${p.codigo}`:''}${p.condiciones?` · condiciones: ${p.condiciones}`:''}`).join('\n');
 }
 
 /** Current contract clauses (Administración › Cláusulas del contrato), as plain text: the same ones the customer signs. */
@@ -148,8 +162,8 @@ async function loadBasics(db:SupabaseClient){
   loadContractClauses(db),
   loadCatalogLinks(db),
  ]);
- const documentos=await documentsForAI(db).catch(()=>'');
- return {clauses,catalogs,cfg:{...(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}),documentos} as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
+ const [documentos,promociones]=await Promise.all([documentsForAI(db).catch(()=>''),promotionsForAI(db).catch(()=>'')]);
+ return {clauses,catalogs,cfg:{...(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}),documentos,promociones} as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
 }
 
 const COMMENT_SCHEMA={type:'object',additionalProperties:false,required:['tipo','publica','privado'],properties:{

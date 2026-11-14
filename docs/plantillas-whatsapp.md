@@ -140,3 +140,19 @@ Hola {{1}} 💛 Te escribimos de Ámbar Couture {{2}} para acompañarte con tu v
 | {{2}} | Barranquilla |
 
 Se envía desde WhatsApp 304 cuando la clienta nunca escribió al 304 o pasaron más de 24 horas («Enviarle un saludo»). Cuando responde, la asesora sigue escribiéndole normal desde el ERP.
+
+## Seguimiento con promoción — `ambar_seguimiento_promo`
+
+Categoría **Marketing** · Idioma **Español (COL)** · Sin botones.
+
+```
+Hola {{1}} 💛 Te escribimos de Ámbar Couture {{2}} para acompañarte con tu vestido. Tenemos una promoción para ti: {{3}}. ¿Te ayudamos a separar tu cita?
+```
+
+| Variable | Ejemplo |
+|---|---|
+| {{1}} | Luisa |
+| {{2}} | Barranquilla |
+| {{3}} | 20% de descuento pagando de contado en tienda hasta el 30 de noviembre |
+
+Los seguimientos automáticos la usan cuando hay una promoción vigente (Ventas y CRM › Promociones) para la sede y el tipo de vestido de la clienta; si no hay promoción o la plantilla aún no está aprobada, sale `ambar_seguimiento`.
