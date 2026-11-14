@@ -5,7 +5,12 @@ import Link from 'next/link';
 type Aliado={nombre:string;tipo:string|null;sede:string|null;descripcion:string|null;instagram:string|null;tiktok:string|null;facebook:string|null;whatsapp:string|null;logo:string|null;destacado:boolean};
 
 /** Public page «Aliados Ámbar»: photographers, make-up artists, planners, decorators and venues that work with Ámbar Couture dresses. */
+/** Not public yet: the owner is planning the page. Set to true to publish it. */
+const PUBLICADA=false;
 export default function AliadosAmbarPage(){
+ return PUBLICADA?<Directorio/>:<main className="min-h-screen bg-[#faf8f5] flex items-center justify-center p-6 text-center"><div><p className="text-[11px] font-black uppercase tracking-[.3em] text-[#b08d57]">Ámbar Couture</p><h1 className="text-2xl font-black mt-2">Aliados Ámbar</h1><p className="text-sm text-gray-600 mt-2">Muy pronto.</p></div></main>;
+}
+function Directorio(){
  const [aliados,setAliados]=useState<Aliado[]|null>(null),[error,setError]=useState(''),[sede,setSede]=useState(''),[tipo,setTipo]=useState('');
  useEffect(()=>{void fetch('/api/aliados/directorio').then(r=>r.json()).then(d=>{if(d.error)setError(d.error);else setAliados(d.aliados||[]);}).catch(()=>setError('El directorio no está disponible.'));},[]);
  useEffect(()=>{const p=new URLSearchParams(window.location.search);setTimeout(()=>{setSede(p.get('sede')||'');setTipo(p.get('tipo')||'');},0);},[]);
