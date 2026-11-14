@@ -50,6 +50,16 @@ export async function POST(request:Request){
    }
    destino=r.ok?(d.data||[]).filter(x=>x.object==='page'||x.object==='instagram').map(x=>`${x.object}: ${x.active?'activo':'inactivo'} → ${x.callback_url} [${(x.fields||[]).map(f=>typeof f==='string'?f:f.name).join(', ')}]`).join(' | ')||'la app no tiene webhooks de page ni instagram':`no se pudo leer (${String(d.error?.message||r.status).slice(0,120)}; ¿META_APP_SECRET es de otra app?)`;
   }
+  // Permissions of the token (Meta's debug_token) and whether Instagram lets the app read direct messages.
+  if(appId&&secret){
+   const dbg=await fetch(`https://graph.facebook.com/${v}/debug_token?${new URLSearchParams({input_token:pt,access_token:`${appId}|${secret}`})}`,{signal:AbortSignal.timeout(15000)}).then(r=>r.json()).catch(()=>null) as {data?:{scopes?:string[]}}|null;
+   const faltan=['pages_messaging','pages_manage_metadata','instagram_basic','instagram_manage_messages'].filter(p=>dbg?.data?.scopes&&!dbg.data.scopes.includes(p));
+   destino+=dbg?.data?.scopes?` · Permisos del token: ${faltan.length?`FALTAN ${faltan.join(', ')}`:'completos para mensajes'}`:'';
+  }
+  if(ig?.id){
+   const dm=await get(`${s.pageId}/conversations?platform=instagram&fields=id&limit=1`);
+   destino+=dm.ok?' · Mensajes de Instagram: la app sí puede leerlos':` · Mensajes de Instagram BLOQUEADOS: ${String(dm.d.error?.message||'').slice(0,160)} (activa «Permitir el acceso a los mensajes» en la app de Instagram y pide acceso avanzado a instagram_manage_messages)`;
+  }
   diag=` · App ${appId}: página ${mine?`suscrita (${(mine.subscribed_fields||[]).join(', ')})`:'NO suscrita'}${apps.length>1?` · otras apps suscritas: ${apps.filter(a=>a.id!==appId).map(a=>a.name||a.id).join(', ')}`:''} · Webhooks: ${destino||'sin datos'}`;
   }catch(e){diag=` · Diagnóstico no disponible: ${e instanceof Error?e.message:'error'}`;}
   const detalle=`Página «${page.d.name}»${ig?.username?` · Instagram @${ig.username}`:' · sin Instagram unido a la página'}${sinFeed?' · Comentarios de Facebook NO activos: genera el token con pages_read_user_content y pages_manage_engagement y vuelve a probar':''}${diag}`;
