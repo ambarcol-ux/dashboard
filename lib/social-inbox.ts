@@ -74,9 +74,9 @@ export async function pollInstagramMessages(db:SupabaseClient,s:SocialSettings){
  if(!s.instagramId)return [];
  const since=Date.now()-30*60000;
  const tk=encodeURIComponent(await pageToken(s));
- const graph=async(path:string)=>{const r=await fetch(`https://graph.facebook.com/${version()}/${path}&access_token=${tk}`,{signal:AbortSignal.timeout(20000)});const d=await r.json().catch(()=>({})) as Value;if(!r.ok)throw Error(String(d.error?.message||r.status));return d;};
+ const graph=async(path:string)=>{const r=await fetch(`https://graph.facebook.com/${version()}/${path}&access_token=${tk}`,{signal:AbortSignal.timeout(25000)});const d=await r.json().catch(()=>({})) as Value;if(!r.ok)throw Error(String(d.error?.message||r.status));return d;};
  // Two light calls (Meta refuses one big one): recent conversations, then the last messages of each.
- const d=await graph(`${s.pageId}/conversations?platform=instagram&fields=updated_time&limit=15`);
+ const d=await graph(`${s.pageId}/conversations?platform=instagram&fields=updated_time&limit=6`);
  const messaging:Value[]=[];
  for(const c of (d.data||[]) as Value[]){
   if(new Date(c.updated_time).getTime()<since)continue;
