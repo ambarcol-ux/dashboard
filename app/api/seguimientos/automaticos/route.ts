@@ -1,25 +1,14 @@
 import {createClient} from '@supabase/supabase-js';
 import {authorizedVisitWorker} from '@/lib/first-visit-worker-config';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
-import {conversationFor,followupText,sendWhatsappFollowup,followupPromoText,sendWhatsappFollowupPromo,followupV2Text,sendWhatsappFollowupV2} from '@/lib/whatsapp-inbox';
-import {PROMO_FIELDS,promoApplies,type Promotion} from '@/lib/promotions';
+import {conversationFor,sendBestFollowup} from '@/lib/whatsapp-inbox';
+import {PROMO_FIELDS,promoForGreeting,type Promotion} from '@/lib/promotions';
 import {whatsappPhone} from '@/lib/first-visit-links';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
 type Etapa={seguimiento_id:string;cita_id:string;etapa:number;total:number;nombre:string|null;telefono:string;sede:string;tipo:string;motivo:string|null;tipo_vestido:string|null;fecha_evento:string|null;comercial:boolean};
 const TIPO:Record<string,string>={asistida:'asistió y no alquiló',no_asistida:'no asistió a su cita',vitrina:'visitó la tienda (vitrina) y no alquiló'};
-
-const TIPO_ID:[RegExp,number][]=[[/xv|quince/i,2],[/novia/i,1],[/gala|grado/i,3],[/pajecita/i,4]];
-/** Promotion for the greeting: the one in force for her store and dress type that ends soonest, as «20% de descuento … hasta el 30 de noviembre». */
-function promoFor(promos:Promotion[]|null,sedeId:string|null,tipoVestido:string|null){
- const tipo=TIPO_ID.find(([re])=>re.test(String(tipoVestido||'')))?.[1];
- if(!promos||!tipo)return null;
- const p=promos.filter(x=>promoApplies(x,{sede:sedeId,tipos:[tipo]})).sort((a,b)=>a.hasta.localeCompare(b.hasta))[0];
- if(!p)return null;
- const fin=Date.parse(p.hasta+'T12:00:00Z')-Date.now()<90*86400000?` hasta el ${new Date(p.hasta+'T12:00:00Z').toLocaleDateString('es-CO',{day:'numeric',month:'long',timeZone:'UTC'})}`:'';
- return `${p.nombre.replace(/\s*\([^)]*\)\s*$/,'')}${fin}`;
-}
 
 /** Monday to Saturday 10:05 a. m. and 4:05 p. m. (Supabase cron): sends the due follow-up stages by WhatsApp (304) with the follow-up template.
  *  When the customer answers, the chat AI continues (it receives the follow-up context). Off when the AI's automatic replies are off. */
@@ -39,12 +28,8 @@ export async function POST(request:Request){
   const phone=whatsappPhone(e.telefono),nombre=String(e.nombre||'').trim().split(/\s+/)[0]||'hola',sede=e.sede||'';
   try{
    // The promotion in force for her store and dress type goes in the greeting as the hook to answer (plain greeting if none or template pending).
-   const promo=promoFor(promos,sedes.get(sede.toLowerCase())||null,e.tipo_vestido);
-   // Best approved greeting first: with promotion, then the improved one, then the original.
-   let waId=promo?await sendWhatsappFollowupPromo(settings,phone,nombre,sede,promo):null,texto=waId&&promo?followupPromoText(nombre,sede,promo):'';
-   if(!waId){waId=await sendWhatsappFollowupV2(settings,phone,nombre,sede);if(waId)texto=followupV2Text(nombre,sede);}
-   if(!waId){waId=await sendWhatsappFollowup(settings,phone,nombre,sede);texto=followupText(nombre,sede);}
-   const now=new Date().toISOString();
+   const promo=promoForGreeting(promos,sedes.get(sede.toLowerCase())||null,e.tipo_vestido);
+   const {waId,texto}=await sendBestFollowup(settings,phone,nombre,sede,promo),now=new Date().toISOString();
    // Mirrored in the inbox: when she answers, the AI knows why we wrote and continues the conversation.
    const conv=await conversationFor(db,phone,e.nombre);
    await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:waId,direccion:'saliente',origen:'ia',tipo:'template',texto,estado:'sent',created_at:now});
