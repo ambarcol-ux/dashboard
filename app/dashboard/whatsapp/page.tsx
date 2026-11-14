@@ -318,7 +318,7 @@ function Inbox(){
   return()=>{clearTimeout(first);clearInterval(t);if(pending)clearTimeout(pending);void supabase.removeChannel(channel);};
  },[load]);
  const sedeName=(id:string|null)=>sedes.find(s=>s.id===id)?.nombre||'Sin sede';
- const lista=useMemo(()=>convs.filter(c=>(filtro==='todas'||(filtro==='sin_leer'&&c.no_leidos>0)||(filtro==='atender'&&c.ia_atender)||(filtro==='sin_sede'&&!c.sede_id)||c.sede_id===filtro)
+ const lista=useMemo(()=>convs.filter(c=>(filtro==='todas'||(filtro==='sin_leer'&&c.no_leidos>0)||(filtro==='atender'&&c.ia_atender)||(filtro.startsWith('atender:')&&c.ia_atender&&c.sede_id===filtro.slice(8))||(filtro==='sin_sede'&&!c.sede_id)||c.sede_id===filtro)
   &&`${c.nombre||''} ${c.telefono}`.toLowerCase().includes(q.trim().toLowerCase())),[convs,filtro,q]);
  const current=convs.find(c=>c.id===sel)||null;
  return <>
@@ -334,6 +334,7 @@ function Inbox(){
     <select aria-label="Filtrar chats" value={filtro} onChange={e=>setFiltro(e.target.value)} style={{width:'100%',marginBottom:8}}>
      <option value="todas">Todos los chats</option><option value="atender">Atender persona</option><option value="sin_leer">Sin leer</option><option value="sin_sede">Sin sede</option>
      {sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
+     {sedes.map(s=><option key={`a-${s.id}`} value={`atender:${s.id}`}>Atender persona · {s.nombre}</option>)}
     </select>
     {loading?<p className={styles.empty}>Cargando chats…</p>:!lista.length?<p className={styles.empty}>{convs.length?'Ningún chat con ese filtro.':'Aún no hay chats. Llegan aquí desde que una clienta escriba al 304.'}</p>:
     <div style={{display:'grid',gap:4,gridAutoRows:'max-content',alignContent:'start',height:'calc(100vh - 300px)',minHeight:320,overflowY:'auto',overflowX:'hidden'}}>
