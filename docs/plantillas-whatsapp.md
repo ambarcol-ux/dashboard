@@ -177,7 +177,7 @@ Reemplaza a `ambar_seguimiento` en los seguimientos automáticos en cuanto Meta 
 Categoría **Marketing** · Idioma **Español (COL)** · Sin botones.
 
 ```
-Hola {{1}} 💛 Te escribimos de Ámbar Couture. ¿Pudiste revisar el programa de aliados? Incluye nuestros vestidos de XV y gala en tus paquetes con 5 % de descuento y gana hasta 20 % de margen. Responde este mensaje y te ayudamos a completar tu vinculación.
+Hola {{1}} 💛 Te escribimos de Ámbar Couture. ¿Pudiste revisar el programa de aliados? Incluye en tus paquetes nuestros vestidos de XV y gala con descuentos especiales para aliados y más de 600 vestidos en 4 sedes. Responde este mensaje y te ayudamos a completar tu vinculación.
 ```
 
 | Variable | Ejemplo |
