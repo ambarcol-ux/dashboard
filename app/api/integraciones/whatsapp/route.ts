@@ -11,7 +11,7 @@ const NUEVAS:{name:string;category:'MARKETING'|'UTILITY';text:string;ejemplo:str
  {name:'ambar_seguimiento_promo',category:'MARKETING',text:'Hola {{1}} 💛 Soy de Ámbar Couture {{2}}. ¿Ya encontraste tu vestido? Tenemos {{3}}. Responde este mensaje y te mostramos opciones o separamos tu cita.',ejemplo:['Luisa','Barranquilla','20% de descuento pagando de contado en tienda hasta el 30 de noviembre']},
  {name:'ambar_seguimiento_v2',category:'MARKETING',text:'Hola {{1}} 💛 Soy de Ámbar Couture {{2}}. ¿Ya encontraste tu vestido? Tenemos modelos nuevos y te ayudamos a elegir el ideal para tu evento. Responde este mensaje y te mostramos opciones o te agendamos una cita.',ejemplo:['Luisa','Barranquilla']},
  {name:'ambar_aliado_recordatorio',category:'MARKETING',text:'Hola {{1}} 💛 Te escribimos de Ámbar Couture. ¿Pudiste revisar el programa de aliados? Incluye en tus paquetes nuestros vestidos de XV y gala con descuentos especiales para aliados y más de 600 vestidos en 4 sedes. Responde este mensaje y te ayudamos a completar tu vinculación.',ejemplo:['Carolina']},
- {name:'ambar_aliado_bienvenida',category:'UTILITY',text:'¡Bienvenido(a) a los Aliados de Ámbar Couture, {{1}}! 💛 Tu código de aliado es {{2}}. Te enviamos al correo tus enlaces para registrar a tus clientas y consultar disponibilidad. Responde este mensaje si quieres que te expliquemos cómo registrar tu primera clienta.',ejemplo:['Carolina','ALI-FOT-0003']},
+ {name:'ambar_aliado_aprobado',category:'UTILITY',text:'Hola {{1}}, tu solicitud como aliado de Ámbar Couture fue aprobada. Tu código de aliado es {{2}}. Te enviamos al correo los enlaces para registrar a tus clientas y consultar disponibilidad. Si tienes dudas, responde este mensaje.',ejemplo:['Carolina','ALI-FOT-0003']},
 ];
 
 /** Configuración › Integraciones › WhatsApp: «Probar conexión» checks token, number, account and approved templates. Admin only. */
@@ -67,7 +67,7 @@ export async function POST(request:Request){
    const resultado:{plantilla:string;estado:string}[]=[];
    for(const t of NUEVAS){
     if(have.has(t.name)){resultado.push({plantilla:t.name,estado:`Ya existía (${have.get(t.name)})`});continue;}
-    const r=await call(`${waba}/message_templates`,{method:'POST',body:JSON.stringify({name:t.name,language:lang,category:t.category,components:[{type:'BODY',text:t.text,example:{body_text:[t.ejemplo]}}]})});
+    const r=await call(`${waba}/message_templates`,{method:'POST',body:JSON.stringify({name:t.name,language:lang,category:t.category,allow_category_change:true,components:[{type:'BODY',text:t.text,example:{body_text:[t.ejemplo]}}]})});
     resultado.push({plantilla:t.name,estado:r.ok?`Enviada a revisión (${String(r.d.status||'PENDING')})`:`Error: ${msg(r.d)}`});
    }
    return publicReply({ok:true,resultado});
