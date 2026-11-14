@@ -73,13 +73,15 @@ export async function storeSocialEvents(db:SupabaseClient,s:SocialSettings,paylo
 export async function pollInstagramMessages(db:SupabaseClient,s:SocialSettings){
  if(!s.instagramId)return [];
  const since=Date.now()-30*60000;
- const r=await fetch(`https://graph.facebook.com/${version()}/${s.pageId}/conversations?platform=instagram&fields=updated_time,messages.limit(10){id,created_time,from,to,message,attachments}&limit=25&access_token=${encodeURIComponent(await pageToken(s))}`,{signal:AbortSignal.timeout(20000)});
- const d=await r.json().catch(()=>({})) as Value;
- if(!r.ok)throw Error(String(d.error?.message||r.status));
+ const tk=encodeURIComponent(await pageToken(s));
+ const graph=async(path:string)=>{const r=await fetch(`https://graph.facebook.com/${version()}/${path}&access_token=${tk}`,{signal:AbortSignal.timeout(20000)});const d=await r.json().catch(()=>({})) as Value;if(!r.ok)throw Error(String(d.error?.message||r.status));return d;};
+ // Two light calls (Meta refuses one big one): recent conversations, then the last messages of each.
+ const d=await graph(`${s.pageId}/conversations?platform=instagram&fields=updated_time&limit=15`);
  const messaging:Value[]=[];
  for(const c of (d.data||[]) as Value[]){
   if(new Date(c.updated_time).getTime()<since)continue;
-  for(const m of (c.messages?.data||[]) as Value[]){
+  const ms=await graph(`${c.id}/messages?fields=id,created_time,from,to,message,attachments{image_data,video_data,file_url}&limit=8`);
+  for(const m of (ms.data||[]) as Value[]){
    const at=new Date(m.created_time).getTime();if(!(at>=since))continue;
    const from=String(m.from?.id||''),to=String(m.to?.data?.[0]?.id||'');
    const own=from===s.instagramId||from===s.pageId;
