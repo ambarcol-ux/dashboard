@@ -47,25 +47,27 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 Seguimiento (clientas que ya tuvieron cita o visitaron la tienda y no alquilaron):
 - Si en los datos de la clienta viene «seguimiento», Ámbar le escribió para retomar su búsqueda. Habla de la cita, la sede y la fecha que vienen en «seguimiento» (es la cita por la que le escribimos), no de otras citas que aparezcan en sus datos. Retómala con calidez según «tipo»: si no asistió, ayúdale a reagendar; si asistió o vino a la tienda y no alquiló, pregúntale cómo va con su vestido y, según «motivo_no_alquiler», ofrécele una salida concreta (otro modelo o categoría del inventario, el catálogo de su sede, separar la fecha). El objetivo es que agende una nueva cita.
 - Solo si «autoriza_promociones» es true puedes mencionar promociones o descuentos; si no, habla solo de su cita, su vestido y el catálogo.
-- En «cierre_seguimiento» marca alquilo_otro si dice que ya alquiló o compró en otro lugar, no_interesa si dice que ya no lo necesita o no le interesa, no_contactar si pide que no le escriban más (en ese caso despídete con respeto y no insistas). En cualquier otro caso, cadena vacía.
+- Fecha del evento: en los datos del ERP cada cita y contrato trae «evento_ya_paso». Si el evento ya pasó y hay contrato, mira su estado, «entregado_evento» y «finalizado_at» para saber si ya se realizó (no lo preguntes). Si no hay contrato, pregúntale a ella con naturalidad si ya fue su evento o si cambió la fecha; nunca lo pongas en «falta_informacion». Cuando la clienta te diga la fecha de su evento (nueva o por primera vez), escríbela en «fecha_evento_nueva» como AAAA-MM-DD; si no dio una fecha exacta, cadena vacía.
+- En «cierre_seguimiento» marca evento_realizado si dice que su evento ya pasó y no alquiló con nosotras; alquilo_otro si dice que ya alquiló o compró en otro lugar, no_interesa si dice que ya no lo necesita o no le interesa, no_contactar si pide que no le escriban más (en ese caso despídete con respeto y no insistas). En cualquier otro caso, cadena vacía.
 
 Lo que no sabes: si la clienta pregunta algo que no está en tus conocimientos ni en los datos del ERP, no lo inventes. Dile con naturalidad que lo confirmas y, en «falta_informacion», escribe en una frase corta qué dato le falta a Ámbar darte (ej.: «Horario de atención los domingos en Pereira», «Si se puede pagar con tarjeta de crédito»), para que administración lo complete y la próxima vez respondas sola. Si no falta nada, cadena vacía.
 
 Además: elige la etiqueta del tema principal, la sede de la clienta (solo si es clara; si no, cadena vacía) y un resumen de una frase para la asesora.`;
 
-const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento','falta_informacion'],properties:{
+const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento','falta_informacion','fecha_evento_nueva'],properties:{
  etiqueta:{type:'string',enum:[...WHATSAPP_TAGS]},
  sede:{type:'string',description:'Nombre exacto de una de las sedes, o cadena vacía'},
  resumen:{type:'string'},
  respuesta:{type:'string'},
  atender_persona:{type:'boolean'},
  motivo:{type:'string',description:'Por qué debe atenderla una persona; cadena vacía si no hace falta'},
- cierre_seguimiento:{type:'string',enum:['','alquilo_otro','no_interesa','no_contactar'],description:'Solo si la clienta lo dice en este chat; si no, cadena vacía'},
+ cierre_seguimiento:{type:'string',enum:['','alquilo_otro','no_interesa','no_contactar','evento_realizado'],description:'Solo si la clienta lo dice en este chat; si no, cadena vacía'},
  falta_informacion:{type:'string',description:'Dato del negocio que no tienes y que administración debe darte; cadena vacía si no falta nada'},
+ fecha_evento_nueva:{type:'string',description:'Fecha del evento que la clienta dijo en este chat (AAAA-MM-DD); cadena vacía si no la dijo'},
 }};
 
 export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string};
-export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string};
+export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string};
 type Msg={direccion:string;texto:string|null;created_at:string};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null};
 
@@ -241,6 +243,8 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   out.respuesta=marcarCanal(out.respuesta,conv.canal);
   // She said she already rented, is not interested or wants no more messages: the follow-up of her phone is closed.
   if(!social&&out.cierre_seguimiento)await db.rpc('seguimiento_cerrar_por_chat',{p_tel:conv.telefono,p_motivo:out.cierre_seguimiento});
+  // She told her (new) event date: it is saved on her latest open visit and her follow-up plan is recalculated.
+  if(!social&&/^\d{4}-\d{2}-\d{2}$/.test(String(out.fecha_evento_nueva||'')))await db.rpc('cita_evento_por_chat',{p_tel:conv.telefono,p_fecha:out.fecha_evento_nueva});
   // Information the AI did not have: administration is told what to add (repeated questions add up instead of duplicating).
   const falta=String(out.falta_informacion||'').trim().slice(0,300);
   if(falta.length>=3){
