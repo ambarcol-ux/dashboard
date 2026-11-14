@@ -186,12 +186,12 @@ Hola {{1}} 💛 Te escribimos de Ámbar Couture. ¿Pudiste revisar el programa d
 
 Se envía una vez, de lunes a sábado 10:35 a. m. y 4:35 p. m., a quien conversó como posible aliado hace 1 a 10 días y no se vinculó. Sin aprobación de Meta no sale nada.
 
-## Bienvenida al aliado — `ambar_aliado_bienvenida`
+## Aliado aprobado — `ambar_aliado_aprobado`
 
-Categoría **Utilidad** · Idioma **Español (COL)** · Sin botones.
+Categoría **Utilidad** · Idioma **Español (COL)** · Sin botones. (Reemplaza a `ambar_aliado_bienvenida`, que Meta rechazó.)
 
 ```
-¡Bienvenido(a) a los Aliados de Ámbar Couture, {{1}}! 💛 Tu código de aliado es {{2}}. Te enviamos al correo tus enlaces para registrar a tus clientas y consultar disponibilidad. Responde este mensaje si quieres que te expliquemos cómo registrar tu primera clienta.
+Hola {{1}}, tu solicitud como aliado de Ámbar Couture fue aprobada. Tu código de aliado es {{2}}. Te enviamos al correo los enlaces para registrar a tus clientas y consultar disponibilidad. Si tienes dudas, responde este mensaje.
 ```
 
 | Variable | Ejemplo |
