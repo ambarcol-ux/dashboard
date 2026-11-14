@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {loadWhatsappSettings} from './whatsapp-config';
-import {sendWhatsappText,downloadWhatsappImage} from './whatsapp-inbox';
+import {sendWhatsappText,sendWhatsappImage,downloadWhatsappImage} from './whatsapp-inbox';
 import {attachmentBlocks} from './ai-attachments';
 import {allySlug} from './ally-validation';
 import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
@@ -39,6 +39,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Si el último mensaje de la clienta lleva varias horas sin respuesta, empieza con una disculpa breve y natural por la demora y luego respóndele.
 - Inventario del catálogo: en <catalogos> tienes los vestidos que las clientas pueden ver (código, tipo, categoría, talla, color y precio de alquiler). Úsalo para responder lo que pidan (por ejemplo «¿tienen vestidos azules talla M?»): menciona hasta 4 códigos que cumplan, con su precio de alquiler, y el enlace del catálogo. Esos precios son públicos y sí puedes darlos. Disponibilidad y citas con datos reales del ERP: si la clienta pregunta si un vestido está libre para su fecha, usa la herramienta disponibilidad_vestido; si busca opciones para su fecha (por tipo, talla o color), usa vestidos_libres; si pregunta qué días u horas hay para la cita, usa cupos_cita. Responde con lo que digan (por ejemplo «¡Sí, el CD384A está libre para el 12 de diciembre!») y aclara con naturalidad que el vestido se separa al firmar el contrato. Si está ocupado, ofrécele los libres parecidos. Pregunta la fecha del evento si no la sabes. No pases el chat a una persona por disponibilidad o cupos si las herramientas responden.
 - Fotos y archivos: si la clienta envía una foto (por ejemplo de un vestido que le gustó o de su inspiración), descríbela en pocas palabras y sugiere vestidos parecidos del inventario de su sede; no afirmes que es el mismo vestido.
+- Fotos del inventario: los vestidos marcados con 📷 en el inventario tienen foto. Si la clienta pide ver un vestido concreto o le propones opciones (por color, talla, categoría o precio), pon en «fotos» hasta 3 códigos con 📷 del inventario visible de su sede y en la respuesta preséntalos en pocas palabras (las fotos llegan justo después de tu mensaje, cada una con su código). No envíes fotos de otra sede ni de vestidos sin 📷, ni repitas fotos que ya enviaste en el chat. Si pide ver muchos modelos, envía el catálogo de su sede.
 - Catálogo: si la clienta pide ver vestidos, modelos, fotos o el catálogo, envíale el enlace del catálogo de su sede y tipo de vestido tal cual aparece en <catalogos> (no lo modifiques). Si sabes la sede pero no el tipo de vestido, envía el enlace general de esa sede (ahí la clienta elige el tipo). Si no sabes la sede, pregúntala primero. Si esa combinación no está en la lista, di que una asesora le comparte opciones. Invítala a agendar su primera cita desde el catálogo.
 - Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
 - Parqueadero: si una sede tiene «parqueadero» en <sedes>, dalo cuando pregunten por parqueadero o cuando agende o confirme una cita presencial en esa sede: aclara que es un parqueadero aliado (no propio) y que para el descuento debe pedir en Ámbar el sello en su tiquete de parqueo. Si la sede no tiene «parqueadero», no inventes uno: di que no hay convenio de parqueadero en esa sede.
@@ -55,7 +56,7 @@ Lo que no sabes: si la clienta pregunta algo que no está en tus conocimientos n
 
 Además: elige la etiqueta del tema principal, la sede de la clienta (solo si es clara; si no, cadena vacía) y un resumen de una frase para la asesora.`;
 
-const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento','falta_informacion','fecha_evento_nueva'],properties:{
+const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento','falta_informacion','fecha_evento_nueva','fotos'],properties:{
  etiqueta:{type:'string',enum:[...WHATSAPP_TAGS]},
  sede:{type:'string',description:'Nombre exacto de una de las sedes, o cadena vacía'},
  resumen:{type:'string'},
@@ -65,10 +66,11 @@ const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sed
  cierre_seguimiento:{type:'string',enum:['','alquilo_otro','no_interesa','no_contactar','evento_realizado'],description:'Solo si la clienta lo dice en este chat; si no, cadena vacía'},
  falta_informacion:{type:'string',description:'Dato del negocio que no tienes y que administración debe darte; cadena vacía si no falta nada'},
  fecha_evento_nueva:{type:'string',description:'Fecha del evento que la clienta dijo en este chat (AAAA-MM-DD); cadena vacía si no la dijo'},
+ fotos:{type:'array',items:{type:'string'},description:'Códigos (máximo 3) de vestidos con 📷 del inventario visible de su sede cuya foto se le envía con esta respuesta; lista vacía si no'},
 }};
 
 export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string};
-export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string};
+export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string;fotos?:string[]};
 type Msg={direccion:string;texto:string|null;created_at:string};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null;parqueadero?:string|null};
 
@@ -91,6 +93,21 @@ export async function loadContractClauses(db:SupabaseClient){
  const {data}=await db.from('plantillas_contratos').select('titulo,contenido').order('numero_orden',{ascending:true});
  const plain=(v:unknown)=>String(v||'').replace(/<br\s*\/?>/gi,'\n').replace(/<\/(p|div|li)>/gi,'\n').replace(/<[^>]+>/g,'').replace(/&nbsp;/g,' ').replace(/\n{3,}/g,'\n\n').trim();
  return ((data||[]) as {titulo:string;contenido:string}[]).map(c=>`${plain(c.titulo)}\n${plain(c.contenido)}`).join('\n\n').slice(0,60000);
+}
+
+/** Photo of a dress WhatsApp can send (JPG or PNG; front first), or null. */
+const dressPhoto=(d:CatalogDress)=>[d.foto_frente,d.imagen_url,d.foto_espalda,d.foto_detalle].find(u=>u&&/^https:\/\/.+\.(jpe?g|png)$/i.test(u))||null;
+/** Sends after the AI reply the photos of up to 3 dresses it chose: only visible dresses of the chat's store (or of any store if unknown). */
+async function sendDressPhotos(db:SupabaseClient,settings:{token:string;phoneNumberId:string},conversationId:string,to:string,codes:string[],sedeId:string|null){
+ const want=[...new Set(codes.map(c=>String(c).trim().toUpperCase()).filter(Boolean))].slice(0,3);if(!want.length)return;
+ const {data}=await db.from('vestidos').select('codigo,sede_actual_id,foto_frente,foto_espalda,foto_detalle,imagen_url,precio_sugerido,para_alquiler,estado').eq('archivado',false).in('codigo',want);
+ const list=((data||[]) as (CatalogDress&{codigo:string;sede_actual_id:string|null})[]).filter(d=>isPublicCatalogDress(d)&&(!sedeId||d.sede_actual_id===sedeId));
+ for(const code of want){
+  const d=list.find(x=>String(x.codigo).trim().toUpperCase()===code),link=d&&dressPhoto(d);if(!d||!link)continue;
+  const caption=`Vestido ${String(d.codigo).trim()}`;
+  const waId=await sendWhatsappImage(settings,to,link,caption).catch(()=>null);if(!waId)continue;
+  await db.from('whatsapp_mensajes').insert({conversacion_id:conversationId,wa_id:waId,direccion:'saliente',origen:'ia',tipo:'image',texto:`📷 ${caption}\n${link}`,estado:'sent',created_at:new Date().toISOString()});
+ }
 }
 
 /** Catalog links per store and dress type with dresses visible to customers (same rule as the public catalog), marked as sent by the AI. */
@@ -117,8 +134,8 @@ export async function loadCatalogLinks(db:SupabaseClient){
  const inv=((dresses||[]) as (CatalogDress&{codigo:string;categoria:string|null;talla:string|null;color:string|null;sede_actual_id:string|null;clasificacion_id:number|null})[]).filter(d=>d.sede_actual_id&&isPublicCatalogDress(d));
  for(const s of (sites||[]) as {id:string;nombre:string}[]){
   const del=inv.filter(d=>d.sede_actual_id===s.id);if(!del.length)continue;
-  lines.push(`\nInventario visible en ${s.nombre} (código · tipo · categoría · talla · color · alquiler):`);
-  for(const d of del)lines.push(`${String(d.codigo).trim()} · ${tipoNombre.get(d.clasificacion_id!)||'—'} · ${d.categoria||'—'} · ${d.talla||'—'} · ${d.color||'—'} · $${Number(d.precio_sugerido).toLocaleString('es-CO')}`);
+  lines.push(`\nInventario visible en ${s.nombre} (código · tipo · categoría · talla · color · alquiler; 📷 = tiene foto):`);
+  for(const d of del)lines.push(`${String(d.codigo).trim()} · ${tipoNombre.get(d.clasificacion_id!)||'—'} · ${d.categoria||'—'} · ${d.talla||'—'} · ${d.color||'—'} · $${Number(d.precio_sugerido).toLocaleString('es-CO')}${dressPhoto(d)?' 📷':''}`);
  }
  return lines.join('\n');
 }
@@ -271,7 +288,8 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   if(!last||last.id!==lastId||(now?.ia_pausada&&now.ia_pausada_at!==conv.ia_pausada_at))return;
   const texto=out.respuesta.trim().slice(0,4000);let waId:string;
   if(social){const s=await loadSocialSettings(db);if(!s||!conv.contacto_id)return;waId=await sendSocialText(s,conv.contacto_id,texto);}
-  else{const settings=await loadWhatsappSettings(db);if(!settings.token||!settings.phoneNumberId)return;waId=await sendWhatsappText(settings,conv.telefono,texto);}
+  else{const settings=await loadWhatsappSettings(db);if(!settings.token||!settings.phoneNumberId)return;waId=await sendWhatsappText(settings,conv.telefono,texto);
+   if(out.fotos?.length)await sendDressPhotos(db,settings,conversationId,conv.telefono,out.fotos,conv.sede_id||sede?.id||null);}
   const at=new Date().toISOString();
   await db.from('whatsapp_mensajes').insert({conversacion_id:conversationId,wa_id:waId,direccion:'saliente',origen:'ia',tipo:'text',texto,estado:'sent',created_at:at});
   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:at,ia_sugerencia:null,...(expired?{ia_pausada:false,ia_pausada_at:null,ia_pausada_por:null}:{})}).eq('id',conversationId);

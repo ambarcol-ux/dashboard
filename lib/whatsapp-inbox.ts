@@ -102,6 +102,15 @@ export async function sendWhatsappText(settings:{token:string;phoneNumberId:stri
  }
  return d.messages[0].id;
 }
+/** Sends a photo by public link (JPG or PNG) with a short caption; returns the WhatsApp message id. */
+export async function sendWhatsappImage(settings:{token:string;phoneNumberId:string},to:string,link:string,caption:string){
+ const version=process.env.META_GRAPH_VERSION||'v21.0';
+ const r=await fetch(`https://graph.facebook.com/${version}/${settings.phoneNumberId}/messages`,{method:'POST',headers:{Authorization:`Bearer ${settings.token}`,'Content-Type':'application/json'},
+  body:JSON.stringify({messaging_product:'whatsapp',recipient_type:'individual',to,type:'image',image:{link,caption}}),signal:AbortSignal.timeout(15000)});
+ const d=await r.json().catch(()=>({})) as {messages?:{id:string}[];error?:{message?:string}};
+ if(!r.ok||!d.messages?.[0]?.id)throw Error(`WhatsApp no aceptó la foto: ${String(d.error?.message||r.status).slice(0,160)}`);
+ return d.messages[0].id;
+}
 export const WINDOW_MS=24*3600*1000;
 
 /** Downloads a photo sent by a customer (WhatsApp media id) as base64; null when it is not available or too big. */
