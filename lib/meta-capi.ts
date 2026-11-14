@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 /** Meta dataset (pixel) that the CRM Apps Script used; keep it so ad optimisation keeps its history. */
 export const DEFAULT_CAPI_DATASET='1420256452930635';
 
-export type CapiJob={evento:{id:string;evento:'Schedule'|'AppointmentAttended'|'Purchase';event_id:string;event_time:string};cita:{id:string;email:string;telefono:string;cliente_nombre:string};sede:string|null};
+export type CapiJob={evento:{id:string;evento:'Schedule'|'AppointmentAttended'|'Purchase';event_id:string;event_time:string;valor?:number|string|null;action_source?:string|null};cita:{id:string;email:string;telefono:string;cliente_nombre:string};sede:string|null};
 
 const sha=(v:string)=>createHash('sha256').update(v,'utf8').digest('hex');
 const plain=(v:string)=>v.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z]/g,'');
@@ -29,5 +29,8 @@ export function capiEvent(job:CapiJob){
  if(job.sede&&plain(job.sede))user.ct=[sha(plain(job.sede))];
  user.country=[sha('co')];
  user.external_id=[sha(c.id)];
- return {event_name:e.evento,event_time:Math.floor(Date.parse(e.event_time)/1000),event_id:e.event_id,action_source:'system_generated',user_data:user};
+ // Contracts go as store sales (accepted up to 62 days later) with the rental value in pesos.
+ const valor=Number(e.valor||0);
+ return {event_name:e.evento,event_time:Math.floor(Date.parse(e.event_time)/1000),event_id:e.event_id,action_source:e.action_source==='physical_store'?'physical_store':'system_generated',user_data:user,
+  ...(valor>0?{custom_data:{value:valor,currency:'COP'}}:{})};
 }

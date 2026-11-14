@@ -98,6 +98,8 @@ export async function POST(request:Request){
  const capi={enviados:0,errores:0};
  const capiToken=process.env.META_CAPI_ACCESS_TOKEN||process.env.META_WA_TOKEN,dataset=process.env.META_CAPI_DATASET_ID||DEFAULT_CAPI_DATASET;
  if(capiToken&&/^\d+$/.test(dataset)){
+  // Every signed contract with marketing data authorization also goes to Meta as a sale (with or without a first visit).
+  await db.rpc('capi_contratos_encolar',{p_dias:7});
   for(let i=0;i<10;i++){
    const {data:job,error}=await db.rpc('tomar_capi_primera_cita');if(error||!job)break;if(job.omitido)continue;
    let estado='error',respuesta='';
