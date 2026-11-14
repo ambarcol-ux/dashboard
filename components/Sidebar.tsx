@@ -6,14 +6,14 @@ import Link from 'next/link';
 import UpcomingVisitsAlert from '@/components/UpcomingVisitsAlert';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
 import {
-  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen
+  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen, KanbanSquare
 } from 'lucide-react';
 
 interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos' | 'pipeline';
 }
 
 // Deposit and balance reminders live in the Inicio alert strip (DashboardAlerts), not in the menu.
@@ -57,6 +57,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       items: [
         { id: 'primeras-citas', label: 'PRIMERAS VISITAS', icon: CalendarCheck, href: '/dashboard/primeras-citas', color: 'rose' },
         { id: 'whatsapp', label: 'WHATSAPP 304', icon: MessageCircle, href: '/dashboard/whatsapp', color: 'emerald' },
+        { id: 'pipeline', label: 'PIPELINE', icon: KanbanSquare, href: '/dashboard/pipeline', color: 'rose' },
         { id: 'calendario', label: 'CALENDARIO CONTRATOS', icon: Calendar, href: '/dashboard/calendario', color: 'rose' },
         { id: 'pedidos_estrene', label: 'PEDIDOS ESTRENE', icon: ShoppingBag, href: '/dashboard/pedidos-estrene', color: 'violet' },
         { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'emerald' },
