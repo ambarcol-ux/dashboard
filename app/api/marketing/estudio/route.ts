@@ -1,0 +1,89 @@
+import {createClient} from '@supabase/supabase-js';
+import {publicServerClient,publicReply} from '@/lib/public-db';
+import {createPiece,publishPiece,type Formato,type Red,type Pieza} from '@/lib/content-studio';
+import {loadSocialSettings} from '@/lib/social-inbox';
+export const dynamic='force-dynamic';
+export const maxDuration=60;
+
+const FORMATOS=['historia','publicacion','carrusel','reel'],REDES=['instagram','facebook','whatsapp'];
+const MIME:Record<string,string>={'image/jpeg':'jpg','video/mp4':'mp4','video/quicktime':'mov'};
+const uuid=(v:unknown)=>typeof v==='string'&&/^[0-9a-f-]{36}$/i.test(v)?v:null;
+/** Bogotá local date-time from the form (YYYY-MM-DDTHH:mm) to ISO. */
+const bogota=(v:unknown)=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(v)?new Date(`${v}:00-05:00`).toISOString():null;
+
+/** Marketing › Estudio de contenido. Creating and uploading: administration or the «Estudio de contenido» permission.
+ *  Approving, publishing now and retrying: administration only. */
+export async function POST(request:Request){
+ if(request.headers.get('origin')&&request.headers.get('origin')!==new URL(request.url).origin)return publicReply({error:'Solicitud no permitida.'},403);
+ const bearer=request.headers.get('authorization')||'';
+ if(!bearer.startsWith('Bearer '))return publicReply({error:'Inicia sesión.'},401);
+ try{
+  const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
+  const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
+  if(!auth.user)return publicReply({error:'Inicia sesión.'},401);
+  const [{data:admin},{data:perms}]=await Promise.all([userDb.rpc('es_admin'),userDb.rpc('mis_permisos')]);
+  const esAdmin=admin===true;
+  if(!esAdmin&&!((perms||[]) as string[]).includes('panel.estudio_contenido'))return publicReply({error:'No tienes acceso al Estudio de contenido.'},403);
+  const db=publicServerClient(),uid=auth.user.id;
+  const b=await request.json().catch(()=>({})) as Record<string,unknown>;
+  const soloAdmin=()=>publicReply({error:'Solo administración aprueba y publica.'},403);
+
+  if(b.accion==='crear'){
+   const formato=String(b.formato) as Formato,redes=(Array.isArray(b.redes)?b.redes:[]).map(String).filter(r=>REDES.includes(r)) as Red[],orden=String(b.orden||'').trim();
+   if(!FORMATOS.includes(formato)||!redes.length||orden.length<5)return publicReply({error:'Escribe la orden (qué quieres publicar), el formato y al menos una red.'},400);
+   const id=await createPiece(db,{orden,formato,redes,sede_id:uuid(b.sede_id),programada_at:bogota(b.programada_at)},uid);
+   return publicReply({ok:true,id});
+  }
+  if(b.accion==='editar'){
+   const id=uuid(b.id);if(!id)return publicReply({error:'Pieza no válida.'},400);
+   const cambios:Record<string,unknown>={updated_at:new Date().toISOString()};
+   if(typeof b.texto==='string')cambios.texto=b.texto.slice(0,2200);
+   if('programada_at' in b)cambios.programada_at=bogota(b.programada_at);
+   if(Array.isArray(b.quitar_medios)){
+    const {data:p}=await db.from('contenido_piezas').select('medios').eq('id',id).single();
+    const quitar=new Set(b.quitar_medios.map(String));cambios.medios=((p?.medios||[]) as {url:string}[]).filter(m=>!quitar.has(m.url));
+   }
+   const {error}=await db.from('contenido_piezas').update(cambios).eq('id',id).in('estado',['por_aprobar','aprobada','error']);
+   if(error)throw error;return publicReply({ok:true});
+  }
+  if(b.accion==='descartar'){
+   const id=uuid(b.id);if(!id)return publicReply({error:'Pieza no válida.'},400);
+   await db.from('contenido_piezas').update({estado:'descartada',updated_at:new Date().toISOString()}).eq('id',id).in('estado',['por_aprobar','aprobada','error']);
+   return publicReply({ok:true});
+  }
+  if(b.accion==='aprobar'||b.accion==='publicar_ya'||b.accion==='reintentar'){
+   if(!esAdmin)return soloAdmin();
+   const id=uuid(b.id);if(!id)return publicReply({error:'Pieza no válida.'},400);
+   const {data:p}=await db.from('contenido_piezas').select('id,formato,redes,sede_id,texto,medios,estado,resultado,error,programada_at').eq('id',id).single();
+   if(!p||!['por_aprobar','aprobada','error'].includes(p.estado))return publicReply({error:'Esta pieza ya no se puede aprobar.'},400);
+   if(!(p.medios as unknown[]).length)return publicReply({error:'La pieza no tiene fotos ni videos.'},400);
+   // «Aprobar» waits for its scheduled time (now if none); «Publicar ya» and «Reintentar» publish right away (marked «publicando» so the cron does not take it too).
+   const now=new Date().toISOString(),aprobar=b.accion==='aprobar';
+   await db.from('contenido_piezas').update({estado:aprobar?'aprobada':'publicando',aprobado_por:uid,aprobado_at:now,programada_at:aprobar?p.programada_at||now:now,error:null,updated_at:now}).eq('id',id);
+   if(aprobar)return publicReply({ok:true});
+   const s=await loadSocialSettings(db);if(!s)return publicReply({error:'Instagram y Facebook no están conectados (Integraciones).'},400);
+   const estado=await publishPiece(db,s,p as Pieza);
+   return publicReply({ok:true,estado});
+  }
+  // Library: the browser uploads straight to Storage with a one-time signed URL (videos are too big for the server).
+  if(b.accion==='subir'){
+   const ext=MIME[String(b.tipo)];if(!ext)return publicReply({error:'Sube fotos JPG (se convierten solas) o videos MP4/MOV.'},400);
+   const ruta=`${new Date().toISOString().slice(0,7)}/${crypto.randomUUID()}.${ext}`;
+   const {data,error}=await db.storage.from('contenido_marketing').createSignedUploadUrl(ruta);
+   if(error)throw error;return publicReply({ok:true,ruta,token:data.token});
+  }
+  if(b.accion==='registrar'){
+   const ruta=String(b.ruta||'');if(!/^\d{4}-\d{2}\/[0-9a-f-]{36}\.(jpg|mp4|mov)$/.test(ruta))return publicReply({error:'Archivo no válido.'},400);
+   const url=db.storage.from('contenido_marketing').getPublicUrl(ruta).data.publicUrl;
+   const etiquetas=(Array.isArray(b.etiquetas)?b.etiquetas:[]).map(x=>String(x).trim().toLowerCase().slice(0,30)).filter(Boolean).slice(0,12);
+   const {error}=await db.from('contenido_biblioteca').insert({ruta,url,tipo:/\.jpg$/.test(ruta)?'imagen':'video',titulo:String(b.titulo||'').trim().slice(0,120)||null,etiquetas,sede_id:uuid(b.sede_id),
+    tiene_clienta:b.tiene_clienta===true,autorizada:b.autorizada===true,subido_por:uid});
+   if(error)throw error;return publicReply({ok:true});
+  }
+  if(b.accion==='archivar'){
+   const id=uuid(b.id);if(!id)return publicReply({error:'Archivo no válido.'},400);
+   await db.from('contenido_biblioteca').update({archivado:true}).eq('id',id);return publicReply({ok:true});
+  }
+  return publicReply({error:'Acción no válida.'},400);
+ }catch(e){return publicReply({error:e instanceof Error?e.message.slice(0,300):'El servicio no está disponible.'},500);}
+}
