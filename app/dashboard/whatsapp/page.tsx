@@ -35,6 +35,8 @@ export default function WhatsappPage(){
 
 function Tabs({admin}:{admin:boolean}){
  const [tab,setTab]=useState<'chats'|'comentarios'|'ia'|'anuncios'>('chats');
+ // ?tab=anuncios from the Marketing menu.
+ useEffect(()=>{const t=new URLSearchParams(window.location.search).get('tab');if(t==='anuncios'||t==='comentarios'||t==='ia')setTimeout(()=>setTab(t),0);},[]);
  const [faltan,setFaltan]=useState(0);
  useEffect(()=>{if(!admin)return;void supabase.from('whatsapp_ia_faltantes').select('id',{count:'exact',head:true}).eq('estado','pendiente').then(({count})=>setFaltan(count||0));},[admin,tab]);
  const tabs=([['chats','Chats'],['comentarios','Comentarios de redes'],['ia','IA de WhatsApp'],['anuncios','Anuncios']] as const).filter(([k])=>admin||k==='chats'||k==='comentarios');
