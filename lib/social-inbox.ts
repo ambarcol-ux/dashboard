@@ -103,10 +103,19 @@ export async function storeSocialComments(db:SupabaseClient,s:SocialSettings,pay
  }
  return nuevos;
 }
+/** Text shown when a comment no longer exists in Meta (deleted or hidden by its author). */
+export const COMMENT_GONE='Este comentario ya no existe en Meta: la persona lo borró, lo editó o quedó oculto. No se le puede responder desde el ERP; si hace falta, escríbele por mensaje directo desde Instagram o Facebook.';
+/** Meta errors when replying to a comment, in plain Spanish. */
+export function metaReplyError(msg:string){
+ if(/does not exist|cannot be loaded|Unsupported post request/i.test(msg))return COMMENT_GONE;
+ if(/pages_manage_engagement|pages_read_user_content/i.test(msg))return 'A la app de Meta le falta el permiso para responder en público en Facebook (pages_manage_engagement y pages_read_user_content). Actívalo en la app de Meta, genera un token nuevo y pégalo en Integraciones. Mientras tanto responde desde la página de Facebook.';
+ if(/outside of allowed window|reply to this comment/i.test(msg))return 'Meta ya no deja responder este comentario por privado (pasaron más de 7 días o ya se le respondió por privado).';
+ return `Meta no aceptó la respuesta: ${msg.slice(0,160)}`;
+}
 async function graphPost(path:string,s:SocialSettings,body:Value){
  const r=await fetch(`https://graph.facebook.com/${version()}/${path}?access_token=${encodeURIComponent(await pageToken(s))}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(15000)});
  const d=await r.json().catch(()=>({})) as {id?:string;message_id?:string;recipient_id?:string;error?:{message?:string}};
- if(!r.ok||!(d.id||d.message_id))throw Error(`Meta no aceptó la respuesta: ${String(d.error?.message||r.status).slice(0,160)}`);
+ if(!r.ok||!(d.id||d.message_id))throw Error(metaReplyError(String(d.error?.message||r.status)));
  return {id:String(d.id||d.message_id),recipient:d.recipient_id?String(d.recipient_id):''};
 }
 /** Public reply under the comment (Instagram or Facebook). Returns the reply id. */
