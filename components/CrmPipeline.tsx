@@ -20,6 +20,21 @@ const money=(n:number|null)=>n?`$${Math.round(n).toLocaleString('es-CO')}`:'';
 const CANAL:Record<string,string>={whatsapp:'WhatsApp',instagram:'Instagram',facebook:'Messenger',messenger:'Messenger'};
 const SEG:Record<string,string>={asistida:'asistió, no alquiló',no_asistida:'no asistió',vitrina:'vitrina'};
 
+/** What each alert means and what to do (glossary of the screen; also opened by tapping an alert). */
+const AVISOS:[string,string,string][]=[
+ ['Pide atención de una persona','La IA no puede resolverlo sola (reclamo, cambio de contrato, caso especial).','Abrir el chat y responderle una asesora.'],
+ ['Mensaje sin responder','La clienta escribió y nadie le ha contestado.','Abrir el chat y responderle.'],
+ ['Sin cita hace','Interesada que conversó pero no ha agendado.','Nada: la IA le escribe sola (a las ~20 h y los días 2 y 7). Si quieres, escríbele tú.'],
+ ['Sin confirmar','La cita es hoy o mañana y la clienta no la ha confirmado.','Llamarla o escribirle para confirmar y marcarla «confirmada» en la Ficha.'],
+ ['Virtual sin enlace','Cita virtual de hoy o mañana sin enlace de videollamada.','Crear el enlace de Google Meet en la Ficha y enviarlo.'],
+ ['Ya pasó la hora','La hora de la cita pasó y no se registró su llegada.','En la Ficha: registrar que llegó o marcar «No asistió».'],
+ ['Registrar resultado','Asistió hace más de 20 horas y no tiene resultado.','En la Ficha: anotar si alquiló o no y el motivo.'],
+ ['Respondió: retomar','Una clienta en seguimiento contestó.','Abrir el chat y continuar la conversación (la IA también responde).'],
+ ['Evento en','Su evento se acerca y aún no alquila.','Priorizarla: ofrecer opciones y la promoción vigente.'],
+ ['Saldo pendiente','Tiene contrato con saldo y su evento es en 15 días o menos.','Cobrar el saldo antes de la entrega.'],
+];
+const aviso=(a:string)=>AVISOS.find(([k])=>a.startsWith(k));
+
 /** Detail line of each card, from the data of its stage. */
 function detalle(l:Lead){
  if(l.etapa==='agendada'||l.etapa==='asistio')return `Cita ${fecha(l.fecha_cita)} ${l.hora||''} · ${l.origen==='vitrina'?'vitrina':l.modalidad==='virtual'?'virtual':'presencial'}${l.codigo?` · ${l.codigo}`:''}`;
@@ -52,7 +67,7 @@ export default function CrmPipeline({admin,sedeId}:{admin:boolean;sedeId:string|
   <p className="text-[11px] text-gray-500">{[l.sede,l.tipo_vestido,l.fecha_evento&&`evento ${fecha(l.fecha_evento)}`].filter(Boolean).join(' · ')}</p>
   <p className="text-xs font-bold text-gray-700">{detalle(l)}</p>
   {l.asesora&&<p className="text-[11px] text-gray-400">Asesora: {l.asesora}</p>}
-  {l.alerta&&<p className="text-[11px] font-black text-red-700 bg-red-50 rounded-lg px-2 py-1">⚠️ {l.alerta}</p>}
+  {l.alerta&&<details className="text-[11px] bg-red-50 rounded-lg px-2 py-1"><summary className="font-black text-red-700 cursor-pointer">⚠️ {l.alerta}</summary>{(()=>{const g=aviso(l.alerta);return g&&<p className="text-gray-700 mt-1">{g[1]} <b>Qué hacer:</b> {g[2]}</p>;})()}</details>}
   <div className="flex gap-2 pt-1 text-[11px] font-black">
    {l.telefono&&<Link href={`/dashboard/whatsapp?tel=${l.telefono}`} className="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700">Chat</Link>}
    {l.cita_id&&<Link href={`/dashboard/primeras-citas?abrir=${l.cita_id}${l.fecha_cita?`&dia=${l.fecha_cita}`:''}`} className="px-2 py-1 rounded-lg bg-rose-50 text-rose-700">Ficha</Link>}
@@ -67,6 +82,16 @@ export default function CrmPipeline({admin,sedeId}:{admin:boolean;sedeId:string|
    <button type="button" onClick={()=>void load()} className="px-3 py-2 rounded-xl text-xs font-black border border-gray-200">Actualizar</button>
    {act&&<span className="text-[11px] text-gray-400">Se actualiza solo · {act}</span>}
   </div>
+  <details className="bg-white p-4 rounded-[1.5rem] border border-gray-100 shadow-sm text-sm text-gray-700">
+   <summary className="cursor-pointer font-black text-gray-900">¿Qué significa cada etapa y cada aviso?</summary>
+   <div className="mt-3 space-y-3">
+    <div><p className="font-black text-xs uppercase tracking-widest text-gray-400 mb-1">Etapas</p>
+     <ul className="space-y-1">{ETAPAS.map(e=><li key={e.id}><b style={{color:e.color}}>{e.titulo}:</b> {e.ayuda}.</li>)}</ul></div>
+    <div><p className="font-black text-xs uppercase tracking-widest text-gray-400 mb-1">Avisos («Por hacer»)</p>
+     <ul className="space-y-2">{AVISOS.map(([k,q,h])=><li key={k}><b className="text-red-700">⚠️ {k}…</b> {q} <b>Qué hacer:</b> {h}</li>)}</ul></div>
+    <p className="text-xs text-gray-500">Toca cualquier aviso de una tarjeta para ver qué significa. El aviso desaparece solo cuando se registra lo que falta.</p>
+   </div>
+  </details>
   {!leads?<p className="text-gray-400 font-bold">Cargando pipeline…</p>:<>
    <div className="flex gap-2 overflow-x-auto pb-1">{ETAPAS.map(e=>{const n=total(e.id),p=pendientes(e.id);return <button key={e.id} type="button" onClick={()=>setTab(e.id)} title={e.ayuda}
     className={`shrink-0 rounded-2xl px-3 py-2 text-left border ${tab===e.id?'bg-white shadow border-gray-300':'bg-gray-50 border-transparent'}`}>
