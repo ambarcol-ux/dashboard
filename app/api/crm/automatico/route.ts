@@ -1,7 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {authorizedVisitWorker} from '@/lib/first-visit-worker-config';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
-import {sendBestFollowup} from '@/lib/whatsapp-inbox';
+import {sendBestFollowup,sendAllyReminder,allyReminderText} from '@/lib/whatsapp-inbox';
 import {suggestWhatsappReply} from '@/lib/whatsapp-ai';
 import {PROMO_FIELDS,promoForGreeting,type Promotion} from '@/lib/promotions';
 export const dynamic='force-dynamic';
@@ -25,6 +25,24 @@ export async function POST(request:Request){
   const ids=((data||[]) as (string|{crm_empujon_tomar:string})[]).map(x=>typeof x==='string'?x:x.crm_empujon_tomar);
   await Promise.all(ids.map(id=>suggestWhatsappReply(db,id,{empujon:true})));
   return Response.json({empujones:ids.length});
+ }
+ if(tipo==='aliados'){
+  // Possible allies who did not finish signing up: one reminder (template ambar_aliado_recordatorio; nothing goes out until Meta approves it).
+  const settings=await loadWhatsappSettings(db);
+  if(!settings.token||!settings.phoneNumberId)return Response.json({activo:false,motivo:'WhatsApp sin configurar'});
+  const {data,error}=await db.rpc('crm_aliados_tomar',{p_limite:30});
+  if(error)return Response.json({error:error.message},{status:500});
+  let enviados=0,pendientePlantilla=false;
+  for(const l of (data||[]) as {conv_id:string;telefono:string;nombre:string|null}[]){
+   const nombre=String(l.nombre||'').trim().split(/\s+/)[0]||'hola';
+   const waId=pendientePlantilla?null:await sendAllyReminder(settings,l.telefono,nombre).catch(()=>null);
+   if(!waId){pendientePlantilla=true;await db.from('whatsapp_conversaciones').update({aliado_recordatorio_at:null}).eq('id',l.conv_id);continue;}
+   const now=new Date().toISOString(),texto=allyReminderText(nombre);
+   await db.from('whatsapp_mensajes').insert({conversacion_id:l.conv_id,wa_id:waId,direccion:'saliente',origen:'ia',tipo:'template',texto,estado:'sent',created_at:now});
+   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now}).eq('id',l.conv_id);
+   enviados++;
+  }
+  return Response.json({enviados,plantilla_pendiente:pendientePlantilla});
  }
  if(tipo!=='reactivacion')return Response.json({error:'Tipo no válido'},{status:400});
  const settings=await loadWhatsappSettings(db);

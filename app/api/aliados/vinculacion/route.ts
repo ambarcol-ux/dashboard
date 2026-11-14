@@ -41,7 +41,9 @@ export async function POST(request:Request){
   const certPath=`${ally.id}/certificacion/${crypto.randomUUID()}.${CERT_TYPES[cert.type]}`;
   const {error:up}=await db.storage.from('aliados_documentos').upload(certPath,Buffer.from(await cert.arrayBuffer()),{contentType:cert.type});
   if(up)return publicReply({error:'No se pudo subir la certificación. Intenta nuevamente.'},503);
-  await db.from('aliados').update({certificacion_path:certPath}).eq('id',ally.id);
+  // Where the ally came from: the link parameter (e.g. ia-whatsapp, anuncio) and the 304 chat with the same phone.
+  const tel=d.celular.replace(/\D/g,'').slice(-10),{data:chat}=tel.length===10?await db.from('whatsapp_conversaciones').select('id').like('telefono',`%${tel}`).order('ultimo_at',{ascending:false}).limit(1).maybeSingle():{data:null};
+  await db.from('aliados').update({certificacion_path:certPath,origen_detalle:String(form.get('origen')||'').replace(/[^\w-]/g,'').slice(0,120)||null,conversacion_id:chat?.id||null}).eq('id',ally.id);
   const tipo=(tipos||[]).find(t=>t.id===d.tipo_aliado_id)?.nombre||'',now=new Date();
   const profile:AllyProfile={nombre:d.nombre_completo,cedula:d.cedula,representante:'',celular:d.celular,correo:d.correo,direccion:d.direccion,ciudad:'Colombia',banco:d.banco,tipo_cuenta:d.tipo_cuenta,numero_cuenta:d.numero_cuenta};
   const texto=agreementText(agreement,{...profile,tipo},now,(sedes||[]).find(x=>String(x.id)===String(d.sede_principal))?.nombre);

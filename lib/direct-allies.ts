@@ -21,15 +21,15 @@ export const allyLinks=(origin:string,token:string)=>({vincular:`${origin}/aliad
 /** Validates the public sign-up form; returns the clean data or throws a message for the visitor. */
 export function allySignup(input:Record<string,unknown>,tipos:number[],sedes?:string[]){
  const t=(k:string,max=200)=>String(input[k]??'').trim().slice(0,max);
- const d={nombre_completo:t('nombre_completo',140),cedula:t('cedula',20).replace(/\D/g,''),celular:t('celular',20),correo:t('correo',120).toLowerCase(),direccion:t('direccion'),
-  tipo_aliado_id:Number(input.tipo_aliado_id),banco:t('banco',80),tipo_cuenta:t('tipo_cuenta',40),numero_cuenta:t('numero_cuenta',30).replace(/\s/g,''),titular_cuenta:t('titular_cuenta',140),sede_principal:t('sede_principal',40)||null};
+ const d={nombre_completo:t('nombre_completo',140),cedula:(/[a-z]/i.test(t('cedula',20))?t('cedula',20).toUpperCase().replace(/[^0-9A-Z]/g,''):t('cedula',20).replace(/\D/g,'')),celular:t('celular',20),correo:t('correo',120).toLowerCase(),direccion:t('direccion'),
+  tipo_aliado_id:Number(input.tipo_aliado_id),banco:t('banco',80),tipo_cuenta:t('tipo_cuenta',40),numero_cuenta:t('numero_cuenta',34).replace(/\s/g,''),titular_cuenta:t('titular_cuenta',140),sede_principal:t('sede_principal',40)||null};
  if(d.nombre_completo.length<3)throw Error('Escribe tu nombre completo.');
- if(!/^[0-9]{5,15}$/.test(d.cedula))throw Error('La cédula debe tener entre 5 y 15 números.');
+ if(!/^[0-9A-Z]{5,15}$/.test(d.cedula))throw Error('La cédula o pasaporte debe tener entre 5 y 15 letras o números.');
  if(!/^[0-9+ ()-]{7,20}$/.test(d.celular))throw Error('Escribe un celular válido.');
  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.correo))throw Error('Escribe un correo válido.');
  if(d.direccion.length<5)throw Error('Escribe tu dirección.');
  if(!tipos.includes(d.tipo_aliado_id))throw Error('Elige qué tipo de aliado eres.');
  if(sedes&&!sedes.includes(String(d.sede_principal)))throw Error('Elige la sede con la que trabajas.');
- if(!d.banco||!d.tipo_cuenta||!(isKeyType(d.tipo_cuenta)?!keyError(d.tipo_cuenta,d.numero_cuenta):/^[0-9-]{4,30}$/.test(d.numero_cuenta))||d.titular_cuenta.length<3)throw Error(keyError(d.tipo_cuenta,d.numero_cuenta)||'Completa banco, tipo, número y titular de la cuenta.');
+ if(!d.banco||!d.tipo_cuenta||!(isKeyType(d.tipo_cuenta)?!keyError(d.tipo_cuenta,d.numero_cuenta):/^[0-9A-Z-]{4,34}$/i.test(d.numero_cuenta))||d.titular_cuenta.length<3)throw Error(keyError(d.tipo_cuenta,d.numero_cuenta)||'Completa banco, tipo, número y titular de la cuenta.');
  return d;
 }

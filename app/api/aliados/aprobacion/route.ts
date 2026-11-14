@@ -1,6 +1,8 @@
 import {createClient} from '@supabase/supabase-js';
 import {allyLinks} from '@/lib/direct-allies';
 import {allyApprovedEmail,allyRejectedEmail,sendAllyEmail} from '@/lib/ally-emails';
+import {loadWhatsappSettings} from '@/lib/whatsapp-config';
+import {conversationFor,sendWhatsappText,sendAllyWelcome,allyWelcomeText,WINDOW_MS} from '@/lib/whatsapp-inbox';
 export const dynamic='force-dynamic';
 
 const reply=(data:unknown,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
@@ -30,6 +32,28 @@ export async function POST(request:Request){
    a=data;
   }
   const sent=a.estado==='activo'?await sendAllyEmail(a.correo,allyApprovedEmail({nombre:a.nombre,id:a.id,codigo:a.codigo!},allyLinks(origin,a.token))):await sendAllyEmail(a.correo,allyRejectedEmail(a.nombre,a.motivo));
-  return reply({estado:a.estado,codigo:a.codigo,correo:sent});
+  // Welcome by WhatsApp when approved: a normal message while the 24 h window is open, otherwise the welcome template (once Meta approves it).
+  let whatsapp=false;
+  if(a.estado==='activo'&&body.accion!=='reenviar')try{whatsapp=await allyWelcomeWhatsapp(a.id,a.nombre,a.codigo!);}catch(e){console.error('Bienvenida por WhatsApp no enviada:',e);}
+  return reply({estado:a.estado,codigo:a.codigo,correo:sent,whatsapp});
  }catch{return reply({error:'El servicio no está disponible.'},503);}
+}
+
+/** Sends the ally's welcome to the 304 chat of their phone; true if it went out. */
+async function allyWelcomeWhatsapp(id:string,nombre:string,codigo:string){
+ const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false}});
+ const [{data:ally},settings]=await Promise.all([db.from('aliados').select('celular').eq('id',id).maybeSingle(),loadWhatsappSettings(db)]);
+ const digits=String(ally?.celular||'').replace(/\D/g,'');
+ if(digits.length<10||!settings.token||!settings.phoneNumberId)return false;
+ const tel=digits.length===10?`57${digits}`:digits,first=nombre.trim().split(/\s+/)[0]||nombre;
+ const conv=await conversationFor(db,tel,nombre);
+ const {data:c}=await db.from('whatsapp_conversaciones').select('ultimo_entrante_at').eq('id',conv.id).maybeSingle();
+ const open=c?.ultimo_entrante_at&&Date.now()-Date.parse(c.ultimo_entrante_at)<WINDOW_MS;
+ const texto=allyWelcomeText(first,codigo);
+ const waId=open?await sendWhatsappText(settings,tel,texto):await sendAllyWelcome(settings,tel,first,codigo);
+ if(!waId)return false;
+ const now=new Date().toISOString();
+ await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:waId,direccion:'saliente',origen:'erp',tipo:open?'text':'template',texto,estado:'sent',created_at:now});
+ await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,etiqueta:'aliado'}).eq('id',conv.id);
+ return true;
 }

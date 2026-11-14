@@ -44,6 +44,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Fotos del inventario: los vestidos marcados con 📷 en el inventario tienen foto. Si la clienta pide ver un vestido concreto o le propones opciones (por color, talla, categoría o precio), pon en «fotos» hasta 3 códigos con 📷 del inventario visible de su sede y en la respuesta preséntalos en pocas palabras (las fotos llegan justo después de tu mensaje, cada una con su código). No envíes fotos de otra sede ni de vestidos sin 📷, ni repitas fotos que ya enviaste en el chat. Si pide ver muchos modelos, envía el catálogo de su sede.
 - Catálogo: si la clienta pide ver vestidos, modelos, fotos o el catálogo, envíale el enlace del catálogo de su sede y tipo de vestido tal cual aparece en <catalogos> (no lo modifiques). Si sabes la sede pero no el tipo de vestido, envía el enlace general de esa sede (ahí la clienta elige el tipo). Si no sabes la sede, pregúntala primero. Si esa combinación no está en la lista, di que una asesora le comparte opciones. Invítala a agendar su primera cita desde el catálogo.
 - Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
+- Aliados directos: si quien escribe ofrece servicios de eventos (fotografía, maquillaje y peinado, organización, decoración, salón de eventos, wedding planner, etc.) o pregunta por el programa de aliados, es un posible aliado, no una clienta: etiqueta «aliado». Explícale el programa con las cláusulas de <programa_aliados> (sin inventar nada que no esté ahí): incluye los vestidos de Ámbar en sus paquetes, recibe 5 % de descuento sobre el catálogo y puede cobrar a su clienta hasta 20 % más; Pre XV con 50 % si el vestido sale y vuelve el mismo día; envíos a todo Colombia y al exterior con seguro obligatorio; medidas con guías en video y la asesora de la sede; pagos en pesos por transferencia o PayPal; la cuenta bancaria es para devolverle el depósito y reembolsos. Ámbar no paga comisiones. Pregúntale su ciudad o país, su tipo de negocio y cuántos eventos maneja al mes; sugiérele la sede más cercana (Llanos y Meta → Villavicencio; Bogotá, Cundinamarca, Boyacá y Tolima → Bogotá; Eje Cafetero, Valle y Antioquia → Pereira; Costa Caribe → Barranquilla; exterior → la que prefiera) y envíale el enlace de vinculación de esa sede de <programa_aliados>. Si ya es aliado o pregunta por un contrato, una clienta o un pago de aliado, marca atender_persona=true.
 - Parqueadero: si una sede tiene «parqueadero» en <sedes>, dalo cuando pregunten por parqueadero o cuando agende o confirme una cita presencial en esa sede: aclara que es un parqueadero aliado (no propio) y que para el descuento debe pedir en Ámbar el sello en su tiquete de parqueo. Si la sede no tiene «parqueadero», no inventes uno: di que no hay convenio de parqueadero en esa sede.
 - Reagendar o cancelar la primera cita (no confundir con cancelar un contrato): si quiere reagendar, envíale el enlace para reprogramar que aparece en <sedes>; ahí escribe su cédula y elige el nuevo horario. Si dice que no la encuentra con su cédula, marca atender_persona=true. Si quiere cancelar, ofrécele primero reagendar para no perder su cita; si insiste en cancelar, dile que una asesora la ayuda y marca atender_persona=true con el motivo «Cancelar cita». Si ya tiene contrato y quiere cambiar las citas de medidas, prueba o entrega, marca atender_persona=true.
 - Marca atender_persona=true (tu respuesta igual se envía y el chat queda marcado para una asesora) solo cuando la clienta pida hablar con una persona, reclame o discuta un cobro, una multa o una cláusula, pida una excepción, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
@@ -71,7 +72,7 @@ const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sed
  fotos:{type:'array',items:{type:'string'},description:'Códigos (máximo 3) de vestidos con 📷 del inventario visible de su sede cuya foto se le envía con esta respuesta; lista vacía si no'},
 }};
 
-export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string;promociones?:string};
+export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string;promociones?:string;aliados?:string};
 export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string;fotos?:string[]};
 type Msg={direccion:string;texto:string|null;created_at:string};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null;parqueadero?:string|null};
@@ -87,8 +88,15 @@ function systemPrompt(cfg:IaConfig,sites:Site[],clauses:string,catalogs=''){
   `<reglas_de_paso_a_una_persona>\n${cfg.escalamiento.trim()||'(solo las reglas fijas)'}\n</reglas_de_paso_a_una_persona>`,
   `<clausulas_del_contrato>\n${clauses||'(sin cláusulas)'}\n</clausulas_del_contrato>`,
   `<catalogos>\n${catalogs||'(sin catálogos disponibles)'}\n</catalogos>`,
+  `<programa_aliados>\nEnlaces de vinculación por sede:\n${sites.map(s=>`- ${s.nombre}: ${origin}/aliados/vincular?o=ia-whatsapp&sede=${s.id}`).join('\n')}\nAcuerdo con Aliado vigente (lo que firma el aliado; aplícalo con el representante de la sede que escoja):\n${cfg.aliados||'(no disponible: di que una asesora le explica el programa y marca atender_persona=true)'}\n</programa_aliados>`,
   `<promociones>\nPromociones vigentes registradas en el ERP (Ventas y CRM › Promociones). Solo estas existen.\n${cfg.promociones||'(sin promociones vigentes)'}\n</promociones>`,
   `<documentos_de_la_marca>\nResumen de documentos vigentes de la marca (planes, precios, condiciones, promociones). Úsalos como tus conocimientos; si un documento es de una sede, aplícalo solo a clientas de esa sede.\n${cfg.documentos||'(sin documentos)'}\n</documentos_de_la_marca>`].join('\n\n');
+}
+
+/** Latest ally agreement (Aliados directos › Contrato de vinculación): considerations and clauses, for the AI to explain the program. */
+export async function allyAgreementForAI(db:SupabaseClient){
+ const {data}=await db.from('acuerdos_aliado').select('secciones').order('version',{ascending:false}).limit(1).maybeSingle();
+ return ((data?.secciones||[]) as {titulo:string;parrafos:string[]}[]).filter(s=>/consideraciones|cl[aá]usulas/i.test(s.titulo)).flatMap(s=>s.parrafos).join('\n').slice(0,12000);
 }
 
 /** Promotions in force today (Ventas y CRM › Promociones) with their stores, dress types, categories, conditions and end date. */
@@ -162,8 +170,8 @@ async function loadBasics(db:SupabaseClient){
   loadContractClauses(db),
   loadCatalogLinks(db),
  ]);
- const [documentos,promociones]=await Promise.all([documentsForAI(db).catch(()=>''),promotionsForAI(db).catch(()=>'')]);
- return {clauses,catalogs,cfg:{...(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}),documentos,promociones} as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
+ const [documentos,promociones,aliados]=await Promise.all([documentsForAI(db).catch(()=>''),promotionsForAI(db).catch(()=>''),allyAgreementForAI(db).catch(()=>'')]);
+ return {clauses,catalogs,cfg:{...(cfg||{conocimientos:'',instrucciones:'',escalamiento:'',auto_activa:false,reactivar_horas:12}),documentos,promociones,aliados} as IaConfig&{auto_activa:boolean;reactivar_horas:number},sites:(sites||[]) as Site[]};
 }
 
 const COMMENT_SCHEMA={type:'object',additionalProperties:false,required:['tipo','publica','privado'],properties:{
@@ -253,7 +261,7 @@ export async function testWhatsappAI(db:SupabaseClient,cfg:IaConfig,turns:{rol:'
 
 /** Builds the suggestion for one chat and saves it. Errors are saved in ia_error so the screen can show them. */
 /** Nudge: we answered last and she has not come back nor booked; one short message before the 24 h window closes. */
-const EMPUJON='\n\n[Nota del sistema, no la cites: la clienta no ha vuelto a escribir desde hace unas 20 horas y aún no agenda. Escríbele UN mensaje corto y cálido para retomar: recuerda lo que buscaba, ofrécele la promoción vigente si aplica a su tipo de vestido y propón agendar con el enlace de su sede (o pregúntale su ciudad si no la sabes). No repitas lo que ya le dijiste ni pidas disculpas.]';
+const EMPUJON='\n\n[Nota del sistema, no la cites: no ha vuelto a escribir desde hace unas 20 horas. Escríbele UN mensaje corto y cálido para retomar. Si es clienta: recuerda lo que buscaba, ofrécele la promoción vigente si aplica a su tipo de vestido y propón agendar con el enlace de su sede (o pregúntale su ciudad si no la sabes). Si es un posible aliado: resuelve la duda que le quede y anímalo a completar su vinculación con el enlace de su sede. No repitas lo que ya le dijiste ni pidas disculpas.]';
 export async function suggestWhatsappReply(db:SupabaseClient,conversationId:string,opts:{empujon?:boolean}={}){
  if(!process.env.ANTHROPIC_API_KEY)return;
  try{

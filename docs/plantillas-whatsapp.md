@@ -171,3 +171,32 @@ Hola {{1}} 💛 Soy de Ámbar Couture {{2}}. ¿Ya encontraste tu vestido? Tenemo
 | {{2}} | Barranquilla |
 
 Reemplaza a `ambar_seguimiento` en los seguimientos automáticos en cuanto Meta la aprueba (no hay que cambiar nada en el ERP).
+
+## Recordatorio a posibles aliados — `ambar_aliado_recordatorio`
+
+Categoría **Marketing** · Idioma **Español (COL)** · Sin botones.
+
+```
+Hola {{1}} 💛 Te escribimos de Ámbar Couture. ¿Pudiste revisar el programa de aliados? Incluye nuestros vestidos de XV y gala en tus paquetes con 5 % de descuento y gana hasta 20 % de margen. Responde este mensaje y te ayudamos a completar tu vinculación.
+```
+
+| Variable | Ejemplo |
+|---|---|
+| {{1}} | Carolina |
+
+Se envía una vez, de lunes a sábado 10:35 a. m. y 4:35 p. m., a quien conversó como posible aliado hace 1 a 10 días y no se vinculó. Sin aprobación de Meta no sale nada.
+
+## Bienvenida al aliado — `ambar_aliado_bienvenida`
+
+Categoría **Utilidad** · Idioma **Español (COL)** · Sin botones.
+
+```
+¡Bienvenido(a) a los Aliados de Ámbar Couture, {{1}}! 💛 Tu código de aliado es {{2}}. Te enviamos al correo tus enlaces para registrar a tus clientas y consultar disponibilidad. Responde este mensaje si quieres que te expliquemos cómo registrar tu primera clienta.
+```
+
+| Variable | Ejemplo |
+|---|---|
+| {{1}} | Carolina |
+| {{2}} | ALI-FOT-0003 |
+
+Se envía al aprobar un aliado si no ha escrito al 304 en las últimas 24 horas (si escribió, sale como mensaje normal).
