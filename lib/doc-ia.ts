@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import {aiClient} from './ai-usage';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {Buffer} from 'node:buffer';
 import {zipEntry} from './docx-text';
@@ -52,7 +53,7 @@ export async function readDocumentForAI(db:SupabaseClient,d:DocPendiente){
   if(error||!file)throw Error('No se pudo descargar el archivo.');
   const blocks=docBlocks(d.nombre,d.tipo||file.type||'',Buffer.from(await file.arrayBuffer()));
   if(!blocks){await save('sin_contenido',null,'Formato que la IA no puede leer (video, audio o archivo muy pesado).');return 'sin_contenido';}
-  const r=await new Anthropic({timeout:55000,maxRetries:0}).messages.create({model:MODEL,max_tokens:3000,system:SYSTEM,messages:[{role:'user',content:[...blocks,{type:'text',text:`Documento: «${d.nombre}». Extrae lo útil para atender clientas.`}]}]});
+  const r=await aiClient('documentos_resumen',{timeout:55000,maxRetries:0}).messages.create({model:MODEL,max_tokens:3000,system:SYSTEM,messages:[{role:'user',content:[...blocks,{type:'text',text:`Documento: «${d.nombre}». Extrae lo útil para atender clientas.`}]}]});
   const text=r.content.find(b=>b.type==='text');const out=text&&text.type==='text'?text.text.trim():'';
   if(!out||/^SIN_CONTENIDO/.test(out)){await save('sin_contenido',null,null);return 'sin_contenido';}
   await save('ok',out.slice(0,12000),null);return 'ok';

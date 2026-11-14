@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import {aiClient} from './ai-usage';
 import type {SupabaseClient} from '@supabase/supabase-js';
 
 /** «Lo que le falta a la IA»: after one question is answered (or marked «No aplica»), the pending questions with the same
@@ -11,7 +11,7 @@ export async function resolveSimilarMissing(db:SupabaseClient,id:number){
  const {data:pend}=await db.from('whatsapp_ia_faltantes').select('id,falta').eq('estado','pendiente').limit(200);
  if(!pend?.length||!process.env.ANTHROPIC_API_KEY)return {resueltas:[] as string[]};
  const descartada=base.estado==='descartado';
- const client=new Anthropic({timeout:30000,maxRetries:1});
+ const client=aiClient('faltantes_parecidos',{timeout:30000,maxRetries:1});
  const r=await client.messages.create({model:'claude-haiku-5-5',max_tokens:1000,output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},
   system:`Eres asistente de una tienda de alquiler de vestidos. Te doy un dato que administración ya ${descartada?'marcó como «No aplica»':'respondió'} y una lista de preguntas pendientes que la IA de WhatsApp no supo responder.
 Devuelve en "ids" solo las pendientes que piden ESENCIALMENTE LO MISMO, de modo que ${descartada?'también deban descartarse':'la misma respuesta las conteste por completo'}. Si una pendiente pide algo más o distinto (otra sede, otra fecha, otro servicio u otro dato adicional que la respuesta no cubre), NO la incluyas. Ante la duda, no la incluyas.`,

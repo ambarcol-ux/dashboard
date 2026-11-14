@@ -1,4 +1,4 @@
-import Anthropic from '@anthropic-ai/sdk';
+import {aiClient} from './ai-usage';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {applyIaChanges,loadErpContext,type IaCambio,type IaConfig} from './whatsapp-ai';
 
@@ -59,7 +59,7 @@ export async function weeklyChatAnalysis(db:SupabaseClient,now=Date.now()){
  const chats=sample.map((r,i)=>`### Chat ${i+1} · ${r.agendo?'CITA':'SIN CITA'}${r.c.anuncio_id?' · llegó por anuncio':''}\n`+r.m.slice(-12).map(x=>`${x.direccion==='entrante'?'Clienta':x.origen==='ia'?'IA':'Asesora'}: ${String(x.texto||'').replace(/\s+/g,' ').slice(0,220)}`).join('\n')).join('\n\n');
  let resumen='No hubo chats esta semana.',cambios:IaCambio[]=[];
  if(n&&process.env.ANTHROPIC_API_KEY){
-  const client=new Anthropic({timeout:50000,maxRetries:0});
+  const client=aiClient('analisis_whatsapp',{timeout:50000,maxRetries:0});
   const r=await client.messages.create({model:MODEL,max_tokens:4000,system:SYSTEM,output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},
    messages:[{role:'user',content:`<datos_que_le_faltan_a_la_ia>\n${faltaTxt||'(ninguno)'}\n</datos_que_le_faltan_a_la_ia>\n<metricas_semana>\n${JSON.stringify(metricas)}\n</metricas_semana>\n<metricas_semana_anterior>\n${prev?JSON.stringify(prev.metricas):'(primera semana analizada)'}\n</metricas_semana_anterior>\n<ajustes_a_la_ia_esta_semana>${ajustes||0}</ajustes_a_la_ia_esta_semana>\n<configuracion_actual>\n<conocimientos>\n${cfg.conocimientos}\n</conocimientos>\n<instrucciones>\n${cfg.instrucciones}\n</instrucciones>\n<escalamiento>\n${cfg.escalamiento}\n</escalamiento>\n</configuracion_actual>\n<datos_del_erp>\n${(await loadErpContext(db)).slice(0,20000)}\n</datos_del_erp>\n<chats>\n${chats}\n</chats>`}]});
   const t=r.content.find(b=>b.type==='text');
