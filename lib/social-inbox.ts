@@ -74,14 +74,13 @@ export async function pollInstagramMessages(db:SupabaseClient,s:SocialSettings){
  if(!s.instagramId)return [];
  const since=Date.now()-30*60000;
  const tk=encodeURIComponent(await pageToken(s));
- const graph=async(path:string)=>{const r=await fetch(`https://graph.facebook.com/${version()}/${path}&access_token=${tk}`,{signal:AbortSignal.timeout(25000)});const d=await r.json().catch(()=>({})) as Value;if(!r.ok)throw Error(`${path.split('?')[0]}: ${String(d.error?.message||r.status)}`);return d;};
+ const graph=async(path:string)=>{const r=await fetch(`https://graph.facebook.com/${version()}/${path}&access_token=${tk}`,{signal:AbortSignal.timeout(40000)});const d=await r.json().catch(()=>({})) as Value;if(!r.ok)throw Error(`${path.split('?')[0]}: ${String(d.error?.message||r.status)}`);return d;};
  // Two light calls (Meta refuses one big one): recent conversations, then the last messages of each.
- const d=await graph(`${s.pageId}/conversations?platform=instagram&fields=id,updated_time&limit=5`);
+ const d=await graph(`${s.pageId}/conversations?platform=instagram&fields=id&limit=3`);
  const messaging:Value[]=[];
  for(const c of (d.data||[]) as Value[]){
-  if(new Date(c.updated_time).getTime()<since)continue;
   // Meta's documented way: message ids of the conversation, then each message on its own.
-  const ids=(((await graph(`${c.id}?fields=messages.limit(6){id,created_time}`)).messages?.data||[]) as Value[]).filter(x=>new Date(x.created_time).getTime()>=since);
+  const ids=(((await graph(`${c.id}?fields=messages.limit(5){id,created_time}`)).messages?.data||[]) as Value[]).filter(x=>new Date(x.created_time).getTime()>=since);
   const known=new Set(((await db.from('whatsapp_mensajes').select('wa_id').in('wa_id',ids.map(x=>String(x.id)))).data||[]).map(x=>x.wa_id));
   const list:Value[]=[];
   for(const x of ids)if(!known.has(String(x.id)))list.push(await graph(`${x.id}?fields=id,created_time,from,to,message,attachments`));
