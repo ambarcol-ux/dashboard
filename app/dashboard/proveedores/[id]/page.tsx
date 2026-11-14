@@ -77,8 +77,9 @@ function SupplierFile({id}:{id:string}){
   <section className={styles.card}>
    <div className={styles.actions} style={{justifyContent:'space-between'}}>
     <div><h2>{supplier.codigo} · {supplier.nombre}</h2><p className={styles.help}>{supplier.tipo_servicio} · {mySedes.map(s=>sedes.find(x=>x.id===s)?.nombre).join(', ')||'Sin sede'} · {supplier.celular||'Sin celular'} · <span className={`${styles.badge} ${supplier.estado==='Activo'?styles.badgeIn:styles.badgeWarn}`}>{supplier.estado}</span></p></div>
+    <div className={styles.actions}><Link href={`/dashboard/proveedores/pagos?proveedor=${id}`} className={styles.button}>Ver pagos y pendientes</Link>
     {supplier.usuario_id?<span className={`${styles.badge} ${styles.badgeIn}`}>Tiene acceso al portal</span>
-     :<button className={`${styles.button} ${styles.primary}`} onClick={createUser}><KeyRound size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Crear usuario</button>}
+     :<button className={`${styles.button} ${styles.primary}`} onClick={createUser}><KeyRound size={14} style={{display:'inline',verticalAlign:'-2px'}}/> Crear usuario</button>}</div>
    </div>
    {password&&<p className={styles.notice}>Acceso creado. Comparte con el proveedor: usuario <b>{supplier.correo}</b>, contraseña temporal <b>{password}</b>. Entra por /login y puede cambiarla con «¿Olvidaste tu contraseña?». Esta contraseña no se volverá a mostrar.</p>}
   </section>
