@@ -55,6 +55,8 @@ export async function POST(request:Request){
    const dbg=await fetch(`https://graph.facebook.com/${v}/debug_token?${new URLSearchParams({input_token:pt,access_token:`${appId}|${secret}`})}`,{signal:AbortSignal.timeout(15000)}).then(r=>r.json()).catch(()=>null) as {data?:{scopes?:string[]}}|null;
    const faltan=['pages_messaging','pages_manage_metadata','instagram_basic','instagram_manage_messages'].filter(p=>dbg?.data?.scopes&&!dbg.data.scopes.includes(p));
    destino+=dbg?.data?.scopes?` · Permisos del token: ${faltan.length?`FALTAN ${faltan.join(', ')}`:'completos para mensajes'}`:'';
+   const pub=['instagram_content_publish','pages_manage_posts'].filter(p=>dbg?.data?.scopes&&!dbg.data.scopes.includes(p));
+   destino+=dbg?.data?.scopes?` · Publicar desde el Estudio de contenido: ${pub.length?`FALTAN ${pub.join(', ')}`:'permitido'}`:'';
   }
   if(ig?.id){
    const dm=await get(`${s.pageId}/conversations?platform=instagram&fields=id&limit=1`);
