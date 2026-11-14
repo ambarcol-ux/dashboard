@@ -6,7 +6,7 @@ import {attachmentBlocks} from './ai-attachments';
 import {allySlug} from './ally-validation';
 import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
 import {WHATSAPP_TOOLS,runWhatsappTool} from './whatsapp-tools';
-import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply} from './social-inbox';
+import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply,COMMENT_GONE} from './social-inbox';
 import {marcarCanal} from './event-channel';
 import {documentsForAI} from './doc-ia';
 import {inventoryCandidates} from './dress-photo-match';
@@ -187,7 +187,7 @@ export async function handleComment(db:SupabaseClient,id:string,auto=true){
   }
   if(publica){try{const pid=await replyComment(s,c.comentario_id,publica,c.canal);Object.assign(cambios,{respuesta_publica:publica,respuesta_publica_id:pid});if(!cambios.estado)Object.assign(cambios,{estado:'respondido',respuesta:publica,respuesta_id:pid});}catch(e){if(!cambios.estado)throw e;cambios.ia_error=`Mensaje privado enviado; la respuesta pública falló: ${aiErrorText(e)}`.slice(0,300);}}
   if(cambios.estado)await db.from('redes_comentarios').update(cambios).eq('id',id);
- }catch(e){await db.from('redes_comentarios').update({ia_error:aiErrorText(e).slice(0,300),ia_at:new Date().toISOString()}).eq('id',id);}
+ }catch(e){const m=aiErrorText(e).slice(0,300);await db.from('redes_comentarios').update({ia_error:m,ia_at:new Date().toISOString(),...(m===COMMENT_GONE?{estado:'eliminado'}:{})}).eq('id',id);}
 }
 /** «Sugerir con IA» in the comments tab: new suggestion only, nothing is sent. */
 export const suggestCommentReply=(db:SupabaseClient,id:string)=>handleComment(db,id,false);

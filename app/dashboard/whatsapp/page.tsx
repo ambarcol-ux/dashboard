@@ -82,7 +82,7 @@ function Faltantes({onChange}:{onChange:()=>void}){
 
 type Comentario={id:string;canal:string;comentario_id:string;publicacion_url:string|null;publicacion_texto:string|null;padre_id:string|null;autor_nombre:string|null;texto:string|null;created_at:string;estado:string;ia_sugerencia:string|null;ia_error:string|null;respuesta:string|null;respondido_at:string|null;ia_tipo:string|null;ia_privado:string|null;respuesta_publica:string|null};
 const TIPO_COM:Record<string,[string,string]>={interes:['Interés en alquilar','#047857'],elogio:['Elogio','#7c3aed'],negativo:['Queja: atiende una persona','#b91c1c'],otro:['Otro','#64748b']};
-const ESTADO_COM:Record<string,string>={pendiente:'Pendientes',respondido:'Respondidos en público',privado:'Respondidos por privado',ignorado:'Sin responder (descartados)'};
+const ESTADO_COM:Record<string,string>={pendiente:'Pendientes',respondido:'Respondidos en público',privado:'Respondidos por privado',ignorado:'Sin responder (descartados)',eliminado:'Eliminados en Meta'};
 /** WhatsApp 304 › Comentarios de Instagram: what customers comment on our posts, with the AI's suggested reply; a person answers in public or by private message. */
 function Comments(){
  const [estado,setEstado]=useState('pendiente'),[rows,setRows]=useState<Comentario[]|null>(null),[error,setError]=useState('');

@@ -3,7 +3,7 @@ import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendWhatsappText,downloadWhatsappImage,sendWhatsappFollowup,followupText,conversationFor,WINDOW_MS} from '@/lib/whatsapp-inbox';
 import {resolveAd,adsSpend,adsTokenReady} from '@/lib/meta-ads';
-import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply} from '@/lib/social-inbox';
+import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply,COMMENT_GONE} from '@/lib/social-inbox';
 import {attachmentBlocks,type Adjunto} from '@/lib/ai-attachments';
 import {weeklyChatAnalysis} from '@/lib/whatsapp-analysis';
 import {resolveSimilarMissing} from '@/lib/ia-faltantes';
@@ -149,7 +149,9 @@ export async function POST(request:Request){
     if(!s)return publicReply({error:'Instagram y Facebook no están conectados en Integraciones.'},503);
     let rid:string;
     try{if(privado){const dm=await privateReplyComment(s,c.comentario_id,texto);rid=dm.id;await chatFromPrivateReply(db,dm,c,texto,'erp',auth.user.id);}else rid=await replyComment(s,c.comentario_id,texto,c.canal);}
-    catch(e){return publicReply({error:e instanceof Error?e.message:'No se pudo responder.'},502);}
+    catch(e){const m=e instanceof Error?e.message:'No se pudo responder.';
+     if(m===COMMENT_GONE)await db.from('redes_comentarios').update({estado:'eliminado',ia_error:m,respondido_at:new Date().toISOString()}).eq('id',c.id);
+     return publicReply({error:m},502);}
     await db.from('redes_comentarios').update({estado:privado?'privado':'respondido',respuesta:texto,respuesta_id:rid,respondido_por:auth.user.id,respondido_at:new Date().toISOString()}).eq('id',c.id);
     return publicReply({ok:true});
    }
