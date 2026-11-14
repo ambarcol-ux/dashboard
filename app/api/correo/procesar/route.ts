@@ -55,7 +55,8 @@ export async function POST(request:Request){
      if(values.resena&&plantilla.cuerpo.includes('{resena}')){const {data:ok,error:e}=await db.rpc('resena_permitida',{p_telefono:tel,p_email:j.email});if(e||ok!==true)values.resena='';}
      values.enlace_autorizacion=authLink(origin,aut!.token);
      // Without the store's Google review link, the paragraph that asks for the review is left out.
-     const cuerpo=values.resena?plantilla.cuerpo:plantilla.cuerpo.split(/\n{2,}/).filter((p:string)=>!p.includes('{resena}')).join('\n\n');
+     // Without a promotion in force, the paragraph that announces it is left out too.
+     const cuerpo=plantilla.cuerpo.split(/\n{2,}/).filter((p:string)=>(values.resena||!p.includes('{resena}'))&&(values.promocion||!/\{(promocion|beneficio|vigencia|condiciones)\}/.test(p))).join('\n\n');
      const mail=renderMail(plantilla.asunto,cuerpo,values,authLink(origin,aut!.token),solicitud);
      asunto=mail.asunto;
      const r=await sendEmail(conn as EmailConnection,{to:j.email,nombre:j.nombre,...mail});
