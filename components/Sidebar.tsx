@@ -7,14 +7,14 @@ import UpcomingVisitsAlert from '@/components/UpcomingVisitsAlert';
 import PersonAttentionAlert from '@/components/PersonAttentionAlert';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
 import {
-  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen, KanbanSquare
+  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen, KanbanSquare, Megaphone
 } from 'lucide-react';
 
 interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos' | 'pipeline';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos' | 'pipeline' | 'aliados_publicaciones';
 }
 
 // Deposit and balance reminders live in the Inicio alert strip (DashboardAlerts), not in the menu.
@@ -63,6 +63,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
         { id: 'pedidos_estrene', label: 'PEDIDOS ESTRENE', icon: ShoppingBag, href: '/dashboard/pedidos-estrene', color: 'violet' },
         { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'emerald' },
         { id: 'aliados_directos', label: 'ALIADOS DIRECTOS', icon: Handshake, href: '/dashboard/aliados-directos', color: 'rose' },
+        { id: 'aliados_publicaciones', label: 'PUBLICACIONES DE ALIADOS', icon: Megaphone, href: '/dashboard/aliados-publicaciones', color: 'rose' },
         { id: 'catalogo', label: 'CATÁLOGO', icon: BookOpen, href: '/dashboard/catalogo', color: 'rose' },
         { id: 'correo', label: 'CORREO', icon: Mail, href: '/dashboard/correo', color: 'rose' },
       ]

@@ -22,12 +22,17 @@ export const allyLinks=(origin:string,token:string)=>({vincular:`${origin}/aliad
 export function allySignup(input:Record<string,unknown>,tipos:number[],sedes?:string[]){
  const t=(k:string,max=200)=>String(input[k]??'').trim().slice(0,max);
  const d={nombre_completo:t('nombre_completo',140),cedula:(/[a-z]/i.test(t('cedula',20))?t('cedula',20).toUpperCase().replace(/[^0-9A-Z]/g,''):t('cedula',20).replace(/\D/g,'')),celular:t('celular',20),correo:t('correo',120).toLowerCase(),direccion:t('direccion'),
-  tipo_aliado_id:Number(input.tipo_aliado_id),banco:t('banco',80),tipo_cuenta:t('tipo_cuenta',40),numero_cuenta:t('numero_cuenta',34).replace(/\s/g,''),titular_cuenta:t('titular_cuenta',140),sede_principal:t('sede_principal',40)||null};
+  tipo_aliado_id:Number(input.tipo_aliado_id),banco:t('banco',80),tipo_cuenta:t('tipo_cuenta',40),numero_cuenta:t('numero_cuenta',34).replace(/\s/g,''),titular_cuenta:t('titular_cuenta',140),sede_principal:t('sede_principal',40)||null,
+  nombre_comercial:t('nombre_comercial',80)||null,instagram:t('instagram',120).replace(/^.*instagram\.com\//i,'').replace(/^@/,'').replace(/[/?].*$/,'')||null,
+  tiktok:t('tiktok',120).replace(/^.*tiktok\.com\/@?/i,'').replace(/^@/,'').replace(/[/?].*$/,'')||null,facebook:t('facebook',200)||null,descripcion_servicios:t('descripcion_servicios',300)||null};
  if(d.nombre_completo.length<3)throw Error('Escribe tu nombre completo.');
  if(!/^[0-9A-Z]{5,15}$/.test(d.cedula))throw Error('La cédula o pasaporte debe tener entre 5 y 15 letras o números.');
  if(!/^[0-9+ ()-]{7,20}$/.test(d.celular))throw Error('Escribe un celular válido.');
  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.correo))throw Error('Escribe un correo válido.');
  if(d.direccion.length<5)throw Error('Escribe tu dirección.');
+ if(!d.instagram||!/^[A-Za-z0-9._]{1,30}$/.test(d.instagram))throw Error('Escribe tu usuario de Instagram (por ejemplo @tumarca).');
+ if(d.tiktok&&!/^[A-Za-z0-9._]{1,30}$/.test(d.tiktok))throw Error('Revisa tu usuario de TikTok.');
+ if(d.nombre_comercial&&d.nombre_comercial.length<2)throw Error('Revisa el nombre comercial.');
  if(!tipos.includes(d.tipo_aliado_id))throw Error('Elige qué tipo de aliado eres.');
  if(sedes&&!sedes.includes(String(d.sede_principal)))throw Error('Elige la sede con la que trabajas.');
  if(!d.banco||!d.tipo_cuenta||!(isKeyType(d.tipo_cuenta)?!keyError(d.tipo_cuenta,d.numero_cuenta):/^[0-9A-Z-]{4,34}$/i.test(d.numero_cuenta))||d.titular_cuenta.length<3)throw Error(keyError(d.tipo_cuenta,d.numero_cuenta)||'Completa banco, tipo, número y titular de la cuenta.');
