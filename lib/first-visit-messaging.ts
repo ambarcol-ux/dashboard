@@ -38,7 +38,7 @@ export function openWindowPayload(type:string,c:NotificationVisit,siteName:strin
  const where=c.modalidad==='virtual'?'de forma virtual':`en ${siteName}${site?.direccion?` (${site.direccion})`:''}`;
  if(type==='recordatorio24'){const texto=`Hola ${name} 💛 Te recordamos tu primera cita ${where} el ${when}. ¿Nos confirmas que vienes?`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'rc_confirmo',title:'Confirmo'}},{type:'reply',reply:{id:'rc_reagendar',title:'Reagendar'}}]}}}};}
- if(type==='recordatorio2'){const texto=`Hola ${name}, ¡hoy es tu cita! Te esperamos ${where} a las ${visitTime(c.hora)}${site?.mapa?`. Cómo llegar: ${site.mapa}`:''}. Si se te presenta algo, puedes cambiarla aquí: ${link}`;
+ if(type==='recordatorio2'){const texto=`Hola ${name}, ¡hoy es tu cita! Te esperamos ${where} a las ${visitTime(c.hora)}${site?.mapa?`. Cómo llegar: ${site.mapa}`:''}.${c.modalidad!=='virtual'&&site?.parqueadero?` ${site.parqueadero}`:''} Si se te presenta algo, puedes cambiarla aquí: ${link}`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
  if(type==='recuperar'){const texto=`Hola ${name} 💛 Hoy te esperábamos en tu cita y nos quedamos con ganas de verte. Si quieres, elige una nueva fecha aquí y te tenemos los vestidos listos: ${link}`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
@@ -67,7 +67,7 @@ export function confirmationPayload(c:NotificationVisit,siteName:string,lang='es
  if(!site)return null;
  const values=c.modalidad==='virtual'
   ?[c.cliente_nombre,visitDate(c.fecha),visitTime(c.hora),site.nombre,site.telefono,`https://wa.me/${site.whatsapp}`]
-  :[c.cliente_nombre,site.nombre,visitDate(c.fecha),visitTime(c.hora),site.direccion,site.mapa,site.nombre,site.telefono,`https://wa.me/${site.whatsapp}`];
+  :[c.cliente_nombre,site.nombre,visitDate(c.fecha),visitTime(c.hora),site.parqueadero?`${site.direccion} · ${site.parqueadero}`:site.direccion,site.mapa,site.nombre,site.telefono,`https://wa.me/${site.whatsapp}`];
  const name=c.modalidad==='virtual'?CONFIRMATION_TEMPLATES.virtual:CONFIRMATION_TEMPLATES.presencial;
  return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name,language:{code:lang},components:[{type:'body',parameters:values.map(text=>({type:'text',text}))}]}};
 }

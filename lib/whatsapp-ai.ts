@@ -41,6 +41,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Fotos y archivos: si la clienta envía una foto (por ejemplo de un vestido que le gustó o de su inspiración), descríbela en pocas palabras y sugiere vestidos parecidos del inventario de su sede; no afirmes que es el mismo vestido.
 - Catálogo: si la clienta pide ver vestidos, modelos, fotos o el catálogo, envíale el enlace del catálogo de su sede y tipo de vestido tal cual aparece en <catalogos> (no lo modifiques). Si sabes la sede pero no el tipo de vestido, envía el enlace general de esa sede (ahí la clienta elige el tipo). Si no sabes la sede, pregúntala primero. Si esa combinación no está en la lista, di que una asesora le comparte opciones. Invítala a agendar su primera cita desde el catálogo.
 - Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
+- Parqueadero: si una sede tiene «parqueadero» en <sedes>, dalo cuando pregunten por parqueadero o cuando agende o confirme una cita presencial en esa sede: aclara que es un parqueadero aliado (no propio) y que para el descuento debe pedir en Ámbar el sello en su tiquete de parqueo. Si la sede no tiene «parqueadero», no inventes uno: di que no hay convenio de parqueadero en esa sede.
 - Reagendar o cancelar la primera cita (no confundir con cancelar un contrato): si quiere reagendar, envíale el enlace para reprogramar que aparece en <sedes>; ahí escribe su cédula y elige el nuevo horario. Si dice que no la encuentra con su cédula, marca atender_persona=true. Si quiere cancelar, ofrécele primero reagendar para no perder su cita; si insiste en cancelar, dile que una asesora la ayuda y marca atender_persona=true con el motivo «Cancelar cita». Si ya tiene contrato y quiere cambiar las citas de medidas, prueba o entrega, marca atender_persona=true.
 - Marca atender_persona=true (tu respuesta igual se envía y el chat queda marcado para una asesora) solo cuando la clienta pida hablar con una persona, reclame o discuta un cobro, una multa o una cláusula, pida una excepción, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
 
@@ -69,12 +70,12 @@ const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sed
 export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string};
 export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string};
 type Msg={direccion:string;texto:string|null;created_at:string};
-type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null};
+type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null;parqueadero?:string|null};
 
 /** System prompt: fixed rules plus what administration wrote in «IA de WhatsApp». Stable between chats so it can be cached. */
 function systemPrompt(cfg:IaConfig,sites:Site[],clauses:string,catalogs=''){
  const origin=(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'');
- const sedes=sites.map(s=>`- ${s.nombre}: dirección ${s.direccion_clientes||s.direccion||'—'}; WhatsApp ${s.whatsapp||'—'}; mapa ${s.mapa_url||'—'}; agenda de primera cita ${origin}/agendar-primera-cita?sede=${s.id}&o=ia-whatsapp`).join('\n');
+ const sedes=sites.map(s=>`- ${s.nombre}: dirección ${s.direccion_clientes||s.direccion||'—'}; WhatsApp ${s.whatsapp||'—'}; mapa ${s.mapa_url||'—'}${s.parqueadero?`; parqueadero: ${s.parqueadero}`:''}; agenda de primera cita ${origin}/agendar-primera-cita?sede=${s.id}&o=ia-whatsapp`).join('\n');
  return [BASE,
   `<sedes>\n${sedes}\nEnlace para reprogramar la primera cita (todas las sedes): ${origin}/reprogramar-primera-cita\n</sedes>`,
   `<conocimientos>\n${cfg.conocimientos.trim()||'(sin conocimientos adicionales)'}\n</conocimientos>`,
@@ -125,7 +126,7 @@ export async function loadCatalogLinks(db:SupabaseClient){
 async function loadBasics(db:SupabaseClient){
  const [{data:cfg},{data:sites},clauses,catalogs]=await Promise.all([
   db.from('whatsapp_ia_config').select('conocimientos,instrucciones,escalamiento,auto_activa,reactivar_horas').eq('id',1).maybeSingle(),
-  db.from('sedes').select('id,nombre,direccion,direccion_clientes,whatsapp,mapa_url').eq('activo',true).order('nombre'),
+  db.from('sedes').select('id,nombre,direccion,direccion_clientes,whatsapp,mapa_url,parqueadero').eq('activo',true).order('nombre'),
   loadContractClauses(db),
   loadCatalogLinks(db),
  ]);
