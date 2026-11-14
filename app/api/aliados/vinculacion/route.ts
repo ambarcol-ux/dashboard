@@ -44,7 +44,7 @@ export async function POST(request:Request){
   await db.from('aliados').update({certificacion_path:certPath}).eq('id',ally.id);
   const tipo=(tipos||[]).find(t=>t.id===d.tipo_aliado_id)?.nombre||'',now=new Date();
   const profile:AllyProfile={nombre:d.nombre_completo,cedula:d.cedula,representante:'',celular:d.celular,correo:d.correo,direccion:d.direccion,ciudad:'Colombia',banco:d.banco,tipo_cuenta:d.tipo_cuenta,numero_cuenta:d.numero_cuenta};
-  const texto=agreementText(agreement,{...profile,tipo},now);
+  const texto=agreementText(agreement,{...profile,tipo},now,(sedes||[]).find(x=>String(x.id)===String(d.sede_principal))?.nombre);
   const r=await finishAllySigning(db,{id:ally.id,nombre:d.nombre_completo,cedula:d.cedula,correo:d.correo,tipo},texto,firma,agreement.acuerdo?`Word v${agreement.acuerdo.version}`:ALLY_CONTRACT_VERSION,profile,request,now);
   if('error' in r)return publicReply({error:r.error},r.status);
   // Data authorization of the person (once per person): processing accepted with the agreement text; commercial optional.

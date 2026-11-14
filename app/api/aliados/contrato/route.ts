@@ -59,11 +59,11 @@ async function directAlly(db:ReturnType<typeof publicServerClient>,id:string,bod
  if(!agreement.ready)return publicReply({error:'El contrato aún no está listo para firmar. Ámbar Couture te avisará.'},409);
  const sede=(ally.sedes as {nombre?:string}|null)?.nombre||'',tipo=(ally.tipos_aliado as {nombre?:string}|null)?.nombre||'';
  const profile:AllyProfile={nombre:ally.nombre_completo,cedula:ally.cedula,representante:'',celular:ally.celular,correo:ally.correo,direccion:ally.direccion,ciudad:sede||'Colombia',banco:'',tipo_cuenta:'',numero_cuenta:''};
- if(body.accion!=='firmar')return publicReply({firmado:false,directo:true,config:configView(agreement.config),aliado:profile,acuerdo:agreement.acuerdo?agreementText(agreement,{...profile,tipo},new Date()):null});
+ if(body.accion!=='firmar')return publicReply({firmado:false,directo:true,config:configView(agreement.config),aliado:profile,acuerdo:agreement.acuerdo?agreementText(agreement,{...profile,tipo},new Date(),sede):null});
  if(!validSignature(body.firma))return publicReply({error:'Dibuja tu firma en el recuadro.'},400);
  if(body.acepta!==true||body.acepta_datos!==true)return publicReply({error:'Debes aceptar el contrato y la autorización de tratamiento de datos para firmar.'},400);
  if(typeof body.comercial!=='boolean')return publicReply({error:'Elige si autorizas o no recibir información comercial.'},400);
- const now=new Date(),texto=agreementText(agreement,{...profile,tipo},now);
+ const now=new Date(),texto=agreementText(agreement,{...profile,tipo},now,sede);
  const r=await finishAllySigning(db,{id:ally.id,nombre:ally.nombre_completo,cedula:ally.cedula,correo:ally.correo,tipo},texto,body.firma,agreement.acuerdo?`Word v${agreement.acuerdo.version}`:ALLY_CONTRACT_VERSION,profile,request,now);
  if('error' in r)return publicReply({error:r.error},r.status);
  try{await registerAuthorization(db,{documento:ally.cedula,telefono:ally.celular,nombre:ally.nombre_completo,email:ally.correo,origen:'vinculacion_aliado',tratamiento:true,comercial:body.comercial===true,pendiente:false,aliado:ally.id});}catch(e){console.error('Autorización de datos del aliado no registrada:',e);}

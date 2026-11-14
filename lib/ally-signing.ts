@@ -2,6 +2,7 @@ import {createHash} from 'node:crypto';
 import type {publicServerClient} from './public-db';
 import {ALLY_CONTRACT_VERSION,DATA_AUTHORIZATION,agreementDate,allyContractText,fillAgreement,missingConfig,type AllyContractConfig,type AllyProfile,type ContractSection} from './ally-contract-text';
 import {allyAgreementPdf} from './ally-pdf';
+import {ownerAgreement} from './contract-owner';
 import {allyAdminNoticeEmail,allySignedEmail,sendAllyEmail} from './ally-emails';
 
 type Db=ReturnType<typeof publicServerClient>;
@@ -16,8 +17,9 @@ export async function loadAgreement(db:Db){
  if(e1||e2)throw Error('UNAVAILABLE');
  return {acuerdo:acuerdo as AllyAgreement,config:config as AllyContractConfig|null,ready:!!acuerdo||!missingConfig(config).length};
 }
-export function agreementText(a:{acuerdo:AllyAgreement;config:AllyContractConfig|null},p:AllyProfile&{tipo:string},at:Date):ContractSection[]{
- return a.acuerdo?[...fillAgreement(a.acuerdo.secciones,{nombre:p.nombre,cedula:p.cedula,tipo:p.tipo,fecha:agreementDate(at)}),DATA_AUTHORIZATION]:allyContractText(a.config as AllyContractConfig,p,at,[DATA_AUTHORIZATION]);
+export function agreementText(a:{acuerdo:AllyAgreement;config:AllyContractConfig|null},p:AllyProfile&{tipo:string},at:Date,sede?:string|null):ContractSection[]{
+ // The ally signs with the owner of her store (Villavicencio keeps the uploaded text as is).
+ return a.acuerdo?[...ownerAgreement(fillAgreement(a.acuerdo.secciones,{nombre:p.nombre,cedula:p.cedula,tipo:p.tipo,fecha:agreementDate(at)}),sede),DATA_AUTHORIZATION]:allyContractText(a.config as AllyContractConfig,p,at,[DATA_AUTHORIZATION]);
 }
 
 /** Saves the signature, the signed PDF and the data authorization; the ally becomes Pendiente and administration is notified. */
