@@ -9,8 +9,10 @@ type Pieza={id:string;formato:string;redes:string[];sede_id:string|null;orden:st
  resultado:Record<string,{estado?:string;enlace?:string;error?:string}>;error:string|null;created_at:string};
 type Lib={id:string;url:string;tipo:'imagen'|'video';titulo:string|null;etiquetas:string[];sede_id:string|null;tiene_clienta:boolean;autorizada:boolean};
 type Sede={id:string;nombre:string};
+type Regla={id?:string;nombre:string;activa:boolean;disparador:'calendario'|'vestido_nuevo';dias:number[];hora:string;cantidad:number;formato:string;redes:string[];sede_id:string|null;orden:string};
+const DIAS=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
 const FORMATO:Record<string,string>={historia:'Historia',publicacion:'Publicación',carrusel:'Carrusel',reel:'Reel'};
-const RED:Record<string,string>={instagram:'Instagram',facebook:'Facebook',whatsapp:'Estado de WhatsApp'};
+const RED:Record<string,string>={instagram:'Instagram',facebook:'Facebook',tiktok:'TikTok',whatsapp:'Estado de WhatsApp'};
 const ESTADO:Record<string,[string,string]>={por_aprobar:['Por aprobar','bg-amber-100 text-amber-800'],aprobada:['Programada','bg-sky-100 text-sky-800'],publicando:['Publicando…','bg-sky-100 text-sky-800'],
  publicada:['Publicada','bg-emerald-100 text-emerald-800'],error:['Con error','bg-red-100 text-red-700'],descartada:['Descartada','bg-gray-100 text-gray-500']};
 const VISTAS:[string,string,string[]][]=[['aprobar','Por aprobar',['por_aprobar']],['programadas','Programadas',['aprobada','publicando']],['publicadas','Publicadas',['publicada']],['error','Con error',['error']],['descartadas','Descartadas',['descartada']]];
@@ -42,16 +44,18 @@ export default function EstudioContenidoPage(){
 }
 
 function Estudio(){
- const [tab,setTab]=useState<'piezas'|'nueva'|'biblioteca'>('piezas'),[vista,setVista]=useState('aprobar');
+ const [tab,setTab]=useState<'piezas'|'nueva'|'reglas'|'biblioteca'>('piezas'),[reglas,setReglas]=useState<Regla[]>([]),[vista,setVista]=useState('aprobar');
  const [piezas,setPiezas]=useState<Pieza[]|null>(null),[lib,setLib]=useState<Lib[]>([]),[sedes,setSedes]=useState<Sede[]>([]),[admin,setAdmin]=useState(false);
  const [error,setError]=useState(''),[busy,setBusy]=useState('');
  const load=useCallback(async()=>{
-  const [{data:p,error:e},{data:l},{data:s},{data:a}]=await Promise.all([
+  const [{data:p,error:e},{data:l},{data:s},{data:a},{data:rg}]=await Promise.all([
    supabase.from('contenido_piezas').select('id,formato,redes,sede_id,orden,texto,idea,medios,programada_at,estado,resultado,error,created_at').order('created_at',{ascending:false}).limit(150),
    supabase.from('contenido_biblioteca').select('id,url,tipo,titulo,etiquetas,sede_id,tiene_clienta,autorizada').eq('archivado',false).order('created_at',{ascending:false}).limit(300),
    supabase.from('sedes').select('id,nombre').order('nombre'),
    supabase.rpc('es_admin'),
+   supabase.from('contenido_reglas').select('id,nombre,activa,disparador,dias,hora,cantidad,formato,redes,sede_id,orden').order('created_at'),
   ]);
+  setReglas(((rg||[]) as Regla[]).map(r=>({...r,hora:String(r.hora).slice(0,5)})));
   if(e)setError(e.message);else setPiezas((p||[]) as Pieza[]);
   setLib((l||[]) as Lib[]);setSedes((s||[]) as Sede[]);setAdmin(a===true);
  },[]);
@@ -61,10 +65,11 @@ function Estudio(){
  const cuenta=(estados:string[])=>(piezas||[]).filter(p=>estados.includes(p.estado)).length;
  return <div className="space-y-4">
   <div className="flex gap-2 flex-wrap">
-   {([['piezas','Piezas'],['nueva','Crear con IA'],['biblioteca',`Biblioteca · ${lib.length}`]] as const).map(([k,l])=><button key={k} type="button" onClick={()=>setTab(k)} className={`px-4 py-2 rounded-xl text-sm font-black ${tab===k?'bg-rose-600 text-white':'bg-white border'}`}>{l}</button>)}
+   {([['piezas','Piezas'],['nueva','Crear con IA'],['reglas',`Reglas · ${reglas.filter(r=>r.activa).length}`],['biblioteca',`Biblioteca · ${lib.length}`]] as const).map(([k,l])=><button key={k} type="button" onClick={()=>setTab(k)} className={`px-4 py-2 rounded-xl text-sm font-black ${tab===k?'bg-rose-600 text-white':'bg-white border'}`}>{l}</button>)}
   </div>
   {error&&<p className="text-red-600 font-bold text-sm">{error}</p>}
   {tab==='nueva'&&<Nueva sedes={sedes} busy={busy} onCrear={body=>run('crear',{accion:'crear',...body},()=>{setTab('piezas');setVista('aprobar');})}/>}
+  {tab==='reglas'&&<Reglas reglas={reglas} sedes={sedes} admin={admin} busy={busy} run={run}/>}
   {tab==='biblioteca'&&<Biblioteca lib={lib} sedes={sedes} sede={sede} onChange={load} setError={setError} run={run} busy={busy}/>}
   {tab==='piezas'&&<>
    <div className="flex gap-2 flex-wrap">{VISTAS.map(([k,l,e])=><button key={k} type="button" onClick={()=>setVista(k)} className={`px-3 py-1.5 rounded-xl text-xs font-black ${vista===k?'bg-gray-900 text-white':'bg-white border'}`}>{l} · {cuenta(e)}</button>)}</div>
@@ -165,5 +170,48 @@ function Biblioteca({lib,sedes,sede,onChange,setError,run,busy}:{lib:Lib[];sedes
     {x.tiene_clienta&&<p className={`text-[10px] font-black ${x.autorizada?'text-emerald-700':'text-red-600'}`}>{x.autorizada?'Clienta autorizada':'Clienta sin autorización: la IA no la usa'}</p>}
     <button type="button" disabled={!!busy} onClick={()=>{if(window.confirm('¿Quitar de la biblioteca?'))void run(`archivar:${x.id}`,{accion:'archivar',id:x.id});}} className="text-[10px] font-black text-gray-400 underline">Quitar</button></div>
   </div>)}</div>}
+ </div>;
+}
+
+const NUEVA_REGLA:Regla={nombre:'',activa:true,disparador:'calendario',dias:[1,3,5],hora:'10:00',cantidad:1,formato:'historia',redes:['instagram','facebook'],sede_id:null,orden:''};
+const EJEMPLOS_REGLA:[string,Partial<Regla>][]=[
+ ['3 historias de XV lunes, miércoles y viernes',{nombre:'Historias de XV',dias:[1,3,5],cantidad:3,formato:'historia',orden:'Historia de un vestido de XV años distinto cada vez, con la promoción vigente si aplica.'}],
+ ['Carrusel de gala los sábados',{nombre:'Carrusel de gala',dias:[6],cantidad:1,formato:'carrusel',orden:'Carrusel de 5 vestidos de gala variados en colores, invitando a agendar cita.'}],
+ ['Vestido nuevo: publicación el mismo día',{nombre:'Vestido nuevo',disparador:'vestido_nuevo',cantidad:1,formato:'publicacion',orden:'Publicación presentando el vestido nuevo del inventario, sin precio, invitando a agendar cita para probárselo.'}],
+];
+
+/** Rules: the ERP creates these pieces each morning by itself (calendar) or when a dress enters the inventory; they wait for approval. */
+function Reglas({reglas,sedes,admin,busy,run}:{reglas:Regla[];sedes:Sede[];admin:boolean;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>}){
+ const [edit,setEdit]=useState<Regla|null>(null);
+ const sede=(id:string|null)=>sedes.find(s=>s.id===id)?.nombre||'Todas las sedes';
+ const toggle=<T,>(arr:T[],v:T)=>arr.includes(v)?arr.filter(x=>x!==v):[...arr,v];
+ return <div className="space-y-4">
+  <p className="text-sm text-gray-600 max-w-3xl">Cada mañana (5 a 9 a. m.) el ERP crea las piezas de las reglas activas y las programa a la hora de la regla. Todas quedan «Por aprobar»: nada se publica sin tu aprobación. No repite vestidos usados en las últimas 2 semanas.</p>
+  {admin&&!edit&&<div className="flex gap-2 flex-wrap"><button type="button" onClick={()=>setEdit(NUEVA_REGLA)} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black">Nueva regla</button>
+   {EJEMPLOS_REGLA.map(([l,r])=><button key={l} type="button" onClick={()=>setEdit({...NUEVA_REGLA,...r})} className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 text-xs font-bold">{l}</button>)}</div>}
+  {edit&&<section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3 max-w-3xl">
+   <div className="grid sm:grid-cols-2 gap-3">
+    <label className="text-sm font-black text-gray-700">Nombre<input className={`${input} mt-1`} value={edit.nombre} onChange={e=>setEdit({...edit,nombre:e.target.value})}/></label>
+    <label className="text-sm font-black text-gray-700">Cuándo<select className={`${input} mt-1`} value={edit.disparador} onChange={e=>setEdit({...edit,disparador:e.target.value as Regla['disparador']})}><option value="calendario">Días fijos de la semana</option><option value="vestido_nuevo">Cada vestido nuevo del inventario</option></select></label>
+   </div>
+   {edit.disparador==='calendario'&&<div className="flex gap-2 flex-wrap">{DIAS.map((d,i)=><button key={d} type="button" onClick={()=>setEdit({...edit,dias:toggle(edit.dias,i)})} className={`px-3 py-1.5 rounded-lg text-xs font-black ${edit.dias.includes(i)?'bg-gray-900 text-white':'bg-white border'}`}>{d}</button>)}</div>}
+   <div className="grid sm:grid-cols-4 gap-3">
+    <label className="text-sm font-black text-gray-700">Hora<input type="time" className={`${input} mt-1`} value={edit.hora} onChange={e=>setEdit({...edit,hora:e.target.value})}/></label>
+    {edit.disparador==='calendario'&&<label className="text-sm font-black text-gray-700">Piezas por día<input type="number" min={1} max={5} className={`${input} mt-1`} value={edit.cantidad} onChange={e=>setEdit({...edit,cantidad:Number(e.target.value)})}/></label>}
+    <label className="text-sm font-black text-gray-700">Formato<select className={`${input} mt-1`} value={edit.formato} onChange={e=>setEdit({...edit,formato:e.target.value})}>{Object.entries(FORMATO).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label>
+    <label className="text-sm font-black text-gray-700">Sede<select className={`${input} mt-1`} value={edit.sede_id||''} onChange={e=>setEdit({...edit,sede_id:e.target.value||null})}><option value="">Todas</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
+   </div>
+   <div className="flex gap-4 flex-wrap text-sm font-bold text-gray-700">{Object.entries(RED).map(([k,l])=><label key={k} className="flex items-center gap-2"><input type="checkbox" checked={edit.redes.includes(k)} onChange={()=>setEdit({...edit,redes:toggle(edit.redes,k)})}/>{l}</label>)}</div>
+   <label className="block text-sm font-black text-gray-700">Orden para la IA<textarea className={`${input} mt-1 min-h-24`} value={edit.orden} maxLength={1000} onChange={e=>setEdit({...edit,orden:e.target.value})}/></label>
+   <div className="flex gap-2"><button type="button" disabled={!!busy} onClick={()=>void run('regla',{accion:'regla_guardar',regla:edit}).then(()=>setEdit(null))} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black disabled:opacity-40">{busy==='regla'?'Guardando…':'Guardar regla'}</button>
+    <button type="button" onClick={()=>setEdit(null)} className="px-4 py-2 rounded-xl border text-sm font-black text-gray-600">Cancelar</button></div>
+  </section>}
+  {!reglas.length?<p className="text-sm text-gray-500">Aún no hay reglas.</p>:<div className="grid gap-3 md:grid-cols-2">{reglas.map(r=><article key={r.id} className={`bg-white rounded-2xl border p-4 space-y-1 ${r.activa?'border-gray-100':'border-dashed border-gray-200 opacity-60'}`}>
+   <div className="flex justify-between gap-2"><p className="font-black text-gray-900">{r.nombre}</p><span className="text-[11px] font-black text-gray-400">{r.activa?'Activa':'Pausada'}</span></div>
+   <p className="text-xs text-gray-600">{r.disparador==='vestido_nuevo'?'Cada vestido nuevo':`${r.dias.map(d=>DIAS[d]).join(', ')} · ${r.cantidad} por día`} · {r.hora} · {FORMATO[r.formato]} · {r.redes.map(x=>RED[x]).join(', ')} · {sede(r.sede_id)}</p>
+   <p className="text-xs text-gray-500 italic">{r.orden}</p>
+   {admin&&<div className="flex gap-2 pt-1"><button type="button" onClick={()=>setEdit(r)} className="px-3 py-1.5 rounded-lg border text-xs font-black">Editar</button>
+    <button type="button" disabled={!!busy} onClick={()=>void run(`activa:${r.id}`,{accion:'regla_activa',id:r.id,activa:!r.activa})} className="px-3 py-1.5 rounded-lg border text-xs font-black">{r.activa?'Pausar':'Activar'}</button></div>}
+  </article>)}</div>}
  </div>;
 }
