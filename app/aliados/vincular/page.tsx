@@ -4,6 +4,7 @@ import SignatureCanvas from 'react-signature-canvas';
 import {CheckCircle,Eraser,Loader2,PenTool} from 'lucide-react';
 import AllyContractText from '@/components/AllyContractText';
 import {agreementDate,allyContractText,fillAgreement,type AllyContractConfig,type ContractSection} from '@/lib/ally-contract-text';
+import {ownerAgreement} from '@/lib/contract-owner';
 import AccountTypeOptions from '@/components/AccountTypeOptions';
 import {accountInputMode,accountLabel} from '@/lib/bank-keys';
 
@@ -22,7 +23,7 @@ export default function AllySignupPage(){
  const preview=useMemo(()=>{
   if(!info)return null;
   const v={nombre:datos.nombre_completo||'{nombre}',cedula:datos.cedula||'{cédula}',tipo,fecha:agreementDate(new Date())};
-  return info.acuerdo?fillAgreement(info.acuerdo,v):info.config?allyContractText(info.config,{nombre:v.nombre,cedula:v.cedula,representante:'',celular:datos.celular,correo:datos.correo,direccion:datos.direccion,ciudad:'Colombia',banco:datos.banco,tipo_cuenta:datos.tipo_cuenta,numero_cuenta:datos.numero_cuenta}):null;
+  return info.acuerdo?ownerAgreement(fillAgreement(info.acuerdo,v),info.sedes.find(x=>x.id===datos.sede_principal)?.nombre):info.config?allyContractText(info.config,{nombre:v.nombre,cedula:v.cedula,representante:'',celular:datos.celular,correo:datos.correo,direccion:datos.direccion,ciudad:'Colombia',banco:datos.banco,tipo_cuenta:datos.tipo_cuenta,numero_cuenta:datos.numero_cuenta}):null;
  },[info,datos,tipo]);
  const send=async()=>{
   setError('');
