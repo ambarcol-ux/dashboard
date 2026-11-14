@@ -6,12 +6,13 @@ import {mainPhoto} from './dress-photo-match';
 import {documentsForAI} from './doc-ia';
 import {promotionsForAI} from './whatsapp-ai';
 import {pageToken,type SocialSettings} from './social-inbox';
+import {publishTiktok} from './tiktok';
 
 /** Marketing › Estudio de contenido: pieces (story, post, carousel, reel) made by the AI from the real inventory and the
  *  team's library, approved by administration and published by the ERP on Instagram and Facebook. WhatsApp statuses
  *  are left ready to download (Meta does not allow publishing them by API). */
 export type Formato='historia'|'publicacion'|'carrusel'|'reel';
-export type Red='instagram'|'facebook'|'whatsapp';
+export type Red='instagram'|'facebook'|'tiktok'|'whatsapp';
 export type Medio={url:string;tipo:'imagen'|'video';fuente:'vestido'|'biblioteca';ref:string;nota?:string};
 export type Pieza={id:string;formato:Formato;redes:Red[];sede_id:string|null;texto:string|null;medios:Medio[];estado:string;resultado:Record<string,Record<string,string>>;error:string|null};
 
@@ -33,7 +34,7 @@ const OUT={type:'object',additionalProperties:false,required:['idea','texto','ve
 }};
 
 /** Creates a piece from a free order («carrusel de 5 vestidos rojos talla M de Bogotá»). It stays waiting for approval. */
-export async function createPiece(db:SupabaseClient,p:{orden:string;formato:Formato;redes:Red[];sede_id:string|null;programada_at:string|null},userId:string){
+export async function createPiece(db:SupabaseClient,p:{orden:string;formato:Formato;redes:Red[];sede_id:string|null;programada_at:string|null;regla_id?:string;regla_fecha?:string;excluir?:string[];vestido_id?:string},userId:string|null){
  const [{data:dresses},{data:desc},{data:sites},{data:types},{data:lib},docs,promos]=await Promise.all([
   db.from('vestidos').select('id,codigo,talla,color,categoria,sede_actual_id,clasificacion_id,precio_sugerido,precio_venta,foto_frente,foto_espalda,foto_detalle,imagen_url,para_alquiler,estado').eq('archivado',false),
   db.from('vestidos_ia_fotos').select('vestido_id,descripcion'),
@@ -45,8 +46,11 @@ export async function createPiece(db:SupabaseClient,p:{orden:string;formato:Form
  ]);
  const sede=new Map(((sites||[]) as {id:string;nombre:string;whatsapp:string|null}[]).map(s=>[s.id,s])),tipo=new Map(((types||[]) as {id:number;nombre:string}[]).map(t=>[t.id,t.nombre]));
  const d=new Map(((desc||[]) as {vestido_id:string;descripcion:string}[]).map(r=>[r.vestido_id,r.descripcion]));
- const ig=p.redes.includes('instagram');
- const list=((dresses||[]) as Dress[]).filter(x=>isPublicCatalogDress(x)&&mainPhoto(x)&&(!ig||isJpeg(mainPhoto(x)!))&&(!p.sede_id||x.sede_actual_id===p.sede_id));
+ // Instagram and TikTok take JPEG photos (TikTok also WEBP, but JPEG keeps one rule).
+ const ig=p.redes.includes('instagram')||p.redes.includes('tiktok');
+ // Rules avoid the dresses used in the last two weeks (variety); a «new dress» piece shows that dress.
+ const fuera=new Set(p.excluir||[]);
+ const list=((dresses||[]) as Dress[]).filter(x=>isPublicCatalogDress(x)&&mainPhoto(x)&&(!ig||isJpeg(mainPhoto(x)!))&&(p.vestido_id?x.id===p.vestido_id:(!p.sede_id||x.sede_actual_id===p.sede_id)&&!fuera.has(x.id)));
  // Customers' images only with their authorization.
  const libs=((lib||[]) as Lib[]).filter(x=>(!x.tiene_clienta||x.autorizada)&&(p.formato==='reel'?x.tipo==='video':p.formato==='historia'||x.tipo==='imagen')&&(!ig||x.tipo==='video'||isJpeg(x.url)));
  const peso=(n:number|null)=>n?`$${Number(n).toLocaleString('es-CO')}`:'—';
@@ -70,7 +74,7 @@ Reglas:
   ...out.vestidos.map(c=>byCode.get(String(c).trim())).filter((x):x is Dress=>!!x).map(x=>({url:mainPhoto(x)!,tipo:'imagen' as const,fuente:'vestido' as const,ref:x.id,nota:String(x.codigo).trim()})),
  ].filter((m,i,a)=>a.findIndex(o=>o.url===m.url)===i).slice(0,max);
  const {data,error}=await db.from('contenido_piezas').insert({formato:p.formato,redes:p.redes,sede_id:p.sede_id,orden:p.orden.slice(0,1000),texto:out.texto.slice(0,2200),idea:out.idea.slice(0,600),medios,
-  programada_at:p.programada_at,creado_por:userId,estado:'por_aprobar',error:medios.length<min?`Faltan fotos o videos: este formato necesita al menos ${min}. Agrega material a la biblioteca o cambia la orden.`:null}).select('id').single();
+  programada_at:p.programada_at,creado_por:userId,regla_id:p.regla_id||null,regla_fecha:p.regla_fecha||null,vestido_id:p.vestido_id||null,estado:'por_aprobar',error:medios.length<min?`Faltan fotos o videos: este formato necesita al menos ${min}. Agrega material a la biblioteca o cambia la orden.`:null}).select('id').single();
  if(error)throw error;
  return data.id as string;
 }
@@ -128,15 +132,17 @@ async function publishFacebook(s:SocialSettings,tk:string,p:Pieza,state:Record<s
 }
 
 /** Publishes one approved piece on its networks; each network keeps its own result, so a retry only redoes what failed. */
-export async function publishPiece(db:SupabaseClient,s:SocialSettings,p:Pieza){
- const tk=await pageToken(s),resultado={...p.resultado},errores:string[]=[];let pendiente=false;
+export async function publishPiece(db:SupabaseClient,s:SocialSettings|null,p:Pieza){
+ const meta=p.redes.some(r=>r==='instagram'||r==='facebook');
+ if(meta&&!s)throw Error('Instagram y Facebook no están conectados (Integraciones).');
+ const tk=meta&&s?await pageToken(s):'',resultado={...p.resultado},errores:string[]=[];let pendiente=false;
  for(const red of p.redes){
   const state=resultado[red]={...(resultado[red]||{})};
   if(red==='whatsapp'){state.estado='manual';continue;}
   try{
-   const ok=red==='instagram'?await publishInstagram(s,tk,p,state):await publishFacebook(s,tk,p,state);
+   const ok=red==='tiktok'?await publishTiktok(db,p,state):red==='instagram'?await publishInstagram(s!,tk,p,state):await publishFacebook(s!,tk,p,state);
    if(ok){state.estado='publicada';delete state.error;}else pendiente=true;
-  }catch(e){state.estado='error';state.error=(e instanceof Error?e.message:'Error').slice(0,300);errores.push(`${red==='instagram'?'Instagram':'Facebook'}: ${state.error}`);}
+  }catch(e){state.estado='error';state.error=(e instanceof Error?e.message:'Error').slice(0,300);errores.push(`${red==='instagram'?'Instagram':red==='tiktok'?'TikTok':'Facebook'}: ${state.error}`);}
  }
  const estado=errores.length?'error':pendiente?'publicando':'publicada';
  await db.from('contenido_piezas').update({resultado,estado,error:errores.join(' · ')||null,publicado_at:estado==='publicada'?new Date().toISOString():null,updated_at:new Date().toISOString()}).eq('id',p.id);

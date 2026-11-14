@@ -14,7 +14,6 @@ export async function POST(request:Request){
  const piezas=(data||[]) as Pieza[];
  if(!piezas.length)return Response.json({piezas:0});
  const s=await loadSocialSettings(db);
- if(!s)return Response.json({error:'Redes no conectadas'},{status:503});
  const out:Record<string,string>={};
  for(const p of piezas){
   await db.from('contenido_piezas').update({estado:'publicando',updated_at:new Date().toISOString()}).eq('id',p.id);

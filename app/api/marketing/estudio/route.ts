@@ -5,7 +5,7 @@ import {loadSocialSettings} from '@/lib/social-inbox';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
-const FORMATOS=['historia','publicacion','carrusel','reel'],REDES=['instagram','facebook','whatsapp'];
+const FORMATOS=['historia','publicacion','carrusel','reel'],REDES=['instagram','facebook','tiktok','whatsapp'];
 const MIME:Record<string,string>={'image/jpeg':'jpg','video/mp4':'mp4','video/quicktime':'mov'};
 const uuid=(v:unknown)=>typeof v==='string'&&/^[0-9a-f-]{36}$/i.test(v)?v:null;
 /** Bogotá local date-time from the form (YYYY-MM-DDTHH:mm) to ISO. */
@@ -61,8 +61,7 @@ export async function POST(request:Request){
    const now=new Date().toISOString(),aprobar=b.accion==='aprobar';
    await db.from('contenido_piezas').update({estado:aprobar?'aprobada':'publicando',aprobado_por:uid,aprobado_at:now,programada_at:aprobar?p.programada_at||now:now,error:null,updated_at:now}).eq('id',id);
    if(aprobar)return publicReply({ok:true});
-   const s=await loadSocialSettings(db);if(!s)return publicReply({error:'Instagram y Facebook no están conectados (Integraciones).'},400);
-   const estado=await publishPiece(db,s,p as Pieza);
+   const estado=await publishPiece(db,await loadSocialSettings(db),p as Pieza);
    return publicReply({ok:true,estado});
   }
   // Library: the browser uploads straight to Storage with a one-time signed URL (videos are too big for the server).
@@ -83,6 +82,23 @@ export async function POST(request:Request){
   if(b.accion==='archivar'){
    const id=uuid(b.id);if(!id)return publicReply({error:'Archivo no válido.'},400);
    await db.from('contenido_biblioteca').update({archivado:true}).eq('id',id);return publicReply({ok:true});
+  }
+  // Rules (administration): what the ERP creates by itself each day; the pieces still wait for approval.
+  if(b.accion==='regla_guardar'){
+   if(!esAdmin)return publicReply({error:'Solo administración crea y cambia reglas.'},403);
+   const r=(b.regla||{}) as Record<string,unknown>;
+   const redes=(Array.isArray(r.redes)?r.redes:[]).map(String).filter(x=>REDES.includes(x)),dias=(Array.isArray(r.dias)?r.dias:[]).map(Number).filter(n=>Number.isInteger(n)&&n>=0&&n<=6);
+   const fila={nombre:String(r.nombre||'').trim().slice(0,80),disparador:r.disparador==='vestido_nuevo'?'vestido_nuevo':'calendario',dias,hora:/^\d{2}:\d{2}$/.test(String(r.hora))?String(r.hora):'10:00',
+    cantidad:Math.min(5,Math.max(1,Number(r.cantidad)||1)),formato:FORMATOS.includes(String(r.formato))?String(r.formato):'publicacion',redes,sede_id:uuid(r.sede_id),orden:String(r.orden||'').trim().slice(0,1000),activa:r.activa!==false,updated_at:new Date().toISOString()};
+   if(fila.nombre.length<2||fila.orden.length<5||!redes.length||(fila.disparador==='calendario'&&!dias.length))return publicReply({error:'Completa el nombre, la orden, las redes y los días.'},400);
+   const id=uuid(r.id);
+   const {error}=id?await db.from('contenido_reglas').update(fila).eq('id',id):await db.from('contenido_reglas').insert({...fila,creado_por:uid});
+   if(error)throw error;return publicReply({ok:true});
+  }
+  if(b.accion==='regla_activa'){
+   if(!esAdmin)return publicReply({error:'Solo administración crea y cambia reglas.'},403);
+   const id=uuid(b.id);if(!id)return publicReply({error:'Regla no válida.'},400);
+   await db.from('contenido_reglas').update({activa:b.activa===true,updated_at:new Date().toISOString()}).eq('id',id);return publicReply({ok:true});
   }
   return publicReply({error:'Acción no válida.'},400);
  }catch(e){return publicReply({error:e instanceof Error?e.message.slice(0,300):'El servicio no está disponible.'},500);}
