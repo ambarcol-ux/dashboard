@@ -66,6 +66,39 @@ export async function storeSocialEvents(db:SupabaseClient,s:SocialSettings,paylo
  return [...touched];
 }
 
+/** Instagram direct messages read from Meta's Conversations API (every 2 minutes, Supabase cron), for when Meta does not
+ *  deliver them by webhook (app without advanced access to instagram_manage_messages). Messages from the last 30 minutes
+ *  go through storeSocialEvents like a webhook (repeats are ignored by their id). Outgoing messages count as answers typed
+ *  in Instagram (they pause the AI) only if the ERP did not send that same text. Returns the chats with new customer messages. */
+export async function pollInstagramMessages(db:SupabaseClient,s:SocialSettings){
+ if(!s.instagramId)return [];
+ const since=Date.now()-30*60000;
+ const r=await fetch(`https://graph.facebook.com/${version()}/${s.pageId}/conversations?platform=instagram&fields=updated_time,messages.limit(10){id,created_time,from,to,message,attachments}&limit=25&access_token=${encodeURIComponent(await pageToken(s))}`,{signal:AbortSignal.timeout(20000)});
+ const d=await r.json().catch(()=>({})) as Value;
+ if(!r.ok)throw Error(String(d.error?.message||r.status));
+ const messaging:Value[]=[];
+ for(const c of (d.data||[]) as Value[]){
+  if(new Date(c.updated_time).getTime()<since)continue;
+  for(const m of (c.messages?.data||[]) as Value[]){
+   const at=new Date(m.created_time).getTime();if(!(at>=since))continue;
+   const from=String(m.from?.id||''),to=String(m.to?.data?.[0]?.id||'');
+   const own=from===s.instagramId||from===s.pageId;
+   const att=(m.attachments?.data||[])[0] as Value|undefined;
+   const message:Value={mid:m.id,...(m.message?{text:m.message}:{}),...(att?{attachments:[{type:att.image_data?'image':att.video_data?'video':'file',payload:{url:att.image_data?.url||att.video_data?.url||att.file_url||''}}]}:{})};
+   if(own){
+    // Already in the inbox when the ERP (AI or team) sent it: same text to this chat in the last hour.
+    const {data:conv}=await db.from('whatsapp_conversaciones').select('id').eq('telefono',socialKey('instagram',to)).maybeSingle();
+    if(conv&&m.message){const {count}=await db.from('whatsapp_mensajes').select('id',{count:'exact',head:true}).eq('conversacion_id',conv.id).eq('direccion','saliente').eq('texto',String(m.message)).gte('created_at',new Date(at-3600000).toISOString());if(count)continue;}
+    if(!conv)continue;
+    message.is_echo=true;
+   }
+   messaging.push({sender:{id:from},recipient:{id:to},timestamp:at,message});
+  }
+ }
+ messaging.sort((a,b)=>a.timestamp-b.timestamp);
+ return messaging.length?storeSocialEvents(db,s,{object:'instagram',entry:[{messaging}]}):[];
+}
+
 /** Sends a text reply on Messenger or Instagram (within Meta's 24-hour window). Returns the message id. */
 export async function sendSocialText(s:SocialSettings,recipient:string,body:string){
  const r=await fetch(`https://graph.facebook.com/${version()}/${s.pageId}/messages?access_token=${encodeURIComponent(await pageToken(s))}`,{method:'POST',headers:{'Content-Type':'application/json'},
