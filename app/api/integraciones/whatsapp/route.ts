@@ -6,6 +6,13 @@ export const dynamic='force-dynamic';
 /** Templates the ERP sends; the first three are required, the detailed confirmations fall back to the short one. */
 const REQUIRED=['ambar_confirmacion_cita','ambar_recordatorio_cita','ambar_post_cita_asistencia'];
 const OPTIONAL=[CONFIRMATION_TEMPLATES.presencial,CONFIRMATION_TEMPLATES.virtual];
+/** Follow-up and allies templates (docs/plantillas-whatsapp.md) that the ERP can submit to Meta itself. */
+const NUEVAS:{name:string;category:'MARKETING'|'UTILITY';text:string;ejemplo:string[]}[]=[
+ {name:'ambar_seguimiento_promo',category:'MARKETING',text:'Hola {{1}} 💛 Soy de Ámbar Couture {{2}}. ¿Ya encontraste tu vestido? Tenemos {{3}}. Responde este mensaje y te mostramos opciones o separamos tu cita.',ejemplo:['Luisa','Barranquilla','20% de descuento pagando de contado en tienda hasta el 30 de noviembre']},
+ {name:'ambar_seguimiento_v2',category:'MARKETING',text:'Hola {{1}} 💛 Soy de Ámbar Couture {{2}}. ¿Ya encontraste tu vestido? Tenemos modelos nuevos y te ayudamos a elegir el ideal para tu evento. Responde este mensaje y te mostramos opciones o te agendamos una cita.',ejemplo:['Luisa','Barranquilla']},
+ {name:'ambar_aliado_recordatorio',category:'MARKETING',text:'Hola {{1}} 💛 Te escribimos de Ámbar Couture. ¿Pudiste revisar el programa de aliados? Incluye en tus paquetes nuestros vestidos de XV y gala con descuentos especiales para aliados y más de 600 vestidos en 4 sedes. Responde este mensaje y te ayudamos a completar tu vinculación.',ejemplo:['Carolina']},
+ {name:'ambar_aliado_bienvenida',category:'UTILITY',text:'¡Bienvenido(a) a los Aliados de Ámbar Couture, {{1}}! 💛 Tu código de aliado es {{2}}. Te enviamos al correo tus enlaces para registrar a tus clientas y consultar disponibilidad. Responde este mensaje si quieres que te expliquemos cómo registrar tu primera clienta.',ejemplo:['Carolina','ALI-FOT-0003']},
+];
 
 /** Configuración › Integraciones › WhatsApp: «Probar conexión» checks token, number, account and approved templates. Admin only. */
 export async function POST(request:Request){
@@ -48,6 +55,23 @@ export async function POST(request:Request){
    return publicReply({ok:true,phone_number_id:phoneId,waba_id:waba});
   }
   const {data:row}=await db.rpc('integracion_whatsapp_servidor');
+  // Submits the follow-up and allies templates to Meta for review (existing ones are left as they are).
+  if(body.accion==='crear_plantillas'){
+   const cfg=(row?.config||{}) as Record<string,string>,tk=String(row?.secreto||process.env.META_WA_TOKEN||''),waba=String(cfg.waba_id||'1276534877505186'),lang=cfg.idioma_plantillas||process.env.META_WA_TEMPLATE_LANG||'es_CO';
+   if(!tk)return publicReply({error:'No hay token de WhatsApp configurado.'},503);
+   const call=async(path:string,init?:RequestInit)=>{const r=await fetch(`https://graph.facebook.com/${version}/${path}`,{...init,headers:{Authorization:`Bearer ${tk}`,'Content-Type':'application/json'},signal:AbortSignal.timeout(15000)});return {ok:r.ok,d:await r.json().catch(()=>({})) as Record<string,unknown>};};
+   const msg=(d:Record<string,unknown>)=>String((d.error as {error_user_msg?:string;message?:string})?.error_user_msg||(d.error as {message?:string})?.message||'').slice(0,200);
+   const cur=await call(`${waba}/message_templates?fields=name,language,status&limit=200`);
+   if(!cur.ok)return publicReply({error:`No se pudieron leer las plantillas de la cuenta: ${msg(cur.d)}`},400);
+   const have=new Map(((cur.d.data as {name:string;language:string;status:string}[])||[]).filter(t=>t.language===lang).map(t=>[t.name,t.status]));
+   const resultado:{plantilla:string;estado:string}[]=[];
+   for(const t of NUEVAS){
+    if(have.has(t.name)){resultado.push({plantilla:t.name,estado:`Ya existía (${have.get(t.name)})`});continue;}
+    const r=await call(`${waba}/message_templates`,{method:'POST',body:JSON.stringify({name:t.name,language:lang,category:t.category,components:[{type:'BODY',text:t.text,example:{body_text:[t.ejemplo]}}]})});
+    resultado.push({plantilla:t.name,estado:r.ok?`Enviada a revisión (${String(r.d.status||'PENDING')})`:`Error: ${msg(r.d)}`});
+   }
+   return publicReply({ok:true,resultado});
+  }
   // Number change to another WhatsApp Business account: copies the ERP templates (same name, language, category and content) from one account to the other.
   if(body.accion==='copiar_plantillas'){
    const origen=String(body.origen||''),destino=String(body.destino||''),tk=String(row?.secreto||process.env.META_WA_TOKEN||'');
