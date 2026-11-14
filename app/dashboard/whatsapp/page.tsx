@@ -304,9 +304,15 @@ function Inbox(){
   // Older chats may be beyond the 300 loaded: look the phone up directly.
   void (async()=>{const c=convs.find(x=>x.telefono.slice(-10)===t.slice(-10))||((await supabase.from('whatsapp_conversaciones').select('*').like('telefono',`%${t.slice(-10)}`).limit(1).maybeSingle()).data as Conv|null);
    if(c){setConvs(l=>l.some(x=>x.id===c.id)?l:[c,...l]);setSel(c.id);setSinChat('');}else setSinChat(t);})();},[abrirTel,loading,convs]);
+ // The open chat stays open even if it is not among the 300 most recent (opened from a customer's file or the Pipeline).
+ const selRef=useRef<string|null>(null);
+ useEffect(()=>{selRef.current=sel;},[sel]);
  const load=useCallback(async()=>{
   const {data,error:e}=await supabase.from('whatsapp_conversaciones').select('*').order('ultimo_at',{ascending:false}).limit(300);
-  if(e)setError(e.message);else{setConvs((data||[]) as Conv[]);setError('');}
+  if(e)setError(e.message);else{
+   let list=(data||[]) as Conv[];const open=selRef.current;
+   if(open&&!list.some(c=>c.id===open)){const {data:c}=await supabase.from('whatsapp_conversaciones').select('*').eq('id',open).maybeSingle();if(c)list=[c as Conv,...list];}
+   setConvs(list);setError('');}
   setLoading(false);
  },[]);
  useEffect(()=>{
@@ -328,7 +334,7 @@ function Inbox(){
   {sinChat&&<p role="status" className={styles.notice}>Esta clienta todavía no ha escrito al 304. Puedes iniciar la conversación con un saludo aprobado por Meta; cuando responda, sigues escribiéndole normal desde aquí. <button type="button" className={`${styles.button} ${styles.primary}`} disabled={iniciando} onClick={()=>void iniciar(sinChat)}>{iniciando?'Enviando…':'Enviarle un saludo desde el ERP'}</button> · <a href={`https://wa.me/${sinChat}`} target="_blank" rel="noopener noreferrer">o desde el celular del 304</a> · <button type="button" onClick={()=>setSinChat('')}>Cerrar</button></p>}
   <div style={{display:'grid',gridTemplateColumns:'minmax(0,360px) minmax(0,1fr)',gap:16,alignItems:'start'}} className="wa-grid">
    <style>{`@media(max-width:860px){.wa-grid{grid-template-columns:minmax(0,1fr)!important}.wa-grid>.wa-hide{display:none}}`}</style>
-   <section className={`${styles.card} ${sel?'wa-hide':''}`} style={{padding:12}}>
+   <section className={`${styles.card} ${sel&&current?'wa-hide':''}`} style={{padding:12}}>
     <div style={{display:'flex',gap:8,marginBottom:8}}>
      <input aria-label="Buscar chat" placeholder="Buscar nombre o celular" value={q} onChange={e=>setQ(e.target.value)} style={{flex:1,minWidth:0}}/>
      <button className={styles.button} onClick={()=>void load()} aria-label="Actualizar"><RefreshCw size={14}/></button>
