@@ -111,7 +111,7 @@ export async function sendBestFollowup(settings:{token:string;phoneNumberId:stri
  return {waId:await sendWhatsappFollowup(settings,to,nombre,sede),texto:followupText(nombre,sede)};
 }
 /** Ally program templates (docs/plantillas-whatsapp.md); while Meta has not approved them, nothing is sent. */
-export const allyReminderText=(nombre:string)=>`Hola ${nombre} 💛 Te escribimos de Ámbar Couture. ¿Pudiste revisar el programa de aliados? Incluye nuestros vestidos de XV y gala en tus paquetes con 5 % de descuento y gana hasta 20 % de margen. Responde este mensaje y te ayudamos a completar tu vinculación.`;
+export const allyReminderText=(nombre:string)=>`Hola ${nombre} 💛 Te escribimos de Ámbar Couture. ¿Pudiste revisar el programa de aliados? Incluye en tus paquetes nuestros vestidos de XV y gala con descuentos especiales para aliados y más de 600 vestidos en 4 sedes. Responde este mensaje y te ayudamos a completar tu vinculación.`;
 export const sendAllyReminder=(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string)=>sendOptionalTemplate(settings,to,'ambar_aliado_recordatorio',[nombre.trim()||'hola']);
 export const allyWelcomeText=(nombre:string,codigo:string)=>`¡Bienvenido(a) a los Aliados de Ámbar Couture, ${nombre}! 💛 Tu código de aliado es ${codigo}. Te enviamos al correo tus enlaces para registrar a tus clientas y consultar disponibilidad. Responde este mensaje si quieres que te expliquemos cómo registrar tu primera clienta.`;
 export const sendAllyWelcome=(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,codigo:string)=>sendOptionalTemplate(settings,to,'ambar_aliado_bienvenida',[nombre.trim()||'aliado',codigo]);
