@@ -10,7 +10,7 @@ import {accountInputMode,accountLabel} from '@/lib/bank-keys';
 
 type Info={tipos:{id:number;nombre:string}[];sedes:{id:string;nombre:string}[];acuerdo:ContractSection[]|null;config:AllyContractConfig|null;autorizacion:ContractSection;comercial?:string|null};
 const ACCOUNT_TYPES=['Ahorros','Corriente','Nequi / Daviplata','Otra'];
-const FIELDS:[string,string,string?][]=[['nombre_completo','Nombre completo'],['cedula','Cédula','numeric'],['celular','Celular','tel'],['correo','Correo electrónico','email'],['direccion','Dirección'],['banco','Banco'],['numero_cuenta','Número de cuenta','numeric'],['titular_cuenta','Titular de la cuenta']];
+const FIELDS:[string,string,string?][]=[['nombre_completo','Nombre completo'],['cedula','Cédula (o pasaporte si eres de otro país)'],['celular','Celular','tel'],['correo','Correo electrónico','email'],['direccion','Dirección'],['banco','Banco'],['numero_cuenta','Número de cuenta','numeric'],['titular_cuenta','Titular de la cuenta']];
 const EMPTY:Record<string,string>={nombre_completo:'',cedula:'',celular:'',correo:'',direccion:'',tipo_aliado_id:'',sede_principal:'',banco:'',tipo_cuenta:'',numero_cuenta:'',titular_cuenta:''};
 
 /** Public sign-up of Aliados Directos: form, data authorization, agreement signature; the request stays Pendiente. */
@@ -35,7 +35,7 @@ export default function AllySignupPage(){
   if(!pad.current||pad.current.isEmpty())return setError('Dibuja tu firma en el recuadro.');
   setBusy(true);
   try{
-   const form=new FormData();form.append('datos',JSON.stringify(datos));form.append('certificacion',cert);form.append('acepta_datos','true');form.append('comercial',String(comercial));form.append('acepta','true');form.append('firma',pad.current.getTrimmedCanvas().toDataURL('image/png'));
+   const form=new FormData();form.append('datos',JSON.stringify(datos));form.append('certificacion',cert);form.append('acepta_datos','true');form.append('comercial',String(comercial));form.append('acepta','true');form.append('origen',new URLSearchParams(window.location.search).get('o')||'');form.append('firma',pad.current.getTrimmedCanvas().toDataURL('image/png'));
    const r=await fetch('/api/aliados/vinculacion',{method:'POST',body:form}),d=await r.json().catch(()=>({}));
    if(!r.ok)throw Error(d.error||'No se pudo enviar tu solicitud.');
    setDone(d.codigo);window.scrollTo({top:0,behavior:'smooth'});
