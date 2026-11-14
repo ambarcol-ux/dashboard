@@ -54,6 +54,11 @@ const connect=async()=>{
   const r=await fetch('/api/integraciones/whatsapp',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${data.session?.access_token||''}`},body:JSON.stringify({accion:'copiar_plantillas',origen:copia.origen.trim(),destino:copia.destino.trim()})});
   const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudieron copiar.');setCopiaRes(d.resultado||[]);
   toast.success(d.sin_origen?.length?`Listo. No estaban aprobadas en el origen: ${d.sin_origen.join(', ')}.`:'Plantillas enviadas a la cuenta de destino.');}catch(e){toast.error(e instanceof Error?e.message:'No se pudieron copiar.');}setBusy('');};
+ // Submit the follow-up and allies templates to Meta (no need to type them in WhatsApp Manager).
+ const [nuevasRes,setNuevasRes]=useState<{plantilla:string;estado:string}[]|null>(null);
+ const createTemplates=async()=>{setBusy('crear');setNuevasRes(null);try{const {data}=await supabase.auth.getSession();
+  const r=await fetch('/api/integraciones/whatsapp',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${data.session?.access_token||''}`},body:JSON.stringify({accion:'crear_plantillas'})});
+  const d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.error||'No se pudieron crear.');setNuevasRes(d.resultado||[]);toast.success('Listo. Meta revisa las plantillas (de minutos a 24 horas).');}catch(e){toast.error(e instanceof Error?e.message:'No se pudieron crear.');}setBusy('');};
  const input='w-full mt-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm';
  const field=(k:keyof typeof f,label:string,ph?:string)=><label className="text-sm font-bold text-gray-700">{label}<input className={input} value={f[k]} placeholder={ph} onChange={e=>setF({...f,[k]:e.target.value})}/></label>;
  const anteriores=Array.isArray(row?.config?.anteriores)?(row!.config.anteriores as string[]):[];
@@ -83,6 +88,12 @@ const connect=async()=>{
    </div>
    <button type="button" disabled={!!busy} onClick={()=>void connect()} className="mt-3 px-4 py-2.5 rounded-xl bg-[#1877f2] text-white text-sm font-black disabled:opacity-40">{busy==='conectar'?'Conectando…':'Conectar con Meta'}</button>
   </details>
+  <div className="border border-emerald-200 bg-emerald-50/50 rounded-2xl p-4">
+   <p className="font-black text-sm">Plantillas de seguimiento y aliados</p>
+   <p className="text-sm text-gray-600 mt-1">Envía a Meta para aprobación: ambar_seguimiento_promo, ambar_seguimiento_v2, ambar_aliado_recordatorio y ambar_aliado_bienvenida. Las que ya existan no se tocan.</p>
+   <button type="button" disabled={!!busy} onClick={()=>void createTemplates()} className="mt-3 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-black disabled:opacity-40">{busy==='crear'?'Enviando…':'Crear plantillas en Meta'}</button>
+   {nuevasRes&&<ul className="mt-3 text-sm space-y-1">{nuevasRes.map(r=><li key={r.plantilla}><b>{r.plantilla}:</b> {r.estado}</li>)}</ul>}
+  </div>
   <details className="border border-gray-200 bg-gray-50/50 rounded-2xl p-4"><summary className="cursor-pointer font-black text-sm">Copiar plantillas a otra cuenta de WhatsApp Business</summary>
    <p className="text-sm text-gray-600 mt-2">Si el nuevo número está en otra cuenta, copia ahí las plantillas que usa el ERP (mismo nombre, idioma y texto). Meta las revisa de nuevo; las que ya existan no se tocan.</p>
    <div className="grid md:grid-cols-2 gap-3 mt-3">
