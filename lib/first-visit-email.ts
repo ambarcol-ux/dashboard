@@ -30,7 +30,7 @@ export function appointmentEmail(event:'reserva'|'confirmacion'|'reprogramacion'
  const blocks:Block[]=[{icon:'📅',label:'Fecha',value:plainDate(detail.fecha)},{icon:'🕒',label:'Hora',value:visitTime(detail.hora)}];
  if(moved&&detail.anterior)blocks.push({icon:'↩️',label:'Antes',value:`${plainDate(detail.anterior.fecha)}, ${visitTime(detail.anterior.hora)}`});
  if(virtual)blocks.push(detail.enlace_virtual?{icon:'💻',label:'Enlace de la videollamada',href:detail.enlace_virtual}:{icon:'💻',label:'Videollamada',note:'Te enviaremos el enlace antes de tu cita.'});
- else if(site)blocks.push({icon:'📍',label:'Dirección',value:site.direccion},{icon:'🗺️',label:site.mapaEtiqueta,href:site.mapa});
+ else if(site)blocks.push({icon:'📍',label:'Dirección',value:site.direccion},{icon:'🗺️',label:site.mapaEtiqueta,href:site.mapa},...(site.parqueadero?[{icon:'🚗',label:'Parqueadero',value:site.parqueadero.replace(/^🚗\s*/,'')}]:[]));
  else if(siteName)blocks.push({icon:'📍',label:'Sede',value:siteName});
  if(site)blocks.push({icon:'📲',label:'¿Tienes alguna pregunta?',note:`Contacta a nuestra sede ${site.nombre}: ${site.telefono}`},{icon:'',label:'Escribir por WhatsApp',href:`https://wa.me/${site.whatsapp}`});
  if(detail.codigo)blocks.push({icon:'🔑',label:'Código de tu cita',value:virtual?detail.codigo:`${detail.codigo} (escríbelo en el QR de la entrada al llegar)`});
