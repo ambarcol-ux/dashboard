@@ -2,6 +2,7 @@ import { includedPrexv, type PrexvData } from '@/lib/prexv';
 import type { ContractExtras } from '@/lib/contract-extras';
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { contractOwner } from '@/lib/contract-owner';
 
 interface ContractDataBase extends PrexvData {
   numero_contrato: string;
@@ -182,8 +183,9 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
 
         {/* Párrafo de Apertura */}
         <p className="mb-6 text-base md:text-lg">
-          Entre los suscritos, de una parte, <strong>AMBAR COUTURE</strong>, sociedad legalmente constituida,
-          con domicilio en Villavicencio, Meta, Colombia, de aquí en adelante llamada <strong>EL PRESTADOR/ARRENDADOR</strong>,
+          Entre los suscritos, de una parte, <strong>AMBAR COUTURE</strong>, representada por <strong>{contractOwner(data.sede).nombre.toUpperCase()}</strong>,
+          identificado(a) con cédula de ciudadanía No. <strong>{contractOwner(data.sede).cedula}</strong>,
+          con domicilio en {contractOwner(data.sede).ciudad}, Colombia, de aquí en adelante llamada <strong>EL PRESTADOR/ARRENDADOR</strong>,
           y de la otra, <strong>{data.cliente_nombre.toUpperCase()}</strong>, identificado(a) con
           {docNombre(data.tipo_documento_cliente)} No. <strong>{data.cliente_documento}</strong>, con domicilio en <strong>{data.cliente_direccion}</strong>,
           de aquí en adelante llamado(a) <strong>EL CONTRATANTE/ARRENDATARIO</strong>, hemos acordado celebrar este contrato mixto.
@@ -392,17 +394,17 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
         <div className="mt-12 pt-6 flex justify-around items-end gap-16" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
           <div className="text-center w-full max-w-[300px] flex flex-col items-center">
             <div className="flex justify-center items-center h-20 -mb-8 z-10 relative">
-              <img
-                src="/assets/firma_representante.png"
-                alt="Firma Jorge Romero"
+              {contractOwner(data.sede).firma && <img
+                src={contractOwner(data.sede).firma}
+                alt={`Firma ${contractOwner(data.sede).nombre}`}
                 className="max-h-[130%] w-auto object-contain"
-              />
+              />}
             </div>
             <div className="border-t-2 border-black pt-2">
               <p className="font-extrabold text-sm uppercase">FIRMA DEL PRESTADOR/ARRENDADOR</p>
               <p className="font-bold text-sm">AMBAR COUTURE</p>
-              <p className="text-xs">Jorge Andres Romero</p>
-              <p className="text-xs">Cédula #80.031.674</p>
+              <p className="text-xs">{contractOwner(data.sede).nombre}</p>
+              <p className="text-xs">Cédula #{contractOwner(data.sede).cedula}</p>
             </div>
           </div>
 
