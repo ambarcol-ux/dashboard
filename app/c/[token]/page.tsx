@@ -1,7 +1,6 @@
 'use client';
 import DressThumb from '@/components/DressThumb';
 import {useEffect,useState} from 'react';
-import Link from 'next/link';
 import {useParams} from 'next/navigation';
 import {Loader2,ChevronLeft,ChevronRight,X} from 'lucide-react';
 import {cop} from '@/lib/rental-price';
@@ -62,7 +61,6 @@ export default function PublicCatalogPage(){
     <p className="absolute bottom-4 left-0 right-0 text-center text-white text-sm font-bold">{open.codigo} · {fotos[zoom].label}{fotos.length>1?` · ${zoom+1} de ${fotos.length}`:''}</p>
    </div>}
    <p className="text-center text-xs text-gray-400">Para reservar o probarte un vestido, comunícate con Ámbar Couture.</p>
-   <p className="text-center text-xs text-gray-500">¿Buscas fotógrafo, maquillaje, decoración o salón? <Link href="/aliados-ambar" className="font-black underline">Conoce a los Aliados Ámbar</Link></p>
   </div>
  </main>;
 }
