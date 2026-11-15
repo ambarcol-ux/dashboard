@@ -92,6 +92,20 @@ https://erp.ambarcouture.com/reprogramar-primera-cita
 
 Los datos de cada sede (dirección, mapa, teléfono y WhatsApp) están en `lib/first-visit-sites.ts`.
 
+## Reseña de Google — `ambar_resena`
+
+Categoría **Marketing** · Idioma **Español (COL)** · Botones: **Dejar reseña** (enlace: `https://search.google.com/local/writereview?placeid={{1}}`, el Place ID de la sede) y **Ahora no** (respuesta rápida). Se crea con «Crear plantillas en Meta».
+
+```
+Hola {{1}} 💛 Tu opinión ayuda a otras quinceañeras a elegir. ¿Nos cuentas tu experiencia en Google?
+```
+
+Se pide a **todas** las que reportan que asistieron (Google prohíbe pedir reseñas solo a las satisfechas). Sale al responder la satisfacción (Excelente o Bien), 3 horas después si no responde o, con «Puede mejorar», cuando administración cierra el caso o a las 72 horas. Dentro de las 24 horas sale como mensaje con el botón «⭐ Dejar reseña».
+
+## Satisfacción (mensajes dentro de las 24 h, sin plantilla)
+
+Después de «Fui y alquilé» (o del motivo, si «Aún no decido»): «¿Cómo te sentiste con la atención en Ámbar?» [😍 Excelente · 🙂 Bien · 😕 Puede mejorar]. «Puede mejorar» abre la lista Atención · Tiempo de espera · Vestidos · Precio · Instalaciones · Otro; la clienta recibe «La administración de Ámbar te contactará» y el caso aparece solo a administración (aviso morado en el ERP).
+
 ## Post-cita en un paso — `ambar_post_cita_v2`
 
 Categoría **Utilidad** · Idioma **Español (COL)** · Botones de respuesta rápida: **Fui y alquilé**, **Aún no decido** y **No pude ir** (en ese orden). Se crea con «Crear plantillas en Meta».

@@ -31,6 +31,20 @@ export const REMINDER_CONFIRM_V2_TEMPLATE='ambar_recordatorio_confirmar_v2';
  *  While Meta has not approved it, the previous «Asistí / No asistí» template goes out. */
 export const POST_VISIT_V2_TEMPLATE='ambar_post_cita_v2';
 export const POST_VISIT_ACTIONS=['pc_alquile','pc_no_decido','pc_no_asisti'] as const;
+/** Google review request (see docs/plantillas-whatsapp.md): «Dejar reseña» (link to the store's review form) and «Ahora no». */
+export const REVIEW_TEMPLATE='ambar_resena';
+const REVIEW_TEXT='Tu opinión ayuda a otras quinceañeras a elegir. ¿Nos cuentas tu experiencia en Google?';
+/** Place id of a store's Google review link (https://search.google.com/local/writereview?placeid=…), or null. */
+export const reviewPlaceId=(url:string|null|undefined)=>{try{return url?new URL(url).searchParams.get('placeid'):null;}catch{return null;}};
+export function reviewPayload(c:NotificationVisit,reviewUrl:string,open:boolean,lang='es_CO'){
+ const to=whatsappPhone(c.telefono),name=c.cliente_nombre.split(' ')[0],texto=`Hola ${name} 💛 ${REVIEW_TEXT}`;
+ if(open)return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'cta_url',body:{text:texto},action:{name:'cta_url',parameters:{display_text:'⭐ Dejar reseña',url:reviewUrl}}}}};
+ const place=reviewPlaceId(reviewUrl);if(!place)return null;
+ return {texto,payload:{messaging_product:'whatsapp',to,type:'template',template:{name:REVIEW_TEMPLATE,language:{code:lang},components:[
+  {type:'body',parameters:[{type:'text',text:name}]},
+  {type:'button',sub_type:'url',index:'0',parameters:[{type:'text',text:place}]},
+  {type:'button',sub_type:'quick_reply',index:'1',parameters:[{type:'payload',payload:'rs_no'}]}]}}};
+}
 export function postVisitPayload(c:NotificationVisit,site:string,lang='es_CO'){
  return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name:POST_VISIT_V2_TEMPLATE,language:{code:lang},components:[
   {type:'body',parameters:[c.cliente_nombre.split(' ')[0],site].map(text=>({type:'text',text}))},
@@ -51,6 +65,12 @@ export function openWindowPayload(type:string,c:NotificationVisit,siteName:strin
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'rc_confirmo',title:'✅ Ahí estaré'}},{type:'reply',reply:{id:'rc_reagendar',title:'🔄 Cambiar hora'}},{type:'reply',reply:{id:'rc_no_puedo',title:'❌ No puedo'}}]}}}};}
  if(type==='post_cita'){const texto=`Hola ${name} 💛 ¿Cómo te fue en tu cita en Ámbar Couture ${siteName}?`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'pc_alquile',title:'💃 Fui y alquilé'}},{type:'reply',reply:{id:'pc_no_decido',title:'🤔 Aún no decido'}},{type:'reply',reply:{id:'pc_no_asisti',title:'📅 No pude ir'}}]}}}};}
+ if(type==='satisfaccion'){const texto=`${name}, ¿cómo te sentiste con la atención en Ámbar?`;
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'sat_excelente',title:'😍 Excelente'}},{type:'reply',reply:{id:'sat_bien',title:'🙂 Bien'}},{type:'reply',reply:{id:'sat_mejorar',title:'😕 Puede mejorar'}}]}}}};}
+ if(type==='satisfaccion_falla'){const texto='Gracias por decírnoslo. ¿Qué podemos mejorar?';
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'list',body:{text:texto},action:{button:'Elegir',sections:[{title:'Qué mejorar',rows:[['fa_atencion','Atención'],['fa_espera','Tiempo de espera'],['fa_vestidos','Vestidos'],['fa_precio','Precio'],['fa_instalaciones','Instalaciones'],['fa_otro','Otro']].map(([id,title])=>({id,title}))}]}}}};}
+ if(type==='satisfaccion_gracias'){const texto=`Gracias por contarnos, ${name}. La administración de Ámbar te contactará para escucharte 💛`;
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
  if(type==='confirmar_cancelacion'){const texto=`${name}, ¿cancelamos tu cita del ${when}? Así liberamos el espacio para otra clienta.`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'cc_si',title:'Sí, cancelar'}},{type:'reply',reply:{id:'cc_no',title:'No, la mantengo'}}]}}}};}
  if(type==='cita_cancelada_wa'){const texto=`Listo ${name}, cancelamos tu cita. Cuando quieras volver a agendar, aquí te esperamos 💛`;
