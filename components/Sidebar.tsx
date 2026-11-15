@@ -7,14 +7,14 @@ import UpcomingVisitsAlert from '@/components/UpcomingVisitsAlert';
 import PersonAttentionAlert from '@/components/PersonAttentionAlert';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
 import {
-  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen, KanbanSquare, Megaphone, Tag, BarChart3, Clapperboard
+  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen, KanbanSquare, Megaphone, Tag, BarChart3, Clapperboard, History
 } from 'lucide-react';
 
 interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos' | 'pipeline' | 'aliados_publicaciones' | 'estudio_contenido';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos' | 'pipeline' | 'aliados_publicaciones' | 'estudio_contenido' | 'historial';
 }
 
 // Deposit and balance reminders live in the Inicio alert strip (DashboardAlerts), not in the menu.
@@ -142,6 +142,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
         { id: 'config', label: 'CONFIGURACIÓN BASE', icon: Settings, href: '/admin/config', color: 'gray' },
         { id: 'clausulas', label: 'CLÁUSULAS DEL CONTRATO', icon: FileText, href: '/dashboard/admin/contratos', color: 'rose' },
         { id: 'integraciones', label: 'INTEGRACIONES', icon: Plug, href: '/admin/config/integraciones', color: 'gray', adminOnly: true },
+        { id: 'historial', label: 'HISTORIAL Y AUDITORÍA', icon: History, href: '/dashboard/historial', color: 'gray', adminOnly: true },
       ]
     }
   ];

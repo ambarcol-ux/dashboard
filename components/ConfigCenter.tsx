@@ -23,7 +23,7 @@ export default function ConfigCenter(){
  const [items,setItems]=useState<Item[]>([]),[params,setParams]=useState<Param[]>([]),[fields,setFields]=useState<Field[]>([]),[changes,setChanges]=useState<Change[]>([]);
  const [nuevo,setNuevo]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false);
  const load=useCallback(()=>Promise.all([supabase.from('listas_contrato').select('*').order('lista').order('orden'),supabase.from('config_parametros').select('*').order('modulo').order('orden'),
-   supabase.from('config_formularios').select('*').order('formulario').order('orden'),supabase.from('config_historial').select('*').order('created_at',{ascending:false}).limit(200),
+   supabase.from('config_formularios').select('*').order('formulario').order('orden'),supabase.from('config_historial').select('*').in('tabla',['listas_contrato','config_parametros','config_formularios','categorias_vestido']).order('created_at',{ascending:false}).limit(200),
    supabase.from('categorias_vestido').select('*').order('clasificacion_id').order('precio_hasta',{nullsFirst:false}),supabase.from('clasificaciones_vestido').select('id,nombre').eq('activo',true).order('orden')])
   .then(([l,p,f,h,c,t])=>{setCats((c.data||[]) as Category[]);setTipos((t.data||[]) as {id:number;nombre:string}[]);setItems((l.data||[]) as Item[]);setParams((p.data||[]) as Param[]);setFields((f.data||[]) as Field[]);setChanges((h.data||[]) as Change[]);}),[]);
  useEffect(()=>{void load();},[load]);
