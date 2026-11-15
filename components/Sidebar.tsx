@@ -62,7 +62,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
         { id: 'calendario', label: 'CALENDARIO CONTRATOS', icon: Calendar, href: '/dashboard/calendario', color: 'rose' },
         { id: 'pedidos_estrene', label: 'PEDIDOS ESTRENE', icon: ShoppingBag, href: '/dashboard/pedidos-estrene', color: 'violet' },
         { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'emerald' },
-        { id: 'aliados_directos', label: 'ALIADOS DIRECTOS', icon: Handshake, href: '/dashboard/aliados-directos', color: 'rose' },
+        { id: 'aliados_directos', label: 'ALIADOS', icon: Handshake, href: '/dashboard/aliados-directos', color: 'rose' },
         { id: 'catalogo', label: 'CATÁLOGO', icon: BookOpen, href: '/dashboard/catalogo', color: 'rose' },
       ]
     },

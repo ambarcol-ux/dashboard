@@ -426,7 +426,7 @@ const MANUAL_DATA = [
     icon: <Users className="w-5 h-5" />,
     sections: [
       { type: 'intro', title: '🎯 ¿Para qué sirve?', content: 'Los aliados (organizadores, fotógrafos, etc.) refieren clientas a Ámbar. El ERP guarda a cada clienta referida, le da su beneficio y permite hacer contratos donde el aliado es el cliente.' },
-      { type: 'route', title: '📍 ¿Cómo llegar aquí?', content: 'Menú lateral 👉 **RED DE ALIADOS** (Aliados directos y Gestión de aliados).' },
+      { type: 'route', title: '📍 ¿Cómo llegar aquí?', content: 'Menú lateral 👉 **VENTAS Y CRM** › **Aliados**.' },
       { type: 'steps', title: '📝 Reglas principales', items: [
         '**Acuerdo del aliado:** se firma digitalmente y dura 1 año; se renueva solo si tuvo al menos un contrato en ese año. Si no, queda inactivo.',
         '**Clientas referidas:** el aliado las registra con su enlace o código. Una clienta solo puede tener un aliado (el primero que la registró).',

@@ -21,7 +21,7 @@ const errText=(e:unknown,fallback:string)=>e&&typeof e==='object'&&'message' in 
 const chip=(cls:string,label:string)=><span className={`inline-block px-3 py-1 rounded-full border text-xs font-bold ${cls}`}>{label}</span>;
 
 export default function DirectAlliesPage(){
- return <SupplierShell activePage="aliados_directos" crumb="Red de aliados" title="Aliados Directos" icon={<Handshake/>}
+ return <SupplierShell activePage="aliados_directos" crumb="Red de aliados" title="Aliados" icon={<Handshake/>}
   description="Perfil de cada aliado, su contrato firmado una sola vez y su cuenta bancaria. El aliado no recibe comisiones.">
   {profile=><DirectAllies profile={profile}/>}
  </SupplierShell>;
