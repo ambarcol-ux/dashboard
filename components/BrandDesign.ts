@@ -17,7 +17,7 @@ async function fuentes(kit:Kit){
 }
 function imagen(url:string){
  return new Promise<HTMLImageElement>((ok,fail)=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>ok(i);i.onerror=()=>fail(Error('No se pudo cargar la foto.'));
-  i.src=url+(url.includes('?')?'&':'?')+'cors=1';});
+  i.src=/^https?:/.test(url)?url+(url.includes('?')?'&':'?')+'cors=1':url;});
 }
 const rgba=(hex:string,a:number)=>`rgba(${parseInt(hex.slice(1,3),16)},${parseInt(hex.slice(3,5),16)},${parseInt(hex.slice(5,7),16)},${a})`;
 
