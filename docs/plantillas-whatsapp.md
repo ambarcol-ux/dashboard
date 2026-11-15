@@ -92,6 +92,23 @@ https://erp.ambarcouture.com/reprogramar-primera-cita
 
 Los datos de cada sede (dirección, mapa, teléfono y WhatsApp) están en `lib/first-visit-sites.ts`.
 
+## Post-cita en un paso — `ambar_post_cita_v2`
+
+Categoría **Utilidad** · Idioma **Español (COL)** · Botones de respuesta rápida: **Fui y alquilé**, **Aún no decido** y **No pude ir** (en ese orden). Se crea con «Crear plantillas en Meta».
+
+```
+Hola {{1}} 💛 ¿Cómo te fue en tu cita en Ámbar Couture {{2}}?
+
+Tu respuesta nos ayuda a acompañarte en la elección de tu vestido.
+```
+
+| Variable | Ejemplo |
+|---|---|
+| {{1}} | Ana |
+| {{2}} | Pereira |
+
+Reemplaza a `ambar_post_cita_asistencia` (que sigue de respaldo mientras Meta no la aprueba). «Aún no decido» pide el motivo; «No pude ir» envía el enlace para reagendar. La respuesta queda como asistencia reportada: no marca la llegada (eso lo hacen el QR, la videollamada o el contrato) y, si nada lo confirma, la cita aparece en Primeras visitas como «Dice que asistió · por verificar».
+
 ## Recordatorio con 3 botones — `ambar_recordatorio_confirmar_v2`
 
 Categoría **Utilidad** · Idioma **Español (COL)** · Botones de respuesta rápida: **Ahí estaré**, **Cambiar hora** y **No puedo** (en ese orden). Mismo texto y variables que `ambar_recordatorio_confirmar`. Se crea con el botón «Crear plantillas en Meta» de Integraciones › WhatsApp. Mientras Meta no la apruebe, sale la de 2 botones.
