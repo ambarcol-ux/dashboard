@@ -32,7 +32,7 @@ export async function conversationFor(db:SupabaseClient,phone:string,profileName
 
 /** Saves the events of one webhook call. Returns the chats with new customer messages (for the AI suggestion) and the ads they came from. */
 export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:string[]){
- const touched=new Set<string>(),ads:{conversacion:string;anuncio:string}[]=[],acciones:{conversacion:string;telefono:string;sede_id:string|null;accion:string}[]=[];
+ const touched=new Set<string>(),ads:{conversacion:string;anuncio:string}[]=[],acciones:{conversacion:string;telefono:string;sede_id:string|null;accion:string}[]=[],escritos:{conversacion:string;telefono:string;wa_id:string;texto:string}[]=[];
  for(const entry of data.entry||[])for(const change of entry.changes||[]){
   const v=change.value;if(!v||(accepted.length&&!accepted.includes(String(v.metadata?.phone_number_id||''))))continue;
   const names=new Map<string,string>((v.contacts||[]).map((c:Value)=>[digits(c.wa_id),String(c.profile?.name||'')]));
@@ -58,6 +58,7 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    const flowReply=/^(pc|rc|mot|cc|sat|fa|rs|rg|cf|r2|crm|pr)_/.test(accion);
    // CRM and promotion buttons (Agendar cita, Ver vestidos, No me interesa, Quiero mi cita, No recibir más): the ERP answers them.
    if(/^(crm|pr)_/.test(accion))acciones.push({conversacion:conv.id,telefono:phone,sede_id:conv.sede_id||null,accion});
+   if(m.type==='text')escritos.push({conversacion:conv.id,telefono:phone,wa_id:String(m.id),texto:text});
    if(m.type!=='reaction'&&!flowReply)touched.add(conv.id);
   }
   // Replies typed in the WhatsApp Business app of the phone (coexistence): field smb_message_echoes.
@@ -76,7 +77,7 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    await db.from('whatsapp_mensajes').update({estado:s.status}).eq('wa_id',String(s.id));
   }
  }
-  return {touched:[...touched],ads,acciones};
+  return {touched:[...touched],ads,acciones,escritos};
 }
 
 /** Sends a free text inside Meta's 24-hour window. Returns the WhatsApp message id. */

@@ -4,6 +4,7 @@ import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {after} from 'next/server';
 import {storeInboxEvents,handleCrmButtons} from '@/lib/whatsapp-inbox';
 import {suggestWhatsappReply} from '@/lib/whatsapp-ai';
+import {classifyFlowReply} from '@/lib/whatsapp-classify';
 import {resolveAd} from '@/lib/meta-ads';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -22,12 +23,15 @@ export async function POST(request:Request){
   if(!await applyWhatsappEvents(db,payload,acceptedPhoneIds))return new Response('Reintentar',{status:503});
   // Ventas y CRM › WhatsApp 304: chats in the ERP. A failure here never blocks the visit notifications above.
   try{
-   const {touched,ads,acciones}=await storeInboxEvents(db,payload,acceptedPhoneIds);
+   const {touched,ads,acciones,escritos}=await storeInboxEvents(db,payload,acceptedPhoneIds);
    if(acciones.length)after(async()=>{const settings=await loadWhatsappSettings(db);if(settings.token&&settings.phoneNumberId)await handleCrmButtons(db,settings,acciones);});
    if(touched.length||ads.length)after(async()=>{
     // First the ad (its name carries the store, which then assigns the chat if it has none), then the AI suggestion.
     for(const a of ads){try{const sede=await resolveAd(db,a.anuncio);if(sede)await db.from('whatsapp_conversaciones').update({sede_id:sede}).eq('id',a.conversacion).is('sede_id',null);}catch(e){console.error('Anuncio:',e);}}
-    for(const id of touched)await suggestWhatsappReply(db,id);
+    // Typed answers to an automatic message with buttons count as the button; then the chat AI does not answer that message.
+    const resueltos=new Set<string>();
+    for(const e of escritos){try{if(await classifyFlowReply(db,e.telefono,e.wa_id,e.texto))resueltos.add(e.conversacion);}catch(err){console.error('Clasificar respuesta:',err);}}
+    for(const id of touched)if(!resueltos.has(id))await suggestWhatsappReply(db,id);
    });
   }
   catch(e){console.error('Bandeja WhatsApp:',e);}
