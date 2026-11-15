@@ -58,11 +58,14 @@ export async function createPiece(db:SupabaseClient,p:{orden:string;formato:Form
  const bib=libs.map(x=>`${x.id} · ${x.tipo} · ${x.titulo||'—'} · etiquetas: ${x.etiquetas.join(', ')||'—'} · sede ${sede.get(x.sede_id||'')?.nombre||'todas'}`).join('\n');
  const sedes=[...sede.values()].map(s=>`${s.nombre}${s.whatsapp?` · WhatsApp ${s.whatsapp}`:''}`).join('\n');
  const [min,max]=LIMITE[p.formato];
+ // Short code of the piece: when a customer mentions it on WhatsApp, her chat (and later visit and contract) counts for this piece.
+ const codigo='P'+Array.from(crypto.getRandomValues(new Uint8Array(5)),b=>'0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'[b%34]).join('');
  const system=`Eres la creadora de contenido de Ámbar Couture (alquiler y venta de vestidos de XV años, gala, novia y pajecitas en Colombia). Arma UNA pieza para redes sociales siguiendo la orden.
 Reglas:
 - Usa solo vestidos del inventario y archivos de la biblioteca listados abajo (nunca inventes códigos ni IDs). Formato «${p.formato}»: entre ${min} y ${max} elementos en total${p.formato==='reel'?' (un video de la biblioteca)':''}.
 - No menciones precios salvo que la orden lo pida. Si hay una promoción vigente que aplique, puedes mencionarla con sus condiciones exactas.
 - Texto cálido, elegante y corto, en español de Colombia, con emojis moderados, llamado a la acción (agendar cita o escribir al WhatsApp de la sede) y 5 a 10 hashtags al final. Respeta el tono y las reglas de los documentos de la marca.
+- Incluye de forma natural el código de la pieza, ${codigo}, en el llamado a la acción (por ejemplo «Escríbenos al WhatsApp con el código ${codigo}»).
 - Si la orden no se puede cumplir con el material disponible, haz la pieza más cercana y explícalo en «idea».`;
  const r=await aiClient('contenido_crear').messages.create({model:MODEL,max_tokens:1500,system,output_config:{format:{type:'json_schema',schema:OUT}},
   messages:[{role:'user',content:`<documentos_marca>\n${docs.slice(0,15000)}\n</documentos_marca>\n<promociones>\n${promos||'Ninguna vigente'}\n</promociones>\n<sedes>\n${sedes}\n</sedes>\n<inventario>\n${inv||'Sin vestidos con foto para esta selección'}\n</inventario>\n<biblioteca>\n${bib||'Vacía'}\n</biblioteca>\n\nRedes: ${p.redes.join(', ')}. Sede: ${p.sede_id?sede.get(p.sede_id)?.nombre:'todas'}.\nOrden: ${p.orden}`}]});
@@ -73,7 +76,8 @@ Reglas:
   ...out.biblioteca.map(id=>byLib.get(id)).filter((x):x is Lib=>!!x).map(x=>({url:x.url,tipo:x.tipo,fuente:'biblioteca' as const,ref:x.id,nota:x.titulo||undefined})),
   ...out.vestidos.map(c=>byCode.get(String(c).trim())).filter((x):x is Dress=>!!x).map(x=>({url:mainPhoto(x)!,tipo:'imagen' as const,fuente:'vestido' as const,ref:x.id,nota:String(x.codigo).trim()})),
  ].filter((m,i,a)=>a.findIndex(o=>o.url===m.url)===i).slice(0,max);
- const {data,error}=await db.from('contenido_piezas').insert({formato:p.formato,redes:p.redes,sede_id:p.sede_id,orden:p.orden.slice(0,1000),texto:out.texto.slice(0,2200),idea:out.idea.slice(0,600),medios,
+ const texto=out.texto.includes(codigo)?out.texto:`${out.texto.trim()}\n\nEscríbenos al WhatsApp con el código ${codigo} 💛`;
+ const {data,error}=await db.from('contenido_piezas').insert({codigo,formato:p.formato,redes:p.redes,sede_id:p.sede_id,orden:p.orden.slice(0,1000),texto:texto.slice(0,2200),idea:out.idea.slice(0,600),medios,
   programada_at:p.programada_at,creado_por:userId,regla_id:p.regla_id||null,regla_fecha:p.regla_fecha||null,vestido_id:p.vestido_id||null,estado:'por_aprobar',error:medios.length<min?`Faltan fotos o videos: este formato necesita al menos ${min}. Agrega material a la biblioteca o cambia la orden.`:null}).select('id').single();
  if(error)throw error;
  return data.id as string;
