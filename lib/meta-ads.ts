@@ -44,7 +44,7 @@ export async function adsSpend(ids:string[],desde:string,hasta:string){
 /** Anuncios fase 1 (read only): every ad account the token reaches, with campaigns and ad sets (status and budget) and, per ad,
  *  Meta's metrics for the period (spend, reach, impressions, clicks, CTR, CPM, conversations started, leads). */
 type Account={id:string;name:string;currency:string;account_status:number};
-export type PortfolioAd={cuenta:string;moneda:string;campana_id:string;campana:string;campana_estado:string;objetivo:string;conjunto_id:string;conjunto:string;conjunto_estado:string;
+export type PortfolioAd={cuenta:string;moneda:string;campana_id:string;campana:string;campana_estado:string;objetivo:string;conjunto_id:string;conjunto:string;conjunto_estado:string;presupuesto_en:'conjunto'|'campana';
  presupuesto_diario:number|null;presupuesto_total:number|null;anuncio_id:string;anuncio:string;gasto:number;alcance:number;impresiones:number;clics:number;ctr:number;cpm:number;conversaciones:number;leads:number};
 async function pages<T>(url:string,token:string,max=5){
  const out:T[]=[];let next:string|null=url;
@@ -75,16 +75,45 @@ export async function adsPortfolio(desde:string,hasta:string){
    for(const r of ins){
     const k=camp.get(String(r.campaign_id)),s=set.get(String(r.adset_id)),acts=r.actions as {action_type:string;value:string}[]|undefined;
     anuncios.push({cuenta:c.name,moneda:c.currency,campana_id:String(r.campaign_id),campana:String(r.campaign_name||''),campana_estado:k?.effective_status||'—',objetivo:k?.objective||'—',
-     conjunto_id:String(r.adset_id),conjunto:String(r.adset_name||''),conjunto_estado:s?.effective_status||'—',
+     conjunto_id:String(r.adset_id),conjunto:String(r.adset_name||''),conjunto_estado:s?.effective_status||'—',presupuesto_en:s?.daily_budget||s?.lifetime_budget?'conjunto':'campana',
      presupuesto_diario:plata(s?.daily_budget)??plata(k?.daily_budget),presupuesto_total:plata(s?.lifetime_budget)??plata(k?.lifetime_budget),
      anuncio_id:String(r.ad_id),anuncio:String(r.ad_name||''),gasto:Number(r.spend||0),alcance:Number(r.reach||0),impresiones:Number(r.impressions||0),clics:Number(r.clicks||0),
      ctr:Number(r.ctr||0),cpm:Number(r.cpm||0),conversaciones:action(acts,'onsite_conversion.messaging_conversation_started_7d'),leads:action(acts,'lead','onsite_conversion.lead_grouped')});
    }
    // Active campaigns without delivery in the period still show (budget and status), without metrics.
    for(const k of camps.filter(x=>x.effective_status==='ACTIVE'&&!ins.some(r=>String(r.campaign_id)===x.id)))
-    anuncios.push({cuenta:c.name,moneda:c.currency,campana_id:k.id,campana:k.name,campana_estado:k.effective_status,objetivo:k.objective,conjunto_id:'',conjunto:'',conjunto_estado:'',
+    anuncios.push({cuenta:c.name,moneda:c.currency,campana_id:k.id,campana:k.name,campana_estado:k.effective_status,objetivo:k.objective,conjunto_id:'',conjunto:'',conjunto_estado:'',presupuesto_en:'campana',
      presupuesto_diario:plata(k.daily_budget),presupuesto_total:plata(k.lifetime_budget),anuncio_id:'',anuncio:'(sin entrega en el periodo)',gasto:0,alcance:0,impresiones:0,clics:0,ctr:0,cpm:0,conversaciones:0,leads:0});
   }catch(e){errores.push(`${c.name}: ${e instanceof Error?e.message:'error'}`);}
  }
  return {cuentas,anuncios,errores};
+}
+
+/** Anuncios fase 2: pause, activate or change the daily budget of a campaign or ad set. The current values are read from Meta first
+ *  (never trusted from the browser) so the caps apply to the real budget. Budgets go to Meta in cents (×100), as they are read. */
+export type AdChange={id:string;tipo:'pausar'|'activar'|'presupuesto';valor?:number;tope:number;maxPct:number};
+export async function adsChange({id,tipo,valor,tope,maxPct}:AdChange){
+ const token=process.env.META_ADS_TOKEN;if(!token)throw Error('Falta META_ADS_TOKEN');
+ if(!/^\d{5,25}$/.test(id))throw Error('Identificador inválido.');
+ const r=await fetch(`${graph(id)}?fields=name,status,daily_budget,lifetime_budget`,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)});
+ const d=await r.json().catch(()=>({})) as {name?:string;status?:string;daily_budget?:string;lifetime_budget?:string;error?:{message?:string}};
+ if(!r.ok)throw Error(d.error?.message||'Meta no respondió.');
+ const antes={nombre:d.name||'',estado:d.status||'',presupuesto_diario:d.daily_budget?Number(d.daily_budget)/100:null};
+ const params=new URLSearchParams();
+ if(tipo==='pausar')params.set('status','PAUSED');
+ else if(tipo==='activar')params.set('status','ACTIVE');
+ else{
+  if(!d.daily_budget)throw Error(d.lifetime_budget?'Tiene presupuesto total, no diario: ajústalo en Meta.':'El presupuesto no está en este nivel (está en la campaña o en el conjunto).');
+  const v=Math.round(Number(valor));
+  if(!Number.isFinite(v)||v<=0)throw Error('Escribe un presupuesto válido.');
+  if(v>tope)throw Error(`Supera el tope diario de $${tope.toLocaleString('es-CO')}. Puedes cambiarlo en Configuración.`);
+  const act=antes.presupuesto_diario||0;
+  if(act&&Math.abs(v-act)/act*100>maxPct+0.001)throw Error(`El cambio supera el ${maxPct}% permitido por ajuste (entre $${Math.ceil(act*(1-maxPct/100)).toLocaleString('es-CO')} y $${Math.floor(act*(1+maxPct/100)).toLocaleString('es-CO')}).`);
+  params.set('daily_budget',String(v*100));
+ }
+ const w=await fetch(graph(id),{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/x-www-form-urlencoded'},body:params,signal:AbortSignal.timeout(15000)});
+ const e=await w.json().catch(()=>({})) as {success?:boolean;error?:{message?:string;error_user_msg?:string}};
+ if(!w.ok||e.success===false)throw Error(e.error?.error_user_msg||e.error?.message||'Meta rechazó el cambio.');
+ const despues={...antes,...(tipo==='presupuesto'?{presupuesto_diario:Math.round(Number(valor))}:{estado:tipo==='pausar'?'PAUSED':'ACTIVE'})};
+ return {antes,despues};
 }

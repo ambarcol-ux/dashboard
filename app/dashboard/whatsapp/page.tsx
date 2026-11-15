@@ -125,7 +125,7 @@ function CommentCard({c,onDone}:{c:Comentario;onDone:()=>void}){
  </article>;
 }
 
-type PortRow={cuenta:string;moneda:string;campana_id:string;campana:string;campana_estado:string;objetivo:string;conjunto:string;conjunto_estado:string;presupuesto_diario:number|null;presupuesto_total:number|null;
+type PortRow={cuenta:string;moneda:string;campana_id:string;campana:string;campana_estado:string;objetivo:string;conjunto_id:string;conjunto:string;conjunto_estado:string;presupuesto_en:'conjunto'|'campana';presupuesto_diario:number|null;presupuesto_total:number|null;
  anuncio_id:string;anuncio:string;gasto:number;alcance:number;impresiones:number;clics:number;ctr:number;cpm:number;conversaciones:number;leads:number;chats:number;citas:number;asistieron:number;contratos:number};
 const ESTADO_AD:Record<string,string>={ACTIVE:'Activa',PAUSED:'Pausada',CAMPAIGN_PAUSED:'Campaña pausada',ADSET_PAUSED:'Conjunto pausado',ARCHIVED:'Archivada',DELETED:'Eliminada',WITH_ISSUES:'Con problemas',IN_PROCESS:'En revisión',DISAPPROVED:'Rechazada'};
 const OBJETIVO:Record<string,string>={OUTCOME_ENGAGEMENT:'Interacción',OUTCOME_LEADS:'Clientes potenciales',OUTCOME_TRAFFIC:'Tráfico',OUTCOME_AWARENESS:'Reconocimiento',OUTCOME_SALES:'Ventas',MESSAGES:'Mensajes'};
@@ -138,21 +138,35 @@ function Portafolio({desde,hasta}:{desde:string;hasta:string}){
   return [...m.values()].map(l=>({c:l[0],l,t:l.reduce((a,r)=>({gasto:a.gasto+r.gasto,alcance:a.alcance+r.alcance,clics:a.clics+r.clics,conv:a.conv+r.conversaciones+r.leads,chats:a.chats+r.chats,citas:a.citas+r.citas,asis:a.asis+r.asistieron,con:a.con+r.contratos}),{gasto:0,alcance:0,clics:0,conv:0,chats:0,citas:0,asis:0,con:0})})).sort((a,b)=>b.t.gasto-a.t.gasto);},[rows]);
  const tot=camps.reduce((a,x)=>({gasto:a.gasto+x.t.gasto,conv:a.conv+x.t.conv,citas:a.citas+x.t.citas,con:a.con+x.t.con}),{gasto:0,conv:0,citas:0,con:0});
  const n=(v:number)=>v.toLocaleString('es-CO');
+ // Anuncios fase 2: each change is confirmed here and checked again on the server against the caps of Configuración.
+ const cambiar=async(e:{stopPropagation:()=>void},id:string,tipo:'pausar'|'activar'|'presupuesto',nombre:string,actual?:number|null)=>{
+  e.stopPropagation();let valor:number|undefined;
+  if(tipo==='presupuesto'){const t=window.prompt(`Nuevo presupuesto diario para «${nombre}» (hoy ${cop(actual||0)}). Solo números:`,String(actual||''));if(t===null)return;
+   valor=Number(t.replace(/\D/g,''));if(!valor){window.alert('Escribe un valor válido.');return;}}
+  if(!window.confirm(tipo==='presupuesto'?`¿Cambiar el presupuesto diario de «${nombre}» de ${cop(actual||0)} a ${cop(valor||0)}?`:`¿${tipo==='pausar'?'Pausar':'Activar'} «${nombre}» en Meta?`))return;
+  setBusy(true);try{await api({accion:'anuncios_cambiar',id,tipo,valor});await load();}catch(x){window.alert(x instanceof Error?x.message:'No se pudo cambiar.');setBusy(false);}
+ };
+ const btn={fontSize:12,padding:'2px 8px',marginRight:4,borderRadius:8,border:'1px solid #d1d5db',background:'#fff',cursor:'pointer'};
+ const acciones=(id:string,estado:string,nombre:string,budget:boolean,actual:number|null)=><>
+  {estado==='ACTIVE'&&<button style={btn} disabled={busy} onClick={e=>void cambiar(e,id,'pausar',nombre)}>Pausar</button>}
+  {estado==='PAUSED'&&<button style={btn} disabled={busy} onClick={e=>void cambiar(e,id,'activar',nombre)}>Activar</button>}
+  {budget&&actual!=null&&<button style={btn} disabled={busy} onClick={e=>void cambiar(e,id,'presupuesto',nombre,actual)}>Presupuesto</button>}</>;
  return <div style={{display:'grid',gap:8}}>
   <h2>Portafolio de anuncios en Meta {busy&&<small>· cargando…</small>}</h2>
-  <p className={styles.help}>Todas tus campañas con su estado, presupuesto y resultados en Meta, y lo que trajeron al ERP (chats, citas, asistencias y contratos). Solo lectura: nada se cambia en Meta desde aquí.</p>
+  <p className={styles.help}>Todas tus campañas con su estado, presupuesto y resultados en Meta, y lo que trajeron al ERP (chats, citas, asistencias y contratos). Puedes pausar, activar o ajustar el presupuesto diario; cada cambio pide confirmación, respeta los topes de Configuración y queda en el historial.</p>
   {errores.length>0&&<p className={styles.help} style={{color:'#b45309'}}>{errores.join(' · ')}</p>}
   {rows&&camps.length>0&&<p className={styles.help}><strong>Total del periodo:</strong> gasto {cop(tot.gasto)} · {n(tot.conv)} conversaciones o clientes potenciales en Meta · {n(tot.citas)} citas · {n(tot.con)} contratos{tot.citas?` · ${cop(tot.gasto/tot.citas)} por cita`:''}{tot.con?` · ${cop(tot.gasto/tot.con)} por contrato`:''}</p>}
   {rows&&!camps.length&&!busy&&<p className={styles.empty}>No hay campañas con entrega en estas fechas.</p>}
-  {camps.length>0&&<div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Campaña</th><th>Estado</th><th>Presupuesto</th><th>Gasto</th><th>Alcance</th><th>Clics</th><th>Conversaciones</th><th>Chats ERP</th><th>Citas</th><th>Asistieron</th><th>Contratos</th><th>Costo por cita</th><th>Costo por contrato</th></tr></thead>
+  {camps.length>0&&<div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Campaña</th><th>Estado</th><th>Presupuesto</th><th>Gasto</th><th>Alcance</th><th>Clics</th><th>Conversaciones</th><th>Chats ERP</th><th>Citas</th><th>Asistieron</th><th>Contratos</th><th>Costo por cita</th><th>Costo por contrato</th><th>Acciones</th></tr></thead>
    <tbody>{camps.map(({c,l,t})=>[<tr key={c.campana_id} onClick={()=>setAbiertas(a=>({...a,[c.campana_id]:!a[c.campana_id]}))} style={{cursor:'pointer'}}>
      <td><strong>{abiertas[c.campana_id]?'▾':'▸'} {c.campana}</strong><small>{OBJETIVO[c.objetivo]||c.objetivo} · {c.cuenta}</small></td><td>{ESTADO_AD[c.campana_estado]||c.campana_estado}</td>
      <td>{c.presupuesto_diario?`${cop(c.presupuesto_diario)}/día`:c.presupuesto_total?`${cop(c.presupuesto_total)} total`:'—'}</td><td>{cop(t.gasto)}</td><td>{n(t.alcance)}</td><td>{n(t.clics)}</td><td>{n(t.conv)}</td>
-     <td>{t.chats}</td><td>{t.citas}</td><td>{t.asis}</td><td>{t.con}</td><td>{t.citas?cop(t.gasto/t.citas):'—'}</td><td>{t.con?cop(t.gasto/t.con):'—'}</td></tr>,
-    ...(abiertas[c.campana_id]?l.map(r=><tr key={`${c.campana_id}-${r.anuncio_id||r.conjunto}`} style={{background:'#fafafa'}}>
+     <td>{t.chats}</td><td>{t.citas}</td><td>{t.asis}</td><td>{t.con}</td><td>{t.citas?cop(t.gasto/t.citas):'—'}</td><td>{t.con?cop(t.gasto/t.con):'—'}</td><td>{acciones(c.campana_id,c.campana_estado,c.campana,c.presupuesto_en==='campana'&&!!c.presupuesto_diario,c.presupuesto_diario)}</td></tr>,
+    ...(abiertas[c.campana_id]?l.map((r,i)=><tr key={`${c.campana_id}-${r.anuncio_id||r.conjunto}`} style={{background:'#fafafa'}}>
      <td style={{paddingLeft:24}}>{r.anuncio}<small>{r.conjunto}{r.conjunto_estado?` · ${ESTADO_AD[r.conjunto_estado]||r.conjunto_estado}`:''}</small></td><td></td>
      <td>{r.presupuesto_diario?`${cop(r.presupuesto_diario)}/día`:r.presupuesto_total?`${cop(r.presupuesto_total)} total`:''}</td><td>{cop(r.gasto)}</td><td>{n(r.alcance)}</td><td>{n(r.clics)} <small>CTR {r.ctr.toFixed(1)}% · CPM {cop(r.cpm)}</small></td>
-     <td>{n(r.conversaciones+r.leads)}</td><td>{r.chats}</td><td>{r.citas}</td><td>{r.asistieron}</td><td>{r.contratos}</td><td>{r.citas?cop(r.gasto/r.citas):'—'}</td><td>{r.contratos?cop(r.gasto/r.contratos):'—'}</td></tr>):[])])}</tbody></table></div>}
+     <td>{n(r.conversaciones+r.leads)}</td><td>{r.chats}</td><td>{r.citas}</td><td>{r.asistieron}</td><td>{r.contratos}</td><td>{r.citas?cop(r.gasto/r.citas):'—'}</td><td>{r.contratos?cop(r.gasto/r.contratos):'—'}</td>
+     <td>{r.conjunto_id&&l.findIndex(x=>x.conjunto_id===r.conjunto_id)===i&&acciones(r.conjunto_id,r.conjunto_estado,r.conjunto,r.presupuesto_en==='conjunto'&&!!r.presupuesto_diario,r.presupuesto_diario)}</td></tr>):[])])}</tbody></table></div>}
  </div>;
 }
 
