@@ -48,6 +48,7 @@ export const PANELS:Panel[]=[
  {id:'config',label:'Configuración base',href:'/admin/config',block:'ADMINISTRACIÓN',paths:['/admin/config'],grantable:false},
  {id:'clausulas',label:'Cláusulas del contrato',href:'/dashboard/admin/contratos',block:'ADMINISTRACIÓN',paths:['/dashboard/admin/contratos'],grantable:false},
  {id:'siigo',label:'Facturación por sede',href:'/admin/config/siigo',block:'ADMINISTRACIÓN',paths:['/admin/config/siigo'],grantable:false},
+ {id:'historial',label:'Historial y auditoría',href:'/dashboard/historial',block:'ADMINISTRACIÓN',paths:['/dashboard/historial'],grantable:false},
  {id:'integraciones',label:'Integraciones',href:'/admin/config/integraciones',block:'ADMINISTRACIÓN',paths:['/admin/config/integraciones'],grantable:false},
  {id:'accesos',label:'Accesos por perfil',href:'/admin/accesos',block:'ADMINISTRACIÓN',paths:['/admin/accesos'],grantable:false},
  {id:'documentos',label:'Documentos de la marca',href:'/dashboard/documentos',block:'ADMINISTRACIÓN',paths:['/dashboard/documentos'],staff:true,grantable:true},

@@ -7,6 +7,7 @@
 - Nunca modifiques datos existentes sin aprobación explícita (ver paso 1).
 - ANTES de crear cualquier cosa (tabla, columna, ruta, componente, función, bucket, política, trigger), busca si ya existe algo equivalente. Si existe: reutilízalo y ajústalo a lo nuevo, sin duplicar. Si lo existente choca con el paso: detente y pregunta en una línea.
 - Nunca borres ni renombres tablas, columnas, rutas o funciones existentes. Solo cambios aditivos y migraciones reversibles.
+- Historial: no crees tablas de bitácora nuevas. Para registrar cambios de una tabla, adjúntale el trigger `private.config_historial()` (guarda en `public.config_historial`; se ve en Configuración › Historial y auditoría).
 - No rompas lo que funciona: contratos, primeras citas, aliados y disponibilidad deben seguir operando igual.
 - Al terminar cada paso, responde solo: archivos tocados, migraciones creadas y una línea "Reutilizado:" con lo existente que aprovechaste.
 
