@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Sparkles, Copy, CheckCircle2, Gift, AlertCircle, Loader2 } from 'lucide-react';
@@ -13,7 +14,21 @@ interface Referidor {
   textos?: { tratamiento: string | null; comercial: string | null };
 }
 
-export default function RecomendarPage() {
+/** The referral program (referidores) was closed: the page stays, without the form, and points to booking a visit. */
+export default function ProgramaCerrado() {
+  return <div className="min-h-screen bg-[#FDFBF9] flex items-center justify-center p-6">
+    <div className="max-w-md text-center bg-white rounded-3xl border border-gray-100 shadow-sm p-8 space-y-4">
+      <Sparkles className="w-8 h-8 text-rose-400 mx-auto" />
+      <h1 className="text-2xl font-black text-gray-900">Este programa ya no está activo</h1>
+      <p className="text-gray-600 text-sm">Gracias por tu interés en Ámbar Couture. Si buscas tu vestido, agenda tu cita y con gusto te atendemos.</p>
+      <Link href="/agendar-primera-cita" className="inline-block px-6 py-3 rounded-xl bg-rose-600 text-white font-black text-sm">Agendar mi cita</Link>
+    </div>
+  </div>;
+}
+
+// Previous page of the referral program, kept for reference (not shown).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function RecomendarPage() {
   const params = useParams();
   const slug = params.slug as string;
 
