@@ -37,4 +37,6 @@ if (typeof window !== 'undefined') {
       ? `sb-access-token=${session.access_token}; path=/; max-age=${Math.max(0, (session.expires_at ?? 0) - Math.floor(Date.now() / 1000))}; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`
       : 'sb-access-token=; path=/; max-age=0; SameSite=Lax';
   });
+  // Phones pause the page in the background and the session expires; on return it is renewed before the next tap opens another page.
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') void supabase.auth.getSession(); });
 }
