@@ -2,9 +2,11 @@ import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply} from '@/lib/public-db';
 import {createPiece,publishPiece,type Formato,type Red,type Pieza} from '@/lib/content-studio';
 import {loadSocialSettings} from '@/lib/social-inbox';
+import {adsPromote,PUBLICOS} from '@/lib/meta-ads';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
+const FORMATO_TXT:Record<string,string>={historia:'Historia',publicacion:'Publicación',carrusel:'Carrusel',reel:'Reel'};
 const FORMATOS=['historia','publicacion','carrusel','reel'],REDES=['instagram','facebook','tiktok','whatsapp'];
 const MIME:Record<string,string>={'image/jpeg':'jpg','video/mp4':'mp4','video/quicktime':'mov'};
 const uuid=(v:unknown)=>typeof v==='string'&&/^[0-9a-f-]{36}$/i.test(v)?v:null;
@@ -50,6 +52,28 @@ export async function POST(request:Request){
    const id=uuid(b.id);if(!id)return publicReply({error:'Pieza no válida.'},400);
    await db.from('contenido_piezas').update({estado:'descartada',updated_at:new Date().toISOString()}).eq('id',id).in('estado',['por_aprobar','aprobada','error']);
    return publicReply({ok:true});
+  }
+  // Anuncios fase 3: promote a published piece as a click-to-WhatsApp ad, created paused (activated later in the portfolio). Administration only.
+  if(b.accion==='promocionar'){
+   if(!esAdmin)return soloAdmin();
+   const id=uuid(b.id);if(!id)return publicReply({error:'Pieza no válida.'},400);
+   const {data:p}=await db.from('contenido_piezas').select('id,sede_id,estado,resultado,codigo,formato,anuncio').eq('id',id).single();
+   if(!p||p.estado!=='publicada')return publicReply({error:'Solo se promocionan piezas publicadas.'},400);
+   if(p.anuncio)return publicReply({error:'Esta pieza ya tiene anuncio.'},400);
+   if(p.formato==='historia')return publicReply({error:'Las historias no se promocionan; usa una publicación, carrusel o reel.'},400);
+   const s=await loadSocialSettings(db);if(!s)return publicReply({error:'Instagram y Facebook no están conectados (Integraciones).'},400);
+   const r=(p.resultado||{}) as Record<string,Record<string,string>>;
+   const [{data:sd},{data:tp}]=await Promise.all([p.sede_id?db.from('sedes').select('nombre').eq('id',p.sede_id).maybeSingle():Promise.resolve({data:null}),
+    db.from('config_parametros').select('valor').eq('clave','anuncios_tope_diario').maybeSingle()]);
+   const publico=String(b.publico) as keyof typeof PUBLICOS;if(!(publico in PUBLICOS))return publicReply({error:'Elige el público.'},400);
+   const ciudad=(sd as {nombre?:string}|null)?.nombre||null;
+   try{
+    const ids=await adsPromote({nombre:`ERP ${p.codigo||''} · ${ciudad||'Colombia'} · ${FORMATO_TXT[p.formato as string]||p.formato}`,ciudad,presupuesto:Number(b.presupuesto),dias:Number(b.dias),publico,
+     pageId:s.pageId,igId:s.instagramId,igMediaId:r.instagram?.id,fbPostId:r.facebook?.id,tope:Number((tp as {valor?:unknown}|null)?.valor)||100000});
+    const anuncio={...ids,publico,presupuesto:Number(b.presupuesto),dias:Number(b.dias),creado_por:uid,creado_at:new Date().toISOString()};
+    await db.from('contenido_piezas').update({anuncio,updated_at:new Date().toISOString()}).eq('id',id);
+    return publicReply({ok:true});
+   }catch(e){return publicReply({error:e instanceof Error?e.message:'Meta no creó el anuncio.'},400);}
   }
   if(b.accion==='aprobar'||b.accion==='publicar_ya'||b.accion==='reintentar'){
    if(!esAdmin)return soloAdmin();

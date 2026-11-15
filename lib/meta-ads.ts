@@ -117,3 +117,49 @@ export async function adsChange({id,tipo,valor,tope,maxPct}:AdChange){
  const despues={...antes,...(tipo==='presupuesto'?{presupuesto_diario:Math.round(Number(valor))}:{estado:tipo==='pausar'?'PAUSED':'ACTIVE'})};
  return {antes,despues};
 }
+
+/** Anuncios fase 3: promotes a piece already published on Instagram (or Facebook) as a click-to-WhatsApp ad. Campaign, ad set and ad
+ *  are created PAUSED: nothing spends until administration activates it in the portfolio (fase 2). Campaign budget (daily) and end date
+ *  on the ad set. Audience: lookalike or renters (looked up by name in the account), or open, in the city of the piece's sede. */
+export const PUBLICOS={similar:'Similar 1% | ERP Alquiló 180D',clientas:'ERP | Alquiló | 180D',abierto:''} as const;
+export type Promocion={nombre:string;ciudad:string|null;presupuesto:number;dias:number;publico:keyof typeof PUBLICOS;pageId:string;igId?:string;igMediaId?:string;fbPostId?:string;tope:number};
+export async function adsPromote(p:Promocion){
+ const token=process.env.META_ADS_TOKEN;if(!token)throw Error('Falta META_ADS_TOKEN');
+ const act=`act_${process.env.META_AD_ACCOUNT_ID||'298134381906490'}`;
+ if(!(p.presupuesto>0)||p.presupuesto>p.tope)throw Error(`El presupuesto diario debe estar entre $1 y el tope de $${p.tope.toLocaleString('es-CO')} (Configuración).`);
+ if(!(p.dias>=1&&p.dias<=30))throw Error('La duración va de 1 a 30 días.');
+ if(!p.igMediaId&&!p.fbPostId)throw Error('La pieza no tiene publicación en Instagram ni en Facebook.');
+ const call=async(path:string,params?:Record<string,unknown>,method='POST')=>{
+  const body=params?new URLSearchParams(Object.entries(params).map(([k,v])=>[k,typeof v==='string'?v:JSON.stringify(v)])):undefined;
+  const r=await fetch(graph(path),{method:params?method:'GET',headers:{Authorization:`Bearer ${token}`,...(body?{'Content-Type':'application/x-www-form-urlencoded'}:{})},body,signal:AbortSignal.timeout(20000)});
+  const d=await r.json().catch(()=>({})) as Record<string,unknown>&{error?:{message?:string;error_user_msg?:string}};
+  if(!r.ok||d.error)throw Error(d.error?.error_user_msg||d.error?.message||`Meta respondió ${r.status}`);
+  return d;
+ };
+ const geo:Record<string,unknown>={countries:['CO']};
+ if(p.ciudad){
+  const g=await call(`search?type=adgeolocation&location_types=${encodeURIComponent('["city"]')}&country_code=CO&q=${encodeURIComponent(p.ciudad)}`) as {data?:{key:string}[]};
+  const key=g.data?.[0]?.key;if(key){delete geo.countries;geo.cities=[{key,radius:40,distance_unit:'kilometer'}];}
+ }
+ const targeting:Record<string,unknown>={geo_locations:geo,age_min:18,age_max:55,genders:[2],targeting_automation:{advantage_audience:0}};
+ if(PUBLICOS[p.publico]){
+  const a=await call(`${act}/customaudiences?fields=id,name&limit=200`) as {data?:{id:string;name:string}[]};
+  const aud=a.data?.find(x=>x.name===PUBLICOS[p.publico]);if(!aud)throw Error(`No encontré el público «${PUBLICOS[p.publico]}» en la cuenta de anuncios.`);
+  targeting.custom_audiences=[{id:aud.id}];
+ }
+ const nombre=p.nombre.slice(0,90),fin=new Date(Date.now()+p.dias*86400000).toISOString();
+ const camp=String((await call(`${act}/campaigns`,{name:nombre,objective:'OUTCOME_ENGAGEMENT',status:'PAUSED',special_ad_categories:[],daily_budget:String(Math.round(p.presupuesto)*100),bid_strategy:'LOWEST_COST_WITHOUT_CAP'})).id);
+ try{
+  const set=String((await call(`${act}/adsets`,{name:nombre,campaign_id:camp,status:'PAUSED',billing_event:'IMPRESSIONS',optimization_goal:'CONVERSATIONS',destination_type:'WHATSAPP',
+   promoted_object:{page_id:p.pageId},targeting,end_time:fin})).id);
+  const cta={type:'WHATSAPP_MESSAGE',value:{app_destination:'WHATSAPP'}};
+  const creative=p.igMediaId&&p.igId?{name:nombre,object_id:p.pageId,instagram_user_id:p.igId,source_instagram_media_id:p.igMediaId,call_to_action:cta}:{name:nombre,object_story_id:p.fbPostId,call_to_action:cta};
+  const cr=String((await call(`${act}/adcreatives`,creative)).id);
+  const ad=String((await call(`${act}/ads`,{name:nombre,adset_id:set,creative:{creative_id:cr},status:'PAUSED'})).id);
+  return {campana_id:camp,conjunto_id:set,anuncio_id:ad};
+ }catch(e){
+  // Nothing half-built stays in the account: the paused campaign just created (never delivered) is removed.
+  await fetch(graph(camp),{method:'DELETE',headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)}).catch(()=>null);
+  throw e;
+ }
+}

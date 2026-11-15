@@ -6,7 +6,7 @@ import {supabase} from '@/lib/supabase';
 
 type Medio={url:string;tipo:'imagen'|'video';fuente:string;ref:string;nota?:string};
 type Pieza={id:string;formato:string;redes:string[];sede_id:string|null;orden:string|null;texto:string|null;idea:string|null;medios:Medio[];programada_at:string|null;estado:string;
- resultado:Record<string,{estado?:string;enlace?:string;error?:string}>;error:string|null;created_at:string;codigo:string|null;metricas:Record<string,Record<string,number|string>>;metricas_at:string|null};
+ resultado:Record<string,{estado?:string;enlace?:string;error?:string;id?:string}>;error:string|null;created_at:string;codigo:string|null;metricas:Record<string,Record<string,number|string>>;metricas_at:string|null;anuncio:{campana_id:string;publico:string;presupuesto:number;dias:number;creado_at:string}|null};
 type Resultado={pieza_id:string;chats:number;citas:number;asistieron:number;contratos:number;valor:number};
 type Lib={id:string;url:string;tipo:'imagen'|'video';titulo:string|null;etiquetas:string[];sede_id:string|null;tiene_clienta:boolean;autorizada:boolean};
 type Sede={id:string;nombre:string};
@@ -50,7 +50,7 @@ function Estudio(){
  const [error,setError]=useState(''),[busy,setBusy]=useState('');
  const load=useCallback(async()=>{
   const [{data:p,error:e},{data:l},{data:s},{data:a},{data:rg}]=await Promise.all([
-   supabase.from('contenido_piezas').select('id,formato,redes,sede_id,orden,texto,idea,medios,programada_at,estado,resultado,error,created_at,codigo,metricas,metricas_at').order('created_at',{ascending:false}).limit(150),
+   supabase.from('contenido_piezas').select('id,formato,redes,sede_id,orden,texto,idea,medios,programada_at,estado,resultado,error,created_at,codigo,metricas,metricas_at,anuncio').order('created_at',{ascending:false}).limit(150),
    supabase.from('contenido_biblioteca').select('id,url,tipo,titulo,etiquetas,sede_id,tiene_clienta,autorizada').eq('archivado',false).order('created_at',{ascending:false}).limit(300),
    supabase.from('sedes').select('id,nombre').order('nombre'),
    supabase.rpc('es_admin'),
@@ -112,6 +112,7 @@ function Tarjeta({p,res,admin,sede,busy,run}:{p:Pieza;res?:Resultado;admin:boole
   </div>
   <p className="text-xs text-gray-500">{sede} · publicar {verFecha(p.programada_at)}{p.codigo?` · código ${p.codigo}`:''}</p>
   {(p.estado==='publicada'||p.estado==='publicando')&&<Medicion p={p} res={res}/>}
+  {admin&&p.estado==='publicada'&&p.formato!=='historia'&&(p.resultado?.instagram?.id||p.resultado?.facebook?.id||p.anuncio)&&<Promocion p={p} busy={busy} run={run}/>}
   {p.idea&&<p className="text-xs text-gray-600 italic">{p.idea}</p>}
   <div className="flex gap-2 overflow-x-auto pb-1">{p.medios.map(m=><div key={m.url} className="relative shrink-0">
    {m.tipo==='video'?<video src={m.url} className="h-40 rounded-xl" controls preload="metadata"/>:/* eslint-disable-next-line @next/next/no-img-element */<img src={m.url} alt={m.nota||''} className="h-40 rounded-xl object-cover"/>}
@@ -228,5 +229,26 @@ function Medicion({p,res}:{p:Pieza;res?:Resultado}){
   {redes.length?redes.map(([red,m])=><p key={red}><b>{RED[red]||red}:</b> {m.error?<span className="text-amber-700">sin métricas ({String(m.error)})</span>:<>alcance {n(m.alcance)} · {red==='facebook'?`reacciones ${n(m.reacciones)}`:`interacciones ${n(m.interacciones)}`} · comentarios {n(m.comentarios)} · compartidos {n(m.compartidos)}{m.guardados!==undefined?` · guardados ${n(m.guardados)}`:''}</>}</p>)
    :<p className="text-gray-500">Las métricas de alcance llegan al día siguiente de publicar.</p>}
   <p><b>Resultados (código {p.codigo||'—'}):</b> {n(res?.chats)} chats · {n(res?.citas)} citas · {n(res?.asistieron)} asistieron · {n(res?.contratos)} contratos{res?.valor?` · $${n(res.valor)}`:''}</p>
+ </div>;
+}
+
+const PUBLICO:Record<string,string>={similar:'Parecidas a clientas que alquilaron (1%)',clientas:'Clientas que alquilaron (180 días)',abierto:'Abierto en la ciudad'};
+/** Anuncios fase 3: promote a published piece as a WhatsApp ad. It is created paused; it starts when administration activates it in
+ *  WhatsApp › Anuncios › Portafolio (with the caps of Configuración). */
+function Promocion({p,busy,run}:{p:Pieza;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>}){
+ const [abierto,setAbierto]=useState(false),[presupuesto,setPresupuesto]=useState('10000'),[dias,setDias]=useState('7'),[publico,setPublico]=useState('similar');
+ if(p.anuncio)return <p className="text-xs font-bold text-indigo-700 bg-indigo-50 rounded-lg px-2 py-1">Anuncio creado en pausa · {PUBLICO[p.anuncio.publico]||p.anuncio.publico} · ${p.anuncio.presupuesto.toLocaleString('es-CO')}/día · {p.anuncio.dias} días. Actívalo en WhatsApp › Anuncios › Portafolio.</p>;
+ if(!abierto)return <button type="button" disabled={!!busy} onClick={()=>setAbierto(true)} className="text-xs font-black text-indigo-700 underline">Promocionar con anuncio a WhatsApp</button>;
+ const k=`promocionar:${p.id}`;
+ return <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 space-y-2 text-xs">
+  <p className="font-black text-indigo-900">Promocionar esta pieza</p>
+  <label className="block font-bold text-gray-600">Público<select className={`${input} mt-1`} value={publico} onChange={e=>setPublico(e.target.value)}>{Object.entries(PUBLICO).map(([v,t])=><option key={v} value={v}>{t}</option>)}</select></label>
+  <div className="grid grid-cols-2 gap-2">
+   <label className="block font-bold text-gray-600">Presupuesto diario (COP)<input inputMode="numeric" className={`${input} mt-1`} value={presupuesto} onChange={e=>setPresupuesto(e.target.value.replace(/\D/g,''))}/></label>
+   <label className="block font-bold text-gray-600">Días<input inputMode="numeric" className={`${input} mt-1`} value={dias} onChange={e=>setDias(e.target.value.replace(/\D/g,''))}/></label>
+  </div>
+  <p className="text-gray-500">Mujeres de 18 a 55 años en la ciudad de la sede, con botón a WhatsApp. Se crea en pausa: no gasta hasta que lo actives en el portafolio.</p>
+  <div className="flex gap-2"><button type="button" disabled={!!busy||!Number(presupuesto)||!Number(dias)} onClick={()=>{if(window.confirm(`¿Crear el anuncio en pausa con $${Number(presupuesto).toLocaleString('es-CO')} diarios por ${dias} días?`))void run(k,{accion:'promocionar',id:p.id,publico,presupuesto:Number(presupuesto),dias:Number(dias)});}} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-black disabled:opacity-40">{busy===k?'Creando…':'Crear anuncio en pausa'}</button>
+   <button type="button" onClick={()=>setAbierto(false)} className="px-3 py-1.5 rounded-lg border font-black text-gray-600">Cancelar</button></div>
  </div>;
 }
