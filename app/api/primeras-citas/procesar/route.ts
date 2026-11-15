@@ -1,6 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {visitManagementLink} from '@/lib/first-visit-links';
-import {confirmationPayload,isTemplateError,whatsappPayload,reminderConfirmPayload,postVisitPayload,POST_VISIT_V2_TEMPLATE,openWindowPayload,inboxCopy,REMINDER_CONFIRM_TEMPLATE,REMINDER_CONFIRM_V2_TEMPLATE,RECOVERY_TEMPLATE} from '@/lib/first-visit-messaging';
+import {confirmationPayload,isTemplateError,whatsappPayload,reminderConfirmPayload,postVisitPayload,reviewPayload,REVIEW_TEMPLATE,POST_VISIT_V2_TEMPLATE,openWindowPayload,inboxCopy,REMINDER_CONFIRM_TEMPLATE,REMINDER_CONFIRM_V2_TEMPLATE,RECOVERY_TEMPLATE} from '@/lib/first-visit-messaging';
 import {whatsappPhone} from '@/lib/first-visit-links';
 import {claimVisitEmails,deliverVisitEmails} from '@/lib/first-visit-email';
 import {Resend} from 'resend';
@@ -53,14 +53,14 @@ export async function POST(request:Request){
     const tel=whatsappPhone(c.telefono);
     const {data:conv}=['recordatorio24','recordatorio2','recuperar','resena','post_cita'].includes(m.tipo)?await db.from('whatsapp_conversaciones').select('id,ultimo_entrante_at').eq('telefono',tel).maybeSingle():{data:null};
     // Answers to a button she just tapped («No puedo» → «¿Cancelamos?») always go inside her open 24 hours.
-    const RESPUESTA=['confirmar_cancelacion','cita_cancelada_wa','cita_mantenida_wa'].includes(m.tipo);
+    const RESPUESTA=['confirmar_cancelacion','cita_cancelada_wa','cita_mantenida_wa','satisfaccion','satisfaccion_falla','satisfaccion_gracias'].includes(m.tipo);
     const open=RESPUESTA||(!!conv?.ultimo_entrante_at&&Date.now()-Date.parse(conv.ultimo_entrante_at)<23.5*3600000);
     // Google review request after «Asistí»: a normal message while her 24 hours are open (no template), with her store's review link.
     let resena:string|null=null;
     if(m.tipo==='resena'){const {data:s}=await db.from('sedes').select('resena_url').eq('id',c.sede_id).maybeSingle();resena=s?.resena_url||null;}
-    const direct=m.tipo==='resena'?(open&&resena?{texto:`¡Gracias por venir, ${String(c.cliente_nombre).split(' ')[0]}! 💛 ¿Nos regalas 1 minuto para contar tu experiencia en Google? Tu opinión ayuda a otras quinceañeras y novias a encontrar su vestido: ${resena}`,payload:null as Record<string,unknown>|null}:null)
+    // Review: button «⭐ Dejar reseña» inside her 24 hours; outside, the ambar_resena template (Dejar reseña · Ahora no).
+    const direct:{texto:string;payload:Record<string,unknown>}|null=m.tipo==='resena'?(resena?reviewPayload(c,resena,open,wa.templateLang):null)
      :open?openWindowPayload(m.tipo,c,sede,link,sites):null;
-    if(direct&&m.tipo==='resena')direct.payload={messaging_product:'whatsapp',to:tel,type:'text',text:{preview_url:false,body:direct.texto}};
     // Confirmations use the detailed per-store template; the 24-hour reminder asks to confirm. While Meta has not approved a template, the next one goes out.
     const payloads=m.tipo==='resena'?(direct?.payload?[direct.payload]:[]):[direct?.payload??null,m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang,true):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang):null,m.tipo==='post_cita'?postVisitPayload(c,sede,wa.templateLang):null,
      // The 24-hour reminder always goes with buttons: no plain template as last option.
@@ -73,7 +73,7 @@ export async function POST(request:Request){
       break;}
      if(r.status>=400&&r.status<500){state='error';
       const name=(payload as {template?:{name?:string}}).template?.name;
-      issue=isTemplateError(d.error?.code)&&(name===REMINDER_CONFIRM_TEMPLATE||name===REMINDER_CONFIRM_V2_TEMPLATE||name===POST_VISIT_V2_TEMPLATE||name===RECOVERY_TEMPLATE)?`Falta aprobar en Meta la plantilla ${name} (ver docs/plantillas-whatsapp.md).`:`WhatsApp rechazó el envío (${r.status})`;
+      issue=isTemplateError(d.error?.code)&&(name===REMINDER_CONFIRM_TEMPLATE||name===REMINDER_CONFIRM_V2_TEMPLATE||name===POST_VISIT_V2_TEMPLATE||name===REVIEW_TEMPLATE||name===RECOVERY_TEMPLATE)?`Falta aprobar en Meta la plantilla ${name} (ver docs/plantillas-whatsapp.md).`:`WhatsApp rechazó el envío (${r.status})`;
       if(n<payloads.length-1&&(isTemplateError(d.error?.code)||(direct&&payload===direct.payload)))continue;}
      else issue='Respuesta incierta del proveedor; revisar antes de reintentar';
      break;
