@@ -21,7 +21,8 @@ export async function middleware(req: NextRequest) {
   const token = bearer || req.cookies.get('sb-access-token')?.value;
   const protectedPath = /^\/(dashboard|contratos|admin|perfil|disponibilidad|proveedor)(\/|$)/.test(path) || path === '/api/dashboard/contracts';
   const deny = () => path === '/api/dashboard/contracts' ? NextResponse.json({error: 'Inicia sesión para continuar.'}, {status: 401}) : path === '/login' ? next() : req.method === 'GET' || req.method === 'HEAD'
-    ? NextResponse.redirect(new URL('/login', req.url))
+    // The login page renews an expired session by itself and sends the user back to where she was going.
+    ? NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(path + req.nextUrl.search)}`, req.url))
     : NextResponse.json({ error: 'Inicia sesión para continuar.' }, { status: 401 });
   if (!token) return protectedPath ? deny() : next();
 

@@ -23,6 +23,16 @@ export default function LoginPage() {
         else setMode('update');
       }).catch(()=>{setMode('recover');setMessage('No se pudo validar el enlace. Intenta solicitar uno nuevo.');}).finally(()=>setLoading(false));
     }
+    // Session expired while the phone was in the background: renew it and go back to the page she was opening (?next=).
+    if(!token){
+      const n=new URLSearchParams(window.location.search).get('next')||'';
+      const destino=/^\/(?!\/)/.test(n)&&!n.startsWith('/login')?n:'/dashboard';
+      void supabase.auth.getSession().then(({data})=>{
+        const ses=data.session;if(!ses||(ses.expires_at??0)*1000<=Date.now())return;
+        document.cookie=`sb-access-token=${ses.access_token}; path=/; max-age=${Math.max(0,(ses.expires_at??0)-Math.floor(Date.now()/1000))}; SameSite=Lax${location.protocol==='https:'?'; Secure':''}`;
+        window.location.replace(destino);
+      }).catch(()=>null);
+    }
     return()=>subscription.unsubscribe();
   },[]);
   const recoverAccess=async()=>{
