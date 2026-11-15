@@ -1,6 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {visitManagementLink} from '@/lib/first-visit-links';
-import {confirmationPayload,isTemplateError,whatsappPayload,reminderConfirmPayload,postVisitPayload,reviewPayload,REVIEW_TEMPLATE,POST_VISIT_V2_TEMPLATE,openWindowPayload,inboxCopy,REMINDER_CONFIRM_TEMPLATE,REMINDER_CONFIRM_V2_TEMPLATE,RECOVERY_TEMPLATE} from '@/lib/first-visit-messaging';
+import {confirmationPayload,isTemplateError,whatsappPayload,reminderConfirmPayload,postVisitPayload,reviewPayload,rescheduleChoices,todayReminderPayload,TODAY_REMINDER_TEMPLATE,REVIEW_TEMPLATE,POST_VISIT_V2_TEMPLATE,openWindowPayload,inboxCopy,REMINDER_CONFIRM_TEMPLATE,REMINDER_CONFIRM_V2_TEMPLATE,RECOVERY_TEMPLATE} from '@/lib/first-visit-messaging';
 import {whatsappPhone} from '@/lib/first-visit-links';
 import {claimVisitEmails,deliverVisitEmails} from '@/lib/first-visit-email';
 import {Resend} from 'resend';
@@ -10,6 +10,16 @@ import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {loadVisitSites} from '@/lib/first-visit-sites';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
+/** The 2 nearest free times for a visit (same modality and store), from 3 hours from now and within 10 days. */
+async function nearestSlots(db:{rpc:(f:string,a:Record<string,unknown>)=>PromiseLike<{data:unknown}>},c:{modalidad:string;sede_id:string}){
+ const out:{fecha:string;hora:string}[]=[],limit=Date.now()+3*3600000;
+ for(let i=0;i<10&&out.length<2;i++){
+  const fecha=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).format(new Date(Date.now()+i*86400000));
+  const {data}=await db.rpc('disponibilidad_primera_cita',{p_fecha:fecha,p_modalidad:c.modalidad,p_sede:c.modalidad==='virtual'?null:c.sede_id});
+  for(const s of (Array.isArray(data)?data:[]) as {hora:string;cupos:number}[])if(s.cupos>0&&Date.parse(`${fecha}T${s.hora}:00-05:00`)>limit&&out.length<2)out.push({fecha,hora:s.hora});
+ }
+ return out;
+}
 export async function GET(request:Request){
  if(!authorizedVisitWorker(request))return Response.json({error:'No autorizado'},{status:401});
  const config=visitWorkerConfiguration();
@@ -51,18 +61,19 @@ export async function POST(request:Request){
     const link=visitManagementLink(origin,c.id,Date.parse(c.fecha+'T23:59:59-05:00')+30*86400000,process.env.FIRST_VISIT_LINK_SECRET||key);
     // If the customer wrote to the 304 in the last 24 hours, reminders go as normal messages (they also show in the inbox).
     const tel=whatsappPhone(c.telefono);
-    const {data:conv}=['recordatorio24','recordatorio2','recuperar','resena','post_cita'].includes(m.tipo)?await db.from('whatsapp_conversaciones').select('id,ultimo_entrante_at').eq('telefono',tel).maybeSingle():{data:null};
+    const {data:conv}=['recordatorio24','recordatorio2','recuperar','resena','post_cita','confirmacion'].includes(m.tipo)?await db.from('whatsapp_conversaciones').select('id,ultimo_entrante_at').eq('telefono',tel).maybeSingle():{data:null};
     // Answers to a button she just tapped («No puedo» → «¿Cancelamos?») always go inside her open 24 hours.
-    const RESPUESTA=['confirmar_cancelacion','cita_cancelada_wa','cita_mantenida_wa','satisfaccion','satisfaccion_falla','satisfaccion_gracias'].includes(m.tipo);
+    const RESPUESTA=['confirmar_cancelacion','cita_cancelada_wa','cita_mantenida_wa','satisfaccion','satisfaccion_falla','satisfaccion_gracias','ubicacion','reagendar_otro_dia','reagendar_ocupado','reagendar'].includes(m.tipo);
     const open=RESPUESTA||(!!conv?.ultimo_entrante_at&&Date.now()-Date.parse(conv.ultimo_entrante_at)<23.5*3600000);
     // Google review request after «Asistí»: a normal message while her 24 hours are open (no template), with her store's review link.
     let resena:string|null=null;
     if(m.tipo==='resena'){const {data:s}=await db.from('sedes').select('resena_url').eq('id',c.sede_id).maybeSingle();resena=s?.resena_url||null;}
     // Review: button «⭐ Dejar reseña» inside her 24 hours; outside, the ambar_resena template (Dejar reseña · Ahora no).
     const direct:{texto:string;payload:Record<string,unknown>}|null=m.tipo==='resena'?(resena?reviewPayload(c,resena,open,wa.templateLang):null)
+     :m.tipo==='reagendar'?rescheduleChoices(c,await nearestSlots(db,c),link)
      :open?openWindowPayload(m.tipo,c,sede,link,sites):null;
     // Confirmations use the detailed per-store template; the 24-hour reminder asks to confirm. While Meta has not approved a template, the next one goes out.
-    const payloads=m.tipo==='resena'?(direct?.payload?[direct.payload]:[]):[direct?.payload??null,m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang,true):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang):null,m.tipo==='post_cita'?postVisitPayload(c,sede,wa.templateLang):null,
+    const payloads=m.tipo==='resena'?(direct?.payload?[direct.payload]:[]):[direct?.payload??null,m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites,true):null,m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites):null,m.tipo==='recordatorio2'?todayReminderPayload(c,sede,wa.templateLang):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang,true):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang):null,m.tipo==='post_cita'?postVisitPayload(c,sede,wa.templateLang):null,
      // The 24-hour reminder always goes with buttons: no plain template as last option.
      m.tipo==='recordatorio24'||RESPUESTA?null:whatsappPayload(m.tipo,c,sede,link,wa.templateLang)].filter(p=>p!==null);
     if(!payloads.length){state='omitido';issue='Sin las 24 horas abiertas o sin enlace de reseña de la sede';}
@@ -73,7 +84,7 @@ export async function POST(request:Request){
       break;}
      if(r.status>=400&&r.status<500){state='error';
       const name=(payload as {template?:{name?:string}}).template?.name;
-      issue=isTemplateError(d.error?.code)&&(name===REMINDER_CONFIRM_TEMPLATE||name===REMINDER_CONFIRM_V2_TEMPLATE||name===POST_VISIT_V2_TEMPLATE||name===REVIEW_TEMPLATE||name===RECOVERY_TEMPLATE)?`Falta aprobar en Meta la plantilla ${name} (ver docs/plantillas-whatsapp.md).`:`WhatsApp rechazó el envío (${r.status})`;
+      issue=isTemplateError(d.error?.code)&&(name===REMINDER_CONFIRM_TEMPLATE||name===REMINDER_CONFIRM_V2_TEMPLATE||name===POST_VISIT_V2_TEMPLATE||name===REVIEW_TEMPLATE||name===TODAY_REMINDER_TEMPLATE||String(name).endsWith('_v2')||name===RECOVERY_TEMPLATE)?`Falta aprobar en Meta la plantilla ${name} (ver docs/plantillas-whatsapp.md).`:`WhatsApp rechazó el envío (${r.status})`;
       if(n<payloads.length-1&&(isTemplateError(d.error?.code)||(direct&&payload===direct.payload)))continue;}
      else issue='Respuesta incierta del proveedor; revisar antes de reintentar';
      break;

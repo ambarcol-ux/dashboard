@@ -92,6 +92,18 @@ https://erp.ambarcouture.com/reprogramar-primera-cita
 
 Los datos de cada sede (dirección, mapa, teléfono y WhatsApp) están en `lib/first-visit-sites.ts`.
 
+## Plantillas con botones de la etapa 4 (se crean solas con «Crear plantillas en Meta»)
+
+| Plantilla | Categoría | Botones | Uso |
+|---|---|---|---|
+| `ambar_cita_confirmada_sede_v2` / `ambar_cita_confirmada_virtual_v2` | Utilidad (idioma de confirmación) | Confirmo · Cambiar hora | Confirmación detallada; mismas variables que las de siempre |
+| `ambar_recordatorio_hoy` | Utilidad | Ver ubicación · Cambiar hora | Recordatorio del mismo día fuera de las 24 h ({{1}} nombre, {{2}} sede, {{3}} hora) |
+| `ambar_seguimiento_botones` | Marketing | Agendar cita · Ver vestidos · No me interesa | Reactivación del CRM (días 2 y 7) |
+| `ambar_seguimiento_promo_botones` | Marketing | Quiero mi cita · No recibir más | Reactivación con promoción vigente |
+
+Mientras Meta no aprueba una plantilla con botones, sale la anterior. Dentro de las 24 h todo sale como mensaje con botones (también el empujón de la IA, con Agendar cita · Ver vestidos · No me interesa).
+«Cambiar hora» ofrece los 2 horarios libres más cercanos como botones (y «Otro día», que sigue la IA). «No me interesa» cierra el seguimiento; «No recibir más» además revoca la autorización comercial del teléfono (Ley 1581).
+
 ## Reseña de Google — `ambar_resena`
 
 Categoría **Marketing** · Idioma **Español (COL)** · Botones: **Dejar reseña** (enlace: `https://search.google.com/local/writereview?placeid={{1}}`, el Place ID de la sede) y **Ahora no** (respuesta rápida). Se crea con «Crear plantillas en Meta».

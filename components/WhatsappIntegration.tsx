@@ -90,7 +90,7 @@ const connect=async()=>{
   </details>
   <div className="border border-emerald-200 bg-emerald-50/50 rounded-2xl p-4">
    <p className="font-black text-sm">Plantillas de seguimiento y aliados</p>
-   <p className="text-sm text-gray-600 mt-1">Envía a Meta para aprobación: ambar_recordatorio_confirmar_v2, ambar_post_cita_v2, ambar_resena, ambar_seguimiento_promo, ambar_seguimiento_v2, ambar_aliado_recordatorio y ambar_aliado_bienvenida_v2. Las que ya existan no se tocan.</p>
+   <p className="text-sm text-gray-600 mt-1">Envía a Meta para aprobación las plantillas con botones (confirmación, recordatorios, post-cita, reseña y seguimientos): ambar_seguimiento_promo, ambar_seguimiento_v2, ambar_aliado_recordatorio y ambar_aliado_bienvenida_v2. Las que ya existan no se tocan.</p>
    <button type="button" disabled={!!busy} onClick={()=>void createTemplates()} className="mt-3 px-4 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-black disabled:opacity-40">{busy==='crear'?'Enviando…':'Crear plantillas en Meta'}</button>
    {nuevasRes&&<ul className="mt-3 text-sm space-y-1">{nuevasRes.map(r=><li key={r.plantilla}><b>{r.plantilla}:</b> {r.estado}</li>)}</ul>}
   </div>

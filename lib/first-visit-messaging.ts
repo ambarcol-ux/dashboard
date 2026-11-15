@@ -33,6 +33,24 @@ export const POST_VISIT_V2_TEMPLATE='ambar_post_cita_v2';
 export const POST_VISIT_ACTIONS=['pc_alquile','pc_no_decido','pc_no_asisti'] as const;
 /** Google review request (see docs/plantillas-whatsapp.md): «Dejar reseña» (link to the store's review form) and «Ahora no». */
 export const REVIEW_TEMPLATE='ambar_resena';
+/** Reschedule with the 2 nearest free times as buttons (ids rg_<fecha>_<HH:MM>) and «Otro día»; without free times, the button to the schedule page. */
+export function rescheduleChoices(c:NotificationVisit,slots:{fecha:string;hora:string}[],link:string){
+ const to=whatsappPhone(c.telefono),name=c.cliente_nombre.split(' ')[0];
+ const etiqueta=(s:{fecha:string;hora:string})=>{const d=new Date(`${s.fecha}T12:00:00Z`),dia=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d.getUTCDay()],[h,m]=s.hora.split(':').map(Number);
+  return `${dia} ${d.getUTCDate()} · ${((h+11)%12)+1}:${String(m).padStart(2,'0')} ${h<12?'a.m.':'p.m.'}`.slice(0,20);};
+ if(!slots.length){const texto=`${name}, elige la nueva fecha y hora de tu cita aquí:`;
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'cta_url',body:{text:texto},action:{name:'cta_url',parameters:{display_text:'📅 Ver horarios',url:link}}}}};}
+ const texto=`${name}, estos son los horarios libres más cercanos para tu cita. ¿Cuál te sirve?`;
+ return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[
+  ...slots.slice(0,2).map(s=>({type:'reply',reply:{id:`rg_${s.fecha}_${s.hora}`,title:etiqueta(s)}})),{type:'reply',reply:{id:'rg_otro_dia',title:'📅 Otro día'}}]}}}};
+}
+/** Day-of reminder outside the 24 hours (template with «Ver ubicación» and «Cambiar hora»). */
+export const TODAY_REMINDER_TEMPLATE='ambar_recordatorio_hoy';
+export function todayReminderPayload(c:NotificationVisit,site:string,lang='es_CO'){
+ return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name:TODAY_REMINDER_TEMPLATE,language:{code:lang},components:[
+  {type:'body',parameters:[c.cliente_nombre.split(' ')[0],c.modalidad==='virtual'?'(virtual)':site,visitTime(c.hora)].map(text=>({type:'text',text}))},
+  ...['r2_ubicacion','r2_cambiar'].map((payload,i)=>({type:'button',sub_type:'quick_reply',index:String(i),parameters:[{type:'payload',payload}]}))]}};
+}
 const REVIEW_TEXT='Tu opinión ayuda a otras quinceañeras a elegir. ¿Nos cuentas tu experiencia en Google?';
 /** Place id of a store's Google review link (https://search.google.com/local/writereview?placeid=…), or null. */
 export const reviewPlaceId=(url:string|null|undefined)=>{try{return url?new URL(url).searchParams.get('placeid'):null;}catch{return null;}};
@@ -77,8 +95,16 @@ export function openWindowPayload(type:string,c:NotificationVisit,siteName:strin
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'cta_url',body:{text:texto},action:{name:'cta_url',parameters:{display_text:'📅 Agendar otra cita',url:`${link.split('/agendar-primera-cita')[0]}/agendar-primera-cita?o=wa_cancelada`}}}}};}
  if(type==='cita_mantenida_wa'){const texto=`¡Perfecto, ${name}! Mantenemos tu cita ${where} el ${when}. Te esperamos 💛`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
- if(type==='recordatorio2'){const texto=`Hola ${name}, ¡hoy es tu cita! Te esperamos ${where} a las ${visitTime(c.hora)}${site?.mapa?`. Cómo llegar: ${site.mapa}`:''}.${c.modalidad!=='virtual'&&site?.parqueadero?` ${site.parqueadero}`:''} Si se te presenta algo, puedes cambiarla aquí: ${link}`;
+ if(type==='recordatorio2'){const texto=`Hola ${name}, ¡hoy es tu cita! Te esperamos ${where} a las ${visitTime(c.hora)}.${c.modalidad!=='virtual'&&site?.parqueadero?` ${site.parqueadero}`:''}`;
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[...(c.modalidad!=='virtual'?[{type:'reply',reply:{id:'r2_ubicacion',title:'📍 Ver ubicación'}}]:[]),{type:'reply',reply:{id:'r2_cambiar',title:'🔄 Cambiar hora'}}]}}}};}
+ if(type==='confirmacion'){const texto=`Hola ${name} 💛 Tu primera cita ${where} quedó agendada para el ${when}. ¿Nos confirmas?`;
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'cf_confirmo',title:'✅ Confirmo'}},{type:'reply',reply:{id:'cf_cambiar',title:'🔄 Cambiar hora'}}]}}}};}
+ if(type==='ubicacion'){const texto=`📍 Ámbar Couture ${siteName}${site?.direccion?`: ${site.direccion}`:''}.${site?.parqueadero?` ${site.parqueadero}`:''}`;
+  return {texto,payload:site?.mapa?{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'cta_url',body:{text:texto},action:{name:'cta_url',parameters:{display_text:'🗺️ Cómo llegar',url:site.mapa}}}}:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
+ if(type==='reagendar_otro_dia'){const texto=`¡Claro, ${name}! ¿Qué día y a qué hora te queda mejor? Escríbeme y te ayudo a encontrar un espacio 💛`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
+ if(type==='reagendar_ocupado'){const texto=`Ese horario se acaba de ocupar 😕 Elige otro aquí o escríbeme qué día te queda bien:`;
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'cta_url',body:{text:texto},action:{name:'cta_url',parameters:{display_text:'📅 Ver horarios',url:link}}}}};}
  if(type==='recuperar'){const texto=`Hola ${name} 💛 Hoy te esperábamos en tu cita y nos quedamos con ganas de verte. Si quieres, elige una nueva fecha aquí y te tenemos los vestidos listos: ${link}`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
  return null;
@@ -101,14 +127,15 @@ export function metaErrorText(code:unknown,title:unknown){
 /** Detailed confirmation templates (address, map, phone, WhatsApp and reschedule page). Created in WhatsApp Manager; see docs/plantillas-whatsapp.md. */
 export const CONFIRMATION_TEMPLATES={presencial:'ambar_cita_confirmada_sede',virtual:'ambar_cita_confirmada_virtual'};
 /** Detailed confirmation for one visit, or null when the store has no contact details (the short template is used then). */
-export function confirmationPayload(c:NotificationVisit,siteName:string,lang='es',sites?:VisitSite[]){
+export function confirmationPayload(c:NotificationVisit,siteName:string,lang='es',sites?:VisitSite[],v2=false){
  const site=visitSite(siteName,sites);
  if(!site)return null;
  const values=c.modalidad==='virtual'
   ?[c.cliente_nombre,visitDate(c.fecha),visitTime(c.hora),site.nombre,site.telefono,`https://wa.me/${site.whatsapp}`]
   :[c.cliente_nombre,site.nombre,visitDate(c.fecha),visitTime(c.hora),site.parqueadero?`${site.direccion} · ${site.parqueadero}`:site.direccion,site.mapa,site.nombre,site.telefono,`https://wa.me/${site.whatsapp}`];
- const name=c.modalidad==='virtual'?CONFIRMATION_TEMPLATES.virtual:CONFIRMATION_TEMPLATES.presencial;
- return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name,language:{code:lang},components:[{type:'body',parameters:values.map(text=>({type:'text',text}))}]}};
+ const name=(c.modalidad==='virtual'?CONFIRMATION_TEMPLATES.virtual:CONFIRMATION_TEMPLATES.presencial)+(v2?'_v2':'');
+ return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name,language:{code:lang},components:[{type:'body',parameters:values.map(text=>({type:'text',text}))},
+  ...(v2?['cf_confirmo','cf_cambiar'].map((payload,i)=>({type:'button',sub_type:'quick_reply',index:String(i),parameters:[{type:'payload',payload}]})):[])]}};
 }
 /** Meta template errors (missing, paused, not approved, wrong parameters): try the next payload instead of failing. */
 export const isTemplateError=(code:unknown)=>typeof code==='number'&&code>=132000&&code<133000;
