@@ -2,7 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendWhatsappText,downloadWhatsappImage,sendWhatsappFollowup,followupText,conversationFor,WINDOW_MS} from '@/lib/whatsapp-inbox';
-import {resolveAd,adsSpend,adsTokenReady,adsPortfolio} from '@/lib/meta-ads';
+import {resolveAd,adsSpend,adsTokenReady,adsPortfolio,adsChange} from '@/lib/meta-ads';
 import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply,COMMENT_GONE} from '@/lib/social-inbox';
 import {attachmentBlocks,type Adjunto} from '@/lib/ai-attachments';
 import {weeklyChatAnalysis} from '@/lib/whatsapp-analysis';
@@ -20,7 +20,7 @@ export async function POST(request:Request){
   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
   const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
   if(!auth.user)return publicReply({error:'Inicia sesión.'},401);
-  const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;adjuntos?:Adjunto[];desde?:string;hasta?:string;pausada?:boolean;mensaje_id?:string;comentario_id?:string;modo?:string;telefono?:string;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
+  const body=await request.json().catch(()=>({})) as {accion?:string;tipo?:string;id?:string;valor?:number;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;adjuntos?:Adjunto[];desde?:string;hasta?:string;pausada?:boolean;mensaje_id?:string;comentario_id?:string;modo?:string;telefono?:string;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
   // «IA de WhatsApp» › Probar: answer a sample message with the settings being edited, without saving. Administration only.
   // WhatsApp 304 › Anuncios: per ad, chats → visits (virtual / in person) → attended → contracts, with spend and cost from Meta. Administration only.
   // Anuncios fase 1: the whole Meta portfolio (campaigns, ad sets and ads with status, budget and metrics) joined with the ERP results
@@ -33,6 +33,20 @@ export async function POST(request:Request){
    const res=new Map(((erp||[]) as {anuncio_id:string;chats:number;citas:number;asistieron:number;contratos:number}[]).map(r=>[r.anuncio_id,r]));
    return publicReply({token:adsTokenReady(),cuentas:cuentas.map(c=>({nombre:c.name,moneda:c.currency})),errores,
     filas:anuncios.map(a=>{const r=res.get(a.anuncio_id);return {...a,chats:Number(r?.chats||0),citas:Number(r?.citas||0),asistieron:Number(r?.asistieron||0),contratos:Number(r?.contratos||0)};})});
+  }
+  // Anuncios fase 2: pause, activate or change the daily budget of a campaign or ad set, within the caps of Configuración. Administration only.
+  if(body.accion==='anuncios_cambiar'){
+   const {data:admin}=await userDb.rpc('es_admin');if(admin!==true)return publicReply({error:'Solo administración.'},403);
+   const tipo=String(body.tipo||''),id=String(body.id||'');
+   if(!['pausar','activar','presupuesto'].includes(tipo))return publicReply({error:'Acción inválida.'},400);
+   const {data:ps}=await userDb.from('config_parametros').select('clave,valor').in('clave',['anuncios_tope_diario','anuncios_cambio_max_pct']);
+   const p=Object.fromEntries(((ps||[]) as {clave:string;valor:unknown}[]).map(x=>[x.clave,Number(x.valor)]));
+   try{
+    const {antes,despues}=await adsChange({id,tipo:tipo as 'pausar'|'activar'|'presupuesto',valor:Number(body.valor),tope:p.anuncios_tope_diario||100000,maxPct:p.anuncios_cambio_max_pct||50});
+    const {error}=await userDb.rpc('anuncios_registrar',{p_id:id,p_accion:tipo,p_antes:antes,p_despues:despues});
+    if(error)console.error('anuncios_registrar',error.message);
+    return publicReply({ok:true,despues});
+   }catch(e){return publicReply({error:e instanceof Error?e.message:'No se pudo cambiar.'},400);}
   }
   if(body.accion==='anuncios'){
    const desde=String(body.desde||''),hasta=String(body.hasta||'');
