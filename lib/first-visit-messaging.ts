@@ -27,6 +27,15 @@ export function whatsappPayload(type:string,c:NotificationVisit,site:string,link
 export const REMINDER_CONFIRM_TEMPLATE='ambar_recordatorio_confirmar',RECOVERY_TEMPLATE='ambar_cita_reprogramar';
 /** Same reminder with a third button «No puedo» (see docs/plantillas-whatsapp.md); used first, the two-button one is the fallback. */
 export const REMINDER_CONFIRM_V2_TEMPLATE='ambar_recordatorio_confirmar_v2';
+/** Post-visit in one step (see docs/plantillas-whatsapp.md): «¿Cómo te fue?» [Fui y alquilé · Aún no decido · No pude ir].
+ *  While Meta has not approved it, the previous «Asistí / No asistí» template goes out. */
+export const POST_VISIT_V2_TEMPLATE='ambar_post_cita_v2';
+export const POST_VISIT_ACTIONS=['pc_alquile','pc_no_decido','pc_no_asisti'] as const;
+export function postVisitPayload(c:NotificationVisit,site:string,lang='es_CO'){
+ return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name:POST_VISIT_V2_TEMPLATE,language:{code:lang},components:[
+  {type:'body',parameters:[c.cliente_nombre.split(' ')[0],site].map(text=>({type:'text',text}))},
+  ...POST_VISIT_ACTIONS.map((payload,i)=>({type:'button',sub_type:'quick_reply',index:String(i),parameters:[{type:'payload',payload}]}))]}};
+}
 /** 24-hour reminder with «Confirmo» / «Reagendar» buttons; while Meta has not approved it, the plain reminder goes out. */
 export function reminderConfirmPayload(c:NotificationVisit,site:string,lang='es_CO',v2=false){
  const values=[c.cliente_nombre,site,visitDate(c.fecha),visitTime(c.hora)];
@@ -40,6 +49,8 @@ export function openWindowPayload(type:string,c:NotificationVisit,siteName:strin
  const where=c.modalidad==='virtual'?'de forma virtual':`en ${siteName}${site?.direccion?` (${site.direccion})`:''}`;
  if(type==='recordatorio24'){const texto=`Hola ${name} 💛 Te recordamos tu primera cita ${where} el ${when}. ¿Nos confirmas que vienes?`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'rc_confirmo',title:'✅ Ahí estaré'}},{type:'reply',reply:{id:'rc_reagendar',title:'🔄 Cambiar hora'}},{type:'reply',reply:{id:'rc_no_puedo',title:'❌ No puedo'}}]}}}};}
+ if(type==='post_cita'){const texto=`Hola ${name} 💛 ¿Cómo te fue en tu cita en Ámbar Couture ${siteName}?`;
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'pc_alquile',title:'💃 Fui y alquilé'}},{type:'reply',reply:{id:'pc_no_decido',title:'🤔 Aún no decido'}},{type:'reply',reply:{id:'pc_no_asisti',title:'📅 No pude ir'}}]}}}};}
  if(type==='confirmar_cancelacion'){const texto=`${name}, ¿cancelamos tu cita del ${when}? Así liberamos el espacio para otra clienta.`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'cc_si',title:'Sí, cancelar'}},{type:'reply',reply:{id:'cc_no',title:'No, la mantengo'}}]}}}};}
  if(type==='cita_cancelada_wa'){const texto=`Listo ${name}, cancelamos tu cita. Cuando quieras volver a agendar, aquí te esperamos 💛`;
@@ -60,7 +71,7 @@ export function inboxCopy(type:string,c:NotificationVisit,site:string,payload:Re
  const when=`${visitDate(c.fecha)} a las ${visitTime(c.hora)}`,name=String(payload.template?.name||'');
  const label:Record<string,string>={confirmacion:`✅ Confirmación de su primera cita: ${when} · ${c.modalidad==='virtual'?'virtual':site}`,recordatorio24:`⏰ Recordatorio: su cita es mañana, ${when} · ${site}`,recordatorio2:`⏰ Recordatorio: su cita es hoy, ${when} · ${site}`,
   post_cita:'¿Asististe a tu cita?\n[Asistí · No asistí]',recuperar:'💛 Te esperábamos en tu cita: elige una nueva fecha (enlace para reprogramar).'};
- return `${label[type]||'Mensaje automático'}${name===REMINDER_CONFIRM_V2_TEMPLATE?'\n[✅ Ahí estaré · 🔄 Cambiar hora · ❌ No puedo]':name===REMINDER_CONFIRM_TEMPLATE?'\n[Confirmo · Reagendar]':''}\n(plantilla ${name})`;
+ return `${name===POST_VISIT_V2_TEMPLATE?'¿Cómo te fue en tu cita en Ámbar?\n[Fui y alquilé · Aún no decido · No pude ir]':label[type]||'Mensaje automático'}${name===REMINDER_CONFIRM_V2_TEMPLATE?'\n[✅ Ahí estaré · 🔄 Cambiar hora · ❌ No puedo]':name===REMINDER_CONFIRM_TEMPLATE?'\n[Confirmo · Reagendar]':''}\n(plantilla ${name})`;
 }
 /** Meta's delivery error codes, in words the team can act on. */
 export function metaErrorText(code:unknown,title:unknown){

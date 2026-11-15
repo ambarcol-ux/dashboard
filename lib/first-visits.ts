@@ -60,7 +60,8 @@ export function outcomeLabel(v:FirstVisit,now=Date.now()){
  const a=visitAttendance(v,now),r=visitRented(v,now);
  if(a==='cancelada')return 'Cancelada';
  if(a==='por_atender')return v.estado==='confirmada'?'Confirmada · por atender':'Por atender';
- if(a==='sin_registrar')return 'Sin registrar asistencia';
+ // The customer said she came (WhatsApp) but nothing confirms it (QR, video call, contract): the adviser verifies it.
+ if(a==='sin_registrar')return v.respuesta_asistencia===true?'Dice que asistió · por verificar':'Sin registrar asistencia';
  const seg=v.posible_seguimiento?' · Posible seguimiento':'';
  if(a==='no_asistio')return `No asistió${seg}`;
  if(r===true)return ACTIVE_CONTRACT(v)&&v.numero_contrato?`Asistió · Alquiló · contrato ${v.numero_contrato}`:'Asistió · Alquiló';
