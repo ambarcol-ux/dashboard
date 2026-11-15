@@ -13,6 +13,8 @@ export async function middleware(req: NextRequest) {
   requestHeaders.delete('x-ambar-profile-verified-at');
   requestHeaders.delete('x-ambar-panel-ok');
   const next = () => NextResponse.next({ request: { headers: requestHeaders } });
+  // Closed referral program: its public pages are not served (404); the files stay in the project.
+  if (path === '/unete' || path === '/recomendar' || path.startsWith('/recomendar/')) return NextResponse.rewrite(new URL('/programa-cerrado-no-existe', req.url));
   // Login must render even when Supabase Auth is slow or an old cookie exists.
   if (path === '/login' || path === '/agendar-primera-cita' || path === '/api/primeras-citas' || path === '/api/primeras-citas/gestionar' || path === '/api/primeras-citas/recuperar' || path === '/reprogramar-primera-cita' || path === '/api/primeras-citas/procesar' || path === '/api/correo/procesar' || path === '/api/whatsapp/retomar' || path === '/api/whatsapp/analisis' || path === '/api/seguimientos/automaticos' || path === '/api/inventario/describir-fotos' || path === '/api/crm/automatico' || path === '/api/meta/redes/sincronizar' || path === '/api/marketing/publicar' || path === '/api/marketing/reglas' || path === '/api/marketing/media' || path === '/api/integraciones/tiktok/callback' || path === '/api/documentos/ia' || path === '/api/primeras-citas/correos' || path === '/api/primeras-citas/whatsapp-script' || path === '/api/primeras-citas/eventos-crm' || path === '/api/primeras-citas/whatsapp' || path === '/agendar-primera-cita/gestionar' || path === '/llegue' || path === '/api/primeras-citas/llegada' || path === '/api/reportes/embudo') return next();
   const bearer = req.headers.get('authorization')?.match(/^Bearer (.+)$/i)?.[1];
