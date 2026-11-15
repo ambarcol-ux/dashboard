@@ -5,6 +5,8 @@ export const dynamic='force-dynamic';
 
 // Public ally sign-up (/unete). Duplicate checks and the insert run on the server.
 export async function POST(request:Request){
+ // The referral program was closed: no new sign-ups (the previous logic stays below, unused).
+ if(request.method==='POST')return Response.json({error:'El programa de referidos ya no está activo.'},{status:410});
  if(request.headers.get('origin')&&request.headers.get('origin')!==new URL(request.url).origin)return publicReply({error:'Solicitud no permitida.'},403);
  let ally:ReturnType<typeof allyRegistration>;
  try{ally=allyRegistration(await readJson(request,8192));}catch(e){return publicReply({error:e instanceof Error&&!/JSON|TOO_LARGE/.test(e.message)?e.message:'Datos no válidos.'},400);}
