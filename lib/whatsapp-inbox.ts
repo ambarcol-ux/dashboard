@@ -109,7 +109,7 @@ export const sendWhatsappFollowupPromo=(settings:{token:string;phoneNumberId:str
 export async function sendBestFollowup(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,sede:string,promo:string|null){
  // With buttons first (Quiero mi cita · No recibir más / Agendar cita · Ver vestidos · No me interesa); null until Meta approves them.
  let waId=promo?await sendOptionalTemplate(settings,to,'ambar_seguimiento_promo_botones',[nombre.trim()||'hola',lugar(sede),promo],['pr_cita','pr_baja']):null;
- if(waId&&promo)return {waId,texto:`Hola ${nombre} 💛 Soy de Ámbar Couture ${lugar(sede)}. ¿Ya encontraste tu vestido? Tenemos ${promo}.\n[Quiero mi cita · No recibir más]`};
+ if(waId&&promo)return {waId,texto:`Hola ${nombre} 💛 Soy de Ámbar Couture ${lugar(sede)}. ¿Ya encontraste tu vestido? Tenemos ${promo}. Toca un botón y te ayudamos.\n[Quiero mi cita · No recibir más]`};
  waId=await sendOptionalTemplate(settings,to,'ambar_seguimiento_botones',[nombre.trim()||'hola',lugar(sede)],['crm_agendar','crm_ver','crm_no']);
  if(waId)return {waId,texto:`Hola ${nombre} 💛 Soy de Ámbar Couture ${lugar(sede)}. ¿Ya encontraste tu vestido? Tenemos modelos nuevos y te ayudamos a elegir el ideal para tu evento.\n[Agendar cita · Ver vestidos · No me interesa]`};
  waId=promo?await sendWhatsappFollowupPromo(settings,to,nombre,sede,promo):null;
