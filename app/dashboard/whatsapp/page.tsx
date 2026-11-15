@@ -125,6 +125,37 @@ function CommentCard({c,onDone}:{c:Comentario;onDone:()=>void}){
  </article>;
 }
 
+type PortRow={cuenta:string;moneda:string;campana_id:string;campana:string;campana_estado:string;objetivo:string;conjunto:string;conjunto_estado:string;presupuesto_diario:number|null;presupuesto_total:number|null;
+ anuncio_id:string;anuncio:string;gasto:number;alcance:number;impresiones:number;clics:number;ctr:number;cpm:number;conversaciones:number;leads:number;chats:number;citas:number;asistieron:number;contratos:number};
+const ESTADO_AD:Record<string,string>={ACTIVE:'Activa',PAUSED:'Pausada',CAMPAIGN_PAUSED:'Campaña pausada',ADSET_PAUSED:'Conjunto pausado',ARCHIVED:'Archivada',DELETED:'Eliminada',WITH_ISSUES:'Con problemas',IN_PROCESS:'En revisión',DISAPPROVED:'Rechazada'};
+const OBJETIVO:Record<string,string>={OUTCOME_ENGAGEMENT:'Interacción',OUTCOME_LEADS:'Clientes potenciales',OUTCOME_TRAFFIC:'Tráfico',OUTCOME_AWARENESS:'Reconocimiento',OUTCOME_SALES:'Ventas',MESSAGES:'Mensajes'};
+/** Anuncios fase 1: the whole Meta portfolio by campaign, with Meta's metrics and the ERP results of each ad. Read only. */
+function Portafolio({desde,hasta}:{desde:string;hasta:string}){
+ const [rows,setRows]=useState<PortRow[]|null>(null),[errores,setErrores]=useState<string[]>([]),[busy,setBusy]=useState(false),[abiertas,setAbiertas]=useState<Record<string,boolean>>({});
+ const load=useCallback(async()=>{setBusy(true);try{const r=await api({accion:'anuncios_portafolio',desde,hasta}) as {filas:PortRow[];errores:string[]};setRows(r.filas);setErrores(r.errores||[]);}catch(e){setErrores([e instanceof Error?e.message:'Error']);setRows([]);}finally{setBusy(false);}},[desde,hasta]);
+ useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
+ const camps=useMemo(()=>{const m=new Map<string,PortRow[]>();for(const r of rows||[])m.set(r.campana_id,[...(m.get(r.campana_id)||[]),r]);
+  return [...m.values()].map(l=>({c:l[0],l,t:l.reduce((a,r)=>({gasto:a.gasto+r.gasto,alcance:a.alcance+r.alcance,clics:a.clics+r.clics,conv:a.conv+r.conversaciones+r.leads,chats:a.chats+r.chats,citas:a.citas+r.citas,asis:a.asis+r.asistieron,con:a.con+r.contratos}),{gasto:0,alcance:0,clics:0,conv:0,chats:0,citas:0,asis:0,con:0})})).sort((a,b)=>b.t.gasto-a.t.gasto);},[rows]);
+ const tot=camps.reduce((a,x)=>({gasto:a.gasto+x.t.gasto,conv:a.conv+x.t.conv,citas:a.citas+x.t.citas,con:a.con+x.t.con}),{gasto:0,conv:0,citas:0,con:0});
+ const n=(v:number)=>v.toLocaleString('es-CO');
+ return <div style={{display:'grid',gap:8}}>
+  <h2>Portafolio de anuncios en Meta {busy&&<small>· cargando…</small>}</h2>
+  <p className={styles.help}>Todas tus campañas con su estado, presupuesto y resultados en Meta, y lo que trajeron al ERP (chats, citas, asistencias y contratos). Solo lectura: nada se cambia en Meta desde aquí.</p>
+  {errores.length>0&&<p className={styles.help} style={{color:'#b45309'}}>{errores.join(' · ')}</p>}
+  {rows&&camps.length>0&&<p className={styles.help}><strong>Total del periodo:</strong> gasto {cop(tot.gasto)} · {n(tot.conv)} conversaciones o clientes potenciales en Meta · {n(tot.citas)} citas · {n(tot.con)} contratos{tot.citas?` · ${cop(tot.gasto/tot.citas)} por cita`:''}{tot.con?` · ${cop(tot.gasto/tot.con)} por contrato`:''}</p>}
+  {rows&&!camps.length&&!busy&&<p className={styles.empty}>No hay campañas con entrega en estas fechas.</p>}
+  {camps.length>0&&<div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Campaña</th><th>Estado</th><th>Presupuesto</th><th>Gasto</th><th>Alcance</th><th>Clics</th><th>Conversaciones</th><th>Chats ERP</th><th>Citas</th><th>Asistieron</th><th>Contratos</th><th>Costo por cita</th><th>Costo por contrato</th></tr></thead>
+   <tbody>{camps.map(({c,l,t})=>[<tr key={c.campana_id} onClick={()=>setAbiertas(a=>({...a,[c.campana_id]:!a[c.campana_id]}))} style={{cursor:'pointer'}}>
+     <td><strong>{abiertas[c.campana_id]?'▾':'▸'} {c.campana}</strong><small>{OBJETIVO[c.objetivo]||c.objetivo} · {c.cuenta}</small></td><td>{ESTADO_AD[c.campana_estado]||c.campana_estado}</td>
+     <td>{c.presupuesto_diario?`${cop(c.presupuesto_diario)}/día`:c.presupuesto_total?`${cop(c.presupuesto_total)} total`:'—'}</td><td>{cop(t.gasto)}</td><td>{n(t.alcance)}</td><td>{n(t.clics)}</td><td>{n(t.conv)}</td>
+     <td>{t.chats}</td><td>{t.citas}</td><td>{t.asis}</td><td>{t.con}</td><td>{t.citas?cop(t.gasto/t.citas):'—'}</td><td>{t.con?cop(t.gasto/t.con):'—'}</td></tr>,
+    ...(abiertas[c.campana_id]?l.map(r=><tr key={`${c.campana_id}-${r.anuncio_id||r.conjunto}`} style={{background:'#fafafa'}}>
+     <td style={{paddingLeft:24}}>{r.anuncio}<small>{r.conjunto}{r.conjunto_estado?` · ${ESTADO_AD[r.conjunto_estado]||r.conjunto_estado}`:''}</small></td><td></td>
+     <td>{r.presupuesto_diario?`${cop(r.presupuesto_diario)}/día`:r.presupuesto_total?`${cop(r.presupuesto_total)} total`:''}</td><td>{cop(r.gasto)}</td><td>{n(r.alcance)}</td><td>{n(r.clics)} <small>CTR {r.ctr.toFixed(1)}% · CPM {cop(r.cpm)}</small></td>
+     <td>{n(r.conversaciones+r.leads)}</td><td>{r.chats}</td><td>{r.citas}</td><td>{r.asistieron}</td><td>{r.contratos}</td><td>{r.citas?cop(r.gasto/r.citas):'—'}</td><td>{r.contratos?cop(r.gasto/r.contratos):'—'}</td></tr>):[])])}</tbody></table></div>}
+ </div>;
+}
+
 type AdRow={anuncio_id:string;nombre:string|null;campana:string|null;sede:string|null;chats:number;citas:number;citas_virtuales:number;citas_presenciales:number;asistieron:number;contratos:number;gasto:number|null};
 const cop=(n:number)=>n.toLocaleString('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0});
 const pct=(a:number,b:number)=>b?`${Math.round(100*a/b)}%`:'—';
@@ -137,6 +168,7 @@ function AdsPanel(){
  useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
  const tot=(rows||[]).reduce((a,r)=>({chats:a.chats+r.chats,citas:a.citas+r.citas,v:a.v+r.citas_virtuales,p:a.p+r.citas_presenciales,asis:a.asis+r.asistieron,con:a.con+r.contratos,gasto:a.gasto+(r.gasto||0)}),{chats:0,citas:0,v:0,p:0,asis:0,con:0,gasto:0});
  return <section className={styles.card} style={{display:'grid',gap:10}}>
+  <Portafolio desde={desde} hasta={hasta}/>
   <h2>Efectividad de los anuncios</h2>
   <p className={styles.help}>Chats que llegaron por un anuncio de Meta con botón de WhatsApp, y lo que pasó después con esa clienta (por su celular): agendó primera cita (virtual o presencial), asistió y firmó contrato. La sede sale del nombre del anuncio.</p>
   {!token&&<p className={styles.help} style={{color:'#b45309'}}>Falta conectar la lectura de anuncios de Meta (META_ADS_TOKEN): por ahora se ven los ID de los anuncios, sin su nombre ni el gasto.</p>}

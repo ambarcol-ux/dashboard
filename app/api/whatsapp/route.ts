@@ -2,7 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendWhatsappText,downloadWhatsappImage,sendWhatsappFollowup,followupText,conversationFor,WINDOW_MS} from '@/lib/whatsapp-inbox';
-import {resolveAd,adsSpend,adsTokenReady} from '@/lib/meta-ads';
+import {resolveAd,adsSpend,adsTokenReady,adsPortfolio} from '@/lib/meta-ads';
 import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply,COMMENT_GONE} from '@/lib/social-inbox';
 import {attachmentBlocks,type Adjunto} from '@/lib/ai-attachments';
 import {weeklyChatAnalysis} from '@/lib/whatsapp-analysis';
@@ -23,6 +23,17 @@ export async function POST(request:Request){
   const body=await request.json().catch(()=>({})) as {accion?:string;conversacion_id?:string;texto?:string;sede_id?:string|null;conocimientos?:string;instrucciones?:string;escalamiento?:string;mensaje?:string;aplicar?:boolean;adjuntos?:Adjunto[];desde?:string;hasta?:string;pausada?:boolean;mensaje_id?:string;comentario_id?:string;modo?:string;telefono?:string;conversacion?:{rol:'clienta'|'ambar';texto:string}[]};
   // «IA de WhatsApp» › Probar: answer a sample message with the settings being edited, without saving. Administration only.
   // WhatsApp 304 › Anuncios: per ad, chats → visits (virtual / in person) → attended → contracts, with spend and cost from Meta. Administration only.
+  // Anuncios fase 1: the whole Meta portfolio (campaigns, ad sets and ads with status, budget and metrics) joined with the ERP results
+  // of each ad (chats, visits, attendance, contracts). Read only. Administration only.
+  if(body.accion==='anuncios_portafolio'){
+   const desde=String(body.desde||''),hasta=String(body.hasta||'');
+   if(!/^\d{4}-\d{2}-\d{2}$/.test(desde)||!/^\d{4}-\d{2}-\d{2}$/.test(hasta)||desde>hasta)return publicReply({error:'Elige un rango de fechas válido.'},400);
+   const {data:admin}=await userDb.rpc('es_admin');if(admin!==true)return publicReply({error:'Solo administración.'},403);
+   const [{cuentas,anuncios,errores},{data:erp}]=await Promise.all([adsPortfolio(desde,hasta),userDb.rpc('whatsapp_anuncios_resumen',{p_desde:desde,p_hasta:hasta})]);
+   const res=new Map(((erp||[]) as {anuncio_id:string;chats:number;citas:number;asistieron:number;contratos:number}[]).map(r=>[r.anuncio_id,r]));
+   return publicReply({token:adsTokenReady(),cuentas:cuentas.map(c=>({nombre:c.name,moneda:c.currency})),errores,
+    filas:anuncios.map(a=>{const r=res.get(a.anuncio_id);return {...a,chats:Number(r?.chats||0),citas:Number(r?.citas||0),asistieron:Number(r?.asistieron||0),contratos:Number(r?.contratos||0)};})});
+  }
   if(body.accion==='anuncios'){
    const desde=String(body.desde||''),hasta=String(body.hasta||'');
    if(!/^\d{4}-\d{2}-\d{2}$/.test(desde)||!/^\d{4}-\d{2}-\d{2}$/.test(hasta)||desde>hasta)return publicReply({error:'Elige un rango de fechas válido.'},400);
