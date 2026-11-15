@@ -3,8 +3,9 @@ import {useCallback,useEffect,useState} from 'react';
 import {Clapperboard} from 'lucide-react';
 import SupplierShell from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
+import {disenar,FUENTES,PLANTILLAS,type Kit} from '@/components/BrandDesign';
 
-type Medio={url:string;tipo:'imagen'|'video';fuente:string;ref:string;nota?:string};
+type Medio={url:string;tipo:'imagen'|'video';fuente:string;ref:string;nota?:string;original?:string;diseno?:string};
 type Pieza={id:string;formato:string;redes:string[];sede_id:string|null;orden:string|null;texto:string|null;idea:string|null;medios:Medio[];programada_at:string|null;estado:string;
  resultado:Record<string,{estado?:string;enlace?:string;error?:string;id?:string}>;error:string|null;created_at:string;codigo:string|null;metricas:Record<string,Record<string,number|string>>;metricas_at:string|null;anuncio:{campana_id:string;publico:string;presupuesto:number;dias:number;creado_at:string}|null};
 type Resultado={pieza_id:string;chats:number;citas:number;asistieron:number;contratos:number;valor:number};
@@ -45,7 +46,8 @@ export default function EstudioContenidoPage(){
 }
 
 function Estudio(){
- const [tab,setTab]=useState<'piezas'|'nueva'|'reglas'|'biblioteca'>('piezas'),[reglas,setReglas]=useState<Regla[]>([]),[vista,setVista]=useState('aprobar');
+ const [kit,setKit]=useState<Kit|null>(null);
+ const [tab,setTab]=useState<'piezas'|'nueva'|'reglas'|'biblioteca'|'marca'>('piezas'),[reglas,setReglas]=useState<Regla[]>([]),[vista,setVista]=useState('aprobar');
  const [resultados,setResultados]=useState<Record<string,Resultado>>({}),[piezas,setPiezas]=useState<Pieza[]|null>(null),[lib,setLib]=useState<Lib[]>([]),[sedes,setSedes]=useState<Sede[]>([]),[admin,setAdmin]=useState(false);
  const [error,setError]=useState(''),[busy,setBusy]=useState('');
  const load=useCallback(async()=>{
@@ -57,6 +59,7 @@ function Estudio(){
    supabase.from('contenido_reglas').select('id,nombre,activa,disparador,dias,hora,cantidad,formato,redes,sede_id,orden').order('created_at'),
   ]);
   setReglas(((rg||[]) as Regla[]).map(r=>({...r,hora:String(r.hora).slice(0,5)})));
+  void supabase.from('contenido_marca').select('logo_url,color_principal,color_secundario,color_texto,fuente_titulo,fuente_texto,usuario_instagram,frase').eq('id','principal').maybeSingle().then(({data:k})=>setKit((k as Kit)||null));
   void supabase.rpc('contenido_resultados',{p_dias:60}).then(({data:rs})=>setResultados(Object.fromEntries(((rs||[]) as Resultado[]).map(r=>[r.pieza_id,r]))));
   if(e)setError(e.message);else setPiezas((p||[]) as Pieza[]);
   setLib((l||[]) as Lib[]);setSedes((s||[]) as Sede[]);setAdmin(a===true);
@@ -67,18 +70,19 @@ function Estudio(){
  const cuenta=(estados:string[])=>(piezas||[]).filter(p=>estados.includes(p.estado)).length;
  return <div className="space-y-4">
   <div className="flex gap-2 flex-wrap">
-   {([['piezas','Piezas'],['nueva','Crear con IA'],['reglas',`Reglas · ${reglas.filter(r=>r.activa).length}`],['biblioteca',`Biblioteca · ${lib.length}`]] as const).map(([k,l])=><button key={k} type="button" onClick={()=>setTab(k)} className={`px-4 py-2 rounded-xl text-sm font-black ${tab===k?'bg-rose-600 text-white':'bg-white border'}`}>{l}</button>)}
+   {([['piezas','Piezas'],['nueva','Crear con IA'],['reglas',`Reglas · ${reglas.filter(r=>r.activa).length}`],['biblioteca',`Biblioteca · ${lib.length}`],['marca','Kit de marca']] as const).map(([k,l])=><button key={k} type="button" onClick={()=>setTab(k)} className={`px-4 py-2 rounded-xl text-sm font-black ${tab===k?'bg-rose-600 text-white':'bg-white border'}`}>{l}</button>)}
   </div>
   {error&&<p className="text-red-600 font-bold text-sm">{error}</p>}
   {tab==='nueva'&&<Nueva sedes={sedes} busy={busy} onCrear={body=>run('crear',{accion:'crear',...body},()=>{setTab('piezas');setVista('aprobar');})}/>}
   {tab==='reglas'&&<Reglas reglas={reglas} sedes={sedes} admin={admin} busy={busy} run={run}/>}
+  {tab==='marca'&&kit&&<Marca kit={kit} admin={admin} muestra={lib.find(l=>l.tipo==='imagen')?.url||null} busy={busy} run={run} setError={setError}/>}
   {tab==='biblioteca'&&<Biblioteca lib={lib} sedes={sedes} sede={sede} onChange={load} setError={setError} run={run} busy={busy}/>}
   {tab==='piezas'&&<>
    <div className="flex gap-2 flex-wrap">{VISTAS.map(([k,l,e])=><button key={k} type="button" onClick={()=>setVista(k)} className={`px-3 py-1.5 rounded-xl text-xs font-black ${vista===k?'bg-gray-900 text-white':'bg-white border'}`}>{l} · {cuenta(e)}</button>)}</div>
    {!piezas?<p className="text-gray-400 font-bold">Cargando…</p>:
    (()=>{const lista=piezas.filter(p=>VISTAS.find(v=>v[0]===vista)![2].includes(p.estado));
     return !lista.length?<p className="text-sm text-gray-500">No hay piezas aquí. Usa «Crear con IA» para pedir una.</p>:
-    <div className="grid gap-4 lg:grid-cols-2">{lista.map(p=><Tarjeta key={`${p.id}:${p.estado}:${p.texto}:${p.programada_at}`} p={p} res={resultados[p.id]} admin={admin} sede={sede(p.sede_id)} busy={busy} run={run}/>)}</div>;})()}
+    <div className="grid gap-4 lg:grid-cols-2">{lista.map(p=><Tarjeta key={`${p.id}:${p.estado}:${p.texto}:${p.programada_at}`} p={p} res={resultados[p.id]} kit={kit} admin={admin} sede={sede(p.sede_id)} busy={busy} run={run} setError={setError}/>)}</div>;})()}
   </>}
  </div>;
 }
@@ -101,7 +105,7 @@ function Nueva({sedes,busy,onCrear}:{sedes:Sede[];busy:string;onCrear:(b:Record<
  </section>;
 }
 
-function Tarjeta({p,res,admin,sede,busy,run}:{p:Pieza;res?:Resultado;admin:boolean;sede:string;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>}){
+function Tarjeta({p,res,kit,admin,sede,busy,run,setError}:{p:Pieza;res?:Resultado;kit:Kit|null;setError:(e:string)=>void;admin:boolean;sede:string;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>}){
  const [texto,setTexto]=useState(p.texto||''),[fecha,setFecha]=useState(local(p.programada_at));
  const editable=['por_aprobar','aprobada','error'].includes(p.estado),cambio=texto!==(p.texto||'')||fecha!==local(p.programada_at);
  const b=(k:string)=>busy===`${k}:${p.id}`;
@@ -121,6 +125,7 @@ function Tarjeta({p,res,admin,sede,busy,run}:{p:Pieza;res?:Resultado;admin:boole
    {p.redes.includes('whatsapp')&&<a href={m.url} download target="_blank" rel="noopener noreferrer" className="absolute top-1 left-1 bg-white/90 rounded-lg px-1.5 text-[10px] font-black">Descargar</a>}
   </div>)}{!p.medios.length&&<p className="text-xs text-red-600 font-bold">Sin fotos ni videos.</p>}</div>
   {editable?<textarea className={`${input} min-h-28`} value={texto} maxLength={2200} onChange={e=>setTexto(e.target.value)}/>:<p className="text-sm text-gray-700 whitespace-pre-wrap">{p.texto}</p>}
+  {editable&&kit&&p.medios.some(m=>m.tipo==='imagen')&&<Disenos p={p} kit={kit} busy={busy} run={run} setError={setError}/>}
   {editable&&<label className="block text-xs font-bold text-gray-600">Publicar el (hora Colombia)<input type="datetime-local" className={`${input} mt-1`} value={fecha} onChange={e=>setFecha(e.target.value)}/></label>}
   {p.error&&<p className="text-xs font-bold text-red-700 bg-red-50 rounded-lg px-2 py-1">{p.error}</p>}
   {Object.entries(p.resultado||{}).length>0&&<p className="text-xs text-gray-600">{Object.entries(p.resultado).map(([red,r])=><span key={red} className="mr-3">{RED[red]}: {r.estado==='manual'?'subir a mano':r.estado==='publicada'?<>✓ {r.enlace&&<a href={r.enlace} target="_blank" rel="noopener noreferrer" className="underline">ver</a>}</>:r.estado||'en proceso'}</span>)}</p>}
@@ -251,4 +256,73 @@ function Promocion({p,busy,run}:{p:Pieza;busy:string;run:(k:string,b:Record<stri
   <div className="flex gap-2"><button type="button" disabled={!!busy||!Number(presupuesto)||!Number(dias)} onClick={()=>{if(window.confirm(`¿Crear el anuncio en pausa con $${Number(presupuesto).toLocaleString('es-CO')} diarios por ${dias} días?`))void run(k,{accion:'promocionar',id:p.id,publico,presupuesto:Number(presupuesto),dias:Number(dias)});}} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-black disabled:opacity-40">{busy===k?'Creando…':'Crear anuncio en pausa'}</button>
    <button type="button" onClick={()=>setAbierto(false)} className="px-3 py-1.5 rounded-lg border font-black text-gray-600">Cancelar</button></div>
  </div>;
+}
+
+/** Uploads a branded JPG (signed URL, straight to Storage) and swaps it into the piece. */
+async function subirDiseno(p:Pieza,m:Medio,plantilla:string,kit:Kit){
+ const blob=await disenar(m.original||m.url,plantilla,kit,{historia:p.formato==='historia',codigo:p.codigo,titulo:m.nota&&!/^[A-Z]?\d/.test(m.nota)?m.nota:null});
+ const {ruta,token}=await api({accion:'subir',tipo:'image/jpeg'}) as {ruta:string;token:string};
+ const {error}=await supabase.storage.from('contenido_marketing').uploadToSignedUrl(ruta,token,blob,{contentType:'image/jpeg'});if(error)throw error;
+ return ruta;
+}
+/** Design templates of the brand kit applied to every photo of the piece (videos stay as they are). «Sin diseño» restores the originals. */
+function Disenos({p,kit,busy,run,setError}:{p:Pieza;kit:Kit;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>;setError:(e:string)=>void}){
+ const [trabajando,setTrabajando]=useState(false);
+ const actual=p.medios.find(m=>m.tipo==='imagen')?.diseno||'';
+ const aplicar=async(plantilla:string)=>{
+  setTrabajando(true);setError('');
+  try{
+   const fotos=p.medios.filter(m=>m.tipo==='imagen'&&(plantilla||m.original)),bodies:Record<string,unknown>[]=[];
+   for(const m of fotos)bodies.push(plantilla?{accion:'disenar',id:p.id,url:m.url,plantilla,ruta:await subirDiseno(p,m,plantilla,kit)}:{accion:'disenar',id:p.id,url:m.url,ruta:null});
+   for(const [i,body] of bodies.entries()){if(i<bodies.length-1)await api(body);else await run(`disenar:${p.id}`,body);}
+  }catch(e){setError(e instanceof Error?e.message:'No se pudo aplicar el diseño.');}
+  finally{setTrabajando(false);}
+ };
+ return <div className="flex gap-2 flex-wrap items-center text-xs">
+  <span className="font-bold text-gray-600">Diseño:</span>
+  {Object.entries(PLANTILLAS).map(([k,l])=><button key={k} type="button" disabled={trabajando||!!busy} onClick={()=>void aplicar(k)} className={`px-2.5 py-1 rounded-lg font-black disabled:opacity-40 ${actual===k?'bg-gray-900 text-white':'bg-amber-50 text-amber-800'}`}>{l}</button>)}
+  {actual&&<button type="button" disabled={trabajando||!!busy} onClick={()=>void aplicar('')} className="px-2.5 py-1 rounded-lg border font-black text-gray-600 disabled:opacity-40">Sin diseño</button>}
+  {trabajando&&<span className="text-gray-500">Aplicando…</span>}
+ </div>;
+}
+
+/** Kit de marca: logo (PNG with transparency), colors, fonts, Instagram user and phrase, with a live preview of the templates. */
+function Marca({kit,admin,muestra,busy,run,setError}:{kit:Kit;admin:boolean;muestra:string|null;busy:string;run:(k:string,b:Record<string,unknown>,ok?:()=>void)=>Promise<void>;setError:(e:string)=>void}){
+ const [f,setF]=useState(kit),[logo,setLogo]=useState<{ruta:string;url:string}|null>(null),[subiendo,setSubiendo]=useState(false),[vistas,setVistas]=useState<Record<string,string>>({});
+ const kitVista=logo?{...f,logo_url:logo.url}:f;
+ const subirLogo=async(file:File|undefined)=>{
+  if(!file)return;if(file.type!=='image/png'){setError('El logo debe ser PNG (con fondo transparente).');return;}
+  setSubiendo(true);setError('');
+  try{const {ruta,token}=await api({accion:'marca_logo'}) as {ruta:string;token:string};
+   const {error}=await supabase.storage.from('contenido_marketing').uploadToSignedUrl(ruta,token,file,{contentType:'image/png'});if(error)throw error;
+   setLogo({ruta,url:supabase.storage.from('contenido_marketing').getPublicUrl(ruta).data.publicUrl});
+  }catch(e){setError(e instanceof Error?e.message:'No se pudo subir el logo.');}finally{setSubiendo(false);}
+ };
+ const previsualizar=async()=>{
+  if(!muestra){setError('Sube al menos una foto a la Biblioteca para ver la vista previa.');return;}
+  setError('');const out:Record<string,string>={};
+  try{for(const k of Object.keys(PLANTILLAS))out[k]=URL.createObjectURL(await disenar(muestra,k,kitVista,{historia:false,codigo:'P7K2QX',titulo:null}));setVistas(out);}
+  catch(e){setError(e instanceof Error?e.message:'No se pudo crear la vista previa.');}
+ };
+ const color=(k:'color_principal'|'color_secundario'|'color_texto',l:string)=><label className="text-sm font-black text-gray-700">{l}<input type="color" disabled={!admin} className="block mt-1 h-10 w-20 rounded" value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})}/></label>;
+ const fuente=(k:'fuente_titulo'|'fuente_texto',l:string)=><label className="text-sm font-black text-gray-700">{l}<select disabled={!admin} className={`${input} mt-1`} value={f[k]} onChange={e=>setF({...f,[k]:e.target.value})}>{FUENTES.map(x=><option key={x}>{x}</option>)}</select></label>;
+ return <section className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4 max-w-3xl">
+  <p className="text-sm text-gray-600">Lo que pongas aquí se usa en las plantillas de diseño de cada pieza («Diseño» en la tarjeta, antes de aprobar).{!admin&&' Solo administración lo edita.'}</p>
+  <div className="flex items-center gap-4 flex-wrap">
+   {/* eslint-disable-next-line @next/next/no-img-element */}
+   {kitVista.logo_url?<img src={kitVista.logo_url} alt="Logo" className="h-20 rounded-xl p-2" style={{background:f.color_principal}}/>:<p className="text-sm font-bold text-amber-700">Falta el logo.</p>}
+   {admin&&<label className="text-sm font-black text-gray-700">Logo (PNG con fondo transparente)<input type="file" accept="image/png" disabled={subiendo} className="block mt-1 text-xs" onChange={e=>void subirLogo(e.target.files?.[0])}/></label>}
+  </div>
+  <div className="flex gap-4 flex-wrap">{color('color_principal','Color principal')}{color('color_secundario','Color de acento')}{color('color_texto','Color del texto')}</div>
+  <div className="grid sm:grid-cols-2 gap-3">{fuente('fuente_titulo','Tipografía de títulos')}{fuente('fuente_texto','Tipografía de textos')}</div>
+  <div className="grid sm:grid-cols-2 gap-3">
+   <label className="text-sm font-black text-gray-700">Usuario de Instagram<input disabled={!admin} className={`${input} mt-1`} maxLength={40} value={f.usuario_instagram||''} placeholder="ambarcouture" onChange={e=>setF({...f,usuario_instagram:e.target.value})}/></label>
+   <label className="text-sm font-black text-gray-700">Frase de la marca<input disabled={!admin} className={`${input} mt-1`} maxLength={80} value={f.frase||''} placeholder="Tu momento, tu vestido" onChange={e=>setF({...f,frase:e.target.value})}/></label>
+  </div>
+  <div className="flex gap-2 flex-wrap">
+   <button type="button" disabled={subiendo} onClick={()=>void previsualizar()} className="px-4 py-2 rounded-xl border text-sm font-black text-gray-700">Ver vista previa</button>
+   {admin&&<button type="button" disabled={!!busy||subiendo} onClick={()=>void run('marca',{accion:'marca_guardar',...f,...(logo?{logo_ruta:logo.ruta}:{})},()=>setLogo(null))} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black disabled:opacity-40">{busy==='marca'?'Guardando…':'Guardar kit de marca'}</button>}
+  </div>
+  {Object.keys(vistas).length>0&&<div className="grid grid-cols-3 gap-2">{Object.entries(vistas).map(([k,u])=><figure key={k} className="text-center text-xs font-bold text-gray-600">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={u} alt={PLANTILLAS[k]} className="rounded-xl w-full"/>{PLANTILLAS[k]}</figure>)}</div>}
+ </section>;
 }
