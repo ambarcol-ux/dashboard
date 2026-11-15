@@ -127,7 +127,7 @@ export async function POST(request:Request){
    const {data:p}=await db.from('contenido_piezas').select('medios,estado').eq('id',id).single();
    if(!p||!['por_aprobar','aprobada','error'].includes(p.estado))return publicReply({error:'Esta pieza ya no se puede editar.'},400);
    const ruta=b.ruta==null?null:String(b.ruta);
-   if(ruta&&!/^\d{4}-\d{2}\/[0-9a-f-]{36}\.jpg$/.test(ruta))return publicReply({error:'Archivo no válido.'},400);
+   if(ruta&&!/^\d{4}-\d{2}\/[0-9a-f-]{36}\.(jpg|mp4)$/.test(ruta))return publicReply({error:'Archivo no válido.'},400);
    let hallado=false;
    const medios=((p.medios||[]) as Record<string,unknown>[]).map(m=>{
     if(m.url!==url)return m;hallado=true;

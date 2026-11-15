@@ -4,6 +4,7 @@ import {Clapperboard} from 'lucide-react';
 import SupplierShell from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
 import {disenar,FUENTES,PLANTILLAS,type Kit} from '@/components/BrandDesign';
+import {prepararReel,mp4Soportado} from '@/components/ReelEditor';
 
 type Medio={url:string;tipo:'imagen'|'video';fuente:string;ref:string;nota?:string;original?:string;diseno?:string};
 type Pieza={id:string;formato:string;redes:string[];sede_id:string|null;orden:string|null;texto:string|null;idea:string|null;medios:Medio[];programada_at:string|null;estado:string;
@@ -125,6 +126,7 @@ function Tarjeta({p,res,kit,admin,sede,busy,run,setError}:{p:Pieza;res?:Resultad
    {p.redes.includes('whatsapp')&&<a href={m.url} download target="_blank" rel="noopener noreferrer" className="absolute top-1 left-1 bg-white/90 rounded-lg px-1.5 text-[10px] font-black">Descargar</a>}
   </div>)}{!p.medios.length&&<p className="text-xs text-red-600 font-bold">Sin fotos ni videos.</p>}</div>
   {editable?<textarea className={`${input} min-h-28`} value={texto} maxLength={2200} onChange={e=>setTexto(e.target.value)}/>:<p className="text-sm text-gray-700 whitespace-pre-wrap">{p.texto}</p>}
+  {editable&&kit&&p.medios.some(m=>m.tipo==='video')&&<Reel p={p} kit={kit} busy={busy} run={run} setError={setError}/>}
   {editable&&kit&&p.medios.some(m=>m.tipo==='imagen')&&<Disenos p={p} kit={kit} busy={busy} run={run} setError={setError}/>}
   {editable&&<label className="block text-xs font-bold text-gray-600">Publicar el (hora Colombia)<input type="datetime-local" className={`${input} mt-1`} value={fecha} onChange={e=>setFecha(e.target.value)}/></label>}
   {p.error&&<p className="text-xs font-bold text-red-700 bg-red-50 rounded-lg px-2 py-1">{p.error}</p>}
@@ -325,4 +327,47 @@ function Marca({kit,admin,muestra,busy,run,setError}:{kit:Kit;admin:boolean;mues
   </div>
   {Object.keys(vistas).length>0&&<div className="grid grid-cols-3 gap-2">{Object.entries(vistas).map(([k,u])=><figure key={k} className="text-center text-xs font-bold text-gray-600">{/* eslint-disable-next-line @next/next/no-img-element */}<img src={u} alt={PLANTILLAS[k]} className="rounded-xl w-full"/>{PLANTILLAS[k]}</figure>)}</div>}
  </section>;
+}
+
+/** Reels editados: cut, logo, opening phrase and WhatsApp code over the piece's video, recorded in the browser as MP4 (it replaces
+ *  the video; «Sin edición» restores the original). Two taps: prepare, then record (phones need a tap to play the sound). */
+function Reel({p,kit,busy,run,setError}:{p:Pieza;kit:Kit;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>;setError:(e:string)=>void}){
+ const m=p.medios.find(x=>x.tipo==='video')!;
+ const [abierto,setAbierto]=useState(false),[o,setO]=useState({inicio:'0',fin:'',logo:true,frase:kit.frase||'',codigo:true});
+ const [listo,setListo]=useState<null|{grabar:(cb:(p:number)=>void)=>Promise<Blob>}>(null),[avance,setAvance]=useState<number|null>(null);
+ const k=`reel:${p.id}`;
+ if(!abierto)return <div className="flex gap-3 items-center text-xs">
+  <button type="button" disabled={!!busy} onClick={()=>setAbierto(true)} className="font-black text-amber-800 underline">Editar reel (corte, logo y textos)</button>
+  {m.original&&<button type="button" disabled={!!busy} onClick={()=>void run(k,{accion:'disenar',id:p.id,url:m.url,ruta:null})} className="font-black text-gray-600 underline">Sin edición</button>}
+ </div>;
+ const opts=()=>({inicio:Number(o.inicio)||0,fin:Number(o.fin)||9999,logo:o.logo,frase:o.frase.trim()||null,codigo:o.codigo?p.codigo:null});
+ const preparar=async()=>{setError('');try{setListo(await prepararReel(m.original||m.url,kit,opts()));}catch(e){setError(e instanceof Error?e.message:'No se pudo preparar el video.');}};
+ const grabar=async()=>{
+  if(!listo)return;setError('');setAvance(0);
+  try{
+   const blob=await listo.grabar(setAvance);
+   const {ruta,token}=await api({accion:'subir',tipo:'video/mp4'}) as {ruta:string;token:string};
+   const {error}=await supabase.storage.from('contenido_marketing').uploadToSignedUrl(ruta,token,blob,{contentType:'video/mp4'});if(error)throw error;
+   await run(k,{accion:'disenar',id:p.id,url:m.url,ruta,plantilla:'reel'});setAbierto(false);
+  }catch(e){setError(e instanceof Error?e.message:'No se pudo grabar el reel.');}
+  finally{setListo(null);setAvance(null);}
+ };
+ const campo=(c:'inicio'|'fin',l:string)=><label className="block font-bold text-gray-600">{l}<input inputMode="decimal" className={`${input} mt-1`} value={o[c]} placeholder={c==='fin'?'hasta el final':'0'} onChange={e=>{setListo(null);setO({...o,[c]:e.target.value.replace(/[^\d.]/g,'')});}}/></label>;
+ return <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 space-y-2 text-xs">
+  <p className="font-black text-amber-900">Editar reel</p>
+  {!mp4Soportado()&&<p className="font-bold text-red-700">Este navegador no graba MP4. Usa Safari en el celular o Chrome actualizado.</p>}
+  <div className="grid grid-cols-2 gap-2">{campo('inicio','Empieza en (segundos)')}{campo('fin','Termina en (segundos)')}</div>
+  <label className="block font-bold text-gray-600">Frase al inicio (3 segundos)<input className={`${input} mt-1`} maxLength={80} value={o.frase} onChange={e=>{setListo(null);setO({...o,frase:e.target.value});}}/></label>
+  <div className="flex gap-4 font-bold text-gray-700">
+   <label className="flex items-center gap-2"><input type="checkbox" checked={o.logo} disabled={!kit.logo_url} onChange={e=>{setListo(null);setO({...o,logo:e.target.checked});}}/>Logo{!kit.logo_url&&' (falta en el kit)'}</label>
+   <label className="flex items-center gap-2"><input type="checkbox" checked={o.codigo} disabled={!p.codigo} onChange={e=>{setListo(null);setO({...o,codigo:e.target.checked});}}/>Código {p.codigo||''} abajo</label>
+  </div>
+  <p className="text-gray-500">Se graba en tiempo real: tarda lo que dure el corte (máximo 90 segundos). Deja la pantalla abierta mientras graba.</p>
+  {avance!==null?<p className="font-black text-amber-900">Grabando… {Math.round(avance*100)} %</p>:
+  <div className="flex gap-2 flex-wrap">
+   {!listo?<button type="button" disabled={!!busy||!mp4Soportado()} onClick={()=>void preparar()} className="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-black disabled:opacity-40">1. Preparar</button>
+   :<button type="button" disabled={!!busy} onClick={()=>void grabar()} className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-black">2. Grabar reel editado</button>}
+   <button type="button" onClick={()=>{setAbierto(false);setListo(null);}} className="px-3 py-1.5 rounded-lg border font-black text-gray-600">Cancelar</button>
+  </div>}
+ </div>;
 }
