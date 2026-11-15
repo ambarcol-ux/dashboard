@@ -55,9 +55,9 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    }
    // Buttons of the automatic first-visit messages (Asistí, Sí alquilé, Confirmo, motives…) are handled by the ERP: the AI does not answer them.
    const accion=String(m.button?.payload||m.interactive?.button_reply?.id||m.interactive?.list_reply?.id||'');
-   const flowReply=/^(pc|rc|mot|cc|sat|fa|rs|rg|cf|r2|crm|pr)_/.test(accion);
+   const flowReply=/^(pc|rc|mot|cc|sat|fa|rs|rg|cf|r2|crm|pr|evs|evf)_/.test(accion);
    // CRM and promotion buttons (Agendar cita, Ver vestidos, No me interesa, Quiero mi cita, No recibir más): the ERP answers them.
-   if(/^(crm|pr)_/.test(accion))acciones.push({conversacion:conv.id,telefono:phone,sede_id:conv.sede_id||null,accion});
+   if(/^(crm|pr|evs|evf)_/.test(accion))acciones.push({conversacion:conv.id,telefono:phone,sede_id:conv.sede_id||null,accion});
    if(m.type==='text')escritos.push({conversacion:conv.id,telefono:phone,wa_id:String(m.id),texto:text});
    if(m.type!=='reaction'&&!flowReply)touched.add(conv.id);
   }
@@ -158,6 +158,33 @@ export async function sendWhatsappButtons(settings:{token:string;phoneNumberId:s
  if(!r.ok||!d.messages?.[0]?.id)throw Error(`WhatsApp no aceptó el mensaje: ${String(d.error?.message||r.status).slice(0,160)}`);
  return d.messages[0].id;
 }
+/** Interactive list inside the 24 hours (max 10 rows, titles of 24 characters). */
+export async function sendWhatsappList(settings:{token:string;phoneNumberId:string},to:string,body:string,boton:string,filas:{id:string;titulo:string}[]){
+ const version=process.env.META_GRAPH_VERSION||'v21.0';
+ const r=await fetch(`https://graph.facebook.com/${version}/${settings.phoneNumberId}/messages`,{method:'POST',headers:{Authorization:`Bearer ${settings.token}`,'Content-Type':'application/json'},
+  body:JSON.stringify({messaging_product:'whatsapp',recipient_type:'individual',to,type:'interactive',interactive:{type:'list',body:{text:body.slice(0,1024)},action:{button:boton.slice(0,20),sections:[{title:'Opciones',rows:filas.slice(0,10).map(f=>({id:f.id,title:f.titulo.slice(0,24)}))}]}}}),signal:AbortSignal.timeout(15000)});
+ const d=await r.json().catch(()=>({})) as {messages?:{id:string}[];error?:{message?:string}};
+ if(!r.ok||!d.messages?.[0]?.id)throw Error(`WhatsApp no aceptó el mensaje: ${String(d.error?.message||r.status).slice(0,160)}`);
+ return d.messages[0].id;
+}
+/** After returning the dress: satisfaction survey (template ambar_post_evento, buttons carry the contract). null until Meta approves it. */
+export const POST_EVENT_TEMPLATE='ambar_post_evento';
+export const postEventText=(nombre:string,sede:string)=>`Hola ${nombre} 💛 Esperamos que tu evento haya sido inolvidable. ¿Cómo te sentiste con el servicio de Ámbar Couture ${lugar(sede)}? Tu opinión nos ayuda a mejorar.\n[Excelente · Bien · Puede mejorar]`;
+export const sendPostEventSurvey=(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,sede:string,contrato:string)=>
+ sendOptionalTemplate(settings,to,POST_EVENT_TEMPLATE,[nombre.trim()||'hola',lugar(sede)],['exc','bien','mej'].map(o=>`evs_${o}_${contrato}`));
+/** Google review request by template (outside the 24 hours): «Dejar reseña» with the store's place id and «Ahora no». null until approved. */
+export async function sendReviewTemplate(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,placeId:string){
+ const version=process.env.META_GRAPH_VERSION||'v21.0';
+ const r=await fetch(`https://graph.facebook.com/${version}/${settings.phoneNumberId}/messages`,{method:'POST',headers:{Authorization:`Bearer ${settings.token}`,'Content-Type':'application/json'},
+  body:JSON.stringify({messaging_product:'whatsapp',to,type:'template',template:{name:'ambar_resena',language:{code:settings.templateLang||'es_CO'},components:[
+   {type:'body',parameters:[{type:'text',text:nombre.trim()||'hola'}]},
+   {type:'button',sub_type:'url',index:'0',parameters:[{type:'text',text:placeId}]},
+   {type:'button',sub_type:'quick_reply',index:'1',parameters:[{type:'payload',payload:'rs_no'}]}]}}),signal:AbortSignal.timeout(15000)});
+ const d=await r.json().catch(()=>({})) as {messages?:{id:string}[];error?:{message?:string;code?:number}};
+ if(r.ok&&d.messages?.[0]?.id)return d.messages[0].id;
+ const code=Number(d.error?.code);if(code>=132000&&code<133000)return null;
+ throw Error(`WhatsApp no aceptó el mensaje: ${String(d.error?.message||r.status).slice(0,160)}`);
+}
 export const CRM_BOTONES=[{id:'crm_agendar',titulo:'📅 Agendar cita'},{id:'crm_ver',titulo:'👗 Ver vestidos'},{id:'crm_no',titulo:'🚫 No me interesa'}];
 /** Sends a photo by public link (JPG or PNG) with a short caption; returns the WhatsApp message id. */
 export async function sendWhatsappImage(settings:{token:string;phoneNumberId:string},to:string,link:string,caption:string){
@@ -197,6 +224,25 @@ export async function handleCrmButtons(db:SupabaseClient,settings:{token:string;
     texto='Aquí tienes nuestros vestidos 👗 Si alguno te gusta, cuéntame y te agendamos para que te lo pruebes.';
     waId=cat?.token?await sendWhatsappButtons(settings,a.telefono,texto,{titulo:'👗 Ver catálogo',url:`${origin}/c/${cat.token}`})
      :await sendWhatsappButtons(settings,a.telefono,'Cuéntame qué tipo de vestido buscas (XV, gala, novia) y tu talla, y te envío las opciones 💛',{titulo:'📅 Agendar cita',url:`${origin}/agendar-primera-cita?o=wa_crm`});
+   }else if(/^ev[sf]_/.test(a.accion)){
+    // After the event: «evs_<exc|bien|mej>_<contrato>» (satisfaction) and «evf_<falla>_<contrato>» (what to improve).
+    const [,op,contrato]=a.accion.match(/^ev[sf]_([a-z]+)_([0-9a-f-]{36})$/)||[];if(!contrato)continue;
+    const {data:r}=await db.rpc('post_evento_respuesta',{p_contrato:contrato,p_telefono:a.telefono,p_accion:op});
+    const res=(r||{}) as {siguiente?:string;resena_url?:string|null;sede_id?:string|null;email?:string|null;nombre?:string};
+    const nombre=res.nombre||'';
+    if(res.siguiente==='resena'&&res.resena_url){
+     texto=`¡Gracias, ${nombre}! 💛 Tu opinión ayuda a otras quinceañeras a elegir. ¿Nos cuentas tu experiencia en Google?`;
+     waId=await sendWhatsappButtons(settings,a.telefono,texto,{titulo:'⭐ Dejar reseña',url:res.resena_url});
+     await db.from('resenas_solicitudes').insert({telefono:a.telefono.slice(-10),email:res.email||null,canal:'whatsapp',origen:'contrato',contrato_id:contrato,sede_id:res.sede_id||null});
+    }else if(res.siguiente==='falla'){
+     texto='Gracias por decírnoslo. ¿Qué podemos mejorar?';
+     waId=await sendWhatsappList(settings,a.telefono,texto,'Elegir',[['atencion','Atención'],['espera','Tiempo de espera'],['vestidos','Vestidos'],['precio','Precio'],['entrega','Entrega o devolución'],['instalaciones','Instalaciones'],['otro','Otro']].map(([k,t])=>({id:`evf_${k}_${contrato}`,titulo:t})));
+    }else if(res.siguiente==='gracias'){
+     texto=`Gracias por contarnos, ${nombre}. La administración de Ámbar te contactará para escucharte 💛`;
+     waId=await sendWhatsappText(settings,a.telefono,texto);
+    }else if(res.siguiente===undefined&&r&&/^evs_(exc|bien)/.test(a.accion)){
+     texto=`¡Gracias, ${nombre}! 💛 Nos alegra mucho haberte acompañado.`;waId=await sendWhatsappText(settings,a.telefono,texto);
+    }else continue;
    }else if(a.accion==='crm_no'||a.accion==='pr_baja'){
     await db.rpc('crm_cerrar_por_clienta',{p_conv:a.conversacion});
     if(a.accion==='pr_baja')await db.rpc('revocar_comercial_por_telefono',{p_telefono:a.telefono,p_origen:'boton'});
