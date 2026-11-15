@@ -5,16 +5,17 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import UpcomingVisitsAlert from '@/components/UpcomingVisitsAlert';
 import PersonAttentionAlert from '@/components/PersonAttentionAlert';
+import FixedPaymentsAlert from '@/components/FixedPaymentsAlert';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
 import {
-  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen, KanbanSquare, Megaphone, Tag, BarChart3, Clapperboard, History
+  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen, KanbanSquare, Megaphone, Tag, BarChart3, Clapperboard, History, CalendarClock
 } from 'lucide-react';
 
 interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos' | 'pipeline' | 'aliados_publicaciones' | 'estudio_contenido' | 'historial';
+  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos' | 'pipeline' | 'aliados_publicaciones' | 'estudio_contenido' | 'historial' | 'pagos_fijos';
 }
 
 // Deposit and balance reminders live in the Inicio alert strip (DashboardAlerts), not in the menu.
@@ -108,6 +109,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       items: [
         { id: 'cobros', label: 'CUENTAS POR COBRAR', icon: HandCoins, href: '/dashboard/cuentas-por-cobrar', color: 'amber' },
         { id: 'caja', label: 'CIERRES DE CAJA', icon: Wallet, href: '/dashboard/caja', color: 'emerald' },
+        { id: 'pagos_fijos', label: 'PAGOS FIJOS DE SEDE', icon: CalendarClock, href: '/dashboard/pagos-fijos', color: 'emerald' },
         { id: 'depositos', label: 'DEPÓSITOS Y DEVOLUCIONES', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
         { id: 'proveedores-pagos', label: 'PAGOS A PROVEEDORES', icon: Banknote, href: '/dashboard/proveedores/pagos', color: 'violet', adminOnly: true },
         { id: 'siigo', label: 'FACTURACIÓN POR SEDE', icon: KeyRound, href: '/admin/config/siigo', color: 'emerald' },
@@ -325,6 +327,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       </aside>
       {canSee('primeras-citas') && <UpcomingVisitsAlert />}
       {canSee('whatsapp') && <PersonAttentionAlert />}
+      {canSee('pagos_fijos') && <FixedPaymentsAlert />}
     </>
   );
 }
