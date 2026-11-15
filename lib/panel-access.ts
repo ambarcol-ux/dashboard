@@ -39,7 +39,7 @@ export const PANELS:Panel[]=[
  {id:'whatsapp',label:'WhatsApp 304',href:'/dashboard/whatsapp',block:'VENTAS & CRM',paths:['/dashboard/whatsapp'],staff:true,grantable:true},
  {id:'pipeline',label:'Pipeline',href:'/dashboard/pipeline',block:'VENTAS & CRM',paths:['/dashboard/pipeline'],staff:true,grantable:true},
  {id:'correo',label:'Correo y promociones',href:'/dashboard/correo',block:'MARKETING',paths:['/dashboard/correo'],staff:true,grantable:true},
- {id:'aliados_directos',label:'Aliados directos',href:'/dashboard/aliados-directos',block:'RED DE ALIADOS',paths:['/dashboard/aliados-directos'],staff:true,grantable:true},
+ {id:'aliados_directos',label:'Aliados',href:'/dashboard/aliados-directos',block:'RED DE ALIADOS',paths:['/dashboard/aliados-directos'],staff:true,grantable:true},
  {id:'estudio_contenido',label:'Estudio de contenido',href:'/dashboard/estudio-contenido',block:'MARKETING',paths:['/dashboard/estudio-contenido'],staff:true,grantable:true},
  {id:'aliados_publicaciones',label:'Redes sociales (publicaciones de aliados)',href:'/dashboard/aliados-publicaciones',block:'MARKETING',paths:['/dashboard/aliados-publicaciones'],staff:true,grantable:true},
  {id:'aliados_admin',label:'Referidos (programa cerrado)',href:'/dashboard/admin/aliados',block:'RED DE ALIADOS',paths:['/dashboard/admin/aliados'],grantable:false},

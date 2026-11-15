@@ -168,7 +168,7 @@ export default function NuevoContratoPage() {
     if (!aliadoModo.tiene) return;
     const { data: s } = await supabase.auth.getSession();
     const r = await fetch('/api/aliados/medidas', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${s.session?.access_token || ''}` }, body: JSON.stringify({ accion: 'crear', contrato_id: contratoId }) }).catch(() => null);
-    if (!r?.ok) toast.error('El contrato se guardó, pero no se pudo enviar al aliado el enlace de medidas. Reenvíalo desde Aliados Directos › Medidas.');
+    if (!r?.ok) toast.error('El contrato se guardó, pero no se pudo enviar al aliado el enlace de medidas. Reenvíalo desde Aliados › Medidas.');
   };
   const syncRetablo = async (contractId: string) => {
     const err = await saveContractRetablo(contractId, retablo, hadRetablo);
