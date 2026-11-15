@@ -6,7 +6,8 @@ import {supabase} from '@/lib/supabase';
 
 type Medio={url:string;tipo:'imagen'|'video';fuente:string;ref:string;nota?:string};
 type Pieza={id:string;formato:string;redes:string[];sede_id:string|null;orden:string|null;texto:string|null;idea:string|null;medios:Medio[];programada_at:string|null;estado:string;
- resultado:Record<string,{estado?:string;enlace?:string;error?:string}>;error:string|null;created_at:string};
+ resultado:Record<string,{estado?:string;enlace?:string;error?:string}>;error:string|null;created_at:string;codigo:string|null;metricas:Record<string,Record<string,number|string>>;metricas_at:string|null};
+type Resultado={pieza_id:string;chats:number;citas:number;asistieron:number;contratos:number;valor:number};
 type Lib={id:string;url:string;tipo:'imagen'|'video';titulo:string|null;etiquetas:string[];sede_id:string|null;tiene_clienta:boolean;autorizada:boolean};
 type Sede={id:string;nombre:string};
 type Regla={id?:string;nombre:string;activa:boolean;disparador:'calendario'|'vestido_nuevo';dias:number[];hora:string;cantidad:number;formato:string;redes:string[];sede_id:string|null;orden:string};
@@ -45,17 +46,18 @@ export default function EstudioContenidoPage(){
 
 function Estudio(){
  const [tab,setTab]=useState<'piezas'|'nueva'|'reglas'|'biblioteca'>('piezas'),[reglas,setReglas]=useState<Regla[]>([]),[vista,setVista]=useState('aprobar');
- const [piezas,setPiezas]=useState<Pieza[]|null>(null),[lib,setLib]=useState<Lib[]>([]),[sedes,setSedes]=useState<Sede[]>([]),[admin,setAdmin]=useState(false);
+ const [resultados,setResultados]=useState<Record<string,Resultado>>({}),[piezas,setPiezas]=useState<Pieza[]|null>(null),[lib,setLib]=useState<Lib[]>([]),[sedes,setSedes]=useState<Sede[]>([]),[admin,setAdmin]=useState(false);
  const [error,setError]=useState(''),[busy,setBusy]=useState('');
  const load=useCallback(async()=>{
   const [{data:p,error:e},{data:l},{data:s},{data:a},{data:rg}]=await Promise.all([
-   supabase.from('contenido_piezas').select('id,formato,redes,sede_id,orden,texto,idea,medios,programada_at,estado,resultado,error,created_at').order('created_at',{ascending:false}).limit(150),
+   supabase.from('contenido_piezas').select('id,formato,redes,sede_id,orden,texto,idea,medios,programada_at,estado,resultado,error,created_at,codigo,metricas,metricas_at').order('created_at',{ascending:false}).limit(150),
    supabase.from('contenido_biblioteca').select('id,url,tipo,titulo,etiquetas,sede_id,tiene_clienta,autorizada').eq('archivado',false).order('created_at',{ascending:false}).limit(300),
    supabase.from('sedes').select('id,nombre').order('nombre'),
    supabase.rpc('es_admin'),
    supabase.from('contenido_reglas').select('id,nombre,activa,disparador,dias,hora,cantidad,formato,redes,sede_id,orden').order('created_at'),
   ]);
   setReglas(((rg||[]) as Regla[]).map(r=>({...r,hora:String(r.hora).slice(0,5)})));
+  void supabase.rpc('contenido_resultados',{p_dias:60}).then(({data:rs})=>setResultados(Object.fromEntries(((rs||[]) as Resultado[]).map(r=>[r.pieza_id,r]))));
   if(e)setError(e.message);else setPiezas((p||[]) as Pieza[]);
   setLib((l||[]) as Lib[]);setSedes((s||[]) as Sede[]);setAdmin(a===true);
  },[]);
@@ -76,7 +78,7 @@ function Estudio(){
    {!piezas?<p className="text-gray-400 font-bold">Cargando…</p>:
    (()=>{const lista=piezas.filter(p=>VISTAS.find(v=>v[0]===vista)![2].includes(p.estado));
     return !lista.length?<p className="text-sm text-gray-500">No hay piezas aquí. Usa «Crear con IA» para pedir una.</p>:
-    <div className="grid gap-4 lg:grid-cols-2">{lista.map(p=><Tarjeta key={`${p.id}:${p.estado}:${p.texto}:${p.programada_at}`} p={p} admin={admin} sede={sede(p.sede_id)} busy={busy} run={run}/>)}</div>;})()}
+    <div className="grid gap-4 lg:grid-cols-2">{lista.map(p=><Tarjeta key={`${p.id}:${p.estado}:${p.texto}:${p.programada_at}`} p={p} res={resultados[p.id]} admin={admin} sede={sede(p.sede_id)} busy={busy} run={run}/>)}</div>;})()}
   </>}
  </div>;
 }
@@ -99,7 +101,7 @@ function Nueva({sedes,busy,onCrear}:{sedes:Sede[];busy:string;onCrear:(b:Record<
  </section>;
 }
 
-function Tarjeta({p,admin,sede,busy,run}:{p:Pieza;admin:boolean;sede:string;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>}){
+function Tarjeta({p,res,admin,sede,busy,run}:{p:Pieza;res?:Resultado;admin:boolean;sede:string;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>}){
  const [texto,setTexto]=useState(p.texto||''),[fecha,setFecha]=useState(local(p.programada_at));
  const editable=['por_aprobar','aprobada','error'].includes(p.estado),cambio=texto!==(p.texto||'')||fecha!==local(p.programada_at);
  const b=(k:string)=>busy===`${k}:${p.id}`;
@@ -108,7 +110,8 @@ function Tarjeta({p,admin,sede,busy,run}:{p:Pieza;admin:boolean;sede:string;busy
    <p className="font-black text-gray-900">{FORMATO[p.formato]} · {p.redes.map(r=>RED[r]).join(', ')}</p>
    <span className={`text-[11px] font-black px-2 py-1 rounded-full ${ESTADO[p.estado]?.[1]}`}>{ESTADO[p.estado]?.[0]||p.estado}</span>
   </div>
-  <p className="text-xs text-gray-500">{sede} · publicar {verFecha(p.programada_at)}</p>
+  <p className="text-xs text-gray-500">{sede} · publicar {verFecha(p.programada_at)}{p.codigo?` · código ${p.codigo}`:''}</p>
+  {(p.estado==='publicada'||p.estado==='publicando')&&<Medicion p={p} res={res}/>}
   {p.idea&&<p className="text-xs text-gray-600 italic">{p.idea}</p>}
   <div className="flex gap-2 overflow-x-auto pb-1">{p.medios.map(m=><div key={m.url} className="relative shrink-0">
    {m.tipo==='video'?<video src={m.url} className="h-40 rounded-xl" controls preload="metadata"/>:/* eslint-disable-next-line @next/next/no-img-element */<img src={m.url} alt={m.nota||''} className="h-40 rounded-xl object-cover"/>}
@@ -213,5 +216,17 @@ function Reglas({reglas,sedes,admin,busy,run}:{reglas:Regla[];sedes:Sede[];admin
    {admin&&<div className="flex gap-2 pt-1"><button type="button" onClick={()=>setEdit(r)} className="px-3 py-1.5 rounded-lg border text-xs font-black">Editar</button>
     <button type="button" disabled={!!busy} onClick={()=>void run(`activa:${r.id}`,{accion:'regla_activa',id:r.id,activa:!r.activa})} className="px-3 py-1.5 rounded-lg border text-xs font-black">{r.activa?'Pausar':'Activar'}</button></div>}
   </article>)}</div>}
+ </div>;
+}
+
+/** Results of a published piece: reach and interactions (Instagram/Facebook, updated each morning) and chats, visits and contracts
+ *  from customers who mentioned its code on WhatsApp. */
+function Medicion({p,res}:{p:Pieza;res?:Resultado}){
+ const n=(v:unknown)=>Number(v||0).toLocaleString('es-CO');
+ const redes=Object.entries(p.metricas||{});
+ return <div className="rounded-xl bg-gray-50 p-3 text-xs space-y-1">
+  {redes.length?redes.map(([red,m])=><p key={red}><b>{RED[red]||red}:</b> {m.error?<span className="text-amber-700">sin métricas ({String(m.error)})</span>:<>alcance {n(m.alcance)} · {red==='facebook'?`reacciones ${n(m.reacciones)}`:`interacciones ${n(m.interacciones)}`} · comentarios {n(m.comentarios)} · compartidos {n(m.compartidos)}{m.guardados!==undefined?` · guardados ${n(m.guardados)}`:''}</>}</p>)
+   :<p className="text-gray-500">Las métricas de alcance llegan al día siguiente de publicar.</p>}
+  <p><b>Resultados (código {p.codigo||'—'}):</b> {n(res?.chats)} chats · {n(res?.citas)} citas · {n(res?.asistieron)} asistieron · {n(res?.contratos)} contratos{res?.valor?` · $${n(res.valor)}`:''}</p>
  </div>;
 }

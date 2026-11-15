@@ -58,6 +58,10 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    const flowReply=/^(pc|rc|mot|cc|sat|fa|rs|rg|cf|r2|crm|pr|evs|evf)_/.test(accion);
    // CRM and promotion buttons (Agendar cita, Ver vestidos, No me interesa, Quiero mi cita, No recibir más): the ERP answers them.
    if(/^(crm|pr|evs|evf)_/.test(accion))acciones.push({conversacion:conv.id,telefono:phone,sede_id:conv.sede_id||null,accion});
+   // A content piece's code (P + 5) in her message: the chat counts for that piece (Estudio de contenido › resultados).
+   const codigo=m.type==='text'?text.toUpperCase().match(/\bP[0-9A-Z]{5}\b/)?.[0]:undefined;
+   if(codigo){const {data:pz}=await db.from('contenido_piezas').select('id').eq('codigo',codigo).maybeSingle();
+    if(pz)await db.from('whatsapp_conversaciones').update({contenido_pieza_id:pz.id,contenido_pieza_at:at}).eq('id',conv.id).or(`contenido_pieza_at.is.null,contenido_pieza_at.lt.${new Date(Date.now()-30*86400000).toISOString()}`);}
    if(m.type==='text')escritos.push({conversacion:conv.id,telefono:phone,wa_id:String(m.id),texto:text});
    if(m.type!=='reaction'&&!flowReply)touched.add(conv.id);
   }

@@ -57,6 +57,8 @@ export async function POST(request:Request){
    destino+=dbg?.data?.scopes?` · Permisos del token: ${faltan.length?`FALTAN ${faltan.join(', ')}`:'completos para mensajes'}`:'';
    const pub=['instagram_content_publish','pages_manage_posts'].filter(p=>dbg?.data?.scopes&&!dbg.data.scopes.includes(p));
    destino+=dbg?.data?.scopes?` · Publicar desde el Estudio de contenido: ${pub.length?`FALTAN ${pub.join(', ')}`:'permitido'}`:'';
+   const met=['instagram_manage_insights','read_insights'].filter(p=>dbg?.data?.scopes&&!dbg.data.scopes.includes(p));
+   destino+=dbg?.data?.scopes?` · Métricas de publicaciones: ${met.length?`FALTAN ${met.join(', ')}`:'permitido'}`:'';
   }
   if(ig?.id){
    const dm=await get(`${s.pageId}/conversations?platform=instagram&fields=id&limit=1`);
