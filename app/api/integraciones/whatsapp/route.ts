@@ -7,7 +7,8 @@ export const dynamic='force-dynamic';
 const REQUIRED=['ambar_confirmacion_cita','ambar_recordatorio_cita','ambar_post_cita_asistencia'];
 const OPTIONAL=[CONFIRMATION_TEMPLATES.presencial,CONFIRMATION_TEMPLATES.virtual];
 /** Follow-up and allies templates (docs/plantillas-whatsapp.md) that the ERP can submit to Meta itself. */
-const NUEVAS:{name:string;category:'MARKETING'|'UTILITY';text:string;ejemplo:string[]}[]=[
+const NUEVAS:{name:string;category:'MARKETING'|'UTILITY';text:string;ejemplo:string[];botones?:string[]}[]=[
+ {name:'ambar_recordatorio_confirmar_v2',category:'UTILITY',text:'Hola {{1}} 💛 Te recordamos tu primera cita en Ámbar Couture {{2}} el {{3}} a las {{4}}.\n\n¿Nos confirmas que vienes?',ejemplo:['Ana María','Pereira','15 de octubre de 2026','3:00 p. m.'],botones:['Ahí estaré','Cambiar hora','No puedo']},
  {name:'ambar_seguimiento_promo',category:'MARKETING',text:'Hola {{1}} 💛 Soy de Ámbar Couture {{2}}. ¿Ya encontraste tu vestido? Tenemos {{3}}. Responde este mensaje y te mostramos opciones o separamos tu cita.',ejemplo:['Luisa','Barranquilla','20% de descuento pagando de contado en tienda hasta el 30 de noviembre']},
  {name:'ambar_seguimiento_v2',category:'MARKETING',text:'Hola {{1}} 💛 Soy de Ámbar Couture {{2}}. ¿Ya encontraste tu vestido? Tenemos modelos nuevos y te ayudamos a elegir el ideal para tu evento. Responde este mensaje y te mostramos opciones o te agendamos una cita.',ejemplo:['Luisa','Barranquilla']},
  {name:'ambar_aliado_recordatorio',category:'MARKETING',text:'Hola {{1}} 💛 Te escribimos de Ámbar Couture. ¿Pudiste revisar el programa de aliados? Incluye en tus paquetes nuestros vestidos de XV y gala con descuentos especiales para aliados y más de 600 vestidos en 4 sedes. Responde este mensaje y te ayudamos a completar tu vinculación.',ejemplo:['Carolina']},
@@ -67,7 +68,7 @@ export async function POST(request:Request){
    const resultado:{plantilla:string;estado:string}[]=[];
    for(const t of NUEVAS){
     if(have.has(t.name)){resultado.push({plantilla:t.name,estado:`Ya existía (${have.get(t.name)})`});continue;}
-    const r=await call(`${waba}/message_templates`,{method:'POST',body:JSON.stringify({name:t.name,language:lang,category:t.category,allow_category_change:true,components:[{type:'BODY',text:t.text,example:{body_text:[t.ejemplo]}}]})});
+    const r=await call(`${waba}/message_templates`,{method:'POST',body:JSON.stringify({name:t.name,language:lang,category:t.category,allow_category_change:true,components:[{type:'BODY',text:t.text,example:{body_text:[t.ejemplo]}},...(t.botones?[{type:'BUTTONS',buttons:t.botones.map(text=>({type:'QUICK_REPLY',text}))}]:[])]})});
     resultado.push({plantilla:t.name,estado:r.ok?`Enviada a revisión (${String(r.d.status||'PENDING')})`:`Error: ${msg(r.d)}`});
    }
    return publicReply({ok:true,resultado});

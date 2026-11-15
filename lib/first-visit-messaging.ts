@@ -25,19 +25,27 @@ export function whatsappPayload(type:string,c:NotificationVisit,site:string,link
 }
 /** Templates created in WhatsApp Manager for attendance (see docs/plantillas-whatsapp.md). */
 export const REMINDER_CONFIRM_TEMPLATE='ambar_recordatorio_confirmar',RECOVERY_TEMPLATE='ambar_cita_reprogramar';
+/** Same reminder with a third button «No puedo» (see docs/plantillas-whatsapp.md); used first, the two-button one is the fallback. */
+export const REMINDER_CONFIRM_V2_TEMPLATE='ambar_recordatorio_confirmar_v2';
 /** 24-hour reminder with «Confirmo» / «Reagendar» buttons; while Meta has not approved it, the plain reminder goes out. */
-export function reminderConfirmPayload(c:NotificationVisit,site:string,lang='es_CO'){
+export function reminderConfirmPayload(c:NotificationVisit,site:string,lang='es_CO',v2=false){
  const values=[c.cliente_nombre,site,visitDate(c.fecha),visitTime(c.hora)];
- return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name:REMINDER_CONFIRM_TEMPLATE,language:{code:lang},components:[
+ return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name:v2?REMINDER_CONFIRM_V2_TEMPLATE:REMINDER_CONFIRM_TEMPLATE,language:{code:lang},components:[
   {type:'body',parameters:values.map(text=>({type:'text',text}))},
-  ...['rc_confirmo','rc_reagendar'].map((payload,i)=>({type:'button',sub_type:'quick_reply',index:String(i),parameters:[{type:'payload',payload}]}))]}};
+  ...(v2?['rc_confirmo','rc_reagendar','rc_no_puedo']:['rc_confirmo','rc_reagendar']).map((payload,i)=>({type:'button',sub_type:'quick_reply',index:String(i),parameters:[{type:'payload',payload}]}))]}};
 }
 /** While the customer wrote in the last 24 hours, reminders go as normal 304 messages (no template). Returns the text kept in the inbox too. */
 export function openWindowPayload(type:string,c:NotificationVisit,siteName:string,link:string,sites?:VisitSite[]){
  const to=whatsappPhone(c.telefono),name=c.cliente_nombre.split(' ')[0],site=visitSite(siteName,sites),when=`${visitDate(c.fecha)} a las ${visitTime(c.hora)}`;
  const where=c.modalidad==='virtual'?'de forma virtual':`en ${siteName}${site?.direccion?` (${site.direccion})`:''}`;
  if(type==='recordatorio24'){const texto=`Hola ${name} 💛 Te recordamos tu primera cita ${where} el ${when}. ¿Nos confirmas que vienes?`;
-  return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'rc_confirmo',title:'Confirmo'}},{type:'reply',reply:{id:'rc_reagendar',title:'Reagendar'}}]}}}};}
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'rc_confirmo',title:'✅ Ahí estaré'}},{type:'reply',reply:{id:'rc_reagendar',title:'🔄 Cambiar hora'}},{type:'reply',reply:{id:'rc_no_puedo',title:'❌ No puedo'}}]}}}};}
+ if(type==='confirmar_cancelacion'){const texto=`${name}, ¿cancelamos tu cita del ${when}? Así liberamos el espacio para otra clienta.`;
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'cc_si',title:'Sí, cancelar'}},{type:'reply',reply:{id:'cc_no',title:'No, la mantengo'}}]}}}};}
+ if(type==='cita_cancelada_wa'){const texto=`Listo ${name}, cancelamos tu cita. Cuando quieras volver a agendar, aquí te esperamos 💛`;
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'cta_url',body:{text:texto},action:{name:'cta_url',parameters:{display_text:'📅 Agendar otra cita',url:`${link.split('/agendar-primera-cita')[0]}/agendar-primera-cita?o=wa_cancelada`}}}}};}
+ if(type==='cita_mantenida_wa'){const texto=`¡Perfecto, ${name}! Mantenemos tu cita ${where} el ${when}. Te esperamos 💛`;
+  return {texto,payload:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
  if(type==='recordatorio2'){const texto=`Hola ${name}, ¡hoy es tu cita! Te esperamos ${where} a las ${visitTime(c.hora)}${site?.mapa?`. Cómo llegar: ${site.mapa}`:''}.${c.modalidad!=='virtual'&&site?.parqueadero?` ${site.parqueadero}`:''} Si se te presenta algo, puedes cambiarla aquí: ${link}`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
  if(type==='recuperar'){const texto=`Hola ${name} 💛 Hoy te esperábamos en tu cita y nos quedamos con ganas de verte. Si quieres, elige una nueva fecha aquí y te tenemos los vestidos listos: ${link}`;
@@ -52,7 +60,7 @@ export function inboxCopy(type:string,c:NotificationVisit,site:string,payload:Re
  const when=`${visitDate(c.fecha)} a las ${visitTime(c.hora)}`,name=String(payload.template?.name||'');
  const label:Record<string,string>={confirmacion:`✅ Confirmación de su primera cita: ${when} · ${c.modalidad==='virtual'?'virtual':site}`,recordatorio24:`⏰ Recordatorio: su cita es mañana, ${when} · ${site}`,recordatorio2:`⏰ Recordatorio: su cita es hoy, ${when} · ${site}`,
   post_cita:'¿Asististe a tu cita?\n[Asistí · No asistí]',recuperar:'💛 Te esperábamos en tu cita: elige una nueva fecha (enlace para reprogramar).'};
- return `${label[type]||'Mensaje automático'}${name===REMINDER_CONFIRM_TEMPLATE?'\n[Confirmo · Reagendar]':''}\n(plantilla ${name})`;
+ return `${label[type]||'Mensaje automático'}${name===REMINDER_CONFIRM_V2_TEMPLATE?'\n[✅ Ahí estaré · 🔄 Cambiar hora · ❌ No puedo]':name===REMINDER_CONFIRM_TEMPLATE?'\n[Confirmo · Reagendar]':''}\n(plantilla ${name})`;
 }
 /** Meta's delivery error codes, in words the team can act on. */
 export function metaErrorText(code:unknown,title:unknown){

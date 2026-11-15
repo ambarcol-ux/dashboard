@@ -92,6 +92,12 @@ https://erp.ambarcouture.com/reprogramar-primera-cita
 
 Los datos de cada sede (dirección, mapa, teléfono y WhatsApp) están en `lib/first-visit-sites.ts`.
 
+## Recordatorio con 3 botones — `ambar_recordatorio_confirmar_v2`
+
+Categoría **Utilidad** · Idioma **Español (COL)** · Botones de respuesta rápida: **Ahí estaré**, **Cambiar hora** y **No puedo** (en ese orden). Mismo texto y variables que `ambar_recordatorio_confirmar`. Se crea con el botón «Crear plantillas en Meta» de Integraciones › WhatsApp. Mientras Meta no la apruebe, sale la de 2 botones.
+
+«No puedo» pregunta «¿Cancelamos tu cita?» (Sí, cancelar · No, la mantengo); si cancela, la cita queda cancelada y recibe el botón «Agendar otra cita».
+
 ## Recordatorio con confirmación — `ambar_recordatorio_confirmar`
 
 Categoría **Utilidad** · Idioma **Español (COL)** · Botones de respuesta rápida: **Confirmo** y **Reagendar** (en ese orden).
