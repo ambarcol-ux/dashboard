@@ -9,7 +9,14 @@ const REQUIRED=['ambar_confirmacion_cita','ambar_recordatorio_cita','ambar_post_
 const OPTIONAL=[CONFIRMATION_TEMPLATES.presencial,CONFIRMATION_TEMPLATES.virtual];
 /** Follow-up and allies templates (docs/plantillas-whatsapp.md) that the ERP can submit to Meta itself. */
 type Boton=string|{texto:string;url:string;ejemplo:string};
-const NUEVAS:{name:string;category:'MARKETING'|'UTILITY';text:string;ejemplo:string[];botones?:Boton[]}[]=[
+const CONF_SEDE='Hola, {{1}} 👋\n\nTu cita *presencial en Ámbar Couture {{2}}* está agendada. ✨\n\n📅 *Fecha:* {{3}}\n🕒 *Hora:* {{4}}\n\n📍 *Dirección:* {{5}}\n\n🗺️ *Cómo llegar en Google Maps:*\n{{6}}\n\n📲 *¿Tienes alguna pregunta?*\nContacta a nuestra sede {{7}}: *{{8}}*\n\n*Escribir por WhatsApp:*\n{{9}}\n\n¿Nos confirmas que vienes? 👗✨';
+const CONF_VIRTUAL='Hola, {{1}} 👋\n\nTu cita *virtual con Ámbar Couture* está agendada. ✨\n\n📅 *Fecha:* {{2}}\n🕒 *Hora:* {{3}}\n\n💻 Te enviaremos el enlace de la videollamada antes de tu cita.\n\n📲 *¿Tienes alguna pregunta?*\nContacta a nuestra sede {{4}}: *{{5}}*\n\n*Escribir por WhatsApp:*\n{{6}}\n\n¿Nos confirmas que te conectas? 👗✨';
+const NUEVAS:{name:string;category:'MARKETING'|'UTILITY';text:string;ejemplo:string[];botones?:Boton[];idioma?:'confirmacion'}[]=[
+ {name:'ambar_cita_confirmada_sede_v2',category:'UTILITY',idioma:'confirmacion',text:CONF_SEDE,ejemplo:['Andrés','Pereira','15 de octubre de 2026','3:00 p. m.','Carrera 17 #9-70, local 101, barrio Pinares, Pereira, Risaralda.','https://maps.app.goo.gl/bfZE7XW9rxfcV8vt7','Pereira','321 347 3757','https://wa.me/573213473757'],botones:['Confirmo','Cambiar hora']},
+ {name:'ambar_cita_confirmada_virtual_v2',category:'UTILITY',idioma:'confirmacion',text:CONF_VIRTUAL,ejemplo:['Andrés','15 de octubre de 2026','3:00 p. m.','Pereira','321 347 3757','https://wa.me/573213473757'],botones:['Confirmo','Cambiar hora']},
+ {name:'ambar_recordatorio_hoy',category:'UTILITY',text:'Hola {{1}}, ¡hoy es tu cita en Ámbar Couture {{2}} a las {{3}}! Te esperamos 💛',ejemplo:['Ana','Pereira','3:00 p. m.'],botones:['Ver ubicación','Cambiar hora']},
+ {name:'ambar_seguimiento_botones',category:'MARKETING',text:'Hola {{1}} 💛 Soy de Ámbar Couture {{2}}. ¿Ya encontraste tu vestido? Tenemos modelos nuevos y te ayudamos a elegir el ideal para tu evento.',ejemplo:['Luisa','Barranquilla'],botones:['Agendar cita','Ver vestidos','No me interesa']},
+ {name:'ambar_seguimiento_promo_botones',category:'MARKETING',text:'Hola {{1}} 💛 Soy de Ámbar Couture {{2}}. ¿Ya encontraste tu vestido? Tenemos {{3}}.',ejemplo:['Luisa','Barranquilla','20% de descuento pagando de contado en tienda hasta el 30 de noviembre'],botones:['Quiero mi cita','No recibir más']},
  {name:'ambar_resena',category:'MARKETING',text:'Hola {{1}} 💛 Tu opinión ayuda a otras quinceañeras a elegir. ¿Nos cuentas tu experiencia en Google?',ejemplo:['Ana'],
   botones:[{texto:'Dejar reseña',url:'https://search.google.com/local/writereview?placeid={{1}}',ejemplo:'https://search.google.com/local/writereview?placeid=ChIJqWHyXJiHOI4RybM_WTaNysU'},'Ahora no']},
  {name:'ambar_post_cita_v2',category:'UTILITY',text:'Hola {{1}} 💛 ¿Cómo te fue en tu cita en Ámbar Couture {{2}}?\n\nTu respuesta nos ayuda a acompañarte en la elección de tu vestido.',ejemplo:['Ana','Pereira'],botones:['Fui y alquilé','Aún no decido','No pude ir']},
@@ -74,11 +81,12 @@ export async function POST(request:Request){
    const msg=(d:Record<string,unknown>)=>String((d.error as {error_user_msg?:string;message?:string})?.error_user_msg||(d.error as {message?:string})?.message||'').slice(0,200);
    const cur=await call(`${waba}/message_templates?fields=name,language,status,rejected_reason&limit=200`);
    if(!cur.ok)return publicReply({error:`No se pudieron leer las plantillas de la cuenta: ${msg(cur.d)}`},400);
-   const have=new Map(((cur.d.data as {name:string;language:string;status:string;rejected_reason?:string}[])||[]).filter(t=>t.language===lang).map(t=>[t.name,t.status+(t.status==='REJECTED'&&t.rejected_reason&&t.rejected_reason!=='NONE'?`: motivo ${t.rejected_reason}`:'')]));
+   const langConf=cfg.idioma_confirmacion||process.env.META_WA_CONFIRMATION_LANG||'es';
+   const have=new Map(((cur.d.data as {name:string;language:string;status:string;rejected_reason?:string}[])||[]).filter(t=>t.language===lang||t.language===langConf).map(t=>[t.name,t.status+(t.status==='REJECTED'&&t.rejected_reason&&t.rejected_reason!=='NONE'?`: motivo ${t.rejected_reason}`:'')]));
    const resultado:{plantilla:string;estado:string}[]=[];
    for(const t of NUEVAS){
     if(have.has(t.name)){resultado.push({plantilla:t.name,estado:`Ya existía (${have.get(t.name)})`});continue;}
-    const r=await call(`${waba}/message_templates`,{method:'POST',body:JSON.stringify({name:t.name,language:lang,category:t.category,allow_category_change:true,components:[{type:'BODY',text:t.text,example:{body_text:[t.ejemplo]}},...(t.botones?[{type:'BUTTONS',buttons:t.botones.map(b=>typeof b==='string'?{type:'QUICK_REPLY',text:b}:{type:'URL',text:b.texto,url:b.url,example:[b.ejemplo]})}]:[])]})});
+    const r=await call(`${waba}/message_templates`,{method:'POST',body:JSON.stringify({name:t.name,language:t.idioma==='confirmacion'?langConf:lang,category:t.category,allow_category_change:true,components:[{type:'BODY',text:t.text,example:{body_text:[t.ejemplo]}},...(t.botones?[{type:'BUTTONS',buttons:t.botones.map(b=>typeof b==='string'?{type:'QUICK_REPLY',text:b}:{type:'URL',text:b.texto,url:b.url,example:[b.ejemplo]})}]:[])]})});
     resultado.push({plantilla:t.name,estado:r.ok?`Enviada a revisión (${String(r.d.status||'PENDING')})`:`Error: ${msg(r.d)}`});
    }
    return publicReply({ok:true,resultado});

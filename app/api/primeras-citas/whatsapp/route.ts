@@ -2,7 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {applyWhatsappEvents,validMetaSignature} from '@/lib/first-visit-messaging';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {after} from 'next/server';
-import {storeInboxEvents} from '@/lib/whatsapp-inbox';
+import {storeInboxEvents,handleCrmButtons} from '@/lib/whatsapp-inbox';
 import {suggestWhatsappReply} from '@/lib/whatsapp-ai';
 import {resolveAd} from '@/lib/meta-ads';
 export const dynamic='force-dynamic';
@@ -22,7 +22,8 @@ export async function POST(request:Request){
   if(!await applyWhatsappEvents(db,payload,acceptedPhoneIds))return new Response('Reintentar',{status:503});
   // Ventas y CRM › WhatsApp 304: chats in the ERP. A failure here never blocks the visit notifications above.
   try{
-   const {touched,ads}=await storeInboxEvents(db,payload,acceptedPhoneIds);
+   const {touched,ads,acciones}=await storeInboxEvents(db,payload,acceptedPhoneIds);
+   if(acciones.length)after(async()=>{const settings=await loadWhatsappSettings(db);if(settings.token&&settings.phoneNumberId)await handleCrmButtons(db,settings,acciones);});
    if(touched.length||ads.length)after(async()=>{
     // First the ad (its name carries the store, which then assigns the chat if it has none), then the AI suggestion.
     for(const a of ads){try{const sede=await resolveAd(db,a.anuncio);if(sede)await db.from('whatsapp_conversaciones').update({sede_id:sede}).eq('id',a.conversacion).is('sede_id',null);}catch(e){console.error('Anuncio:',e);}}

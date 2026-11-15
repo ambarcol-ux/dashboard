@@ -32,7 +32,7 @@ export async function conversationFor(db:SupabaseClient,phone:string,profileName
 
 /** Saves the events of one webhook call. Returns the chats with new customer messages (for the AI suggestion) and the ads they came from. */
 export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:string[]){
- const touched=new Set<string>(),ads:{conversacion:string;anuncio:string}[]=[];
+ const touched=new Set<string>(),ads:{conversacion:string;anuncio:string}[]=[],acciones:{conversacion:string;telefono:string;sede_id:string|null;accion:string}[]=[];
  for(const entry of data.entry||[])for(const change of entry.changes||[]){
   const v=change.value;if(!v||(accepted.length&&!accepted.includes(String(v.metadata?.phone_number_id||''))))continue;
   const names=new Map<string,string>((v.contacts||[]).map((c:Value)=>[digits(c.wa_id),String(c.profile?.name||'')]));
@@ -54,7 +54,10 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
     ads.push({conversacion:conv.id,anuncio:String(ref.source_id)});
    }
    // Buttons of the automatic first-visit messages (Asistí, Sí alquilé, Confirmo, motives…) are handled by the ERP: the AI does not answer them.
-   const flowReply=/^(pc|rc|mot)_/.test(String(m.button?.payload||m.interactive?.button_reply?.id||m.interactive?.list_reply?.id||''));
+   const accion=String(m.button?.payload||m.interactive?.button_reply?.id||m.interactive?.list_reply?.id||'');
+   const flowReply=/^(pc|rc|mot|cc|sat|fa|rs|rg|cf|r2|crm|pr)_/.test(accion);
+   // CRM and promotion buttons (Agendar cita, Ver vestidos, No me interesa, Quiero mi cita, No recibir más): the ERP answers them.
+   if(/^(crm|pr)_/.test(accion))acciones.push({conversacion:conv.id,telefono:phone,sede_id:conv.sede_id||null,accion});
    if(m.type!=='reaction'&&!flowReply)touched.add(conv.id);
   }
   // Replies typed in the WhatsApp Business app of the phone (coexistence): field smb_message_echoes.
@@ -73,7 +76,7 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    await db.from('whatsapp_mensajes').update({estado:s.status}).eq('wa_id',String(s.id));
   }
  }
-  return {touched:[...touched],ads};
+  return {touched:[...touched],ads,acciones};
 }
 
 /** Sends a free text inside Meta's 24-hour window. Returns the WhatsApp message id. */
@@ -104,7 +107,12 @@ export const sendWhatsappFollowupV2=(settings:{token:string;phoneNumberId:string
 export const sendWhatsappFollowupPromo=(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,sede:string,promo:string)=>sendOptionalTemplate(settings,to,FOLLOWUP_PROMO_TEMPLATE,[nombre.trim()||'hola',lugar(sede),promo]);
 /** Best approved follow-up greeting: with promotion, then the improved one, then the original. Returns the message id and its text for the inbox. */
 export async function sendBestFollowup(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,sede:string,promo:string|null){
- let waId=promo?await sendWhatsappFollowupPromo(settings,to,nombre,sede,promo):null;
+ // With buttons first (Quiero mi cita · No recibir más / Agendar cita · Ver vestidos · No me interesa); null until Meta approves them.
+ let waId=promo?await sendOptionalTemplate(settings,to,'ambar_seguimiento_promo_botones',[nombre.trim()||'hola',lugar(sede),promo],['pr_cita','pr_baja']):null;
+ if(waId&&promo)return {waId,texto:`Hola ${nombre} 💛 Soy de Ámbar Couture ${lugar(sede)}. ¿Ya encontraste tu vestido? Tenemos ${promo}.\n[Quiero mi cita · No recibir más]`};
+ waId=await sendOptionalTemplate(settings,to,'ambar_seguimiento_botones',[nombre.trim()||'hola',lugar(sede)],['crm_agendar','crm_ver','crm_no']);
+ if(waId)return {waId,texto:`Hola ${nombre} 💛 Soy de Ámbar Couture ${lugar(sede)}. ¿Ya encontraste tu vestido? Tenemos modelos nuevos y te ayudamos a elegir el ideal para tu evento.\n[Agendar cita · Ver vestidos · No me interesa]`};
+ waId=promo?await sendWhatsappFollowupPromo(settings,to,nombre,sede,promo):null;
  if(waId&&promo)return {waId,texto:followupPromoText(nombre,sede,promo)};
  waId=await sendWhatsappFollowupV2(settings,to,nombre,sede);
  if(waId)return {waId,texto:followupV2Text(nombre,sede)};
@@ -116,10 +124,11 @@ export const sendAllyReminder=(settings:{token:string;phoneNumberId:string;templ
 export const allyWelcomeText=(nombre:string,codigo:string)=>`Hola ${nombre} 💛 Ya eres aliado de Ámbar Couture. Tu código de aliado es ${codigo}. Te enviamos al correo tus enlaces para registrar a tus clientas y consultar disponibilidad de vestidos. Responde este mensaje y te explicamos cómo registrar tu primera clienta.`;
 export const sendAllyWelcome=(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,codigo:string)=>sendOptionalTemplate(settings,to,'ambar_aliado_bienvenida_v2',[nombre.trim()||'aliado',codigo]);
 /** Sends a template that may not be approved in Meta yet: null then, so the caller falls back to the approved one. */
-async function sendOptionalTemplate(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,name:string,values:string[]){
+async function sendOptionalTemplate(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,name:string,values:string[],botones:string[]=[]){
  const version=process.env.META_GRAPH_VERSION||'v21.0';
  const r=await fetch(`https://graph.facebook.com/${version}/${settings.phoneNumberId}/messages`,{method:'POST',headers:{Authorization:`Bearer ${settings.token}`,'Content-Type':'application/json'},
-  body:JSON.stringify({messaging_product:'whatsapp',to,type:'template',template:{name,language:{code:settings.templateLang||'es_CO'},components:[{type:'body',parameters:values.map(text=>({type:'text',text}))}]}}),signal:AbortSignal.timeout(15000)});
+  body:JSON.stringify({messaging_product:'whatsapp',to,type:'template',template:{name,language:{code:settings.templateLang||'es_CO'},components:[{type:'body',parameters:values.map(text=>({type:'text',text}))},
+   ...botones.map((payload,i)=>({type:'button',sub_type:'quick_reply',index:String(i),parameters:[{type:'payload',payload}]}))]}}),signal:AbortSignal.timeout(15000)});
  const d=await r.json().catch(()=>({})) as {messages?:{id:string}[];error?:{message?:string;code?:number}};
  if(r.ok&&d.messages?.[0]?.id)return d.messages[0].id;
  const code=Number(d.error?.code);
@@ -137,6 +146,18 @@ export async function sendWhatsappText(settings:{token:string;phoneNumberId:stri
  }
  return d.messages[0].id;
 }
+/** Interactive message inside the 24 hours: reply buttons (max 3, titles of 20 characters) or one link button. Returns the message id. */
+export async function sendWhatsappButtons(settings:{token:string;phoneNumberId:string},to:string,body:string,botones:{id:string;titulo:string}[]|{url:string;titulo:string}){
+ const version=process.env.META_GRAPH_VERSION||'v21.0';
+ const interactive=Array.isArray(botones)?{type:'button',body:{text:body.slice(0,1024)},action:{buttons:botones.slice(0,3).map(b=>({type:'reply',reply:{id:b.id,title:b.titulo.slice(0,20)}}))}}
+  :{type:'cta_url',body:{text:body.slice(0,1024)},action:{name:'cta_url',parameters:{display_text:botones.titulo.slice(0,20),url:botones.url}}};
+ const r=await fetch(`https://graph.facebook.com/${version}/${settings.phoneNumberId}/messages`,{method:'POST',headers:{Authorization:`Bearer ${settings.token}`,'Content-Type':'application/json'},
+  body:JSON.stringify({messaging_product:'whatsapp',recipient_type:'individual',to,type:'interactive',interactive}),signal:AbortSignal.timeout(15000)});
+ const d=await r.json().catch(()=>({})) as {messages?:{id:string}[];error?:{message?:string}};
+ if(!r.ok||!d.messages?.[0]?.id)throw Error(`WhatsApp no aceptó el mensaje: ${String(d.error?.message||r.status).slice(0,160)}`);
+ return d.messages[0].id;
+}
+export const CRM_BOTONES=[{id:'crm_agendar',titulo:'📅 Agendar cita'},{id:'crm_ver',titulo:'👗 Ver vestidos'},{id:'crm_no',titulo:'🚫 No me interesa'}];
 /** Sends a photo by public link (JPG or PNG) with a short caption; returns the WhatsApp message id. */
 export async function sendWhatsappImage(settings:{token:string;phoneNumberId:string},to:string,link:string,caption:string){
  const version=process.env.META_GRAPH_VERSION||'v21.0';
@@ -157,4 +178,33 @@ export async function downloadWhatsappImage(settings:{token:string},mediaId:stri
  if(!r?.ok)return null;
  const buf=Buffer.from(await r.arrayBuffer());
  return buf.length>4_000_000?null:{tipo:meta.mime_type||'image/jpeg',datos:buf.toString('base64')};
+}
+
+/** CRM and promotion buttons: «Agendar cita»/«Quiero mi cita» send the booking link, «Ver vestidos» the store's catalog,
+ *  «No me interesa» closes the lead (no more follow-ups unless she writes again), «No recibir más» also revokes the commercial
+ *  authorization of her phone (Ley 1581). Each answer is kept in the 304 chat. */
+export async function handleCrmButtons(db:SupabaseClient,settings:{token:string;phoneNumberId:string},acciones:{conversacion:string;telefono:string;sede_id:string|null;accion:string}[]){
+ const origin=(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'');
+ for(const a of acciones){
+  try{
+   let texto='',waId='';
+   if(a.accion==='crm_agendar'||a.accion==='pr_cita'){
+    texto='¡Con gusto! 💛 Elige el día y la hora de tu cita aquí:';
+    waId=await sendWhatsappButtons(settings,a.telefono,texto,{titulo:'📅 Agendar mi cita',url:`${origin}/agendar-primera-cita?o=${a.accion==='pr_cita'?'wa_promo':'wa_crm'}`});
+   }else if(a.accion==='crm_ver'){
+    const {data:cat}=await db.from('catalogos_publicos').select('token,titulo').eq('activo',true).match(a.sede_id?{sede_id:a.sede_id}:{}).limit(1).maybeSingle();
+    texto='Aquí tienes nuestros vestidos 👗 Si alguno te gusta, cuéntame y te agendamos para que te lo pruebes.';
+    waId=cat?.token?await sendWhatsappButtons(settings,a.telefono,texto,{titulo:'👗 Ver catálogo',url:`${origin}/c/${cat.token}`})
+     :await sendWhatsappButtons(settings,a.telefono,'Cuéntame qué tipo de vestido buscas (XV, gala, novia) y tu talla, y te envío las opciones 💛',{titulo:'📅 Agendar cita',url:`${origin}/agendar-primera-cita?o=wa_crm`});
+   }else if(a.accion==='crm_no'||a.accion==='pr_baja'){
+    await db.rpc('crm_cerrar_por_clienta',{p_conv:a.conversacion});
+    if(a.accion==='pr_baja')await db.rpc('revocar_comercial_por_telefono',{p_telefono:a.telefono,p_origen:'boton'});
+    texto=a.accion==='pr_baja'?'Listo, no te enviaremos más promociones. Si algún día necesitas un vestido, aquí estaremos 💛':'Entendido, no te escribiremos más por ahora. Si algún día necesitas un vestido, aquí estaremos 💛';
+    waId=await sendWhatsappText(settings,a.telefono,texto);
+   }else continue;
+   const at=new Date().toISOString();
+   await db.from('whatsapp_mensajes').insert({conversacion_id:a.conversacion,wa_id:waId,direccion:'saliente',origen:'erp',tipo:'automatico',texto,estado:'sent',created_at:at});
+   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:at}).eq('id',a.conversacion);
+  }catch(e){console.error('Botón CRM:',e);}
+ }
 }

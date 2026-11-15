@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {loadWhatsappSettings} from './whatsapp-config';
-import {sendWhatsappText,sendWhatsappImage,downloadWhatsappImage} from './whatsapp-inbox';
+import {sendWhatsappText,sendWhatsappImage,downloadWhatsappImage,sendWhatsappButtons,CRM_BOTONES} from './whatsapp-inbox';
 import {attachmentBlocks} from './ai-attachments';
 import {allySlug} from './ally-validation';
 import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
@@ -321,7 +321,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   if(!last||last.id!==lastId||(now?.ia_pausada&&now.ia_pausada_at!==conv.ia_pausada_at))return;
   const texto=out.respuesta.trim().slice(0,4000);let waId:string;
   if(social){const s=await loadSocialSettings(db);if(!s||!conv.contacto_id)return;waId=await sendSocialText(s,conv.contacto_id,texto);}
-  else{const settings=await loadWhatsappSettings(db);if(!settings.token||!settings.phoneNumberId)return;waId=await sendWhatsappText(settings,conv.telefono,texto);
+  else{const settings=await loadWhatsappSettings(db);if(!settings.token||!settings.phoneNumberId)return;waId=opts.empujon&&texto.length<=1024?await sendWhatsappButtons(settings,conv.telefono,texto,CRM_BOTONES):await sendWhatsappText(settings,conv.telefono,texto);
    if(out.fotos?.length)await sendDressPhotos(db,settings,conversationId,conv.telefono,out.fotos,conv.sede_id||sede?.id||null);}
   const at=new Date().toISOString();
   await db.from('whatsapp_mensajes').insert({conversacion_id:conversationId,wa_id:waId,direccion:'saliente',origen:'ia',tipo:'text',texto,estado:'sent',created_at:at});
