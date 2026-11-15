@@ -3,6 +3,7 @@ import {publicServerClient,publicReply} from '@/lib/public-db';
 import {createPiece,publishPiece,type Formato,type Red,type Pieza} from '@/lib/content-studio';
 import {loadSocialSettings} from '@/lib/social-inbox';
 import {adsPromote,PUBLICOS} from '@/lib/meta-ads';
+import {FUENTES} from '@/components/BrandDesign';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
@@ -101,6 +102,40 @@ export async function POST(request:Request){
    const etiquetas=(Array.isArray(b.etiquetas)?b.etiquetas:[]).map(x=>String(x).trim().toLowerCase().slice(0,30)).filter(Boolean).slice(0,12);
    const {error}=await db.from('contenido_biblioteca').insert({ruta,url,tipo:/\.jpg$/.test(ruta)?'imagen':'video',titulo:String(b.titulo||'').trim().slice(0,120)||null,etiquetas,sede_id:uuid(b.sede_id),
     tiene_clienta:b.tiene_clienta===true,autorizada:b.autorizada===true,subido_por:uid});
+   if(error)throw error;return publicReply({ok:true});
+  }
+  // Kit de marca (administration): the logo goes up as PNG (keeps transparency); the rest are colors, fonts and texts.
+  if(b.accion==='marca_logo'){
+   if(!esAdmin)return publicReply({error:'Solo administración edita el kit de marca.'},403);
+   const ruta=`marca/${crypto.randomUUID()}.png`;
+   const {data,error}=await db.storage.from('contenido_marketing').createSignedUploadUrl(ruta);
+   if(error)throw error;return publicReply({ok:true,ruta,token:data.token});
+  }
+  if(b.accion==='marca_guardar'){
+   if(!esAdmin)return publicReply({error:'Solo administración edita el kit de marca.'},403);
+   const color=(v:unknown,d:string)=>typeof v==='string'&&/^#[0-9a-f]{6}$/i.test(v)?v:d,txt=(v:unknown,n:number)=>typeof v==='string'&&v.trim()?v.trim().slice(0,n):null;
+   const cambios:Record<string,unknown>={color_principal:color(b.color_principal,'#1f1f1f'),color_secundario:color(b.color_secundario,'#c9a227'),color_texto:color(b.color_texto,'#ffffff'),
+    fuente_titulo:FUENTES.includes(String(b.fuente_titulo))?b.fuente_titulo:'Playfair Display',fuente_texto:FUENTES.includes(String(b.fuente_texto))?b.fuente_texto:'Montserrat',
+    usuario_instagram:txt(b.usuario_instagram,40)?.replace(/^@/,'')||null,frase:txt(b.frase,80),actualizado_por:uid,updated_at:new Date().toISOString()};
+   if(typeof b.logo_ruta==='string'){if(!/^marca\/[0-9a-f-]{36}\.png$/.test(b.logo_ruta))return publicReply({error:'Logo no válido.'},400);cambios.logo_url=db.storage.from('contenido_marketing').getPublicUrl(b.logo_ruta).data.publicUrl;}
+   const {error}=await db.from('contenido_marca').update(cambios).eq('id','principal');
+   if(error)throw error;return publicReply({ok:true});
+  }
+  // Design template applied in the browser: the branded JPG replaces the photo in the piece; the original is kept to undo it.
+  if(b.accion==='disenar'){
+   const id=uuid(b.id),url=String(b.url||'');if(!id||!url)return publicReply({error:'Pieza no válida.'},400);
+   const {data:p}=await db.from('contenido_piezas').select('medios,estado').eq('id',id).single();
+   if(!p||!['por_aprobar','aprobada','error'].includes(p.estado))return publicReply({error:'Esta pieza ya no se puede editar.'},400);
+   const ruta=b.ruta==null?null:String(b.ruta);
+   if(ruta&&!/^\d{4}-\d{2}\/[0-9a-f-]{36}\.jpg$/.test(ruta))return publicReply({error:'Archivo no válido.'},400);
+   let hallado=false;
+   const medios=((p.medios||[]) as Record<string,unknown>[]).map(m=>{
+    if(m.url!==url)return m;hallado=true;
+    const original=String(m.original||m.url);
+    return ruta?{...m,url:db.storage.from('contenido_marketing').getPublicUrl(ruta).data.publicUrl,original,diseno:String(b.plantilla||'').slice(0,20)}:(()=>{const r:Record<string,unknown>={...m,url:original};delete r.original;delete r.diseno;return r;})();
+   });
+   if(!hallado)return publicReply({error:'La foto ya no está en la pieza.'},400);
+   const {error}=await db.from('contenido_piezas').update({medios,updated_at:new Date().toISOString()}).eq('id',id);
    if(error)throw error;return publicReply({ok:true});
   }
   if(b.accion==='archivar'){
