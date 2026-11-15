@@ -1,6 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply} from '@/lib/public-db';
 import {CONFIRMATION_TEMPLATES} from '@/lib/first-visit-messaging';
+import {authorizedVisitWorker} from '@/lib/first-visit-worker-config';
 export const dynamic='force-dynamic';
 
 /** Templates the ERP sends; the first three are required, the detailed confirmations fall back to the short one. */
@@ -23,11 +24,16 @@ export async function POST(request:Request){
  if(!bearer.startsWith('Bearer '))return publicReply({error:'Inicia sesión.'},401);
  try{
   const userDb=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
-  const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
-  const {data:admin}=auth.user?await userDb.rpc('es_admin'):{data:false};
-  if(admin!==true)return publicReply({error:'Solo administración puede usar las integraciones.'},403);
+  // The ERP's own worker (Supabase, with the worker key) may only submit the templates («Crear plantillas en Meta»).
+  const worker=authorizedVisitWorker(request);
+  if(!worker){
+   const {data:auth}=await userDb.auth.getUser(bearer.slice(7));
+   const {data:admin}=auth.user?await userDb.rpc('es_admin'):{data:false};
+   if(admin!==true)return publicReply({error:'Solo administración puede usar las integraciones.'},403);
+  }
   const db=publicServerClient(),version=process.env.META_GRAPH_VERSION||'v21.0';
   const body=await request.json().catch(()=>({})) as Record<string,unknown>;
+  if(worker&&body.accion!=='crear_plantillas')return publicReply({error:'Acción no permitida.'},403);
   // Coexistence (WhatsApp Business app number): Meta's Embedded Signup returns a code; exchange it, subscribe the app and save the number.
   if(body.accion==='registro'){
    const code=String(body.code||''),appId=String(body.app_id||''),secret=process.env.META_APP_SECRET||'';
