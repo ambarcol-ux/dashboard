@@ -249,3 +249,66 @@ Hola {{1}} 💛 Ya eres aliado de Ámbar Couture. Tu código de aliado es {{2}}.
 | {{2}} | ALI-FOT-0003 |
 
 Se envía al aprobar un aliado si no ha escrito al 304 en las últimas 24 horas (si escribió, sale como mensaje normal).
+
+# Plan Ahorro XV (Ventas › Plan Ahorro XV)
+
+Las cuatro son de categoría **Utilidad** (avisos sobre un plan que la familia ya firmó, sin promociones) · Idioma **Español (COL)** · Sin encabezado, pie ni botones. Mientras Meta no las apruebe, el ERP no envía nada.
+
+## Cuota recibida — `ambar_ahorro_pago_recibido`
+
+```
+Hola {{1}} 💛 Recibimos tu cuota de {{2}} del Plan Ahorro XV. Total ahorrado: {{3}}. Con tu extra, tienes {{4}} para escoger tu vestido y servicios desde el {{5}}.
+```
+
+| Variable | Ejemplo |
+|---|---|
+| {{1}} | Luisa |
+| {{2}} | $150.000 |
+| {{3}} | $600.000 |
+| {{4}} | $660.000 |
+| {{5}} | 15 de marzo de 2027 |
+
+Se envía al registrar una cuota.
+
+## Recordatorio de cuota — `ambar_ahorro_recordatorio`
+
+```
+Hola {{1}} 💛 Te recordamos la cuota de tu Plan Ahorro XV por {{2}}, que vence el {{3}}. Hasta hoy llevas {{4}} ahorrados. Si ya pagaste, puedes ignorar este mensaje.
+```
+
+| Variable | Ejemplo |
+|---|---|
+| {{1}} | Luisa |
+| {{2}} | $150.000 |
+| {{3}} | 5 de diciembre |
+| {{4}} | $600.000 |
+
+Se envía 2 días antes del día de pago de cada mes, si ese mes aún no ha pagado.
+
+## Cuota pendiente — `ambar_ahorro_pendiente`
+
+```
+Hola {{1}}, no hemos recibido la cuota de {{2}} de tu Plan Ahorro XV que vencía el {{3}}. Recuerda que si se dejan de pagar 2 cuotas seguidas el plan termina. Responde este mensaje si necesitas ayuda.
+```
+
+| Variable | Ejemplo |
+|---|---|
+| {{1}} | Luisa |
+| {{2}} | $150.000 |
+| {{3}} | 5 de diciembre |
+
+Se envía 3 días después del día de pago si la familia está atrasada (una vez por mes).
+
+## Plan listo para usar — `ambar_ahorro_listo`
+
+```
+Hola {{1}} 🎉 Ya puedes usar tu Plan Ahorro XV en Ámbar Couture {{2}}: tienes {{3}} para escoger tu vestido y servicios. Responde este mensaje para agendar tu cita de selección.
+```
+
+| Variable | Ejemplo |
+|---|---|
+| {{1}} | Luisa |
+| {{2}} | Villavicencio |
+| {{3}} | $1.320.000 |
+
+Se envía una vez, 3 meses antes del evento.
