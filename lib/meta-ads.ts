@@ -4,6 +4,9 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 const graph=(path:string)=>`https://graph.facebook.com/${process.env.META_GRAPH_VERSION||'v21.0'}/${path}`;
 const norm=(v:string)=>v.normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
 export const adsTokenReady=()=>!!process.env.META_ADS_TOKEN;
+/** Meta budgets are integers in the currency's minor unit: ×100 for most, ×1 for currencies without cents (COP included). */
+const SIN_CENTAVOS=new Set(['CLP','COP','CRC','HUF','ISK','IDR','JPY','KRW','PYG','TWD','VND']);
+export const metaOffset=(moneda?:string|null)=>SIN_CENTAVOS.has(String(moneda||'COP').toUpperCase())?1:100;
 
 /** The store whose name appears in the ad name (e.g. «Pereira · XV noviembre» → Pereira). */
 export function sedeFromAdName(name:string,sites:{id:string;nombre:string}[]){
@@ -70,8 +73,8 @@ export async function adsPortfolio(desde:string,hasta:string){
     pages<Record<string,unknown>>(graph(`${c.id}/insights?level=ad&time_range=${range}&fields=ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,spend,reach,impressions,clicks,ctr,cpm,actions&limit=500`),token),
    ]);
    const camp=new Map(camps.map(x=>[x.id,x])),set=new Map(sets.map(x=>[x.id,x]));
-   // Meta returns budgets in cents of the account currency (COP has no decimals but still uses ×100).
-   const plata=(v?:string)=>v?Number(v)/100:null;
+   // Meta returns budgets in the minor unit of the account currency (COP: pesos, ×1).
+   const plata=(v?:string)=>v?Number(v)/metaOffset(c.currency):null;
    for(const r of ins){
     const k=camp.get(String(r.campaign_id)),s=set.get(String(r.adset_id)),acts=r.actions as {action_type:string;value:string}[]|undefined;
     anuncios.push({cuenta:c.name,moneda:c.currency,campana_id:String(r.campaign_id),campana:String(r.campaign_name||''),campana_estado:k?.effective_status||'—',objetivo:k?.objective||'—',
@@ -90,15 +93,17 @@ export async function adsPortfolio(desde:string,hasta:string){
 }
 
 /** Anuncios fase 2: pause, activate or change the daily budget of a campaign or ad set. The current values are read from Meta first
- *  (never trusted from the browser) so the caps apply to the real budget. Budgets go to Meta in cents (×100), as they are read. */
+ *  (never trusted from the browser) so the caps apply to the real budget. Budgets go to Meta in the currency's minor unit (COP ×1). */
 export type AdChange={id:string;tipo:'pausar'|'activar'|'presupuesto';valor?:number;tope:number;maxPct:number};
 export async function adsChange({id,tipo,valor,tope,maxPct}:AdChange){
  const token=process.env.META_ADS_TOKEN;if(!token)throw Error('Falta META_ADS_TOKEN');
  if(!/^\d{5,25}$/.test(id))throw Error('Identificador inválido.');
- const r=await fetch(`${graph(id)}?fields=name,status,daily_budget,lifetime_budget`,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)});
- const d=await r.json().catch(()=>({})) as {name?:string;status?:string;daily_budget?:string;lifetime_budget?:string;error?:{message?:string}};
+ const r=await fetch(`${graph(id)}?fields=name,status,daily_budget,lifetime_budget,account_id`,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)});
+ const d=await r.json().catch(()=>({})) as {name?:string;status?:string;daily_budget?:string;lifetime_budget?:string;account_id?:string;error?:{message?:string}};
  if(!r.ok)throw Error(d.error?.message||'Meta no respondió.');
- const antes={nombre:d.name||'',estado:d.status||'',presupuesto_diario:d.daily_budget?Number(d.daily_budget)/100:null};
+ const cuenta=d.account_id?await fetch(`${graph(`act_${d.account_id}`)}?fields=currency`,{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(10000)}).then(x=>x.json()).catch(()=>({})) as {currency?:string}:{};
+ const off=metaOffset(cuenta.currency);
+ const antes={nombre:d.name||'',estado:d.status||'',presupuesto_diario:d.daily_budget?Number(d.daily_budget)/off:null};
  const params=new URLSearchParams();
  if(tipo==='pausar')params.set('status','PAUSED');
  else if(tipo==='activar')params.set('status','ACTIVE');
@@ -109,7 +114,7 @@ export async function adsChange({id,tipo,valor,tope,maxPct}:AdChange){
   if(v>tope)throw Error(`Supera el tope diario de $${tope.toLocaleString('es-CO')}. Puedes cambiarlo en Configuración.`);
   const act=antes.presupuesto_diario||0;
   if(act&&Math.abs(v-act)/act*100>maxPct+0.001)throw Error(`El cambio supera el ${maxPct}% permitido por ajuste (entre $${Math.ceil(act*(1-maxPct/100)).toLocaleString('es-CO')} y $${Math.floor(act*(1+maxPct/100)).toLocaleString('es-CO')}).`);
-  params.set('daily_budget',String(v*100));
+  params.set('daily_budget',String(v*off));
  }
  const w=await fetch(graph(id),{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/x-www-form-urlencoded'},body:params,signal:AbortSignal.timeout(15000)});
  const e=await w.json().catch(()=>({})) as {success?:boolean;error?:{message?:string;error_user_msg?:string}};
@@ -148,7 +153,8 @@ export async function adsPromote(p:Promocion){
   targeting.custom_audiences=[{id:aud.id}];
  }
  const nombre=p.nombre.slice(0,90),fin=new Date(Date.now()+p.dias*86400000).toISOString();
- const camp=String((await call(`${act}/campaigns`,{name:nombre,objective:'OUTCOME_ENGAGEMENT',status:'PAUSED',special_ad_categories:[],daily_budget:String(Math.round(p.presupuesto)*100),bid_strategy:'LOWEST_COST_WITHOUT_CAP'})).id);
+ const {currency}=await call(`${act}?fields=currency`) as {currency?:string};
+ const camp=String((await call(`${act}/campaigns`,{name:nombre,objective:'OUTCOME_ENGAGEMENT',status:'PAUSED',special_ad_categories:[],daily_budget:String(Math.round(p.presupuesto)*metaOffset(currency)),bid_strategy:'LOWEST_COST_WITHOUT_CAP'})).id);
  try{
   const set=String((await call(`${act}/adsets`,{name:nombre,campaign_id:camp,status:'PAUSED',billing_event:'IMPRESSIONS',optimization_goal:'CONVERSATIONS',destination_type:'WHATSAPP',
    promoted_object:{page_id:p.pageId},targeting,end_time:fin})).id);
