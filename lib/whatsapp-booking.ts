@@ -80,6 +80,18 @@ export async function enviarHorarios(db:SupabaseClient,settings:Settings,c:{conv
 /** Answers the booking buttons (ag_…): chosen slot → authorization and confirmation; «Sí, reservar» → books; «Ver más días» → more slots. */
 export async function manejarAgenda(db:SupabaseClient,settings:Settings,a:{conversacion:string;telefono:string;sede_id:string|null;accion:string}){
  const origin=(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'');
+ // Commercial authorization (Ley 1581), offered after booking: «Sí, quiero promos» records it with the text in force; «No, gracias» changes nothing.
+ if(a.accion==='ag_c_si'||a.accion==='ag_c_no'){
+  let texto='Entendido 💛 Solo te escribiremos sobre tu cita.';
+  if(a.accion==='ag_c_si'){
+   const {data:conv}=await db.from('whatsapp_conversaciones').select('nombre').eq('id',a.conversacion).maybeSingle();
+   await registerAuthorization(db,{telefono:a.telefono,nombre:conv?.nombre||null,sede:a.sede_id,origen:'agendamiento',tratamiento:true,comercial:true,pendiente:false});
+   const cita=await citaPendiente(db,a.telefono);
+   if(cita?.id)await db.from('primeras_citas_historial').insert({cita_id:cita.id,accion:'Autorización comercial por WhatsApp',detalle:'La clienta aceptó recibir promociones y novedades con el botón del chat de WhatsApp.'});
+   texto='¡Gracias! 💛 Te avisaremos de promociones y novedades. Puedes retirar esta autorización cuando quieras escribiéndonos.';
+  }
+  await guardar(db,a.conversacion,await sendWhatsappText(settings,a.telefono,texto),texto,'erp');return;
+ }
  // Moving her pending visit (ag_n more days, ag_m new time): the same reschedule the reminder buttons use, no ID number.
  const masCambio=a.accion.match(/^ag_n_(\d{8})$/),cambio=a.accion.match(/^ag_m_(\d{8})_(\d{2})$/);
  if(masCambio||cambio){
@@ -130,4 +142,9 @@ export async function manejarAgenda(db:SupabaseClient,settings:Settings,a:{conve
  const dir=modalidad==='presencial'?(sede?.direccion_clientes||sede?.direccion||''):'';
  const texto=`¡Listo, ${nombre.split(' ')[0]}! 🎉 Tu cita quedó reservada ${lugar}, ${cuando}${dir?` (${dir})`:''}. En un momento te llega la confirmación con todos los detalles.\n\nPara tener tus datos completos, ¿me escribes tu nombre y apellido y tu correo? (si prefieres no darlos, no pasa nada 💛)`;
  await guardar(db,a.conversacion,await sendWhatsappText(settings,a.telefono,texto),texto,'erp');
+ // Then the optional commercial authorization with buttons (separate from the one for the visit).
+ try{const {comercial}=await loadAuthTexts(db);
+  const t2=`¿Quieres recibir promociones y novedades? ${comercial?.texto||'Acepto recibir de Ámbar Couture información comercial, promociones y novedades. Puedo retirar esta autorización en cualquier momento.'}`;
+  await guardar(db,a.conversacion,await sendWhatsappButtons(settings,a.telefono,t2,[{id:'ag_c_si',titulo:'Sí, quiero promos'},{id:'ag_c_no',titulo:'No, gracias'}]),`${t2}\n[Sí, quiero promos · No, gracias]`,'erp');
+ }catch(e){console.error('Autorización comercial (WhatsApp) no enviada:',e);}
 }
