@@ -36,6 +36,7 @@ export const PANELS:Panel[]=[
  {id:'proveedores',label:'Gestión de proveedores',href:'/dashboard/proveedores',block:'PROVEEDORES',paths:['/dashboard/proveedores'],grantable:false},
  {id:'proveedores-pagos',label:'Pagos a proveedores',href:'/dashboard/proveedores/pagos',block:'PROVEEDORES',paths:['/dashboard/proveedores/pagos'],grantable:false},
  {id:'metas',label:'Metas y ventas',href:'/admin/metas',block:'VENTAS & CRM',paths:['/admin/metas'],staff:true,grantable:true},
+ {id:'plan_ahorro',label:'Plan Ahorro XV',href:'/dashboard/plan-ahorro',block:'VENTAS & CRM',paths:['/dashboard/plan-ahorro'],staff:true,grantable:true},
  {id:'catalogo',label:'Catálogo de vestidos',href:'/dashboard/catalogo',block:'VENTAS & CRM',paths:['/dashboard/catalogo'],staff:true,grantable:true},
  {id:'whatsapp',label:'WhatsApp 304',href:'/dashboard/whatsapp',block:'VENTAS & CRM',paths:['/dashboard/whatsapp'],staff:true,grantable:true},
  {id:'pipeline',label:'Pipeline',href:'/dashboard/pipeline',block:'VENTAS & CRM',paths:['/dashboard/pipeline'],staff:true,grantable:true},

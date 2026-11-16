@@ -9,14 +9,14 @@ import FixedPaymentsAlert from '@/components/FixedPaymentsAlert';
 import SatisfactionAlert from '@/components/SatisfactionAlert';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
 import {
-  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen, KanbanSquare, Megaphone, Tag, BarChart3, Clapperboard, History, CalendarClock
+  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen, KanbanSquare, Megaphone, Tag, BarChart3, Clapperboard, History, CalendarClock, PiggyBank
 } from 'lucide-react';
 
 interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos' | 'pipeline' | 'aliados_publicaciones' | 'estudio_contenido' | 'historial' | 'pagos_fijos';
+  activePage?: 'plan_ahorro' | 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos' | 'pipeline' | 'aliados_publicaciones' | 'estudio_contenido' | 'historial' | 'pagos_fijos';
 }
 
 // Deposit and balance reminders live in the Inicio alert strip (DashboardAlerts), not in the menu.
@@ -65,6 +65,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
         { id: 'pedidos_estrene', label: 'PEDIDOS ESTRENE', icon: ShoppingBag, href: '/dashboard/pedidos-estrene', color: 'violet' },
         { id: 'metas', label: 'METAS Y VENTAS', icon: TrendingUp, href: '/admin/metas', color: 'emerald' },
         { id: 'aliados_directos', label: 'ALIADOS', icon: Handshake, href: '/dashboard/aliados-directos', color: 'rose' },
+        { id: 'plan_ahorro', label: 'PLAN AHORRO XV', icon: PiggyBank, href: '/dashboard/plan-ahorro', color: 'emerald' },
         { id: 'catalogo', label: 'CATÁLOGO', icon: BookOpen, href: '/dashboard/catalogo', color: 'rose' },
       ]
     },
