@@ -55,9 +55,10 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    }
    // Buttons of the automatic first-visit messages (Asistí, Sí alquilé, Confirmo, motives…) are handled by the ERP: the AI does not answer them.
    const accion=String(m.button?.payload||m.interactive?.button_reply?.id||m.interactive?.list_reply?.id||'');
-   const flowReply=/^(pc|rc|mot|cc|sat|fa|rs|rg|cf|r2|crm|pr|evs|evf)_/.test(accion);
+   const flowReply=/^(pc|rc|mot|cc|sat|fa|rs|rg|cf|r2|crm|pr|evs|evf|ag)_/.test(accion);
    // CRM and promotion buttons (Agendar cita, Ver vestidos, No me interesa, Quiero mi cita, No recibir más): the ERP answers them.
-   if(/^(crm|pr|evs|evf)_/.test(accion))acciones.push({conversacion:conv.id,telefono:phone,sede_id:conv.sede_id||null,accion});
+   // ag_…: booking the first visit inside the chat (lib/whatsapp-booking.ts).
+   if(/^(crm|pr|evs|evf|ag)_/.test(accion))acciones.push({conversacion:conv.id,telefono:phone,sede_id:conv.sede_id||null,accion});
    // A content piece's code (P + 5) in her message: the chat counts for that piece (Estudio de contenido › resultados).
    const codigo=m.type==='text'?text.toUpperCase().match(/\bP[0-9A-Z]{5}\b/)?.[0]:undefined;
    if(codigo){const {data:pz}=await db.from('contenido_piezas').select('id').eq('codigo',codigo).maybeSingle();

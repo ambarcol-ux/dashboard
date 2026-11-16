@@ -10,6 +10,7 @@ import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatF
 import {marcarCanal} from './event-channel';
 import {documentsForAI} from './doc-ia';
 import {inventoryCandidates} from './dress-photo-match';
+import {enviarHorarios} from './whatsapp-booking';
 import {aiClient} from './ai-usage';
 import {PROMO_FIELDS,promoState,promoBenefit,type Promotion} from './promotions';
 
@@ -48,6 +49,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Cláusulas del contrato: si preguntan por depósito, devoluciones, multas, mora, cancelación, arreglos, accesorios u otras reglas, explícalas en palabras sencillas y en pocas frases, según las cláusulas que recibes; no copies el texto legal completo. Las cláusulas marcadas [PreXV] aplican solo a contratos con sesión Pre XV. No interpretes casos particulares en disputa ni prometas excepciones.
 - Aliados directos: si quien escribe ofrece servicios de eventos (fotografía, maquillaje y peinado, organización, decoración, salón de eventos, wedding planner, etc.) o pregunta por el programa de aliados, es un posible aliado, no una clienta: etiqueta «aliado». Explícale el programa con las cláusulas de <programa_aliados> (sin inventar nada que no esté ahí). Empieza por lo atractivo: incluye en sus paquetes los vestidos de Ámbar, con descuentos especiales para aliados (5 % sobre el catálogo) y acceso a más de 600 vestidos de XV y gala en 4 sedes, con los catálogos de <catalogos> para mostrarle a sus clientas; Pre XV con 50 % si el vestido sale y vuelve el mismo día; envíos a todo Colombia y al exterior con seguro obligatorio; medidas con guías en video y la asesora de la sede; pagos en pesos por transferencia o PayPal; la cuenta bancaria es para devolverle el depósito y reembolsos; además gana visibilidad: recibe una mención de bienvenida, por cada evento con vestido Ámbar 3 historias en Instagram, TikTok y Facebook y 1 reel en colaboración, y si es constante (al menos 1 evento al mes durante 3 meses) una publicación semanal en esas redes y en los estados de WhatsApp de Ámbar; para eso debe autorizarlo en el formulario y enviar el material del evento en máximo 3 días. Ámbar no paga comisiones. El precio que el aliado cobra en su paquete lo define él (el acuerdo le permite hasta 20 % sobre el catálogo en el vestido); menciónalo solo si pregunta cómo gana o a qué precio puede vender. Pregúntale su ciudad o país, su tipo de negocio y cuántos eventos maneja al mes; sugiérele la sede más cercana (Llanos y Meta → Villavicencio; Bogotá, Cundinamarca, Boyacá y Tolima → Bogotá; Eje Cafetero, Valle y Antioquia → Pereira; Costa Caribe → Barranquilla; exterior → la que prefiera) y envíale el enlace de vinculación de esa sede de <programa_aliados>. Si ya es aliado o pregunta por un contrato, una clienta o un pago de aliado, marca atender_persona=true.
 - Parqueadero: si una sede tiene «parqueadero» en <sedes>, dalo cuando pregunten por parqueadero o cuando agende o confirme una cita presencial en esa sede: aclara que es un parqueadero aliado (no propio) y que para el descuento debe pedir en Ámbar el sello en su tiquete de parqueo. Si la sede no tiene «parqueadero», no inventes uno: di que no hay convenio de parqueadero en esa sede.
+- Agendar con botones (solo WhatsApp): si la clienta quiere agendar su primera cita, sabes su sede y no tiene una primera cita pendiente en sus datos, pon «agendar»='presencial' ('virtual' si la pide virtual o no puede ir a la sede) y «tipo_vestido_cita» (Quince, Gala o Novia; si no lo sabes, el más probable por la conversación). El ERP le envía justo después de tu respuesta los horarios libres más cercanos como lista: ella toca uno, acepta el uso de sus datos y queda reservada. En tu respuesta dile, corto y cálido, que le envías los horarios disponibles para que elija con un toque; no pongas el enlace de agenda (la lista trae «Ver más días»). Si no sabes la sede, pregúntala primero y deja «agendar» vacío. En Instagram o Messenger deja «agendar» vacío.
 - Reagendar o cancelar la primera cita (no confundir con cancelar un contrato): si quiere reagendar, envíale el enlace para reprogramar que aparece en <sedes>; ahí escribe su cédula y elige el nuevo horario. Si dice que no la encuentra con su cédula, marca atender_persona=true. Si quiere cancelar, ofrécele primero reagendar para no perder su cita; si insiste en cancelar, dile que una asesora la ayuda y marca atender_persona=true con el motivo «Cancelar cita». Si ya tiene contrato y quiere cambiar las citas de medidas, prueba o entrega, marca atender_persona=true.
 - Marca atender_persona=true (tu respuesta igual se envía y el chat queda marcado para una asesora) solo cuando la clienta pida hablar con una persona, reclame o discuta un cobro, una multa o una cláusula, pida una excepción, cuando sea un reclamo, un pago o un cambio de contrato, o cuando lo indiquen las reglas de paso a una persona; explica el motivo en una frase.
 
@@ -61,7 +63,7 @@ Lo que no sabes: si la clienta pregunta algo que no está en tus conocimientos n
 
 Además: elige la etiqueta del tema principal, la sede de la clienta (solo si es clara; si no, cadena vacía) y un resumen de una frase para la asesora.`;
 
-const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento','falta_informacion','fecha_evento_nueva','fotos'],properties:{
+const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento','falta_informacion','fecha_evento_nueva','fotos','agendar','tipo_vestido_cita'],properties:{
  etiqueta:{type:'string',enum:[...WHATSAPP_TAGS]},
  sede:{type:'string',description:'Nombre exacto de una de las sedes, o cadena vacía'},
  resumen:{type:'string'},
@@ -72,10 +74,12 @@ const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sed
  falta_informacion:{type:'string',description:'Dato del negocio que no tienes y que administración debe darte; cadena vacía si no falta nada'},
  fecha_evento_nueva:{type:'string',description:'Fecha del evento que la clienta dijo en este chat (AAAA-MM-DD); cadena vacía si no la dijo'},
  fotos:{type:'array',items:{type:'string'},description:'Códigos (máximo 3) de vestidos con 📷 del inventario visible de su sede cuya foto se le envía con esta respuesta; lista vacía si no'},
+ agendar:{type:'string',enum:['','presencial','virtual'],description:'Solo por WhatsApp: el ERP le envía ya los horarios libres de su sede como lista para reservar con un toque; cadena vacía si no'},
+ tipo_vestido_cita:{type:'string',enum:['','Quince','Gala','Novia'],description:'Tipo de vestido de la cita que se agenda; cadena vacía si no se agenda'},
 }};
 
 export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string;promociones?:string;aliados?:string};
-export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string;fotos?:string[]};
+export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string;fotos?:string[];agendar?:string;tipo_vestido_cita?:string};
 type Msg={direccion:string;texto:string|null;created_at:string;media_id?:string|null;media_tipo?:string|null};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null;parqueadero?:string|null};
 
@@ -307,7 +311,10 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
    else await db.from('whatsapp_ia_faltantes').insert({falta,pregunta,conversacion_id:conversationId});
   }
   const sede=sites.find(s=>s.nombre.toLowerCase()===out.sede.trim().toLowerCase());
-  await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:out.respuesta.slice(0,2000),
+  // When an adviser sends the suggestion by hand the slot list does not go out: the suggestion carries the booking link instead.
+  const sedeCita=conv.sede_id||sede?.id||null,conAgenda=!social&&sedeCita&&(out.agendar==='presencial'||out.agendar==='virtual');
+  const sugerencia=conAgenda?`${out.respuesta}\n\n${(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'')}/agendar-primera-cita?sede=${sedeCita}&o=ia-whatsapp`:out.respuesta;
+  await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:sugerencia.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
   // Automatic reply: general switch on and chat not paused by a person (or paused longer than the configured hours).
   // When a person must continue, the reply is still sent (it helps with what the AI can solve) and the chat stays flagged.
@@ -321,13 +328,16 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   ]);
   const lastId=(history[history.length-1] as Msg&{id?:string}).id;
   if(!last||last.id!==lastId||(now?.ia_pausada&&now.ia_pausada_at!==conv.ia_pausada_at))return;
-  const texto=out.respuesta.trim().slice(0,4000);let waId:string;
+  const texto=out.respuesta.trim().slice(0,4000);let waId:string,agenda:(()=>Promise<void>)|null=null;
   if(social){const s=await loadSocialSettings(db);if(!s||!conv.contacto_id)return;waId=await sendSocialText(s,conv.contacto_id,texto);}
   else{const settings=await loadWhatsappSettings(db);if(!settings.token||!settings.phoneNumberId)return;waId=opts.empujon&&texto.length<=1024?await sendWhatsappButtons(settings,conv.telefono,texto,CRM_BOTONES):await sendWhatsappText(settings,conv.telefono,texto);
-   if(out.fotos?.length)await sendDressPhotos(db,settings,conversationId,conv.telefono,out.fotos,conv.sede_id||sede?.id||null);}
+   if(out.fotos?.length)await sendDressPhotos(db,settings,conversationId,conv.telefono,out.fotos,conv.sede_id||sede?.id||null);
+   // Booking inside the chat: the list of free slots goes after her reply (lib/whatsapp-booking.ts).
+   if(out.agendar==='presencial'||out.agendar==='virtual')agenda=()=>enviarHorarios(db,settings,{conversacion:conversationId,telefono:conv.telefono,sede_id:conv.sede_id||sede?.id||null},out.agendar as 'presencial'|'virtual',out.tipo_vestido_cita||'Quince').then(()=>undefined).catch(e=>console.error('Horarios por WhatsApp:',e));}
   const at=new Date().toISOString();
   await db.from('whatsapp_mensajes').insert({conversacion_id:conversationId,wa_id:waId,direccion:'saliente',origen:'ia',tipo:'text',texto,estado:'sent',created_at:at});
   await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:at,ia_sugerencia:null,...(expired?{ia_pausada:false,ia_pausada_at:null,ia_pausada_por:null}:{})}).eq('id',conversationId);
+  if(agenda)await agenda();
  }catch(e){
   await db.from('whatsapp_conversaciones').update({ia_error:aiErrorText(e).slice(0,300),ia_at:new Date().toISOString()}).eq('id',conversationId);
  }
