@@ -257,7 +257,7 @@ Las cuatro son de categoría **Utilidad** (avisos sobre un plan que la familia y
 ## Cuota recibida — `ambar_ahorro_pago_recibido`
 
 ```
-Hola {{1}} 💛 Recibimos tu cuota de {{2}} del Plan Ahorro XV. Total ahorrado: {{3}}. Con tu extra, tienes {{4}} para escoger tu vestido y servicios desde el {{5}}.
+Hola {{1}} 💛 Recibimos tu cuota de {{2}} del Plan Ahorro XV. Total ahorrado: {{3}}. Con tu extra, tienes {{4}} para escoger tu vestido y servicios desde el {{5}}. ¡Sigue así! 💛
 ```
 
 | Variable | Ejemplo |
