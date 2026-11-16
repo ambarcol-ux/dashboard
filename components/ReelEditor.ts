@@ -60,3 +60,62 @@ export async function prepararReel(url:string,kit:Kit,o:ReelOpts){
   return listo;
  }};
 }
+
+/** Reel from photos (no video needed): each photo ~2.4 s with a slow zoom and a cross-fade, one phrase per photo, and a closing card
+ *  with the logo, a closing line and the WhatsApp code. 1080×1920 MP4 without sound (music can be added in Instagram). */
+export type FotosReelOpts={frases:string[];cierre:string;codigo:string|null};
+const VIDEO_MP4=['video/mp4;codecs=avc1.42E01E','video/mp4;codecs=avc1','video/mp4'];
+export function mp4VideoSoportado(){if(typeof MediaRecorder==='undefined')return null;return VIDEO_MP4.find(t=>MediaRecorder.isTypeSupported(t))||null;}
+export async function fotosAReel(urls:string[],kit:Kit,o:FotosReelOpts,progreso:(p:number)=>void):Promise<Blob>{
+ const tipo=mp4VideoSoportado();if(!tipo)throw Error('Este navegador no graba MP4. Usa Safari en el celular o Chrome actualizado.');
+ if(urls.length<2)throw Error('Se necesitan al menos 2 fotos.');
+ const cargar=(u:string)=>new Promise<HTMLImageElement>((ok,fail)=>{const i=new Image();i.crossOrigin='anonymous';i.onload=()=>ok(i);i.onerror=()=>fail(Error('No se pudo cargar una foto.'));i.src=/^https?:/.test(u)?u+(u.includes('?')?'&':'?')+'cors=1':u;});
+ const fotos=await Promise.all(urls.slice(0,10).map(cargar));
+ const logo=kit.logo_url?await cargar(kit.logo_url).catch(()=>null):null;
+ await Promise.all([document.fonts.load(`700 60px "${kit.fuente_titulo}"`),document.fonts.load(`700 40px "${kit.fuente_texto}"`)]).catch(()=>null);
+ const W=1080,H=1920,D=2.4,F=0.45,CIERRE=3.2,total=fotos.length*D+CIERRE;
+ const c=document.createElement('canvas');c.width=W;c.height=H;const g=c.getContext('2d')!;
+ const texto=(t:string,y:number,size:number,fuente:string,color:string)=>{
+  g.font=`700 ${size}px "${fuente}"`;let sz=size;
+  const lineas:string[]=[];let actual='';
+  for(const w of t.split(' ')){const prueba=actual?`${actual} ${w}`:w;if(g.measureText(prueba).width>W-140&&actual){lineas.push(actual);actual=w;}else actual=prueba;}
+  if(actual)lineas.push(actual);
+  while(lineas.length>3&&sz>30){sz-=4;g.font=`700 ${sz}px "${fuente}"`;}
+  g.fillStyle=color;g.textAlign='center';g.textBaseline='middle';
+  lineas.slice(0,4).forEach((l,i)=>g.fillText(l,W/2,y+(i-(lineas.length-1)/2)*sz*1.25));
+  return lineas.length*sz*1.25;
+ };
+ const foto=(img:HTMLImageElement,t:number,alpha:number)=>{
+  const z=1+0.08*Math.min(1,t/D),s=Math.max(W/img.width,H/img.height)*z,fw=img.width*s,fh=img.height*s;
+  g.globalAlpha=alpha;g.drawImage(img,(W-fw)/2,(H-fh)*0.3,fw,fh);g.globalAlpha=1;
+ };
+ const pintar=(t:number)=>{
+  g.fillStyle='#000';g.fillRect(0,0,W,H);
+  if(t<fotos.length*D){
+   const i=Math.min(fotos.length-1,Math.floor(t/D)),dt=t-i*D;
+   foto(fotos[i],dt,1);
+   if(i+1<fotos.length&&dt>D-F)foto(fotos[i+1],0,(dt-(D-F))/F);
+   const frase=o.frases[i];
+   if(frase){const a=Math.min(1,dt*3,(D-dt)*3);g.globalAlpha=Math.max(0,a);
+    const grad=g.createLinearGradient(0,H-760,0,H);grad.addColorStop(0,rgba(kit.color_principal,0));grad.addColorStop(1,rgba(kit.color_principal,0.85));
+    g.fillStyle=grad;g.fillRect(0,H-760,W,760);g.shadowColor='rgba(0,0,0,0.75)';g.shadowBlur=18;g.shadowOffsetY=3;texto(frase,H-420,66,kit.fuente_titulo,kit.color_texto);g.shadowColor='transparent';g.shadowBlur=0;g.shadowOffsetY=0;g.globalAlpha=1;}
+   if(logo){const a=200,h=logo.height*a/logo.width;g.globalAlpha=0.9;g.drawImage(logo,W/2-a/2,90,a,h);g.globalAlpha=1;}
+  }else{
+   const dt=t-fotos.length*D;g.globalAlpha=Math.min(1,dt*3);
+   g.fillStyle=kit.color_principal;g.fillRect(0,0,W,H);
+   if(logo){const a=380,h=logo.height*a/logo.width;g.drawImage(logo,W/2-a/2,H*0.22,a,h);}
+   texto(o.cierre||kit.frase||'Ámbar Couture',H*0.52,72,kit.fuente_titulo,kit.color_texto);
+   if(o.codigo){const txt=`Escríbenos con el código ${o.codigo}`;g.font=`700 44px "${kit.fuente_texto}"`;const tw=Math.min(W-100,g.measureText(txt).width+80),y=H*0.72;
+    g.fillStyle=kit.color_secundario;g.beginPath();g.roundRect((W-tw)/2,y-48,tw,96,48);g.fill();g.fillStyle=kit.color_principal;g.textAlign='center';g.textBaseline='middle';g.fillText(txt,W/2,y);}
+   g.globalAlpha=1;
+  }
+  progreso(Math.min(1,t/total));
+ };
+ const rec=new MediaRecorder(c.captureStream(30),{mimeType:tipo,videoBitsPerSecond:6_000_000}),partes:Blob[]=[];
+ rec.ondataavailable=e=>{if(e.data.size)partes.push(e.data);};
+ const listo=new Promise<Blob>((ok,fail)=>{rec.onstop=()=>{if(partes.length)ok(new Blob(partes,{type:'video/mp4'}));else fail(Error('No se grabó el video.'));};});
+ pintar(0);rec.start(1000);const t0=performance.now();
+ await new Promise<void>(ok=>{const paso=()=>{const t=(performance.now()-t0)/1000;if(t>=total){ok();return;}pintar(t);requestAnimationFrame(paso);};requestAnimationFrame(paso);});
+ rec.stop();progreso(1);
+ return listo;
+}

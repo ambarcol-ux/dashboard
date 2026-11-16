@@ -122,6 +122,25 @@ export async function POST(request:Request){
    if(error)throw error;return publicReply({ok:true});
   }
   // Design template applied in the browser: the branded JPG replaces the photo in the piece; the original is kept to undo it.
+  // Reel from the piece's photos: the recorded MP4 becomes its only medium; the photos are kept to undo it (ruta null).
+  if(b.accion==='reel_fotos'){
+   const id=uuid(b.id);if(!id)return publicReply({error:'Pieza no válida.'},400);
+   const {data:p}=await db.from('contenido_piezas').select('medios,estado,formato').eq('id',id).single();
+   if(!p||!['por_aprobar','aprobada','error'].includes(p.estado))return publicReply({error:'Esta pieza ya no se puede editar.'},400);
+   const medios=(p.medios||[]) as Record<string,unknown>[],ruta=b.ruta==null?null:String(b.ruta);
+   let nuevos:Record<string,unknown>[];
+   if(ruta){
+    if(!/^\d{4}-\d{2}\/[0-9a-f-]{36}\.mp4$/.test(ruta))return publicReply({error:'Archivo no válido.'},400);
+    const fotos=medios.length===1&&Array.isArray(medios[0].fotos)?medios[0].fotos as Record<string,unknown>[]:medios.filter(m=>m.tipo==='imagen');
+    if(fotos.length<2)return publicReply({error:'La pieza necesita al menos 2 fotos.'},400);
+    nuevos=[{url:db.storage.from('contenido_marketing').getPublicUrl(ruta).data.publicUrl,tipo:'video',fuente:'biblioteca',ref:ruta,nota:'Reel de fotos',fotos}];
+   }else{
+    if(!(medios.length===1&&Array.isArray(medios[0].fotos)))return publicReply({error:'Esta pieza no tiene fotos para restaurar.'},400);
+    nuevos=medios[0].fotos as Record<string,unknown>[];
+   }
+   const {error}=await db.from('contenido_piezas').update({medios:nuevos,updated_at:new Date().toISOString()}).eq('id',id);
+   if(error)throw error;return publicReply({ok:true});
+  }
   if(b.accion==='disenar'){
    const id=uuid(b.id),url=String(b.url||'');if(!id||!url)return publicReply({error:'Pieza no válida.'},400);
    const {data:p}=await db.from('contenido_piezas').select('medios,estado').eq('id',id).single();
