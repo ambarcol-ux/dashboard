@@ -3,6 +3,7 @@ import {applyWhatsappEvents,validMetaSignature} from '@/lib/first-visit-messagin
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {after} from 'next/server';
 import {storeInboxEvents,handleCrmButtons} from '@/lib/whatsapp-inbox';
+import {manejarAgenda} from '@/lib/whatsapp-booking';
 import {suggestWhatsappReply} from '@/lib/whatsapp-ai';
 import {classifyFlowReply} from '@/lib/whatsapp-classify';
 import {resolveAd} from '@/lib/meta-ads';
@@ -24,7 +25,9 @@ export async function POST(request:Request){
   // Ventas y CRM › WhatsApp 304: chats in the ERP. A failure here never blocks the visit notifications above.
   try{
    const {touched,ads,acciones,escritos}=await storeInboxEvents(db,payload,acceptedPhoneIds);
-   if(acciones.length)after(async()=>{const settings=await loadWhatsappSettings(db);if(settings.token&&settings.phoneNumberId)await handleCrmButtons(db,settings,acciones);});
+   if(acciones.length)after(async()=>{const settings=await loadWhatsappSettings(db);if(!settings.token||!settings.phoneNumberId)return;
+    await handleCrmButtons(db,settings,acciones.filter(a=>!a.accion.startsWith('ag_')));
+    for(const a of acciones.filter(x=>x.accion.startsWith('ag_'))){try{await manejarAgenda(db,settings,a);}catch(e){console.error('Agenda por WhatsApp:',e);}}});
    if(touched.length||ads.length)after(async()=>{
     // First the ad (its name carries the store, which then assigns the chat if it has none), then the AI suggestion.
     for(const a of ads){try{const sede=await resolveAd(db,a.anuncio);if(sede)await db.from('whatsapp_conversaciones').update({sede_id:sede}).eq('id',a.conversacion).is('sede_id',null);}catch(e){console.error('Anuncio:',e);}}
