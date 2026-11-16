@@ -7,7 +7,8 @@ import {loadAuthTexts,registerAuthorization} from './data-authorization';
  *  datos (Ley 1581, texto vigente de Configuración › Autorizaciones) con un botón y la cita queda reservada con su nombre y celular.
  *  Usa la misma reserva que el enlace público (cupos, una cita pendiente por celular, límite de intentos); la confirmación, el
  *  anuncio de origen y los recordatorios los ponen los disparadores que ya existen al crear la cita.
- *  Botones: ag_s_<p|v>_<AAAAMMDD>_<HH>_<Q|G|N> horario elegido · ag_k_… sí, reservar · ag_o_<p|v>_<Q|G|N>_<AAAAMMDD> más horarios. */
+ *  Botones: ag_s_<p|v>_<AAAAMMDD>_<HH>_<Q|G|N> horario elegido · ag_k_… sí, reservar · ag_o_<p|v>_<Q|G|N>_<AAAAMMDD> más horarios.
+ *  Si ya tiene una primera cita pendiente, la lista es para cambiarla (sin cédula): ag_m_<AAAAMMDD>_<HH> nuevo horario · ag_n_<AAAAMMDD> más días. */
 type Settings={token:string;phoneNumberId:string};
 const TIPO:Record<string,string>={Q:'Quince',G:'Gala',N:'Novia'},TIPO_COD:Record<string,string>={Quince:'Q',Gala:'G',Novia:'N'};
 const zona='America/Bogota';
@@ -38,14 +39,31 @@ async function guardar(db:SupabaseClient,conversacion:string,waId:string,texto:s
  await db.from('whatsapp_mensajes').insert({conversacion_id:conversacion,wa_id:waId,direccion:'saliente',origen,tipo:'automatico',texto,estado:'sent',created_at:at});
  await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:at}).eq('id',conversacion);
 }
+type Pendiente={id:string;modalidad:'presencial'|'virtual';sede_id:string;fecha:string;hora:string;updated_at:string};
 async function citaPendiente(db:SupabaseClient,telefono:string){
- const {data}=await db.from('primeras_citas').select('id').eq('telefono',telefono).gte('fecha',hoyMas(0)).in('estado',['agendada','confirmada']).limit(1).maybeSingle();
- return !!data;
+ const {data}=await db.from('primeras_citas').select('id,modalidad,sede_id,fecha,hora,updated_at').eq('telefono',telefono).gte('fecha',hoyMas(0)).in('estado',['agendada','confirmada']).order('fecha').limit(1).maybeSingle();
+ return (data as Pendiente|null)||null;
+}
+
+/** She already has a pending first visit: free slots to move it (same store and mode), changed with one tap and no ID number. */
+async function enviarCambio(db:SupabaseClient,settings:Settings,c:{conversacion:string;telefono:string},cita:Pendiente,desde?:string,origen:'ia'|'erp'='ia'){
+ const libres=(await horariosLibres(db,cita.sede_id,cita.modalidad,9,desde)).filter(s=>!(s.fecha===cita.fecha&&s.hora===cita.hora.slice(0,5)));
+ if(!libres.length){
+  const texto='En los próximos días no quedan otros horarios libres. Escríbeme qué día te sirve y lo revisamos con la sede 💛';
+  await guardar(db,c.conversacion,await sendWhatsappText(settings,c.telefono,texto),texto,origen);return;
+ }
+ const filas=libres.map(s=>({id:`ag_m_${compacta(s.fecha)}_${s.hora.slice(0,2)}`,titulo:etiquetaHorario(s.fecha,s.hora)}));
+ filas.push({id:`ag_n_${compacta(libres[libres.length-1].fecha)}`,titulo:'Ver más días'});
+ const texto=`Tu cita está para el ${etiquetaHorario(cita.fecha,cita.hora.slice(0,5))}. Si quieres cambiarla, toca «Cambiar horario» y elige el nuevo 📅`;
+ await guardar(db,c.conversacion,await sendWhatsappList(settings,c.telefono,texto,'Cambiar horario',filas),`${texto}\n[${filas.map(f=>f.titulo).join(' · ')}]`,origen);
 }
 
 /** Sends the list of free slots of her store. Returns false when it could not (no store, a pending visit, no slots). */
 export async function enviarHorarios(db:SupabaseClient,settings:Settings,c:{conversacion:string;telefono:string;sede_id:string|null},modalidad:'presencial'|'virtual',tipo:string,desde?:string,origen:'ia'|'erp'='ia'){
- if(!c.sede_id||!/^\d{10,15}$/.test(c.telefono)||await citaPendiente(db,c.telefono))return false;
+ if(!/^\d{10,15}$/.test(c.telefono))return false;
+ const pendiente=await citaPendiente(db,c.telefono);
+ if(pendiente){await enviarCambio(db,settings,c,pendiente,desde,origen);return true;}
+ if(!c.sede_id)return false;
  const libres=await horariosLibres(db,c.sede_id,modalidad,9,desde);
  const t=TIPO_COD[tipo]||'Q',m=modalidad==='virtual'?'v':'p';
  if(!libres.length){
@@ -62,6 +80,18 @@ export async function enviarHorarios(db:SupabaseClient,settings:Settings,c:{conv
 /** Answers the booking buttons (ag_…): chosen slot → authorization and confirmation; «Sí, reservar» → books; «Ver más días» → more slots. */
 export async function manejarAgenda(db:SupabaseClient,settings:Settings,a:{conversacion:string;telefono:string;sede_id:string|null;accion:string}){
  const origin=(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'');
+ // Moving her pending visit (ag_n more days, ag_m new time): the same reschedule the reminder buttons use, no ID number.
+ const masCambio=a.accion.match(/^ag_n_(\d{8})$/),cambio=a.accion.match(/^ag_m_(\d{8})_(\d{2})$/);
+ if(masCambio||cambio){
+  const cita=await citaPendiente(db,a.telefono);
+  if(!cita){const texto='No encuentro una primera cita pendiente con este número. Si quieres, te ayudo a agendar una nueva 💛';await guardar(db,a.conversacion,await sendWhatsappText(settings,a.telefono,texto),texto,'erp');return;}
+  if(masCambio){await enviarCambio(db,settings,a,cita,larga(masCambio[1]),'erp');return;}
+  const fecha=larga(cambio![1]),hora=`${cambio![2]}:00`;
+  const {error}=await db.rpc('accion_cliente_primera_cita',{p_id:cita.id,p_accion:'reprogramar',p_datos:{version:cita.updated_at,fecha,hora,modalidad:cita.modalidad,sede:cita.sede_id,motivo:'Reprogramada por la clienta desde el chat de WhatsApp'}});
+  if(error){const texto='Ese horario se acaba de ocupar 🙈 Te envío los que siguen libres:';await guardar(db,a.conversacion,await sendWhatsappText(settings,a.telefono,texto),texto,'erp');await enviarCambio(db,settings,a,cita,undefined,'erp');return;}
+  const texto=`¡Listo! 🎉 Tu cita quedó para el ${etiquetaHorario(fecha,hora)}. Te esperamos 💛`;
+  await guardar(db,a.conversacion,await sendWhatsappText(settings,a.telefono,texto),texto,'erp');return;
+ }
  const mas=a.accion.match(/^ag_o_([pv])_([QGN])_(\d{8})$/);
  if(mas){await enviarHorarios(db,settings,a,mas[1]==='v'?'virtual':'presencial',TIPO[mas[2]],larga(mas[3]),'erp');return;}
  const p=a.accion.match(/^ag_([sk])_([pv])_(\d{8})_(\d{2})_([QGN])$/);if(!p||!a.sede_id)return;
@@ -83,6 +113,8 @@ export async function manejarAgenda(db:SupabaseClient,settings:Settings,a:{conve
  const r=(data||{}) as {reservada?:boolean;error?:string};
  if(error||!r.reservada){
   if(r.error?.startsWith('Ya tienes una primera cita pendiente')){
+   const cita=await citaPendiente(db,a.telefono);
+   if(cita){await enviarCambio(db,settings,a,cita,undefined,'erp');return;}
    const texto='Ya tienes una primera cita reservada 💛 Si quieres cambiarla, aquí eliges el nuevo horario:';
    await guardar(db,a.conversacion,await sendWhatsappButtons(settings,a.telefono,texto,{titulo:'Cambiar mi cita',url:`${origin}/reprogramar-primera-cita`}),texto,'erp');return;
   }
