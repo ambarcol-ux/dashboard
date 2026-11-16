@@ -18,7 +18,7 @@ Escribe en "resumen" un informe breve en español claro para la dueña (sin tecn
 2. Qué hicieron distinto los chats que terminaron en cita.
 3. En qué momento se pierden las clientas que no agendan (con ejemplos cortos y concretos de los chats, sin nombres completos ni teléfonos).
 4. Qué cambiarías y por qué.
-En "cambios" propone como máximo 4 cambios exactos a la configuración que ayuden a conseguir más citas (mismas reglas: agregar = texto nuevo en viñetas; reemplazar/quitar = "antes" copiado EXACTAMENTE del texto actual). No propongas copiar datos que el ERP ya entrega, ni inventar precios, descuentos o políticas, ni quitar protecciones. Pasar el chat a una persona debe ser el último recurso y la IA debe sonar humana. Si no hay datos suficientes, dilo y no propongas cambios.`;
+En "cambios" propone como máximo 4 cambios exactos a la configuración que ayuden a conseguir más citas (mismas reglas: agregar = texto nuevo en viñetas; reemplazar/quitar = "antes" copiado EXACTAMENTE del texto actual). No propongas copiar datos que el ERP ya entrega, ni inventar precios, descuentos o políticas, ni quitar protecciones. Nunca propongas pedirle a la clienta que escriba una palabra («confirmo», «sí», etc.) para algo que el ERP ya resuelve con botones: confirmar o cambiar la cita y agendar llegan con botones y listas. Pasar el chat a una persona debe ser el último recurso y la IA debe sonar humana. Si no hay datos suficientes, dilo y no propongas cambios.`;
 const SCHEMA={type:'object',additionalProperties:false,required:['resumen','cambios'],properties:{
  resumen:{type:'string'},
  cambios:{type:'array',items:{type:'object',additionalProperties:false,required:['seccion','operacion','antes','despues'],properties:{
