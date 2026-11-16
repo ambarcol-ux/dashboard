@@ -390,7 +390,13 @@ function Inbox(){
   // Real time: any change in the chats the user can see (RLS) reloads the list at once; a slow poll stays as a safety net.
   let pending:ReturnType<typeof setTimeout>|null=null;
   const soon=()=>{if(pending)return;pending=setTimeout(()=>{pending=null;void load();},300);};
-  const channel=supabase.channel('wa-conversaciones').on('postgres_changes',{event:'*',schema:'public',table:'whatsapp_conversaciones'},soon).subscribe();
+  // A changed chat arrives whole in the event: only that one is updated (the 300 are reloaded only for new or removed chats).
+  const cambio=(e:{eventType:string;new:Record<string,unknown>})=>{
+   const c=e.new as Conv|undefined;
+   if(e.eventType!=='UPDATE'||!c?.id){soon();return;}
+   setConvs(l=>{if(!l.some(x=>x.id===c.id)){soon();return l;}return l.map(x=>x.id===c.id?{...x,...c}:x).sort((a,b)=>Date.parse(b.ultimo_at||'')-Date.parse(a.ultimo_at||''));});
+  };
+  const channel=supabase.channel('wa-conversaciones').on('postgres_changes',{event:'*',schema:'public',table:'whatsapp_conversaciones'},cambio).subscribe();
   const first=setTimeout(()=>void load(),0),t=setInterval(()=>{if(document.visibilityState==='visible')void load();},30000);
   return()=>{clearTimeout(first);clearInterval(t);if(pending)clearTimeout(pending);void supabase.removeChannel(channel);};
  },[load]);
@@ -431,10 +437,15 @@ function Inbox(){
  </>;
 }
 
-/** Customer photo inside the chat: loaded from WhatsApp when the chat opens; tap to see it large. */
+const FOTOS=new Map<string,string>();
+/** Customer photo inside the chat: saved in the ERP the first time; loaded when visible; tap to see it large. */
 function Foto({conversacion,mensaje}:{conversacion:string;mensaje:string}){
- const [src,setSrc]=useState(''),[error,setError]=useState(''),[grande,setGrande]=useState(false);
- useEffect(()=>{let vivo=true;api({accion:'foto',conversacion_id:conversacion,mensaje_id:mensaje}).then(d=>{if(vivo)setSrc(`data:${d.tipo};base64,${d.datos}`);}).catch(e=>{if(vivo)setError(e instanceof Error?e.message:'No se pudo cargar la foto.');});return()=>{vivo=false;};},[conversacion,mensaje]);
+ const [src,setSrc]=useState(()=>FOTOS.get(mensaje)||''),[error,setError]=useState(''),[grande,setGrande]=useState(false),[visible,setVisible]=useState(false);
+ const caja=useRef<HTMLDivElement>(null);
+ // Loaded only when it scrolls into view; the link is remembered while the page is open (reopening the chat is instant).
+ useEffect(()=>{const el=caja.current;if(!el||src)return;const o=new IntersectionObserver(e=>{if(e.some(x=>x.isIntersecting)){setVisible(true);o.disconnect();}},{rootMargin:'200px'});o.observe(el);return()=>o.disconnect();},[src]);
+ useEffect(()=>{if(!visible||src)return;let vivo=true;api({accion:'foto',conversacion_id:conversacion,mensaje_id:mensaje}).then(d=>{const u=d.url||`data:${d.tipo};base64,${d.datos}`;FOTOS.set(mensaje,u);if(vivo)setSrc(u);}).catch(e=>{if(vivo)setError(e instanceof Error?e.message:'No se pudo cargar la foto.');});return()=>{vivo=false;};},[visible,src,conversacion,mensaje]);
+ if(!src&&!error)return <div ref={caja}><small style={{color:'#64748b'}}>Cargando foto…</small></div>;;
  if(error)return <small style={{color:'#64748b'}}>{error}</small>;
  if(!src)return <small style={{color:'#64748b'}}>Cargando foto…</small>;
  return <>

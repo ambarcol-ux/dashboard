@@ -198,10 +198,16 @@ export async function POST(request:Request){
    if(!UUID_RE.test(String(body.mensaje_id||'')))return publicReply({error:'Mensaje no válido.'},400);
    const {data:m}=await db.from('whatsapp_mensajes').select('media_id').eq('id',body.mensaje_id!).eq('conversacion_id',conv.id).maybeSingle();
    if(!m?.media_id)return publicReply({error:'Este mensaje no tiene foto.'},404);
+   // Saved in the ERP the first time it opens: later openings are instant and the photo outlives Meta's 30 days.
+   const ruta=`${conv.id}/${body.mensaje_id}`,fotos=db.storage.from('whatsapp_fotos');
+   const firmada=async()=>(await fotos.createSignedUrl(ruta,3600)).data?.signedUrl||null;
+   const ya=await firmada();if(ya)return publicReply({url:ya});
    const settings=await loadWhatsappSettings(db);
    const img=settings.token?await downloadWhatsappImage(settings,String(m.media_id)).catch(()=>null):null;
    if(!img||img.datos.length>4_200_000)return publicReply({error:'La foto ya no está disponible en WhatsApp (Meta la guarda unos 30 días).'},404);
-   return publicReply(img);
+   const {error:up}=await fotos.upload(ruta,Buffer.from(img.datos,'base64'),{contentType:img.tipo,upsert:true});
+   const url=up?null:await firmada();
+   return publicReply(url?{url}:img);
   }
   if(body.accion==='leido'){await db.from('whatsapp_conversaciones').update({no_leidos:0}).eq('id',conv.id);return publicReply({ok:true});}
   if(body.accion==='sede'){
