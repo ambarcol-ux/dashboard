@@ -4,9 +4,9 @@ import {Clapperboard} from 'lucide-react';
 import SupplierShell from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
 import {disenar,FUENTES,PLANTILLAS,type Kit} from '@/components/BrandDesign';
-import {prepararReel,mp4Soportado} from '@/components/ReelEditor';
+import {prepararReel,mp4Soportado,fotosAReel,mp4VideoSoportado} from '@/components/ReelEditor';
 
-type Medio={url:string;tipo:'imagen'|'video';fuente:string;ref:string;nota?:string;original?:string;diseno?:string};
+type Medio={url:string;tipo:'imagen'|'video';fuente:string;ref:string;nota?:string;original?:string;diseno?:string;fotos?:Medio[]};
 type Pieza={id:string;formato:string;redes:string[];sede_id:string|null;orden:string|null;texto:string|null;idea:string|null;medios:Medio[];programada_at:string|null;estado:string;
  resultado:Record<string,{estado?:string;enlace?:string;error?:string;id?:string}>;error:string|null;created_at:string;codigo:string|null;metricas:Record<string,Record<string,number|string>>;metricas_at:string|null;anuncio:{campana_id:string;publico:string;presupuesto:number;dias:number;creado_at:string}|null};
 type Resultado={pieza_id:string;chats:number;citas:number;asistieron:number;contratos:number;valor:number};
@@ -126,7 +126,8 @@ function Tarjeta({p,res,kit,admin,sede,busy,run,setError}:{p:Pieza;res?:Resultad
    {p.redes.includes('whatsapp')&&<a href={m.url} download target="_blank" rel="noopener noreferrer" className="absolute top-1 left-1 bg-white/90 rounded-lg px-1.5 text-[10px] font-black">Descargar</a>}
   </div>)}{!p.medios.length&&<p className="text-xs text-red-600 font-bold">Sin fotos ni videos.</p>}</div>
   {editable?<textarea className={`${input} min-h-28`} value={texto} maxLength={2200} onChange={e=>setTexto(e.target.value)}/>:<p className="text-sm text-gray-700 whitespace-pre-wrap">{p.texto}</p>}
-  {editable&&kit&&p.medios.some(m=>m.tipo==='video')&&<Reel p={p} kit={kit} busy={busy} run={run} setError={setError}/>}
+  {editable&&kit&&p.formato==='reel'&&(p.medios.filter(m=>m.tipo==='imagen').length>=2||!!p.medios[0]?.fotos)&&<ReelFotos p={p} kit={kit} busy={busy} run={run} setError={setError}/>}
+  {editable&&kit&&p.medios.some(m=>m.tipo==='video'&&!m.fotos)&&<Reel p={p} kit={kit} busy={busy} run={run} setError={setError}/>}
   {editable&&kit&&p.medios.some(m=>m.tipo==='imagen')&&<Disenos p={p} kit={kit} busy={busy} run={run} setError={setError}/>}
   {editable&&<label className="block text-xs font-bold text-gray-600">Publicar el (hora Colombia)<input type="datetime-local" className={`${input} mt-1`} value={fecha} onChange={e=>setFecha(e.target.value)}/></label>}
   {p.error&&<p className="text-xs font-bold text-red-700 bg-red-50 rounded-lg px-2 py-1">{p.error}</p>}
@@ -369,5 +370,38 @@ function Reel({p,kit,busy,run,setError}:{p:Pieza;kit:Kit;busy:string;run:(k:stri
    :<button type="button" disabled={!!busy} onClick={()=>void grabar()} className="px-3 py-1.5 rounded-lg bg-rose-600 text-white font-black">2. Grabar reel editado</button>}
    <button type="button" onClick={()=>{setAbierto(false);setListo(null);}} className="px-3 py-1.5 rounded-lg border font-black text-gray-600">Cancelar</button>
   </div>}
+ </div>;
+}
+
+/** Reel from the piece's photos: one phrase per photo (from the piece's script, editable), closing card and WhatsApp code.
+ *  Recorded in the browser as MP4 and saved as the piece's video; «Volver a las fotos» undoes it. */
+function ReelFotos({p,kit,busy,run,setError}:{p:Pieza;kit:Kit;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>;setError:(e:string)=>void}){
+ const hecho=!!p.medios[0]?.fotos,fotos=hecho?p.medios[0].fotos!:p.medios.filter(m=>m.tipo==='imagen');
+ const guion=(p.idea||'').split('\n').map(x=>x.replace(/^[-•·]\s*/,'').trim()).filter(Boolean);
+ const [abierto,setAbierto]=useState(false),[frases,setFrases]=useState(guion.slice(0,fotos.length).join('\n')),[cierre,setCierre]=useState(guion[fotos.length]||kit.frase||''),[codigo,setCodigo]=useState(true),[avance,setAvance]=useState<number|null>(null);
+ const k=`reelfotos:${p.id}`;
+ if(hecho)return <div className="flex gap-3 items-center text-xs"><span className="font-bold text-emerald-700">Reel creado con {fotos.length} fotos.</span>
+  <button type="button" disabled={!!busy} onClick={()=>void run(k,{accion:'reel_fotos',id:p.id,ruta:null})} className="font-black text-gray-600 underline">Volver a las fotos</button></div>;
+ if(!abierto)return <button type="button" disabled={!!busy} onClick={()=>setAbierto(true)} className="text-xs font-black text-amber-800 underline">Crear reel con estas {fotos.length} fotos</button>;
+ const crear=async()=>{
+  setError('');setAvance(0);
+  try{
+   const blob=await fotosAReel(fotos.map(f=>f.url),kit,{frases:frases.split('\n').map(x=>x.trim()),cierre:cierre.trim(),codigo:codigo?p.codigo:null},setAvance);
+   const {ruta,token}=await api({accion:'subir',tipo:'video/mp4'}) as {ruta:string;token:string};
+   const {error}=await supabase.storage.from('contenido_marketing').uploadToSignedUrl(ruta,token,blob,{contentType:'video/mp4'});if(error)throw error;
+   await run(k,{accion:'reel_fotos',id:p.id,ruta});setAbierto(false);
+  }catch(e){setError(e instanceof Error?e.message:'No se pudo crear el reel.');}
+  finally{setAvance(null);}
+ };
+ return <div className="rounded-xl border border-amber-100 bg-amber-50/50 p-3 space-y-2 text-xs">
+  <p className="font-black text-amber-900">Reel con {fotos.length} fotos (≈{Math.round(fotos.length*2.4+3)} s)</p>
+  {!mp4VideoSoportado()&&<p className="font-bold text-red-700">Este navegador no graba MP4. Usa Safari en el celular o Chrome actualizado.</p>}
+  <label className="block font-bold text-gray-600">Una frase por foto (en orden; línea vacía = sin frase)<textarea className={`${input} mt-1 min-h-28`} value={frases} onChange={e=>setFrases(e.target.value)}/></label>
+  <label className="block font-bold text-gray-600">Frase final<input className={`${input} mt-1`} maxLength={90} value={cierre} onChange={e=>setCierre(e.target.value)}/></label>
+  <label className="flex items-center gap-2 font-bold text-gray-700"><input type="checkbox" checked={codigo} disabled={!p.codigo} onChange={e=>setCodigo(e.target.checked)}/>Código {p.codigo||''} al final</label>
+  <p className="text-gray-500">Sale sin música: puedes agregarla en Instagram. Se graba en tiempo real; deja la pantalla abierta.</p>
+  {avance!==null?<p className="font-black text-amber-900">Creando reel… {Math.round(avance*100)} %</p>:
+  <div className="flex gap-2"><button type="button" disabled={!!busy||!mp4VideoSoportado()} onClick={()=>void crear()} className="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-black disabled:opacity-40">Crear reel</button>
+   <button type="button" onClick={()=>setAbierto(false)} className="px-3 py-1.5 rounded-lg border font-black text-gray-600">Cancelar</button></div>}
  </div>;
 }
