@@ -76,7 +76,7 @@ const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sed
 
 export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string;promociones?:string;aliados?:string};
 export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string;fotos?:string[]};
-type Msg={direccion:string;texto:string|null;created_at:string};
+type Msg={direccion:string;texto:string|null;created_at:string;media_id?:string|null;media_tipo?:string|null};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null;parqueadero?:string|null};
 
 /** System prompt: fixed rules plus what administration wrote in «IA de WhatsApp». Stable between chats so it can be cached. */
@@ -284,7 +284,9 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   const chat=history.map(m=>`[${new Date(m.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'})}] ${m.direccion==='entrante'?'Clienta':'Ámbar'}: ${m.texto||''}`).join('\n');
   // Photos the customer sent since Ámbar's last reply (up to 2), so the AI can see them.
   const pendientes:(Msg&{media_id?:string|null})[]=[];for(let i=history.length-1;i>=0&&history[i].direccion==='entrante';i--)pendientes.push(history[i]);
-  const fotos=pendientes.filter(m=>m.media_id).slice(0,2);
+  // Photos sent earlier in the chat (last 48 h) still count: she often sends the photo, gets a reply, and then asks «¿lo tienen?».
+  const recientes=pendientes.some(m=>m.media_id)?pendientes:[...history].reverse().filter(m=>m.direccion==='entrante'&&Date.now()-Date.parse(m.created_at)<48*3600000);
+  const fotos=recientes.filter(m=>m.media_id&&(!m.media_tipo||/^image\//.test(m.media_tipo))).slice(0,2);
   const extra:Anthropic.ContentBlockParam[]=[];
   if(fotos.length){const settings=await loadWhatsappSettings(db);if(settings.token)for(const m of fotos){const img=await downloadWhatsappImage(settings,String(m.media_id)).catch(()=>null);
    if(img&&['image/jpeg','image/png','image/webp','image/gif'].includes(img.tipo))extra.push({type:'image',source:{type:'base64',media_type:img.tipo as 'image/jpeg',data:img.datos}});}}
