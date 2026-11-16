@@ -128,6 +128,6 @@ export async function manejarAgenda(db:SupabaseClient,settings:Settings,a:{conve
   await registerAuthorization(db,{telefono:a.telefono,nombre,sede:a.sede_id,origen:'agendamiento',tratamiento:true,comercial:false,pendiente:false,versionTratamiento:tratamiento?String(tratamiento.version):null});
  }catch(e){console.error('Autorización de datos (WhatsApp) no registrada:',e);}
  const dir=modalidad==='presencial'?(sede?.direccion_clientes||sede?.direccion||''):'';
- const texto=`¡Listo, ${nombre.split(' ')[0]}! 🎉 Tu cita quedó reservada ${lugar}, ${cuando}${dir?` (${dir})`:''}. En un momento te llega la confirmación con todos los detalles.`;
+ const texto=`¡Listo, ${nombre.split(' ')[0]}! 🎉 Tu cita quedó reservada ${lugar}, ${cuando}${dir?` (${dir})`:''}. En un momento te llega la confirmación con todos los detalles.\n\nPara tener tus datos completos, ¿me escribes tu nombre y apellido y tu correo? (si prefieres no darlos, no pasa nada 💛)`;
  await guardar(db,a.conversacion,await sendWhatsappText(settings,a.telefono,texto),texto,'erp');
 }
