@@ -1,4 +1,5 @@
 'use client';
+import ConfigSelect from '@/components/ConfigSelect';
 import {useEffect,useRef,useState} from 'react';
 import {useRouter} from 'next/navigation';
 import {supabase} from '@/lib/supabase';
@@ -93,10 +94,10 @@ export default function FirstVisitWalkIn({profile,onClose,onSaved,alContratar=fa
     <label>Asesora que atiende *<select value={asesora} onChange={e=>setAsesora(e.target.value)} required>{!asesoras.some(a=>a.id===asesora)&&<option value={asesora}>Yo</option>}{asesoras.map(a=><option key={a.id} value={a.id}>{a.nombre||a.email}</option>)}</select></label>
    </div>
    <div className={styles.grid2}>
-    <label>Tipo de evento *<select value={f.tipo_evento} onChange={set('tipo_evento')} required><option value="">Selecciona…</option>{(cfg.lists.pv_tipos_evento_vitrina||[]).map(t=><option key={t}>{t}</option>)}</select></label>
+    <label>Tipo de evento *<ConfigSelect lista="pv_tipos_evento_vitrina" required value={f.tipo_evento} onChange={v=>set('tipo_evento')({target:{value:v}})}/></label>
     <label>Fecha del evento<input type="date" value={f.fecha_evento} onChange={set('fecha_evento')}/></label>
    </div>
-   <label>Cómo se enteró<select value={f.como_se_entero} onChange={set('como_se_entero')}><option value="">Sin dato</option>{(cfg.lists.pv_como_se_entero||[]).map(t=><option key={t}>{t}</option>)}</select></label>
+   <label>Cómo se enteró<ConfigSelect lista="pv_como_se_entero" placeholder="Sin dato" value={f.como_se_entero} onChange={v=>set('como_se_entero')({target:{value:v}})}/></label>
    {!alContratar&&<label>¿Alquiló? *<select required value={f.resultado==='Cerrado'?'si':f.resultado?'no':''} onChange={e=>setF({...f,resultado:e.target.value==='si'?'Cerrado':e.target.value==='no'?'En seguimiento':''})}><option value="">Elige…</option><option value="si">Alquiló</option><option value="no">No alquiló</option></select></label>}
    {!alContratar&&f.resultado&&f.resultado!=='Cerrado'&&<label>¿Por qué no alquiló? *<select required value={lost} onChange={e=>setLost(e.target.value)}><option value="">Elige…</option>{noRentalReasons.map(m=><option key={m}>{m}</option>)}</select></label>}
    {!alContratar&&f.resultado&&f.resultado!=='Cerrado'&&<label><input type="checkbox" checked={f.resultado==='No cerró'} onChange={e=>setF({...f,resultado:e.target.checked?'No cerró':'En seguimiento'})}/> No hacer seguimiento (motivo de mínimo {min} caracteres)</label>}

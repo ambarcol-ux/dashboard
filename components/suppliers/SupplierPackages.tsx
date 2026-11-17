@@ -1,5 +1,5 @@
 'use client';
-import ListOptions from '@/components/ListOptions';
+import ConfigSelect from '@/components/ConfigSelect';
 import {useCallback,useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 import {money} from '@/lib/deposits';
@@ -79,7 +79,7 @@ function PackageForm({pkg,sedes,codes,onClose,onSaved}:{pkg:Pkg|null;sedes:{id:s
     <label>Comisión empleada<input inputMode="decimal" value={form.comision} onChange={e=>setForm({...form,comision:e.target.value})}/></label></div>
    <div><p className={styles.help}>Servicios que incluye (el proveedor se elige al asignarlo al contrato)</p>
     {parts.map((p,i)=><div key={i} className={styles.row} style={{marginBottom:6}}>
-     <select value={p.servicio} onChange={e=>setParts(parts.map((x,j)=>j===i?{...x,servicio:e.target.value}:x))}><option value="">Servicio…</option><ListOptions lista="prov_tipos_servicio" keep={[p.servicio]}/></select>
+     <ConfigSelect lista="prov_tipos_servicio" value={p.servicio} placeholder="Servicio…" editable={false} onChange={v=>setParts(parts.map((x,j)=>j===i?{...x,servicio:v}:x))}/>
      <input type="number" min={1} max={50} value={p.cantidad} onChange={e=>setParts(parts.map((x,j)=>j===i?{...x,cantidad:Math.max(1,Math.min(50,Number(e.target.value)||1))}:x))}/>
     </div>)}
     <button className={styles.button} onClick={()=>setParts([...parts,{servicio:'',cantidad:1}])}>+ Agregar servicio</button></div>

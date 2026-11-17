@@ -1,5 +1,6 @@
 'use client';
-import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import ConfigSelect from '@/components/ConfigSelect';
+import {useCallback,useEffect,useRef,useState} from 'react';
 import {RefreshCw,Lock,Unlock,Paperclip} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 import {can,usePermissions} from '@/lib/use-permissions';
@@ -276,7 +277,6 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
  const [tipo,setTipo]=useState<'ingreso'|'egreso'>('ingreso'),[categoria,setCategoria]=useState<string>(CASH_CATEGORIES.ingreso[0]),[medio,setMedio]=useState('Efectivo'),[valor,setValor]=useState(''),[descripcion,setDescripcion]=useState('');
  const [file,setFile]=useState<File|null>(null),[saving,setSaving]=useState(false),[error,setError]=useState(''),[cuenta,setCuenta]=useState('');
  const operation=useRef(crypto.randomUUID()),fileInput=useRef<HTMLInputElement>(null);
- const categories=useMemo(()=>CASH_CATEGORIES[tipo],[tipo]);
  const submit=async(e:React.FormEvent)=>{
   e.preventDefault();if(saving)return;setError('');
   const amount=parseCashAmount(valor);if(!amount){setError('Escribe un valor válido.');return;}
@@ -304,7 +304,7 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
   {categoria===CASH_BASE&&<p className={styles.help}>Base de caja: efectivo que se pone en la caja para trabajar el día, aunque no se sepa de dónde salió. No necesita soporte y no cuenta como venta.</p>}
   <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
    <div className={styles.row}><label>Tipo<select value={tipo} onChange={e=>{const t=e.target.value as 'ingreso'|'egreso';setTipo(t);setCategoria(CASH_CATEGORIES[t][0]);}}><option value="ingreso">Ingreso</option><option value="egreso">Egreso</option></select></label>
-    <label>Categoría<select value={categoria} onChange={e=>{setCategoria(e.target.value);if(e.target.value===CASH_BASE){setMedio('Efectivo');setCuenta('');}}}>{categories.map(c=><option key={c}>{c}</option>)}</select></label></div>
+    <label>Categoría<ConfigSelect lista={`caja_categorias_${tipo}`} placeholder={null} fijos={tipo==='ingreso'?[CASH_BASE]:[]} value={categoria} onChange={v=>{setCategoria(v);if(v===CASH_BASE){setMedio('Efectivo');setCuenta('');}}}/></label></div>
    <div className={styles.row}><label>Medio<select value={medio} disabled={categoria===CASH_BASE} onChange={e=>{setMedio(e.target.value);setCuenta('');}}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
     <label>{tipo==='ingreso'?'Cuenta donde llegó':'Cuenta de donde salió'}<AccountSelect medio={medio} cuentas={day.cuentas} sedeId={day.sede_id} value={cuenta} onChange={setCuenta}/></label></div>
    <div className={styles.row}><label>Valor (COP)<input inputMode="decimal" placeholder="150.000" value={valor} onChange={e=>setValor(e.target.value)}/></label></div>

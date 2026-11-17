@@ -1,4 +1,5 @@
 'use client';
+import ConfigSelect from '@/components/ConfigSelect';
 import {useEffect,useMemo,useState} from 'react';
 import {Handshake} from 'lucide-react';
 import SupplierShell,{type ShellProfile} from '@/components/suppliers/SupplierShell';
@@ -120,7 +121,7 @@ function AllyForm({ally,types,sedes,onClose,onSaved}:{ally:DirectAlly|null;types
    <div className={styles.row}><label>Tipo de aliado<select value={f.tipo_aliado_id} onChange={set('tipo_aliado_id')}><option value="">Selecciona…</option>{types.filter(t=>t.activo||String(t.id)===f.tipo_aliado_id).map(t=><option key={t.id} value={t.id}>{t.nombre}</option>)}</select></label>
     <label>Sede principal<select value={f.sede_principal} onChange={set('sede_principal')}><option value="">Sin sede</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label></div>
    <p className={styles.help}><b>Cuenta bancaria</b>{ally?.numero_cuenta?' · un cambio queda pendiente hasta que Contabilidad lo apruebe':''}</p>
-   <div className={styles.row}><label>Banco<input value={f.banco} onChange={set('banco')}/></label><label>Tipo de cuenta o llave<select value={f.tipo_cuenta} onChange={set('tipo_cuenta')}><option value="">Selecciona…</option><AccountTypeOptions base={ACCOUNT_TYPES} current={f.tipo_cuenta}/></select></label></div>
+   <div className={styles.row}><label>Banco<ConfigSelect lista="banco" value={f.banco} onChange={v=>setF({...f,banco:v})}/></label><label>Tipo de cuenta o llave<select value={f.tipo_cuenta} onChange={set('tipo_cuenta')}><option value="">Selecciona…</option><AccountTypeOptions base={ACCOUNT_TYPES} current={f.tipo_cuenta}/></select></label></div>
    <div className={styles.row}><label>{accountLabel(f.tipo_cuenta)}<input value={f.numero_cuenta} onChange={set('numero_cuenta')}/></label><label>Titular<input value={f.titular_cuenta} onChange={set('titular_cuenta')}/></label></div>
    {ally&&<label>Certificación bancaria{ally.numero_cuenta?' (obligatoria si cambias la cuenta)':''}<input type="file" accept="application/pdf,image/*" onChange={e=>setCert(e.target.files?.[0]||null)}/></label>}
    {ally&&['activo','inactivo'].includes(ally.estado)&&<label>Estado<select value={f.estado} onChange={set('estado')}><option value="activo">Activo</option><option value="inactivo">Inactivo</option></select></label>}

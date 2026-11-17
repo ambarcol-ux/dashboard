@@ -1,5 +1,5 @@
 'use client';
-import ListOptions from '@/components/ListOptions';
+import ConfigSelect from '@/components/ConfigSelect';
 import {Suspense,useCallback,useEffect,useMemo,useState} from 'react';
 import {useSearchParams} from 'next/navigation';
 import {Banknote} from 'lucide-react';
@@ -97,7 +97,7 @@ function Payments(){
      <p><b>{first.proveedor}</b> · {chosen.length} servicio(s)<br/><span className={styles.help}>{first.banco?`${first.banco} ${first.tipo_cuenta||''} ${first.numero_cuenta||''}`:'Sin datos bancarios en la ficha'}</span></p>
      <div className={styles.stats} style={{marginBottom:0}}><div><span>Total a pagar</span><strong>{money(total)}</strong></div></div>
      <div className={styles.row}><label>Fecha del pago<input type="date" max={today} value={form.fecha_pago} onChange={e=>setForm({...form,fecha_pago:e.target.value})}/></label>
-      <label>Medio<select value={form.medio_pago} onChange={e=>setForm({...form,medio_pago:e.target.value})}><ListOptions lista="prov_medios_pago" keep={[form.medio_pago]}/></select></label></div>
+      <label>Medio<ConfigSelect lista="prov_medios_pago" placeholder={null} value={form.medio_pago} onChange={v=>setForm({...form,medio_pago:v})}/></label></div>
      <label>Referencia (número de transacción)<input value={form.referencia} onChange={e=>setForm({...form,referencia:e.target.value})}/></label>
      <label>Comprobante (PDF o imagen)<input key={fileKey} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0]||null)}/></label>
      <div className={styles.actions}><button className={styles.button} onClick={()=>setPicked([])} disabled={busy}>Limpiar</button><button className={`${styles.button} ${styles.primary}`} onClick={pay} disabled={busy}>{busy?'Guardando…':'Guardar pago'}</button></div>

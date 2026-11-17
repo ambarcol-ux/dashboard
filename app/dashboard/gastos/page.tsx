@@ -1,4 +1,5 @@
 'use client';
+import ConfigSelect from '@/components/ConfigSelect';
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import {Receipt} from 'lucide-react';
 import SupplierShell from '@/components/suppliers/SupplierShell';
@@ -109,17 +110,6 @@ function FormGasto({sedes,cuentas,finanzas,onClose,onDone}:{sedes:Sede[];cuentas
  const [archivo,setArchivo]=useState<File|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
  // Suppliers registered in the ERP (name and service) to pick from; another name can still be typed.
  const [proveedores,setProveedores]=useState<{nombre:string;tipo_servicio:string|null}[]>([]);
- // Categories: the base list plus the ones created here («+ Nueva categoría»), kept for everybody.
- const [extras,setExtras]=useState<string[]>([]);
- useEffect(()=>{void supabase.from('gastos_categorias').select('nombre').eq('activo',true).order('nombre').then(({data})=>setExtras(((data||[]) as {nombre:string}[]).map(x=>x.nombre)));},[]);
- const categorias=[...CATEGORIAS.filter(c=>c!=='Otro gasto'),...extras.filter(x=>!CATEGORIAS.some(c=>c.toLowerCase()===x.toLowerCase())),'Otro gasto'];
- const elegirCategoria=async(v:string)=>{
-  if(v!=='__nueva'){setF(x=>({...x,categoria:v}));return;}
-  const nombre=prompt('Nombre de la nueva categoría:')?.trim();if(!nombre)return;
-  const {data,error:e}=await supabase.rpc('gastos_categoria_crear',{p_nombre:nombre});
-  if(e){setError(e.message);return;}
-  const creada=String(data);setExtras(l=>l.includes(creada)?l:[...l,creada].sort());setF(x=>({...x,categoria:creada}));
- };
  useEffect(()=>{void supabase.rpc('gastos_proveedores').then(({data})=>setProveedores((data||[]) as {nombre:string;tipo_servicio:string|null}[]));},[]);
  // Any active bank account or wallet can pay an expense (the store whose account it is gets the egreso in its cash register);
  // the store's own accounts first, then the others. Deposit accounts never.
@@ -141,7 +131,7 @@ function FormGasto({sedes,cuentas,finanzas,onClose,onDone}:{sedes:Sede[];cuentas
   <div className="grid sm:grid-cols-2 gap-3">
    {finanzas&&<label className="text-xs font-bold text-gray-600">Tipo<select className={input} value={f.clase} onChange={e=>setF({...f,clase:e.target.value})}><option value="gasto">Gasto</option><option value="retiro_utilidades">Retiro de utilidades (socios)</option></select></label>}
    <label className="text-xs font-bold text-gray-600">¿De quién es el gasto?<select className={input} value={f.sede_id} onChange={e=>setF({...f,sede_id:e.target.value,cuenta_id:''})}>{finanzas?<option value="">Administración general</option>:<option value="">Elige la sede</option>}{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
-   {f.clase==='gasto'&&<label className="text-xs font-bold text-gray-600">Categoría<select className={input} value={f.categoria} onChange={e=>void elegirCategoria(e.target.value)}>{categorias.map(c=><option key={c}>{c}</option>)}<option value="__nueva">+ Nueva categoría…</option></select></label>}
+   {f.clase==='gasto'&&<label className="text-xs font-bold text-gray-600">Categoría<ConfigSelect lista="gastos_categorias" className={input} placeholder={null} value={f.categoria} onChange={v=>setF(p=>({...p,categoria:v}))}/></label>}
    <label className="text-xs font-bold text-gray-600">Fecha<input type="date" className={input} value={f.fecha} max={hoyBogota()} onChange={e=>setF({...f,fecha:e.target.value})}/></label>
    <label className="text-xs font-bold text-gray-600">Valor<input className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
    <label className="text-xs font-bold text-gray-600">Medio<select className={input} value={f.medio} onChange={e=>setF({...f,medio:e.target.value,cuenta_id:''})}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
