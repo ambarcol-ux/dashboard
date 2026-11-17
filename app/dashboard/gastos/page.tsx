@@ -3,7 +3,7 @@ import {useCallback,useEffect,useMemo,useState} from 'react';
 import {Receipt} from 'lucide-react';
 import SupplierShell from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
-import {CASH_METHODS,accountsFor,accountLabel,needsAccount,type CashAccount} from '@/lib/cash';
+import {CASH_METHODS,accountLabel,needsAccount,type CashAccount} from '@/lib/cash';
 
 type Sede={id:string;nombre:string};
 type Gasto={id:string;sede_id:string|null;sede:string;clase:'gasto'|'retiro_utilidades';categoria:string;fecha:string;valor:number;medio:string;cuenta:string|null;
@@ -107,8 +107,10 @@ function Modal({titulo,children,onClose}:{titulo:string;children:React.ReactNode
 function FormGasto({sedes,cuentas,finanzas,onClose,onDone}:{sedes:Sede[];cuentas:CashAccount[];finanzas:boolean;onClose:()=>void;onDone:()=>void}){
  const [f,setF]=useState({clase:'gasto',sede_id:sedes.length===1&&!finanzas?sedes[0].id:'',categoria:CATEGORIAS[0],fecha:hoyBogota(),valor:'',medio:'Transferencia',cuenta_id:'',beneficiario:'',descripcion:''});
  const [archivo,setArchivo]=useState<File|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
- // Administration expenses can be paid from any bank account; a store's from its own or the shared ones.
- const opciones=f.sede_id?accountsFor(f.medio,cuentas,f.sede_id):cuentas.filter(c=>c.activo&&c.tipo!=='efectivo');
+ // Any active bank account or wallet can pay an expense (the store whose account it is gets the egreso in its cash register);
+ // the store's own accounts first, then the others. Deposit accounts never.
+ const opciones=f.medio==='Efectivo'?[]:cuentas.filter(c=>c.activo&&c.tipo!=='efectivo'&&!(c as CashAccount&{solo_depositos?:boolean}).solo_depositos)
+  .sort((x,y)=>Number(y.sede_id===f.sede_id)-Number(x.sede_id===f.sede_id)||String(x.sede||'').localeCompare(String(y.sede||'')));
  const pideCuenta=needsAccount(f.medio,opciones),sinSede=!f.sede_id&&f.medio==='Efectivo';
  const guardar=async()=>{
   if(!archivo)return;setBusy(true);setError('');
@@ -129,7 +131,7 @@ function FormGasto({sedes,cuentas,finanzas,onClose,onDone}:{sedes:Sede[];cuentas
    <label className="text-xs font-bold text-gray-600">Fecha<input type="date" className={input} value={f.fecha} max={hoyBogota()} onChange={e=>setF({...f,fecha:e.target.value})}/></label>
    <label className="text-xs font-bold text-gray-600">Valor<input className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
    <label className="text-xs font-bold text-gray-600">Medio<select className={input} value={f.medio} onChange={e=>setF({...f,medio:e.target.value,cuenta_id:''})}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
-   {f.medio!=='Efectivo'&&opciones.length>0&&<label className="text-xs font-bold text-gray-600">¿De qué cuenta salió?<select className={input} value={f.cuenta_id} onChange={e=>setF({...f,cuenta_id:e.target.value})}><option value="">{pideCuenta?'Elige la cuenta':'Sin cuenta'}</option>{opciones.map(o=><option key={o.id} value={o.id}>{accountLabel(o)}{o.sede&&!f.sede_id?` (${o.sede})`:''}</option>)}</select></label>}
+   {f.medio!=='Efectivo'&&opciones.length>0&&<label className="text-xs font-bold text-gray-600">¿De qué cuenta salió?<select className={input} value={f.cuenta_id} onChange={e=>setF({...f,cuenta_id:e.target.value})}><option value="">{pideCuenta?'Elige la cuenta':'Sin cuenta'}</option>{opciones.map(o=><option key={o.id} value={o.id}>{accountLabel(o)} ({o.sede||'todas las sedes'})</option>)}</select></label>}
    <label className="text-xs font-bold text-gray-600">A quién se pagó<input className={input} maxLength={120} value={f.beneficiario} onChange={e=>setF({...f,beneficiario:e.target.value})} placeholder="Proveedor, persona o entidad"/></label>
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Descripción<input className={input} maxLength={500} value={f.descripcion} onChange={e=>setF({...f,descripcion:e.target.value})} placeholder="Ej.: pago honorarios contador noviembre"/></label>
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Comprobante (foto o PDF, obligatorio)<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="block mt-1 text-sm" onChange={e=>setArchivo(e.target.files?.[0]||null)}/></label>
