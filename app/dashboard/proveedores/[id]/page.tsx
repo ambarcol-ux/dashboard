@@ -1,5 +1,6 @@
 'use client';
 import ListOptions from '@/components/ListOptions';
+import ServiceSelect from '@/components/suppliers/ServiceSelect';
 import {useCallback,useEffect,useState} from 'react';
 import Link from 'next/link';
 import {useParams} from 'next/navigation';
@@ -132,7 +133,7 @@ function DataTab({supplier,sedes,mySedes,onDone,onError}:{supplier:Supplier;sede
  };
  return <section className={styles.card}><div className={styles.form}>
   <div className={styles.row}><label>Nombre<input value={f.nombre} onChange={set('nombre')}/></label>
-   <label>Tipo de servicio<select value={f.tipo_servicio} onChange={set('tipo_servicio')}><ListOptions lista="prov_tipos_servicio" keep={[f.tipo_servicio]}/></select></label></div>
+   <label>Tipo de servicio<ServiceSelect value={f.tipo_servicio} onChange={v=>setF({...f,tipo_servicio:v})}/></label></div>
   <div className={styles.row}><label>Celular<input inputMode="numeric" value={f.celular} onChange={set('celular')}/></label><label>Celular 2<input inputMode="numeric" value={f.celular_2} onChange={set('celular_2')}/></label></div>
   <div className={styles.row}><label>Correo (para su usuario)<input type="email" value={f.correo} onChange={set('correo')}/></label><label>Cédula o NIT<input value={f.documento} onChange={set('documento')}/></label></div>
   <div className={styles.row}><label>Banco<input value={f.banco} onChange={set('banco')}/></label><label>Tipo de cuenta o llave<select value={f.tipo_cuenta} onChange={set('tipo_cuenta')}><option value="">Selecciona…</option><AccountTypeOptions base={['Ahorros','Corriente']} current={f.tipo_cuenta}/></select></label></div>
@@ -181,7 +182,7 @@ function TariffsTab({supplierId,tariffs,codes,sedes,mySedes,defaultService,onDon
   {form&&<div className={styles.form} style={{marginBottom:18,borderBottom:'1px solid #e2e8f0',paddingBottom:18}}>
    <h2>{replacing?`Cambio de precio de ${replacing.codigo}`:'Nueva tarifa'}</h2>
    <div className={styles.row}><label>Sede<select value={form.sede_id} onChange={set('sede_id')}><option value="">Selecciona…</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
-    <label>Servicio<select value={form.servicio} onChange={set('servicio')}><option value="">Selecciona…</option><ListOptions lista="prov_tipos_servicio" keep={[form.servicio]}/></select></label></div>
+    <label>Servicio<ServiceSelect value={form.servicio} onChange={v=>setForm({...form,servicio:v})} editable={false}/></label></div>
    <label>Descripción del paquete<textarea rows={2} value={form.descripcion} onChange={set('descripcion')} placeholder="Sesión 2 horas, 30 fotos + 15 impresas"/></label>
    <label>Recurso (caballo o lugar, opcional)<input value={form.recurso} onChange={set('recurso')}/></label>
    <div className={styles.row}><label>Valor a empresa (se le paga al proveedor)<input inputMode="decimal" value={form.valor_empresa} onChange={set('valor_empresa')}/></label>
