@@ -112,25 +112,32 @@ export function WhereIsMoneyView({today}:{today:string}){
 }
 
 type Site={sede_id:string;sede:string};
-const EMPTY={id:'',nombre:'',tipo:'banco' as CashAccount['tipo'],banco:'',numero:'',titular:'',tipo_cuenta:'',llave:'',sede_id:'',activo:true,orden:0};
+const EMPTY={id:'',nombre:'',tipo:'banco' as CashAccount['tipo'],banco:'',numero:'',titular:'',tipo_cuenta:'',llave:'',solo_depositos:false,sede_id:'',activo:true,orden:0};
 
 /** Accounts and petty cash: admins add banks and wallets, rename the petty cash of each site and deactivate old accounts. */
 export function AccountsAdmin({sites,isAdmin,canManage=isAdmin}:{sites:Site[];isAdmin:boolean;canManage?:boolean}){
  // Leaders and franchisees manage only the accounts of their own sites (sites = the sites they can see).
  const propia=(sedeId:string|null)=>isAdmin||(!!sedeId&&sites.some(s=>s.sede_id===sedeId));
  const cuentaObligatoria=useFieldRequired('cuenta_caja','cuenta');
- const [rows,setRows]=useState<CashAccount[]|null>(null),[form,setForm]=useState(EMPTY),[error,setError]=useState(''),[notice,setNotice]=useState(''),[saving,setSaving]=useState(false),[version,setVersion]=useState(0);
+ const [rows,setRows]=useState<CashAccount[]|null>(null),[form,setForm]=useState(EMPTY),[error,setError]=useState(''),[notice,setNotice]=useState(''),[saving,setSaving]=useState(false),[version,setVersion]=useState(0),[verInactivas,setVerInactivas]=useState(false);
  useEffect(()=>{
   let live=true;
   void (async()=>{const {data,error:re}=await supabase.rpc('cuentas_dinero_lista');if(!live)return;if(re)setError(re.message);else setRows((data||[]) as CashAccount[]);})();
   return()=>{live=false;};
  },[version]);
- const edit=(c:CashAccount)=>{setNotice('');setError('');setForm({id:c.id,nombre:c.nombre,tipo:c.tipo,banco:c.banco||'',numero:c.numero||'',titular:c.titular||'',tipo_cuenta:c.tipo_cuenta||'',llave:c.llave||'',sede_id:c.sede_id||'',activo:c.activo,orden:c.orden});};
+ const edit=(c:CashAccount)=>{setNotice('');setError('');setForm({id:c.id,nombre:c.nombre,tipo:c.tipo,banco:c.banco||'',numero:c.numero||'',titular:c.titular||'',tipo_cuenta:c.tipo_cuenta||'',llave:c.llave||'',solo_depositos:!!c.solo_depositos,sede_id:c.sede_id||'',activo:c.activo,orden:c.orden});document.getElementById('cuenta-form')?.scrollIntoView({behavior:'smooth',block:'start'});};
+ // Deactivate or reactivate from the list, with the account's own data (it is never deleted: its history stays).
+ const alternar=async(c:CashAccount)=>{
+  setNotice('');setError('');
+  const {error:re}=await supabase.rpc('guardar_cuenta_dinero',{p_datos:{id:c.id,nombre:c.nombre,tipo:c.tipo,banco:c.banco||'',numero:c.numero||'',titular:c.titular||'',tipo_cuenta:c.tipo_cuenta||'',llave:c.llave||'',solo_depositos:!!c.solo_depositos,sede_id:c.sede_id||null,activo:!c.activo,orden:c.orden}});
+  if(re){setError(re.message);return;}
+  setNotice(c.activo?`«${c.nombre}» quedó desactivada: ya no aparece al registrar movimientos.`:`«${c.nombre}» quedó activa.`);setVersion(v=>v+1);
+ };
  const submit=async(e:React.FormEvent)=>{
   e.preventDefault();if(saving)return;setError('');
   // The name is no longer typed: it is built from class, bank, account type and site (e.g. «Bancolombia Ahorros Bogotá»).
   const sedeNombre=sites.find(s=>s.sede_id===form.sede_id)?.sede||'';
-  const nombre=(form.tipo==='efectivo'?`Caja menor ${sedeNombre}`:[form.banco.trim()||'Billetera',form.tipo==='banco'&&form.tipo_cuenta?(form.tipo_cuenta==='ahorros'?'Ahorros':'Corriente'):'',sedeNombre||'Todas las sedes'].filter(Boolean).join(' ')).trim().slice(0,80);
+  const nombre=(form.tipo==='efectivo'?`Caja menor ${sedeNombre}`:[form.solo_depositos?'Depósitos':'',form.banco.trim()||'Billetera',form.tipo==='banco'&&form.tipo_cuenta?(form.tipo_cuenta==='ahorros'?'Ahorros':'Corriente'):'',form.solo_depositos?'':sedeNombre||'Todas las sedes'].filter(Boolean).join(' ')).trim().slice(0,80);
   if(form.tipo==='efectivo'&&!form.sede_id){setError('La caja menor debe pertenecer a una sede.');return;}
   if(!isAdmin&&!form.sede_id){setError('Elige la sede de la cuenta.');return;}
   if(form.tipo==='banco'&&!form.banco.trim()){setError('Escribe el banco.');return;}
@@ -144,14 +151,15 @@ export function AccountsAdmin({sites,isAdmin,canManage=isAdmin}:{sites:Site[];is
  const set=(k:keyof typeof EMPTY,v:string|boolean|number)=>setForm(f=>({...f,[k]:v}));
  return <>
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
-  <section className={styles.card}><h2>Cuentas y caja menor</h2><p>El efectivo de cada sede queda en su caja menor. Las transferencias y pagos con tarjeta se asignan a la cuenta bancaria o billetera donde llegaron. Una cuenta sin sede sirve para todas las sedes.</p>
+  <section className={styles.card}><h2>Cuentas y caja menor</h2><p>El efectivo de cada sede queda en su caja menor. Las transferencias y pagos con tarjeta se asignan a la cuenta bancaria o billetera donde llegaron. Una cuenta sin sede sirve para todas las sedes. Las cuentas de depósitos no aparecen en caja, gastos ni abonos.</p>
+   {(rows||[]).some(c=>!c.activo)&&<label className={styles.check}><input type="checkbox" checked={verInactivas} onChange={e=>setVerInactivas(e.target.checked)}/> Ver también las cuentas desactivadas</label>}
    <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Cuenta</th><th>Clase</th><th>Banco / número / llave</th><th>Titular</th><th>Sede</th><th>Estado</th>{canManage&&<th></th>}</tr></thead>
-    <tbody>{(rows||[]).map(c=><tr key={c.id} className={c.activo?'':styles.annulled}><td><strong>{TYPE_ICON[c.tipo]} {c.nombre}</strong></td><td>{ACCOUNT_TYPES[c.tipo]}</td><td>{[c.banco,c.tipo_cuenta?(c.tipo_cuenta==='ahorros'?'Ahorros':'Corriente'):null,c.numero,c.llave?`Llave ${c.llave}`:null].filter(Boolean).join(' · ')||'—'}</td><td>{c.titular||'—'}</td><td>{c.sede||'Todas las sedes'}</td>
+    <tbody>{(rows||[]).filter(c=>c.activo||verInactivas).map(c=><tr key={c.id} className={c.activo?'':styles.annulled}><td><strong>{TYPE_ICON[c.tipo]} {c.nombre}</strong>{c.solo_depositos&&<> <span className={styles.badge}>Solo depósitos</span></>}</td><td>{ACCOUNT_TYPES[c.tipo]}</td><td>{[c.banco,c.tipo_cuenta?(c.tipo_cuenta==='ahorros'?'Ahorros':'Corriente'):null,c.numero,c.llave?`Llave ${c.llave}`:null].filter(Boolean).join(' · ')||'—'}</td><td>{c.titular||'—'}</td><td>{c.sede||'Todas las sedes'}</td>
      <td>{c.activo?<span className={`${styles.badge} ${styles.badgeIn}`}>Activa</span>:<span className={styles.badge}>Inactiva</span>}</td>
-     {canManage&&<td>{propia(c.sede_id)&&<button className={styles.button} onClick={()=>edit(c)}>Editar</button>}</td>}</tr>)}</tbody></table></div>
+     {canManage&&<td>{propia(c.sede_id)&&<div style={{display:'flex',gap:6}}><button className={styles.button} onClick={()=>edit(c)}>Editar</button><button className={styles.button} onClick={()=>void alternar(c)}>{c.activo?'Desactivar':'Activar'}</button></div>}</td>}</tr>)}</tbody></table></div>
    {!rows?.length&&<p className={styles.empty}>{rows?'No hay cuentas configuradas.':'Cargando…'}</p>}
   </section>
-  {canManage&&<section className={styles.card}><h2>{form.id?'Editar cuenta':'Nueva cuenta'}</h2>
+  {canManage&&<section id="cuenta-form" className={styles.card}><h2>{form.id?`Editar cuenta · ${form.nombre}`:'Nueva cuenta'}</h2>
    <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
     <div className={styles.row}><label>Clase<select value={form.tipo} onChange={e=>set('tipo',e.target.value)}>{Object.entries(ACCOUNT_TYPES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
      <label>Sede<select value={form.sede_id} onChange={e=>set('sede_id',e.target.value)}>{isAdmin&&form.tipo!=='efectivo'&&<option value="">Todas las sedes</option>}{(!isAdmin||form.tipo==='efectivo')&&<option value="">Elige la sede</option>}{sites.map(s=><option key={s.sede_id} value={s.sede_id}>{s.sede}</option>)}</select></label></div>
@@ -160,6 +168,7 @@ export function AccountsAdmin({sites,isAdmin,canManage=isAdmin}:{sites:Site[];is
     {form.tipo!=='efectivo'&&<div className={styles.row}><label>Número de cuenta<input maxLength={40} inputMode="numeric" value={form.numero} onChange={e=>set('numero',e.target.value)}/></label>
      <label>Llave (Bre-B)<input maxLength={60} value={form.llave} onChange={e=>set('llave',e.target.value)} placeholder="Celular, cédula, correo o @llave"/></label></div>}
     {form.tipo==='banco'&&<label>Titular<input maxLength={120} value={form.titular} onChange={e=>set('titular',e.target.value)}/></label>}
+    {form.tipo!=='efectivo'&&<label className={styles.check}><input type="checkbox" checked={form.solo_depositos} onChange={e=>set('solo_depositos',e.target.checked)}/> Solo para depósitos en garantía (no aparece en caja, gastos ni abonos)</label>}
     <label className={styles.check}><input type="checkbox" checked={form.activo} onChange={e=>set('activo',e.target.checked)}/> Activa (se puede elegir al registrar movimientos)</label>
     {error&&<p role="alert" className={styles.error}>{error}</p>}
     <div style={{display:'flex',gap:8}}>
