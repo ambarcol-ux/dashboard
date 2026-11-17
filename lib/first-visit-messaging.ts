@@ -79,7 +79,9 @@ export function reminderConfirmPayload(c:NotificationVisit,site:string,lang='es_
 export function openWindowPayload(type:string,c:NotificationVisit,siteName:string,link:string,sites?:VisitSite[]){
  const to=whatsappPhone(c.telefono),name=c.cliente_nombre.split(' ')[0],site=visitSite(siteName,sites),when=`${visitDate(c.fecha)} a las ${visitTime(c.hora)}`;
  const where=c.modalidad==='virtual'?'de forma virtual':`en ${siteName}${site?.direccion?` (${site.direccion})`:''}`;
- if(type==='recordatorio24'){const texto=`Hola ${name} 💛 Te recordamos tu primera cita ${where} el ${when}. ¿Nos confirmas que vienes?`;
+ // The store's phone, so the customer can call with any question about her visit.
+ const tel=site?.telefono?`\n\n📞 ¿Alguna duda? Llama a la sede ${siteName}: ${site.telefono}`:'';
+ if(type==='recordatorio24'){const texto=`Hola ${name} 💛 Te recordamos tu primera cita ${where} el ${when}. ¿Nos confirmas que vienes?${tel}`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'rc_confirmo',title:'✅ Ahí estaré'}},{type:'reply',reply:{id:'rc_reagendar',title:'🔄 Cambiar hora'}},{type:'reply',reply:{id:'rc_no_puedo',title:'❌ No puedo'}}]}}}};}
  if(type==='post_cita'){const texto=`Hola ${name} 💛 ¿Cómo te fue en tu cita en Ámbar Couture ${siteName}?`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'pc_alquile',title:'💃 Fui y alquilé'}},{type:'reply',reply:{id:'pc_no_decido',title:'🤔 Aún no decido'}},{type:'reply',reply:{id:'pc_no_asisti',title:'📅 No pude ir'}}]}}}};}
@@ -93,13 +95,13 @@ export function openWindowPayload(type:string,c:NotificationVisit,siteName:strin
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'cc_si',title:'Sí, cancelar'}},{type:'reply',reply:{id:'cc_no',title:'No, la mantengo'}}]}}}};}
  if(type==='cita_cancelada_wa'){const texto=`Listo ${name}, cancelamos tu cita. Cuando quieras volver a agendar, aquí te esperamos 💛`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'cta_url',body:{text:texto},action:{name:'cta_url',parameters:{display_text:'📅 Agendar otra cita',url:`${link.split('/agendar-primera-cita')[0]}/agendar-primera-cita?o=wa_cancelada`}}}}};}
- if(type==='cita_mantenida_wa'){const texto=`¡Perfecto, ${name}! Mantenemos tu cita ${where} el ${when}. Te esperamos 💛`;
+ if(type==='cita_mantenida_wa'){const texto=`¡Perfecto, ${name}! Mantenemos tu cita ${where} el ${when}. Te esperamos 💛${tel}`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
- if(type==='recordatorio2'){const texto=`Hola ${name}, ¡hoy es tu cita! Te esperamos ${where} a las ${visitTime(c.hora)}.${c.modalidad!=='virtual'&&site?.parqueadero?` ${site.parqueadero}`:''}`;
+ if(type==='recordatorio2'){const texto=`Hola ${name}, ¡hoy es tu cita! Te esperamos ${where} a las ${visitTime(c.hora)}.${c.modalidad!=='virtual'&&site?.parqueadero?` ${site.parqueadero}`:''}${tel}`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[...(c.modalidad!=='virtual'?[{type:'reply',reply:{id:'r2_ubicacion',title:'📍 Ver ubicación'}}]:[]),{type:'reply',reply:{id:'r2_cambiar',title:'🔄 Cambiar hora'}}]}}}};}
- if(type==='confirmacion'){const texto=`Hola ${name} 💛 Tu primera cita ${where} quedó agendada para el ${when}. ¿Nos confirmas?`;
+ if(type==='confirmacion'){const texto=`Hola ${name} 💛 Tu primera cita ${where} quedó agendada para el ${when}. ¿Nos confirmas?${tel}`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'cf_confirmo',title:'✅ Confirmo'}},{type:'reply',reply:{id:'cf_cambiar',title:'🔄 Cambiar hora'}}]}}}};}
- if(type==='ubicacion'){const texto=`📍 Ámbar Couture ${siteName}${site?.direccion?`: ${site.direccion}`:''}.${site?.parqueadero?` ${site.parqueadero}`:''}`;
+ if(type==='ubicacion'){const texto=`📍 Ámbar Couture ${siteName}${site?.direccion?`: ${site.direccion}`:''}.${site?.parqueadero?` ${site.parqueadero}`:''}${site?.telefono?` 📞 ${site.telefono}`:''}`;
   return {texto,payload:site?.mapa?{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'cta_url',body:{text:texto},action:{name:'cta_url',parameters:{display_text:'🗺️ Cómo llegar',url:site.mapa}}}}:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
  if(type==='reagendar_otro_dia'){const texto=`¡Claro, ${name}! ¿Qué día y a qué hora te queda mejor? Escríbeme y te ayudo a encontrar un espacio 💛`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'text',text:{preview_url:false,body:texto}}};}
