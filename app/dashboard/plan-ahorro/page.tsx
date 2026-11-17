@@ -27,13 +27,21 @@ export default function PlanAhorroPage(){
 
 function Planes(){
  const [planes,setPlanes]=useState<Plan[]|null>(null),[sedes,setSedes]=useState<Sede[]>([]),[sede,setSede]=useState(''),[cuentas,setCuentas]=useState<CashAccount[]>([]),[ver,setVer]=useState<'activo'|'cerrados'>('activo');
- const [error,setError]=useState(''),[nuevo,setNuevo]=useState(false),[pagar,setPagar]=useState<Plan|null>(null),[cerrar,setCerrar]=useState<Plan|null>(null);
+ const [error,setError]=useState(''),[nuevo,setNuevo]=useState(false),[pagar,setPagar]=useState<Plan|null>(null),[cerrar,setCerrar]=useState<Plan|null>(null),[firmas,setFirmas]=useState<Record<string,string|null>>({}),[enlace,setEnlace]=useState<{p:Plan;url:string}|null>(null);
  const load=useCallback(async()=>{
   const [{data,error:e},{data:s},{data:k}]=await Promise.all([supabase.rpc('planes_ahorro_listar',{p_sede:sede||null}),supabase.rpc('pagos_fijos_sedes'),supabase.rpc('cuentas_dinero_lista')]);
   if(e)setError(e.message);else{setError('');setPlanes(((data||[]) as Plan[]).map(p=>({...p,ahorrado:Number(p.ahorrado),extra:Number(p.extra),disponible:Number(p.disponible),falta:Number(p.falta),cuota_mensual:Number(p.cuota_mensual),devolucion:Number(p.devolucion)})));}
   if(Array.isArray(s)&&s.length)setSedes(s as Sede[]);else{const {data:t}=await supabase.from('sedes').select('id,nombre').order('nombre');setSedes((t||[]) as Sede[]);}
   setCuentas((Array.isArray(k)?k:[]) as CashAccount[]);
+  const {data:f}=await supabase.from('planes_ahorro').select('id,firmado_at');
+  setFirmas(Object.fromEntries(((f||[]) as {id:string;firmado_at:string|null}[]).map(x=>[x.id,x.firmado_at])));
  },[sede]);
+ // Contract: private signing link (sent by WhatsApp from the adviser's phone) and, once signed, its PDF.
+ const contrato=async(p:Plan,accion:'enlace'|'pdf')=>{setError('');
+  const {data:ss}=await supabase.auth.getSession();
+  const r=await fetch('/api/plan-ahorro/contrato',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${ss.session?.access_token||''}`},body:JSON.stringify({plan_id:p.id,accion})});
+  const d=await r.json().catch(()=>({}));if(!r.ok){setError(d.error||'No se pudo abrir el contrato.');return;}
+  if(accion==='pdf')window.open(d.url,'_blank');else setEnlace({p,url:d.url});};
  useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
  const activos=(planes||[]).filter(p=>p.estado==='activo'),lista=ver==='activo'?activos:(planes||[]).filter(p=>p.estado!=='activo');
  const hoy=hoyBogota();
@@ -66,11 +74,21 @@ function Planes(){
     {p.estado==='activo'&&<p className={`text-xs font-bold ${p.al_dia?'text-emerald-700':'text-red-600'}`}>{p.al_dia?'Al día':`Atrasada: lleva ${p.meses_pagados} de ${p.meses_esperados} cuotas`}{p.usar_desde<=hoy?' · ya puede usar su plan: agenda la cita de selección':''}</p>}
     <p className="text-[11px] text-gray-500">Premios: {p.premios}</p>
     {p.estado!=='activo'&&p.cerrado_nota&&<p className="text-[11px] text-gray-500">Nota: {p.cerrado_nota}</p>}
+    <p className={`text-xs font-bold ${firmas[p.id]?'text-emerald-700':'text-amber-700'}`}>{firmas[p.id]?`Contrato firmado el ${fecha(firmas[p.id]!.slice(0,10))}`:'Contrato sin firmar: envíale el enlace antes de su primera cuota'}</p>
     {p.estado==='activo'&&<div className="flex flex-wrap gap-2 pt-1">
-     <button type="button" onClick={()=>setPagar(p)} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-black">Registrar cuota</button>
+     {firmas[p.id]?<button type="button" onClick={()=>setPagar(p)} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-black">Registrar cuota</button>
+      :<button type="button" onClick={()=>void contrato(p,'enlace')} className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-black">Enviar contrato para firmar</button>}
      <button type="button" onClick={()=>setCerrar(p)} className="px-3 py-1.5 rounded-lg border text-xs font-black">Cerrar plan</button>
     </div>}
+    {firmas[p.id]&&<button type="button" onClick={()=>void contrato(p,'pdf')} className="px-3 py-1.5 rounded-lg border text-xs font-black">Ver contrato firmado</button>}
    </article>;})}</div>}
+  {enlace&&<Modal titulo={`Contrato · ${enlace.p.quinceanera_nombre||enlace.p.titular_nombre}`} onClose={()=>setEnlace(null)}>
+   <p className="text-sm text-gray-600">Envíale este enlace privado (vence en 30 días). Al firmar, el contrato queda guardado aquí y ya puedes registrar su primera cuota.</p>
+   <input readOnly className={input} value={enlace.url} onFocus={e=>e.target.select()}/>
+   <div className="flex flex-wrap gap-2"><a target="_blank" rel="noreferrer" href={`https://wa.me/${enlace.p.telefono.replace(/\D/g,'').replace(/^(\d{10})$/,'57$1')}?text=${encodeURIComponent(`Hola ${enlace.p.titular_nombre.split(' ')[0]} 💛 Este es el contrato de tu Plan Ahorro XV de Ámbar Couture. Léelo y fírmalo desde tu celular aquí: ${enlace.url}`)}`} className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-sm font-black">Enviar por WhatsApp</a>
+    <button type="button" onClick={()=>void navigator.clipboard.writeText(enlace.url)} className="px-4 py-2 rounded-xl border text-sm font-black">Copiar enlace</button>
+    <button type="button" onClick={()=>{setEnlace(null);void load();}} className="px-4 py-2 rounded-xl border text-sm font-black text-gray-600">Cerrar</button></div>
+  </Modal>}
   {nuevo&&<FormNuevo sedes={sedes} sede={sede} onClose={()=>setNuevo(false)} onDone={()=>{setNuevo(false);void load();}}/>}
   {pagar&&<FormCuota p={pagar} cuentas={cuentas} onClose={()=>setPagar(null)} onDone={()=>{setPagar(null);void load();}}/>}
   {cerrar&&<FormCerrar p={cerrar} onClose={()=>setCerrar(null)} onDone={()=>{setCerrar(null);void load();}}/>}
@@ -90,7 +108,7 @@ function FormNuevo({sedes,sede,onClose,onDone}:{sedes:Sede[];sede:string;onClose
  const [busy,setBusy]=useState(false),[error,setError]=useState('');
  const guardar=async()=>{setBusy(true);setError('');const {error:e}=await supabase.rpc('plan_ahorro_crear',{p:{...f,cuota_mensual:Number(f.cuota_mensual),dia_pago:Number(f.dia_pago)}});setBusy(false);if(e)setError(e.message);else onDone();};
  return <Modal titulo="Inscribir familia en el Plan Ahorro XV" onClose={onClose}>
-  <p className="text-xs text-gray-500">Inscríbela cuando firme el plan; después registra su primera cuota. El evento debe ser al menos 6 meses después de hoy (si es antes, va por la venta normal).</p>
+  <p className="text-xs text-gray-500">Al inscribirla, envíale el contrato para firmar desde su celular; cuando lo firme, registra su primera cuota. El evento debe ser al menos 6 meses después de hoy (si es antes, va por la venta normal).</p>
   <div className="grid sm:grid-cols-2 gap-3">
    <label className="text-xs font-bold text-gray-600">Sede<select className={input} value={f.sede_id} onChange={e=>setF({...f,sede_id:e.target.value})}>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
    <label className="text-xs font-bold text-gray-600">Fecha del evento<input type="date" className={input} value={f.fecha_evento} onChange={e=>setF({...f,fecha_evento:e.target.value})}/></label>
