@@ -90,7 +90,7 @@ function FormNuevo({sedes,sede,onClose,onDone}:{sedes:Sede[];sede:string;onClose
  const [busy,setBusy]=useState(false),[error,setError]=useState('');
  const guardar=async()=>{setBusy(true);setError('');const {error:e}=await supabase.rpc('plan_ahorro_crear',{p:{...f,cuota_mensual:Number(f.cuota_mensual),dia_pago:Number(f.dia_pago)}});setBusy(false);if(e)setError(e.message);else onDone();};
  return <Modal titulo="Inscribir familia en el Plan Ahorro XV" onClose={onClose}>
-  <p className="text-xs text-gray-500">Inscríbela cuando firme el plan; después registra su primera cuota. El evento debe ser al menos 3 meses después de hoy.</p>
+  <p className="text-xs text-gray-500">Inscríbela cuando firme el plan; después registra su primera cuota. El evento debe ser al menos 6 meses después de hoy (si es antes, va por la venta normal).</p>
   <div className="grid sm:grid-cols-2 gap-3">
    <label className="text-xs font-bold text-gray-600">Sede<select className={input} value={f.sede_id} onChange={e=>setF({...f,sede_id:e.target.value})}>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
    <label className="text-xs font-bold text-gray-600">Fecha del evento<input type="date" className={input} value={f.fecha_evento} onChange={e=>setF({...f,fecha_evento:e.target.value})}/></label>
