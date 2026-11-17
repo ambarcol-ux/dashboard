@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import {useEffect,useRef,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 import {money,depositSummary,type DepositReturn,type DepositContract} from '@/lib/deposits';
@@ -51,7 +52,7 @@ export default function FinalizeContractDialog({contract,onClose,onSaved}:{contr
    {preview&&<fieldset disabled={saving}>
     <div className={styles.available}>Saldo disponible del depósito <strong>{money(preview.available)}</strong></div>
     {preview.request?<><p>Ya existe una solicitud de devolución. Se conservarán sus importes y su estado.</p><p>Descuento registrado: {money(Number(preview.request.descuento))} · {preview.request.motivo||'Sin motivo de descuento'}</p></>:<>
-     <label>Descuento por daño o cobro (COP)<input type="number" min="0" max={preview.available} step="0.01" required value={discount} onChange={e=>setDiscount(e.target.value)}/></label>
+     <label>Descuento por daño o cobro (COP)<MoneyInput type="number" min="0" max={preview.available} step="0.01" required value={discount} onChange={e=>setDiscount(e.target.value)}/></label>
      <label>Motivo del descuento{Number(discount)>0?' (obligatorio)':''}<textarea required={Number(discount)>0} value={reason} onChange={e=>setReason(e.target.value)} placeholder="Describe el daño o cobro acordado con el cliente"/></label>
     </>}
     <div className={styles.available}>Valor a devolver al cliente <strong>{money(Number.isFinite(refund)?refund:0)}</strong></div>

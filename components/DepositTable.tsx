@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import {useState} from 'react';
 import {DEPOSIT_TABLE,suggestedDeposit} from '@/lib/deposit-rules';
 import {money} from '@/lib/deposits';
@@ -20,7 +21,7 @@ export default function DepositTable(){
   </div>
   <div className={styles.filters} style={{borderTop:'1px solid #eee'}}>
    <select aria-label="Categoría del vestido" value={categoria} onChange={e=>setCategoria(e.target.value)}>{DEPOSIT_TABLE.map(t=><option key={t.categoria} value={t.categoria}>{t.titulo}</option>)}</select>
-   <label><input aria-label="Valor del vestido" inputMode="numeric" placeholder="Valor del vestido" value={precio} onChange={e=>setPrecio(e.target.value)}/></label>
+   <label><MoneyInput aria-label="Valor del vestido" inputMode="numeric" placeholder="Valor del vestido" value={precio} onChange={e=>setPrecio(e.target.value)}/></label>
    <span style={{marginLeft:0,color:'#237251',fontWeight:600}}>{result!==null?`Depósito a cobrar: ${money(result)}`:'Escribe el valor del vestido'}</span>
   </div>
  </section>;

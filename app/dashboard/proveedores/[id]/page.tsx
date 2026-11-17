@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import ConfigSelect from '@/components/ConfigSelect';
 import ServiceSelect from '@/components/suppliers/ServiceSelect';
 import {useCallback,useEffect,useState} from 'react';
@@ -185,9 +186,9 @@ function TariffsTab({supplierId,tariffs,codes,sedes,mySedes,defaultService,onDon
     <label>Servicio<ServiceSelect value={form.servicio} onChange={v=>setForm({...form,servicio:v})} editable={false}/></label></div>
    <label>Descripción del paquete<textarea rows={2} value={form.descripcion} onChange={set('descripcion')} placeholder="Sesión 2 horas, 30 fotos + 15 impresas"/></label>
    <label>Recurso (caballo o lugar, opcional)<input value={form.recurso} onChange={set('recurso')}/></label>
-   <div className={styles.row}><label>Valor a empresa (se le paga al proveedor)<input inputMode="decimal" value={form.valor_empresa} onChange={set('valor_empresa')}/></label>
-    <label>Valor al cliente<input inputMode="decimal" value={form.valor_cliente} onChange={set('valor_cliente')}/></label></div>
-   <div className={styles.row}><label>Adicional obligatorio (valor)<input inputMode="decimal" value={form.adicional_valor} onChange={set('adicional_valor')}/></label>
+   <div className={styles.row}><label>Valor a empresa (se le paga al proveedor)<MoneyInput inputMode="decimal" value={form.valor_empresa} onChange={set('valor_empresa')}/></label>
+    <label>Valor al cliente<MoneyInput inputMode="decimal" value={form.valor_cliente} onChange={set('valor_cliente')}/></label></div>
+   <div className={styles.row}><label>Adicional obligatorio (valor)<MoneyInput inputMode="decimal" value={form.adicional_valor} onChange={set('adicional_valor')}/></label>
     <label>Detalle del adicional<input value={form.adicional_detalle} onChange={set('adicional_detalle')} placeholder="Transporte del fotógrafo"/></label></div>
    <label>Adicional opcional<input value={form.adicional_opcional} onChange={set('adicional_opcional')} placeholder="Domicilio $160.000"/></label>
    <div className={styles.actions}><button className={styles.button} onClick={()=>{setForm(null);setReplacing(null);}} disabled={busy}>Cancelar</button><button className={`${styles.button} ${styles.primary}`} onClick={save} disabled={busy}>{busy?'Guardando…':'Guardar tarifa'}</button></div>

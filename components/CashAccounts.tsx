@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import ConfigSelect from '@/components/ConfigSelect';
 import {useEffect,useState} from 'react';
 import {RefreshCw} from 'lucide-react';
@@ -47,7 +48,7 @@ export function EditMovement({day,movement,onClose,onDone,soloCuenta=false}:{day
     <p className={styles.help}>{movement.tipo==='ingreso'?'Ingreso':'Egreso'} · {movement.categoria}{movement.numero_contrato?` · ${movement.numero_contrato} · ${movement.cliente}`:''}</p>
     <div className={styles.row}><label>Medio<select value={medio} onChange={e=>{setMedio(e.target.value);setCuenta('');}}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
      <label>Cuenta donde está el dinero<AccountSelect medio={medio} cuentas={day.cuentas} sedeId={day.sede_id} value={cuenta} onChange={setCuenta}/></label></div>
-    <div className={styles.row}><label>Valor (COP)<input inputMode="decimal" value={valor} disabled={deposit||soloCuenta} onChange={e=>setValor(e.target.value)}/>{deposit&&<span className={styles.help}>El valor de un depósito se cambia en Depósitos → Modificar valor.</span>}{movement.origen==='pago'&&<span className={styles.help}>Cambia también el pago y el saldo del contrato.</span>}</label>
+    <div className={styles.row}><label>Valor (COP)<MoneyInput inputMode="decimal" value={valor} disabled={deposit||soloCuenta} onChange={e=>setValor(e.target.value)}/>{deposit&&<span className={styles.help}>El valor de un depósito se cambia en Depósitos → Modificar valor.</span>}{movement.origen==='pago'&&<span className={styles.help}>Cambia también el pago y el saldo del contrato.</span>}</label>
      <label>Categoría<ConfigSelect lista={`caja_categorias_${movement.tipo}`} placeholder={null} fijos={movement.tipo==='ingreso'?['Base de caja']:[]} disabled={fromErp||soloCuenta} value={categoria} onChange={setCategoria}/></label></div>
     <label>Fecha del movimiento<input type="date" value={fecha} max={new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'})} disabled={fromErp} onChange={e=>setFecha(e.target.value)}/>{fromErp?<span className={styles.help}>La fecha de un abono o depósito no se cambia aquí.</span>:<span className={styles.help}>Si se registró otro día, escoge la fecha real. Ese día debe estar abierto (si está cerrado, reábrelo primero).</span>}</label>
     <label>Descripción<input maxLength={500} value={descripcion} onChange={e=>setDescripcion(e.target.value)}/></label>
@@ -249,7 +250,7 @@ export function CashStartAdmin({isAdmin,today}:{isAdmin:boolean;today:string}){
   {editing&&<form className={styles.form} onSubmit={submit} style={{marginTop:12}}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
    <strong>{editing.sede}</strong>
    <div className={styles.row}><label>Cuenta desde<input type="date" max={today} value={fecha} onChange={e=>setFecha(e.target.value)}/></label>
-    <label>Saldo de inicio en efectivo (COP)<input inputMode="decimal" value={saldo} onChange={e=>setSaldo(e.target.value)}/></label></div>
+    <label>Saldo de inicio en efectivo (COP)<MoneyInput inputMode="decimal" value={saldo} onChange={e=>setSaldo(e.target.value)}/></label></div>
    <label>Motivo (obligatorio)<input maxLength={500} value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Ej.: empezamos la caja de cero"/></label>
    <span className={styles.help}>Si ya hay cierres desde esa fecha, primero hay que reabrirlos.</span>
    {error&&<p role="alert" className={styles.error}>{error}</p>}
