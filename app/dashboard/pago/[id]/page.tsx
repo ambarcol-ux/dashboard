@@ -145,8 +145,8 @@ export default function RegistrarPagoPage() {
 
     setSubmitting(true);
     try {
-      // 1. Registrar el abono con su soporte (pago + archivos en una sola operación)
-      const { error: insertError } = await supabase.rpc('registrar_pago_con_soporte', {
+      // 1. Abono, soportes y anticipo del contrato en una sola operación (todo o nada; un reintento no lo duplica).
+      const { error: insertError } = await supabase.rpc('registrar_abono_contrato', {
         p_contrato: id,
         p_valor: montoAbono,
         p_medio: formData.medio_pago,
@@ -164,19 +164,6 @@ export default function RegistrarPagoPage() {
         detalle: `Se registró un abono de $${montoAbono.toLocaleString('es-CO')} con el recibo #${formData.numero_recibo}. Soporte adjunto (${soportes.length} archivo${soportes.length === 1 ? '' : 's'}).`,
         usuario: contrato.asesora || 'Administrador'
       });
-
-      // 2. Actualizar el contrato (Incrementar el anticipo para que PostgreSQL calcule el nuevo saldo automático)
-      // El estado (Pagado Totalmente) lo recalcula la base con la misma regla de saldo (lib/saldo).
-      const nuevoAnticipo = Number(contrato.anticipo) + montoAbono;
-
-      const { error: updateError } = await supabase
-        .from('contratos')
-        .update({
-          anticipo: nuevoAnticipo
-        })
-        .eq('id', id);
-
-      if (updateError) throw updateError;
 
       toast.success('¡Abono registrado exitosamente!');
       
