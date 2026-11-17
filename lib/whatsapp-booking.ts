@@ -108,7 +108,7 @@ export async function manejarAgenda(db:SupabaseClient,settings:Settings,a:{conve
  if(mas){await enviarHorarios(db,settings,a,mas[1]==='v'?'virtual':'presencial',TIPO[mas[2]],larga(mas[3]),'erp');return;}
  const p=a.accion.match(/^ag_([sk])_([pv])_(\d{8})_(\d{2})_([QGN])$/);if(!p||!a.sede_id)return;
  const [,paso,m,f,h,t]=p,fecha=larga(f),hora=`${h}:00`,modalidad=m==='v'?'virtual':'presencial';
- const {data:sede}=await db.from('sedes').select('nombre,direccion_clientes,direccion').eq('id',a.sede_id).maybeSingle();
+ const {data:sede}=await db.from('sedes').select('nombre,direccion_clientes,direccion,telefono').eq('id',a.sede_id).maybeSingle();
  const lugar=modalidad==='virtual'?'virtual':`en ${sede?.nombre||'la sede'}`,cuando=etiquetaHorario(fecha,hora);
  if(paso==='s'){
   // Before booking: the processing authorization (Ley 1581) with the text in force, accepted with the button.
@@ -140,7 +140,7 @@ export async function manejarAgenda(db:SupabaseClient,settings:Settings,a:{conve
   await registerAuthorization(db,{telefono:a.telefono,nombre,sede:a.sede_id,origen:'agendamiento',tratamiento:true,comercial:false,pendiente:false,versionTratamiento:tratamiento?String(tratamiento.version):null});
  }catch(e){console.error('Autorización de datos (WhatsApp) no registrada:',e);}
  const dir=modalidad==='presencial'?(sede?.direccion_clientes||sede?.direccion||''):'';
- const texto=`¡Listo, ${nombre.split(' ')[0]}! 🎉 Tu cita quedó reservada ${lugar}, ${cuando}${dir?` (${dir})`:''}. En un momento te llega la confirmación con todos los detalles.\n\nPara tener tus datos completos, ¿me escribes tu nombre y apellido y tu correo? (si prefieres no darlos, no pasa nada 💛)`;
+ const texto=`¡Listo, ${nombre.split(' ')[0]}! 🎉 Tu cita quedó reservada ${lugar}, ${cuando}${dir?` (${dir})`:''}. En un momento te llega la confirmación con todos los detalles.${sede?.telefono?`\n\n📞 Si tienes alguna duda, llama a la sede ${sede.nombre}: ${sede.telefono}`:''}\n\nPara tener tus datos completos, ¿me escribes tu nombre y apellido y tu correo? (si prefieres no darlos, no pasa nada 💛)`;
  await guardar(db,a.conversacion,await sendWhatsappText(settings,a.telefono,texto),texto,'erp');
  // Then the optional commercial authorization with buttons (separate from the one for the visit).
  try{const {comercial}=await loadAuthTexts(db);
