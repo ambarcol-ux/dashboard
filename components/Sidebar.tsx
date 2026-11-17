@@ -98,14 +98,6 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       ]
     },
     {
-      title: 'COMPRAS Y PROVEEDORES',
-      adminOnly: false,
-      items: [
-        { id: 'proveedores-catalogo', label: 'CATÁLOGO DE PROVEEDORES', icon: BookOpen, href: '/dashboard/proveedores/catalogo', color: 'violet' },
-        { id: 'proveedores', label: 'GESTIÓN DE PROVEEDORES', icon: Truck, href: '/dashboard/proveedores', color: 'violet', adminOnly: true },
-      ]
-    },
-    {
       title: 'FINANZAS Y CONTABILIDAD',
       adminOnly: false,
       items: [
@@ -113,8 +105,11 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
         { id: 'caja', label: 'CIERRES DE CAJA', icon: Wallet, href: '/dashboard/caja', color: 'emerald' },
         { id: 'pagos_fijos', label: 'PAGOS FIJOS DE SEDE', icon: CalendarClock, href: '/dashboard/pagos-fijos', color: 'emerald' },
         { id: 'depositos', label: 'DEPÓSITOS Y DEVOLUCIONES', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
-        { id: 'proveedores-pagos', label: 'PAGOS A PROVEEDORES', icon: Banknote, href: '/dashboard/proveedores/pagos', color: 'violet', adminOnly: true },
         { id: 'siigo', label: 'FACTURACIÓN POR SEDE', icon: KeyRound, href: '/admin/config/siigo', color: 'emerald' },
+        // Suppliers (purchases) live together inside Finance.
+        { id: 'proveedores-catalogo', label: 'CATÁLOGO DE PROVEEDORES', icon: BookOpen, href: '/dashboard/proveedores/catalogo', color: 'violet' },
+        { id: 'proveedores', label: 'GESTIÓN DE PROVEEDORES', icon: Truck, href: '/dashboard/proveedores', color: 'violet', adminOnly: true },
+        { id: 'proveedores-pagos', label: 'PAGOS A PROVEEDORES', icon: Banknote, href: '/dashboard/proveedores/pagos', color: 'violet', adminOnly: true },
       ]
     },
     {
@@ -156,8 +151,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
     'VENTAS Y CRM': ['CLIENTES', 'COTIZACIONES'],
     'INVENTARIO': ['MANTENIMIENTO Y ARREGLOS', 'TOMA FÍSICA'],
     'OPERACIONES Y LOGÍSTICA': ['ENTREGAS Y DEVOLUCIONES', 'ADAPTACIONES Y CONFECCIÓN'],
-    'COMPRAS Y PROVEEDORES': ['ÓRDENES DE COMPRA'],
-    'FINANZAS Y CONTABILIDAD': ['GASTOS Y PRESUPUESTO', 'CONCILIACIÓN BANCARIA', 'CONCILIACIÓN CON SIIGO'],
+    'FINANZAS Y CONTABILIDAD': ['ÓRDENES DE COMPRA', 'GASTOS Y PRESUPUESTO', 'CONCILIACIÓN BANCARIA', 'CONCILIACIÓN CON SIIGO'],
     'RECURSOS HUMANOS': ['NÓMINA', 'CONTRATOS LABORALES', 'VACACIONES E INCAPACIDADES'],
     'REPORTES E INDICADORES': ['ESTADO DE RESULTADOS POR SEDE', 'RENTABILIDAD POR VESTIDO', 'TABLEROS POR MÓDULO'],
   };
