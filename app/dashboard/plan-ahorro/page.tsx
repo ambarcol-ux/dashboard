@@ -27,7 +27,10 @@ export default function PlanAhorroPage(){
 
 function Planes(){
  const [planes,setPlanes]=useState<Plan[]|null>(null),[sedes,setSedes]=useState<Sede[]>([]),[sede,setSede]=useState(''),[cuentas,setCuentas]=useState<CashAccount[]>([]),[ver,setVer]=useState<'activo'|'cerrados'>('activo');
- const [error,setError]=useState(''),[nuevo,setNuevo]=useState(false),[pagar,setPagar]=useState<Plan|null>(null),[cerrar,setCerrar]=useState<Plan|null>(null),[firmas,setFirmas]=useState<Record<string,string|null>>({}),[enlace,setEnlace]=useState<{p:Plan;url:string}|null>(null);
+ const [error,setError]=useState(''),[nuevo,setNuevo]=useState(false),[pagar,setPagar]=useState<Plan|null>(null),[cerrar,setCerrar]=useState<Plan|null>(null),[firmas,setFirmas]=useState<Record<string,string|null>>({}),[enlace,setEnlace]=useState<{p:Plan;url:string}|null>(null),[desdeChat,setDesdeChat]=useState<{nombre:string;tel:string;sede:string}|null>(null);
+ // From a WhatsApp 304 chat («Inscribir en el plan»): the form opens with her name, phone and store.
+ useEffect(()=>{const q=new URLSearchParams(window.location.search);if(q.get('nuevo')!=='1')return;
+  const t=setTimeout(()=>{setDesdeChat({nombre:q.get('nombre')||'',tel:q.get('tel')||'',sede:q.get('sede')||''});setNuevo(true);history.replaceState(null,'',window.location.pathname);},0);return()=>clearTimeout(t);},[]);
  const load=useCallback(async()=>{
   const [{data,error:e},{data:s},{data:k}]=await Promise.all([supabase.rpc('planes_ahorro_listar',{p_sede:sede||null}),supabase.rpc('pagos_fijos_sedes'),supabase.rpc('cuentas_dinero_lista')]);
   if(e)setError(e.message);else{setError('');setPlanes(((data||[]) as Plan[]).map(p=>({...p,ahorrado:Number(p.ahorrado),extra:Number(p.extra),disponible:Number(p.disponible),falta:Number(p.falta),cuota_mensual:Number(p.cuota_mensual),devolucion:Number(p.devolucion)})));}
@@ -89,7 +92,7 @@ function Planes(){
     <button type="button" onClick={()=>void navigator.clipboard.writeText(enlace.url)} className="px-4 py-2 rounded-xl border text-sm font-black">Copiar enlace</button>
     <button type="button" onClick={()=>{setEnlace(null);void load();}} className="px-4 py-2 rounded-xl border text-sm font-black text-gray-600">Cerrar</button></div>
   </Modal>}
-  {nuevo&&<FormNuevo sedes={sedes} sede={sede} onClose={()=>setNuevo(false)} onDone={()=>{setNuevo(false);void load();}}/>}
+  {nuevo&&<FormNuevo sedes={sedes} sede={sede} inicial={desdeChat} onClose={()=>{setNuevo(false);setDesdeChat(null);}} onDone={()=>{setNuevo(false);setDesdeChat(null);void load();}}/>}
   {pagar&&<FormCuota p={pagar} cuentas={cuentas} onClose={()=>setPagar(null)} onDone={()=>{setPagar(null);void load();}}/>}
   {cerrar&&<FormCerrar p={cerrar} onClose={()=>setCerrar(null)} onDone={()=>{setCerrar(null);void load();}}/>}
  </div>;
@@ -103,8 +106,8 @@ function Modal({titulo,children,onClose}:{titulo:string;children:React.ReactNode
  </div>;
 }
 
-function FormNuevo({sedes,sede,onClose,onDone}:{sedes:Sede[];sede:string;onClose:()=>void;onDone:()=>void}){
- const [f,setF]=useState({sede_id:sede||sedes[0]?.id||'',titular_nombre:'',titular_documento:'',telefono:'',email:'',quinceanera_nombre:'',fecha_evento:'',cuota_mensual:'150000',dia_pago:'5',notas:''});
+function FormNuevo({sedes,sede,inicial,onClose,onDone}:{sedes:Sede[];sede:string;inicial?:{nombre:string;tel:string;sede:string}|null;onClose:()=>void;onDone:()=>void}){
+ const [f,setF]=useState({sede_id:inicial?.sede||sede||sedes[0]?.id||'',titular_nombre:inicial?.nombre||'',titular_documento:'',telefono:(inicial?.tel||'').replace(/\D/g,'').replace(/^57(\d{10})$/,'$1'),email:'',quinceanera_nombre:'',fecha_evento:'',cuota_mensual:'150000',dia_pago:'5',notas:''});
  const [busy,setBusy]=useState(false),[error,setError]=useState('');
  const guardar=async()=>{setBusy(true);setError('');const {error:e}=await supabase.rpc('plan_ahorro_crear',{p:{...f,cuota_mensual:Number(f.cuota_mensual),dia_pago:Number(f.dia_pago)}});setBusy(false);if(e)setError(e.message);else onDone();};
  return <Modal titulo="Inscribir familia en el Plan Ahorro XV" onClose={onClose}>

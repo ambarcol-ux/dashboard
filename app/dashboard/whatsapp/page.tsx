@@ -7,7 +7,7 @@ import SupplierShell from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Conv={id:string;telefono:string;canal?:string|null;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null;ia_pausada:boolean;ia_pausada_at:string|null;anuncio_id:string|null;anuncio_titulo:string|null};
+type Conv={id:string;telefono:string;canal?:string|null;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null;ia_pausada:boolean;ia_pausada_at:string|null;anuncio_id:string|null;anuncio_titulo:string|null;plan_ahorro_at?:string|null};
 type Msg={id:string;direccion:'entrante'|'saliente';origen:'clienta'|'erp'|'celular'|'ia';texto:string|null;estado:string|null;created_at:string;media_id?:string|null};
 type Ficha={nombre:string|null;citas:{id:string;fecha:string;hora:string;estado:string;modalidad:string;sede:string|null;tipo_vestido:string|null}[];contratos:{id:string;numero_contrato:string;estado:string;fecha_evento:string|null;sede:string|null}[]};
 const WINDOW_MS=24*3600*1000;
@@ -401,7 +401,7 @@ function Inbox(){
   return()=>{clearTimeout(first);clearInterval(t);if(pending)clearTimeout(pending);void supabase.removeChannel(channel);};
  },[load]);
  const sedeName=(id:string|null)=>sedes.find(s=>s.id===id)?.nombre||'Sin sede';
- const lista=useMemo(()=>convs.filter(c=>(filtro==='todas'||(filtro==='sin_leer'&&c.no_leidos>0)||(filtro==='atender'&&c.ia_atender)||(filtro.startsWith('atender:')&&c.ia_atender&&c.sede_id===filtro.slice(8))||(filtro==='sin_sede'&&!c.sede_id)||c.sede_id===filtro)
+ const lista=useMemo(()=>convs.filter(c=>(filtro==='todas'||(filtro==='sin_leer'&&c.no_leidos>0)||(filtro==='atender'&&c.ia_atender)||(filtro.startsWith('atender:')&&c.ia_atender&&c.sede_id===filtro.slice(8))||(filtro==='sin_sede'&&!c.sede_id)||(filtro==='plan_ahorro'&&!!c.plan_ahorro_at)||c.sede_id===filtro)
   &&`${c.nombre||''} ${c.telefono}`.toLowerCase().includes(q.trim().toLowerCase())),[convs,filtro,q]);
  const current=convs.find(c=>c.id===sel)||null;
  return <>
@@ -415,7 +415,7 @@ function Inbox(){
      <button className={styles.button} onClick={()=>void load()} aria-label="Actualizar"><RefreshCw size={14}/></button>
     </div>
     <select aria-label="Filtrar chats" value={filtro} onChange={e=>setFiltro(e.target.value)} style={{width:'100%',marginBottom:8}}>
-     <option value="todas">Todos los chats</option><option value="atender">Atender persona</option><option value="sin_leer">Sin leer</option><option value="sin_sede">Sin sede</option>
+     <option value="todas">Todos los chats</option><option value="atender">Atender persona</option><option value="sin_leer">Sin leer</option><option value="sin_sede">Sin sede</option><option value="plan_ahorro">Interesadas en Plan Ahorro XV</option>
      {sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}
      {sedes.map(s=><option key={`a-${s.id}`} value={`atender:${s.id}`}>Atender persona · {s.nombre}</option>)}
     </select>
@@ -428,7 +428,7 @@ function Inbox(){
        {c.no_leidos>0&&<span style={{flexShrink:0,background:'#10b981',color:'#fff',borderRadius:999,fontSize:11,fontWeight:800,padding:'1px 7px'}}>{c.no_leidos}</span>}
       </span>
       <small style={{display:'block',minWidth:0,color:'#475569',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.ultimo_mensaje||'—'}</small>
-      <small style={{display:'block',minWidth:0,color:'#94a3b8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.canal&&CANAL[c.canal]&&<b style={{color:'#9333ea'}}>{CANAL[c.canal]} · </b>}{sedeName(c.sede_id)}{c.etiqueta?` · ${c.etiqueta}`:''}{c.ia_atender&&<b style={{color:'#b91c1c'}}> · ● Atender persona</b>}{auto&&c.ia_pausada&&<b style={{color:'#b45309'}}> · IA pausada</b>}</small>
+      <small style={{display:'block',minWidth:0,color:'#94a3b8',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.canal&&CANAL[c.canal]&&<b style={{color:'#9333ea'}}>{CANAL[c.canal]} · </b>}{sedeName(c.sede_id)}{c.etiqueta?` · ${c.etiqueta}`:''}{c.ia_atender&&<b style={{color:'#b91c1c'}}> · ● Atender persona</b>}{c.plan_ahorro_at&&<b style={{color:'#0f766e'}}> · Plan Ahorro</b>}{auto&&c.ia_pausada&&<b style={{color:'#b45309'}}> · IA pausada</b>}</small>
      </button>)}
     </div>}
    </section>
@@ -500,6 +500,7 @@ function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{i
    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><Sparkles size={15} color="#7c3aed"/><strong style={{fontSize:13}}>IA</strong>{conv.etiqueta&&<span className={styles.badge}>{conv.etiqueta}</span>}<small style={{color:'#6d28d9',flex:1}}>{conv.ia_resumen||''}</small>
     <button className={styles.button} disabled={!!busy} onClick={()=>void run('ia',{accion:'ia'})}>{busy==='ia'?'Pensando…':'Volver a sugerir'}</button></div>
    {conv.ia_atender&&<p role="alert" style={{margin:0,color:'#b91c1c',fontWeight:800,fontSize:13}}>Atender persona: {conv.ia_motivo||'la IA recomienda que la atienda una asesora'}</p>}
+   {conv.plan_ahorro_at&&<p style={{margin:0,display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:13,color:'#0f766e',fontWeight:800}}>Interesada en el Plan Ahorro XV<a className={`${styles.button} ${styles.primary}`} href={`/dashboard/plan-ahorro?nuevo=1&tel=${encodeURIComponent(conv.telefono)}&nombre=${encodeURIComponent(conv.nombre||'')}${conv.sede_id?`&sede=${conv.sede_id}`:''}`}>Inscribir en el plan</a></p>}
    {conv.ia_error&&<small style={{color:'#b91c1c'}}>La IA no pudo responder: {conv.ia_error}</small>}
    {conv.ia_sugerencia?<><div style={{whiteSpace:'pre-wrap',fontSize:14}}>{conv.ia_sugerencia}</div>
     <div><button className={styles.button} onClick={()=>setTexto(conv.ia_sugerencia||'')}>Usar sugerencia</button></div></>
