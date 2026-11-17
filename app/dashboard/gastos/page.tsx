@@ -18,7 +18,6 @@ const input='border border-gray-200 rounded-xl px-3 py-2 text-sm w-full bg-white
 const cop=(n:number)=>`$${Math.round(n).toLocaleString('es-CO')}`;
 const hoyBogota=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).format(new Date());
 const fecha=(d:string)=>new Date(d+'T12:00:00').toLocaleDateString('es-CO',{day:'numeric',month:'short'});
-const finMes=(m:string)=>{const [y,mm]=m.split('-').map(Number);return new Date(Date.UTC(y,mm,0)).toISOString().slice(0,10);};
 
 async function api(body:Record<string,unknown>){
  const {data:s}=await supabase.auth.getSession();
@@ -42,18 +41,17 @@ export default function GastosPage(){
 }
 
 function Gastos(){
- const [tab,setTab]=useState<'gastos'|'sedes'>(()=>typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('v')==='sedes'?'sedes':'gastos'),[mes,setMes]=useState(()=>hoyBogota().slice(0,7)),[filtro,setFiltro]=useState('todas');
+ const [tab,setTab]=useState<'gastos'|'sedes'>(()=>typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('v')==='sedes'?'sedes':'gastos'),[desde,setDesde]=useState(()=>`${hoyBogota().slice(0,7)}-01`),[hasta,setHasta]=useState(hoyBogota),[filtro,setFiltro]=useState('todas');
  const [gastos,setGastos]=useState<Gasto[]|null>(null),[movs,setMovs]=useState<Mov[]>([]),[deudas,setDeudas]=useState<Deuda[]>([]),[finanzas,setFinanzas]=useState(false);
  const [sedes,setSedes]=useState<Sede[]>([]),[cuentas,setCuentas]=useState<CashAccount[]>([]),[error,setError]=useState('');
  const [nuevo,setNuevo]=useState(false),[nuevoMov,setNuevoMov]=useState(false);
  const load=useCallback(async()=>{
-  const desde=`${mes}-01`,hasta=finMes(mes);
   const [{data:g,error:e},{data:s},{data:k},{data:m,error:em}]=await Promise.all([supabase.rpc('gastos_listar',{p_desde:desde,p_hasta:hasta}),supabase.rpc('gastos_sedes'),
    supabase.rpc('cuentas_dinero_lista'),supabase.rpc('entre_sedes_listar',{p_desde:desde,p_hasta:hasta})]);
   if(e)setError(e.message);else{setError('');setGastos((g||[]) as Gasto[]);}
   setSedes((s||[]) as Sede[]);setCuentas((Array.isArray(k)?k:[]) as CashAccount[]);
   setFinanzas(!em);if(!em&&m){const x=m as {movimientos:Mov[];deudas:Deuda[]};setMovs(x.movimientos||[]);setDeudas(x.deudas||[]);}
- },[mes]);
+ },[desde,hasta]);
  useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
  const visibles=useMemo(()=>(gastos||[]).filter(g=>filtro==='todas'||(filtro==='admin'?!g.sede_id:g.sede_id===filtro)),[gastos,filtro]);
  const activos=visibles.filter(g=>!g.anulado),soloGastos=activos.filter(g=>g.clase==='gasto'),retiros=activos.filter(g=>g.clase==='retiro_utilidades');
@@ -66,19 +64,20 @@ function Gastos(){
  const tabBtn=(k:typeof tab,l:string)=><button key={k} type="button" onClick={()=>setTab(k)} className={`px-4 py-2 rounded-xl text-sm font-black ${tab===k?'bg-rose-600 text-white':'border bg-white text-gray-600'}`}>{l}</button>;
  return <div className="space-y-4">
   <div className="flex flex-wrap gap-2 items-center">{tabBtn('gastos','Gastos')}{finanzas&&tabBtn('sedes','Entre sedes')}
-   <input type="month" className={`${input} w-auto`} value={mes} onChange={e=>e.target.value&&setMes(e.target.value)}/>
-   {tab==='gastos'&&<select className={`${input} w-auto`} value={filtro} onChange={e=>setFiltro(e.target.value)}><option value="todas">Todas</option>{finanzas&&<option value="admin">Administración</option>}{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select>}
+   <label className="text-xs font-bold text-gray-600 flex items-center gap-1">Desde<input type="date" className="border border-gray-200 rounded-xl px-2 py-1.5 text-sm bg-white" value={desde} max={hasta} onChange={e=>e.target.value&&setDesde(e.target.value)}/></label>
+   <label className="text-xs font-bold text-gray-600 flex items-center gap-1">Hasta<input type="date" className="border border-gray-200 rounded-xl px-2 py-1.5 text-sm bg-white" value={hasta} min={desde} onChange={e=>e.target.value&&setHasta(e.target.value)}/></label>
+   {tab==='gastos'&&<select className="border border-gray-200 rounded-xl px-2 py-1.5 text-sm bg-white" value={filtro} onChange={e=>setFiltro(e.target.value)}><option value="todas">Todas</option>{finanzas&&<option value="admin">Administración</option>}{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select>}
    <button type="button" onClick={()=>tab==='gastos'?setNuevo(true):setNuevoMov(true)} className="ml-auto px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black">{tab==='gastos'?'+ Registrar gasto':'+ Registrar movimiento'}</button></div>
   {error&&<p role="alert" className="text-red-600 text-sm font-bold">{error}</p>}
   {tab==='gastos'&&<>
    <div className="grid sm:grid-cols-3 gap-3">
-    <div className="bg-white rounded-2xl border p-4"><p className="text-xs font-bold text-gray-500">Gastos del mes</p><p className="text-2xl font-black text-gray-900">{cop(soloGastos.reduce((a,g)=>a+Number(g.valor),0))}</p><p className="text-xs text-gray-400">{soloGastos.length} registros</p></div>
+    <div className="bg-white rounded-2xl border p-4"><p className="text-xs font-bold text-gray-500">Gastos del periodo</p><p className="text-2xl font-black text-gray-900">{cop(soloGastos.reduce((a,g)=>a+Number(g.valor),0))}</p><p className="text-xs text-gray-400">{soloGastos.length} registros</p></div>
     <div className="bg-white rounded-2xl border p-4"><p className="text-xs font-bold text-gray-500">Por sede</p>{porSede.length?porSede.map(([k,v])=><p key={k} className="text-sm flex justify-between"><span>{k}</span><b>{cop(v)}</b></p>):<p className="text-sm text-gray-400">—</p>}</div>
     <div className="bg-white rounded-2xl border p-4"><p className="text-xs font-bold text-gray-500">Retiros de utilidades</p><p className="text-2xl font-black text-violet-700">{cop(retiros.reduce((a,g)=>a+Number(g.valor),0))}</p><p className="text-xs text-gray-400">Aparte de los gastos</p></div>
    </div>
    {porCategoria.length>0&&<div className="bg-white rounded-2xl border p-4"><p className="text-xs font-bold text-gray-500 mb-2">Por categoría</p><div className="grid sm:grid-cols-2 gap-x-6">{porCategoria.map(([k,v])=><p key={k} className="text-sm flex justify-between border-b py-1"><span>{k}</span><b>{cop(v)}</b></p>)}</div></div>}
    <div className="bg-white rounded-2xl border p-4">
-    {!gastos?<p className="text-sm text-gray-400">Cargando…</p>:!visibles.length?<p className="text-sm text-gray-400">No hay gastos en este mes.</p>:visibles.map(g=><div key={g.id} className={`flex flex-wrap justify-between gap-2 py-2 border-b last:border-0 ${g.anulado?'opacity-50 line-through':''}`}>
+    {!gastos?<p className="text-sm text-gray-400">Cargando…</p>:!visibles.length?<p className="text-sm text-gray-400">No hay gastos en estas fechas.</p>:visibles.map(g=><div key={g.id} className={`flex flex-wrap justify-between gap-2 py-2 border-b last:border-0 ${g.anulado?'opacity-50 line-through':''}`}>
      <div className="min-w-0"><p className="font-black text-sm text-gray-900">{g.clase==='retiro_utilidades'?'💜 ':''}{g.categoria} · {cop(g.valor)} <span className="text-xs font-bold text-gray-400">· {g.sede} · {fecha(g.fecha)}</span></p>
       <p className="text-xs text-gray-500">{g.descripcion}{g.beneficiario?` · ${g.beneficiario}`:''} · {g.medio}{g.cuenta?` · ${g.cuenta}`:''}{g.registrado_por?` · por ${g.registrado_por}`:''}{g.anulado&&g.motivo_anulacion?` · anulado: ${g.motivo_anulacion}`:''}</p></div>
      <div className="flex gap-2"><button type="button" onClick={()=>void verComprobante(g.comprobante_path)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-gray-600">Comprobante</button>
@@ -87,7 +86,7 @@ function Gastos(){
   {tab==='sedes'&&finanzas&&<>
    <div className="bg-white rounded-2xl border p-4"><p className="text-xs font-bold text-gray-500 mb-2">Préstamos pendientes entre sedes</p>
     {deudas.length?deudas.map(d=><p key={d.deudor+d.acreedor} className="text-sm"><b>{d.deudor}</b> le debe a <b>{d.acreedor}</b>: <b className="text-red-600">{cop(d.saldo)}</b></p>):<p className="text-sm text-gray-400">Ninguna sede le debe a otra.</p>}</div>
-   <div className="bg-white rounded-2xl border p-4">{!movs.length?<p className="text-sm text-gray-400">No hay movimientos entre sedes en este mes.</p>:movs.map(m=><div key={m.id} className={`flex flex-wrap justify-between gap-2 py-2 border-b last:border-0 ${m.anulado?'opacity-50 line-through':''}`}>
+   <div className="bg-white rounded-2xl border p-4">{!movs.length?<p className="text-sm text-gray-400">No hay movimientos entre sedes en estas fechas.</p>:movs.map(m=><div key={m.id} className={`flex flex-wrap justify-between gap-2 py-2 border-b last:border-0 ${m.anulado?'opacity-50 line-through':''}`}>
     <div><p className="font-black text-sm text-gray-900">{TIPOS[m.tipo]} · {cop(m.valor)} <span className="text-xs font-bold text-gray-400">· {fecha(m.fecha)}</span></p>
      <p className="text-xs text-gray-500">{m.origen} ({m.cuenta_origen}) → {m.destino} ({m.cuenta_destino}){m.descripcion?` · ${m.descripcion}`:''}{m.anulado&&m.motivo_anulacion?` · anulado: ${m.motivo_anulacion}`:''}</p></div>
     <div className="flex gap-2"><button type="button" onClick={()=>void verComprobante(m.comprobante_path)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-gray-600">Comprobante</button>
