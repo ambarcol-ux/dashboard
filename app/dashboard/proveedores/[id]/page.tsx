@@ -1,5 +1,5 @@
 'use client';
-import ListOptions from '@/components/ListOptions';
+import ConfigSelect from '@/components/ConfigSelect';
 import ServiceSelect from '@/components/suppliers/ServiceSelect';
 import {useCallback,useEffect,useState} from 'react';
 import Link from 'next/link';
@@ -136,7 +136,7 @@ function DataTab({supplier,sedes,mySedes,onDone,onError}:{supplier:Supplier;sede
    <label>Tipo de servicio<ServiceSelect value={f.tipo_servicio} onChange={v=>setF({...f,tipo_servicio:v})}/></label></div>
   <div className={styles.row}><label>Celular<input inputMode="numeric" value={f.celular} onChange={set('celular')}/></label><label>Celular 2<input inputMode="numeric" value={f.celular_2} onChange={set('celular_2')}/></label></div>
   <div className={styles.row}><label>Correo (para su usuario)<input type="email" value={f.correo} onChange={set('correo')}/></label><label>Cédula o NIT<input value={f.documento} onChange={set('documento')}/></label></div>
-  <div className={styles.row}><label>Banco<input value={f.banco} onChange={set('banco')}/></label><label>Tipo de cuenta o llave<select value={f.tipo_cuenta} onChange={set('tipo_cuenta')}><option value="">Selecciona…</option><AccountTypeOptions base={['Ahorros','Corriente']} current={f.tipo_cuenta}/></select></label></div>
+  <div className={styles.row}><label>Banco<ConfigSelect lista="banco" value={f.banco} onChange={v=>setF({...f,banco:v})}/></label><label>Tipo de cuenta o llave<select value={f.tipo_cuenta} onChange={set('tipo_cuenta')}><option value="">Selecciona…</option><AccountTypeOptions base={['Ahorros','Corriente']} current={f.tipo_cuenta}/></select></label></div>
   <div className={styles.row}><label>{accountLabel(f.tipo_cuenta)}<input value={f.numero_cuenta} onChange={set('numero_cuenta')}/></label>
    <label>Estado<select value={f.estado} onChange={set('estado')}><option>Activo</option><option>Inactivo</option></select></label></div>
   <div><p className={styles.help}>Sedes donde trabaja</p><div className={styles.actions}>{sedes.map(s=><label key={s.id} className={styles.check}><input type="checkbox" checked={selected.includes(s.id)} onChange={e=>setSelected(e.target.checked?[...selected,s.id]:selected.filter(x=>x!==s.id))}/>{s.nombre}</label>)}</div></div>
@@ -225,7 +225,7 @@ function DocumentsTab({supplierId,docs,onDone,onError}:{supplierId:string;docs:D
  const update=async(d:Doc,values:Partial<Doc>,message:string)=>{const {error}=await supabase.from('documentos_proveedor').update(values).eq('id',d.id);if(error)onError(error.message);else onDone(message);};
  return <section className={styles.card}>
   <div className={styles.form} style={{marginBottom:18}}>
-   <div className={styles.row}><label>Tipo<select value={f.tipo} onChange={e=>setF({...f,tipo:e.target.value,visibilidad:defaultVisibility(e.target.value)})}><ListOptions lista="prov_tipos_documento" keep={[f.tipo]}/></select></label>
+   <div className={styles.row}><label>Tipo<ConfigSelect lista="prov_tipos_documento" placeholder={null} value={f.tipo} onChange={v=>setF({...f,tipo:v,visibilidad:defaultVisibility(v)})}/></label>
     <label>Título<input value={f.titulo} onChange={e=>setF({...f,titulo:e.target.value})} placeholder="Condiciones 2026"/></label></div>
    <div className={styles.row}><label>Visibilidad<select value={f.visibilidad} disabled={defaultVisibility(f.tipo)==='Interno'} onChange={e=>setF({...f,visibilidad:e.target.value})}><option value="Asesora">Asesora (asesoras y administración)</option><option value="Interno">Interno (solo administración)</option></select></label>
     <label>Vence el (opcional)<input type="date" value={f.vence_el} onChange={e=>setF({...f,vence_el:e.target.value})}/></label></div>

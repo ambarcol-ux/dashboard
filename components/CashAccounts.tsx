@@ -1,13 +1,13 @@
 'use client';
+import ConfigSelect from '@/components/ConfigSelect';
 import {useEffect,useState} from 'react';
 import {RefreshCw} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 import {money} from '@/lib/deposits';
-import {ACCOUNT_TYPES,CASH_CATEGORIES,CASH_METHODS,accountLabel,accountsFor,needsAccount,parseCashAmount,type CashAccount,type CashDay,type CashMovement,type CashStart,type DepositSummary,type WhereIsMoney} from '@/lib/cash';
+import {ACCOUNT_TYPES,CASH_METHODS,accountLabel,accountsFor,needsAccount,parseCashAmount,type CashAccount,type CashDay,type CashMovement,type CashStart,type DepositSummary,type WhereIsMoney} from '@/lib/cash';
 import Link from 'next/link';
 import styles from '@/app/dashboard/caja/caja.module.css';
 import {useFieldRequired} from '@/lib/module-config';
-import {BANKS} from '@/lib/deposit-requests';
 
 const TYPE_ICON:Record<string,string>={efectivo:'💵',banco:'🏦',billetera:'📱',sin_cuenta:'❔'};
 
@@ -30,7 +30,6 @@ export function EditMovement({day,movement,onClose,onDone,soloCuenta=false}:{day
  // Date: a movement registered later (e.g. a sale recorded days after) moves to its real day; abonos and deposits keep theirs.
  const [fecha,setFecha]=useState(day.fecha);
  const [saving,setSaving]=useState(false),[error,setError]=useState('');
- const categories:readonly string[]=CASH_CATEGORIES[movement.tipo].includes(movement.categoria as never)?CASH_CATEGORIES[movement.tipo]:[movement.categoria,...CASH_CATEGORIES[movement.tipo]];
  const submit=async(e:React.FormEvent)=>{
   e.preventDefault();if(saving)return;setError('');
   const amount=Number(valor)===Number(movement.valor)?Number(movement.valor):parseCashAmount(valor);
@@ -49,7 +48,7 @@ export function EditMovement({day,movement,onClose,onDone,soloCuenta=false}:{day
     <div className={styles.row}><label>Medio<select value={medio} onChange={e=>{setMedio(e.target.value);setCuenta('');}}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
      <label>Cuenta donde está el dinero<AccountSelect medio={medio} cuentas={day.cuentas} sedeId={day.sede_id} value={cuenta} onChange={setCuenta}/></label></div>
     <div className={styles.row}><label>Valor (COP)<input inputMode="decimal" value={valor} disabled={deposit||soloCuenta} onChange={e=>setValor(e.target.value)}/>{deposit&&<span className={styles.help}>El valor de un depósito se cambia en Depósitos → Modificar valor.</span>}{movement.origen==='pago'&&<span className={styles.help}>Cambia también el pago y el saldo del contrato.</span>}</label>
-     <label>Categoría<select value={categoria} disabled={fromErp||soloCuenta} onChange={e=>setCategoria(e.target.value)}>{categories.map(c=><option key={c}>{c}</option>)}</select></label></div>
+     <label>Categoría<ConfigSelect lista={`caja_categorias_${movement.tipo}`} placeholder={null} fijos={movement.tipo==='ingreso'?['Base de caja']:[]} disabled={fromErp||soloCuenta} value={categoria} onChange={setCategoria}/></label></div>
     <label>Fecha del movimiento<input type="date" value={fecha} max={new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'})} disabled={fromErp} onChange={e=>setFecha(e.target.value)}/>{fromErp?<span className={styles.help}>La fecha de un abono o depósito no se cambia aquí.</span>:<span className={styles.help}>Si se registró otro día, escoge la fecha real. Ese día debe estar abierto (si está cerrado, reábrelo primero).</span>}</label>
     <label>Descripción<input maxLength={500} value={descripcion} onChange={e=>setDescripcion(e.target.value)}/></label>
     <label>Motivo del cambio (obligatorio)<textarea maxLength={500} value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Ej.: la clienta pagó en efectivo, no por transferencia"/></label>
@@ -163,7 +162,7 @@ export function AccountsAdmin({sites,isAdmin,canManage=isAdmin}:{sites:Site[];is
    <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
     <div className={styles.row}><label>Clase<select value={form.tipo} onChange={e=>set('tipo',e.target.value)}>{Object.entries(ACCOUNT_TYPES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
      <label>Sede<select value={form.sede_id} onChange={e=>set('sede_id',e.target.value)}>{isAdmin&&form.tipo!=='efectivo'&&<option value="">Todas las sedes</option>}{(!isAdmin||form.tipo==='efectivo')&&<option value="">Elige la sede</option>}{sites.map(s=><option key={s.sede_id} value={s.sede_id}>{s.sede}</option>)}</select></label></div>
-    {form.tipo!=='efectivo'&&<div className={styles.row}><label>Banco o plataforma{form.tipo==='banco'?' (obligatorio)':''}<select value={form.banco} onChange={e=>set('banco',e.target.value)}><option value="">Elige el banco</option>{form.banco&&!BANKS.includes(form.banco)&&<option value={form.banco}>{form.banco}</option>}{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</select></label>
+    {form.tipo!=='efectivo'&&<div className={styles.row}><label>Banco o plataforma{form.tipo==='banco'?' (obligatorio)':''}<ConfigSelect lista="banco" value={form.banco} onChange={v=>set('banco',v)} placeholder="Elige el banco"/></label>
      {form.tipo==='banco'?<label>Tipo de cuenta<select value={form.tipo_cuenta} onChange={e=>set('tipo_cuenta',e.target.value)}><option value="">Elige</option><option value="ahorros">Ahorros</option><option value="corriente">Corriente</option></select></label>:<label>Titular<input maxLength={120} value={form.titular} onChange={e=>set('titular',e.target.value)}/></label>}</div>}
     {form.tipo!=='efectivo'&&<div className={styles.row}><label>Número de cuenta<input maxLength={40} inputMode="numeric" value={form.numero} onChange={e=>set('numero',e.target.value)}/></label>
      <label>Llave (Bre-B)<input maxLength={60} value={form.llave} onChange={e=>set('llave',e.target.value)} placeholder="Celular, cédula, correo o @llave"/></label></div>}

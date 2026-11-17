@@ -1,4 +1,5 @@
 'use client';
+import ConfigSelect from '@/components/ConfigSelect';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import Link from 'next/link';
 import {bogotaDay} from '@/lib/contract-calendar';
@@ -143,7 +144,7 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
   {(selected.respuesta_asistencia!=null||selected.respuesta_alquiler!=null)&&<p className={styles.notice}>La clienta respondió: {selected.respuesta_asistencia===true?'asistió':selected.respuesta_asistencia===false?'no asistió':''}{selected.respuesta_alquiler!=null?` · ${selected.respuesta_alquiler?'alquiló':'no alquiló'}`:''}. Verifícalo y regístralo aquí.</p>}
   <label>Asistencia (obligatoria)<select required value={attended} disabled={walk} onChange={e=>{setAttended(e.target.value);if(e.target.value==='no')setRented('');}}><option value="">Elige…</option><option value="si">Asistió</option><option value="no">No asistió</option></select></label>
   {attended==='si'&&<label>¿Alquiló? (obligatoria)<select required value={rented} onChange={e=>{setRented(e.target.value);if(e.target.value==='si')setFollowup('');}}><option value="">Elige…</option><option value="si">Alquiló</option><option value="no">No alquiló</option></select></label>}
-  {attended==='no'&&<label>Motivo de no asistencia<select value={noShow} onChange={e=>setNoShow(e.target.value)}><option value="">Sin dato</option>{(cfg.lists.pv_motivos_no_asistencia||[]).map(m=><option key={m}>{m}</option>)}</select></label>}
+  {attended==='no'&&<label>Motivo de no asistencia<ConfigSelect lista="pv_motivos_no_asistencia" placeholder="Sin dato" editable={false} value={noShow} onChange={setNoShow}/></label>}
   {attended==='no'&&<p>Se crea automáticamente el seguimiento de cita no asistida.</p>}
   <label>Fecha del evento<input type="date" value={eventDate} min={selected.fecha} onChange={e=>setEventDate(e.target.value)}/></label>
   {attended==='si'&&rented==='no'&&<label>¿Por qué no alquiló? (obligatoria)<select required value={lost} onChange={e=>setLost(e.target.value)}><option value="">Elige…</option>{[...noRentalReasons,...(lost&&!noRentalReasons.includes(lost)?[lost]:[])].map(m=><option key={m}>{m}</option>)}</select></label>}

@@ -1,4 +1,5 @@
 'use client';
+import ConfigSelect from '@/components/ConfigSelect';
 import {useCallback,useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 import {followupTypeLabel,followupState} from '@/lib/first-visit-followup';
@@ -39,12 +40,12 @@ export default function FirstVisitCommercial({visit,showMessages=false,extras=fa
  {cierre&&<p><strong>Seguimiento cerrado:</strong> {cierre}</p>}
  {abierto&&turno&&!hoyHecho&&<fieldset disabled={busy}><legend>Registrar seguimiento {turno.etapa}</legend>
   <label>Conclusión de lo hablado (mínimo {min} caracteres)<textarea maxLength={1000} value={reg.nota} onChange={e=>setReg({...reg,nota:e.target.value})}/></label>
-  {canalState!=='oculto'&&<label>Canal{canalState==='opcional'?' (opcional)':''}<select value={reg.canal} onChange={e=>setReg({...reg,canal:e.target.value})}><option value="">Elige…</option>{(cfg.lists.pv_canales||[]).map(c=><option key={c}>{c}</option>)}</select></label>}
-  {resState!=='oculto'&&<label>Resultado{resState==='opcional'?' (opcional)':''}<select value={reg.resultado} onChange={e=>setReg({...reg,resultado:e.target.value})}><option value="">Elige…</option>{(cfg.lists.pv_resultados_seguimiento||[]).map(c=><option key={c}>{c}</option>)}</select></label>}
+  {canalState!=='oculto'&&<label>Canal{canalState==='opcional'?' (opcional)':''}<ConfigSelect lista="pv_canales" placeholder="Elige…" value={reg.canal} onChange={v=>setReg({...reg,canal:v})}/></label>}
+  {resState!=='oculto'&&<label>Resultado{resState==='opcional'?' (opcional)':''}<ConfigSelect lista="pv_resultados_seguimiento" placeholder="Elige…" value={reg.resultado} onChange={v=>setReg({...reg,resultado:v})}/></label>}
   <div className={styles.actions}><button type="button" disabled={reg.nota.trim().length<min||(canalState==='obligatorio'&&!reg.canal)||(resState==='obligatorio'&&!reg.resultado)} onClick={()=>void register(turno)}>Registrar seguimiento</button></div></fieldset>}
  {abierto&&plan.length>0&&(!fin?<div className={styles.actions}><button type="button" disabled={busy} onClick={()=>setFin({resultado:'',motivo:''})}>Finalizar seguimiento</button></div>
   :<fieldset disabled={busy}><legend>Finalizar seguimiento</legend>
-   <label>Motivo de cierre<select value={fin.resultado} onChange={e=>setFin({...fin,resultado:e.target.value})}><option value="">Elige…</option>{(cfg.lists.pv_motivos_cierre||[]).map(c=><option key={c}>{c}</option>)}</select></label>
+   <label>Motivo de cierre<ConfigSelect lista="pv_motivos_cierre" placeholder="Elige…" editable={false} value={fin.resultado} onChange={v=>setFin({...fin,resultado:v})}/></label>
    <label>{fin.resultado==='Otro'?`Cuál (mínimo ${min} caracteres)`:'Detalle (opcional)'}<textarea maxLength={1000} value={fin.motivo} onChange={e=>setFin({...fin,motivo:e.target.value})}/></label>
    <div className={styles.actions}><button type="button" onClick={()=>setFin(null)}>Cancelar</button><button type="button" disabled={!fin.resultado||(fin.resultado==='Otro'&&fin.motivo.trim().length<min)} onClick={()=>void finish()}>Finalizar</button></div></fieldset>)}
  {abierto&&!turno&&plan.some(s=>!s.realizado_at)&&<p>El próximo seguimiento se registra desde su fecha.</p>}
