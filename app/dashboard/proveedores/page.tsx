@@ -1,5 +1,5 @@
 'use client';
-import ListOptions from '@/components/ListOptions';
+import ServiceSelect from '@/components/suppliers/ServiceSelect';
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import Link from 'next/link';
 import {useRouter} from 'next/navigation';
@@ -120,7 +120,7 @@ function NewSupplier({sedes,codes,onClose,onCreated}:{sedes:Sede[];codes:string[
   <h2>Nuevo proveedor</h2>
   <div className={styles.form}>
    <div className={styles.row}><label>Código<input value={form.codigo} onChange={e=>setForm({...form,codigo:e.target.value.toUpperCase()})}/></label>
-    <label>Tipo de servicio<select value={form.tipo_servicio} onChange={e=>setForm({...form,tipo_servicio:e.target.value})}><option value="">Selecciona…</option><ListOptions lista="prov_tipos_servicio"/></select></label></div>
+    <label>Tipo de servicio<ServiceSelect value={form.tipo_servicio} onChange={v=>setForm({...form,tipo_servicio:v})}/></label></div>
    <label>Nombre (persona, empresa o lugar)<input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})}/></label>
    <div className={styles.row}><label>Celular<input inputMode="numeric" value={form.celular} onChange={e=>setForm({...form,celular:e.target.value})} placeholder="3001234567"/></label>
     <label>Correo<input type="email" value={form.correo} onChange={e=>setForm({...form,correo:e.target.value})}/></label></div>
