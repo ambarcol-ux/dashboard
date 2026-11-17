@@ -107,6 +107,9 @@ function Modal({titulo,children,onClose}:{titulo:string;children:React.ReactNode
 function FormGasto({sedes,cuentas,finanzas,onClose,onDone}:{sedes:Sede[];cuentas:CashAccount[];finanzas:boolean;onClose:()=>void;onDone:()=>void}){
  const [f,setF]=useState({clase:'gasto',sede_id:sedes.length===1&&!finanzas?sedes[0].id:'',categoria:CATEGORIAS[0],fecha:hoyBogota(),valor:'',medio:'Transferencia',cuenta_id:'',beneficiario:'',descripcion:''});
  const [archivo,setArchivo]=useState<File|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ // Suppliers registered in the ERP (name and service) to pick from; another name can still be typed.
+ const [proveedores,setProveedores]=useState<{nombre:string;tipo_servicio:string|null}[]>([]);
+ useEffect(()=>{void supabase.rpc('gastos_proveedores').then(({data})=>setProveedores((data||[]) as {nombre:string;tipo_servicio:string|null}[]));},[]);
  // Any active bank account or wallet can pay an expense (the store whose account it is gets the egreso in its cash register);
  // the store's own accounts first, then the others. Deposit accounts never.
  const opciones=f.medio==='Efectivo'?[]:cuentas.filter(c=>c.activo&&c.tipo!=='efectivo'&&!c.solo_depositos)
@@ -132,7 +135,7 @@ function FormGasto({sedes,cuentas,finanzas,onClose,onDone}:{sedes:Sede[];cuentas
    <label className="text-xs font-bold text-gray-600">Valor<input className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
    <label className="text-xs font-bold text-gray-600">Medio<select className={input} value={f.medio} onChange={e=>setF({...f,medio:e.target.value,cuenta_id:''})}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
    {f.medio!=='Efectivo'&&opciones.length>0&&<label className="text-xs font-bold text-gray-600">¿De qué cuenta salió?<select className={input} value={f.cuenta_id} onChange={e=>setF({...f,cuenta_id:e.target.value})}><option value="">{pideCuenta?'Elige la cuenta':'Sin cuenta'}</option>{opciones.map(o=><option key={o.id} value={o.id}>{accountLabel(o)} ({o.sede||'todas las sedes'})</option>)}</select></label>}
-   <label className="text-xs font-bold text-gray-600">A quién se pagó<input className={input} maxLength={120} value={f.beneficiario} onChange={e=>setF({...f,beneficiario:e.target.value})} placeholder="Proveedor, persona o entidad"/></label>
+   <label className="text-xs font-bold text-gray-600">A quién se pagó<input className={input} maxLength={120} list="gastos-proveedores" value={f.beneficiario} onChange={e=>setF({...f,beneficiario:e.target.value})} placeholder="Elige un proveedor o escribe el nombre"/><datalist id="gastos-proveedores">{proveedores.map(p=><option key={p.nombre} value={p.nombre}>{p.tipo_servicio||'Proveedor'}</option>)}</datalist></label>
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Descripción<input className={input} maxLength={500} value={f.descripcion} onChange={e=>setF({...f,descripcion:e.target.value})} placeholder="Ej.: pago honorarios contador noviembre"/></label>
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Comprobante (foto o PDF, obligatorio)<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="block mt-1 text-sm" onChange={e=>setArchivo(e.target.files?.[0]||null)}/></label>
   </div>
