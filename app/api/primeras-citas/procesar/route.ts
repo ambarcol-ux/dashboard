@@ -73,7 +73,7 @@ export async function POST(request:Request){
      :m.tipo==='reagendar'?rescheduleChoices(c,await nearestSlots(db,c),link)
      :open?openWindowPayload(m.tipo,c,sede,link,sites):null;
     // Confirmations use the detailed per-store template; the 24-hour reminder asks to confirm. While Meta has not approved a template, the next one goes out.
-    const payloads=m.tipo==='resena'?(direct?.payload?[direct.payload]:[]):[direct?.payload??null,m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites,true):null,m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites):null,m.tipo==='recordatorio2'?todayReminderPayload(c,sede,wa.templateLang):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang,true):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang):null,m.tipo==='post_cita'?postVisitPayload(c,sede,wa.templateLang):null,
+    const payloads=m.tipo==='resena'?(direct?.payload?[direct.payload]:[]):[direct?.payload??null,m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites,true):null,m.tipo==='confirmacion'?confirmationPayload(c,sede,wa.confirmationLang,sites):null,m.tipo==='recordatorio2'?todayReminderPayload(c,sede,wa.templateLang,sites):null,m.tipo==='recordatorio2'?todayReminderPayload(c,sede,wa.templateLang):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang,true,sites):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang,true):null,m.tipo==='recordatorio24'?reminderConfirmPayload(c,sede,wa.templateLang):null,m.tipo==='post_cita'?postVisitPayload(c,sede,wa.templateLang):null,
      // The 24-hour reminder always goes with buttons: no plain template as last option.
      m.tipo==='recordatorio24'||RESPUESTA?null:whatsappPayload(m.tipo,c,sede,link,wa.templateLang)].filter(p=>p!==null);
     if(!payloads.length){state='omitido';issue='Sin las 24 horas abiertas o sin enlace de reseña de la sede';}
@@ -84,7 +84,7 @@ export async function POST(request:Request){
       break;}
      if(r.status>=400&&r.status<500){state='error';
       const name=(payload as {template?:{name?:string}}).template?.name;
-      issue=isTemplateError(d.error?.code)&&(name===REMINDER_CONFIRM_TEMPLATE||name===REMINDER_CONFIRM_V2_TEMPLATE||name===POST_VISIT_V2_TEMPLATE||name===REVIEW_TEMPLATE||name===TODAY_REMINDER_TEMPLATE||String(name).endsWith('_v2')||name===RECOVERY_TEMPLATE)?`Falta aprobar en Meta la plantilla ${name} (ver docs/plantillas-whatsapp.md).`:`WhatsApp rechazó el envío (${r.status})`;
+      issue=isTemplateError(d.error?.code)&&(name===REMINDER_CONFIRM_TEMPLATE||name===REMINDER_CONFIRM_V2_TEMPLATE||name===POST_VISIT_V2_TEMPLATE||name===REVIEW_TEMPLATE||name===TODAY_REMINDER_TEMPLATE||String(name).endsWith('_v2')||String(name).endsWith('_v3')||name===RECOVERY_TEMPLATE)?`Falta aprobar en Meta la plantilla ${name} (ver docs/plantillas-whatsapp.md).`:`WhatsApp rechazó el envío (${r.status})`;
       if(n<payloads.length-1&&(isTemplateError(d.error?.code)||(direct&&payload===direct.payload)))continue;}
      else issue='Respuesta incierta del proveedor; revisar antes de reintentar';
      break;
