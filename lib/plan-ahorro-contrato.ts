@@ -6,13 +6,13 @@ import {ownerAgreement} from './contract-owner';
 /** Plan Ahorro XV contract (draft reviewed by the owner on 17/11/2026, pending the lawyer): the family signs it from a private link
  *  before its first cuota. Placeholders {…} are filled with the plan and the signer's data; the store's owner replaces the
  *  Villavicencio owner (same as the ally agreement). Change the text here and raise PLAN_CONTRACT_VERSION. */
-export const PLAN_CONTRACT_VERSION='2026-11-17';
+export const PLAN_CONTRACT_VERSION='2026-11-17.2';
 const TEXTO:ContractSection[]=[
  {titulo:'CONTRATO DE PLAN AHORRO XV',parrafos:[]},
  {titulo:'Partes',parrafos:[
   'Entre los suscritos, a saber:',
   'AMBAR COUTURE (en adelante «AMBAR COUTURE»), representada legalmente por JORGE ANDRÉS ROMERO DÍAZ, identificado con cédula de ciudadanía No. 80.031.674, con domicilio principal en Calle 15 # 42-21, Casa 7, Bugambiles, barrio El Buque, Villavicencio, Meta, correo ambarcouturedresses@gmail.com y teléfono 301 730 7411.',
-  'EL AHORRADOR: {nombre}, identificado con cédula No. {cedula}, domiciliado en {direccion}, celular {celular} y correo {correo}, quien actúa como madre, padre o acudiente de la quinceañera {quinceanera}, identificada con T.I. No. {ti}.',
+  'EL AHORRADOR: {nombre}, identificado(a) con cédula No. {cedula}, domiciliado(a) en {direccion}, celular {celular} y correo {correo}, quien actúa como madre, padre o acudiente de la quinceañera {quinceanera}, identificada con T.I. No. {ti}.',
   'Acuerdan celebrar el presente Contrato de Plan Ahorro XV, que se regirá por las siguientes consideraciones y cláusulas.']},
  {titulo:'Consideraciones',parrafos:[
   '1. AMBAR COUTURE alquila y vende vestidos de XV años, gala y novia, y presta servicios como la sesión Pre XV, en sus sedes de Barranquilla, Bogotá, Pereira y Villavicencio, con envíos a todo Colombia.',
