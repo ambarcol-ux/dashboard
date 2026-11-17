@@ -953,6 +953,7 @@ export default function NuevoContratoPage() {
     }[] = [];
     const fichas: { id: string; codigo: string; faltan: string[] }[] = [];
 
+    const previos = new Set<string>(((editingSnapshot?.items || []) as { vestido_id: unknown }[]).map(i => String(i.vestido_id)));
     for (let i = 0; i < vestidosList.length; i++) {
       const v = vestidosList[i];
       if (!v.referencia.trim()) continue;
@@ -987,7 +988,8 @@ export default function NuevoContratoPage() {
         }
 
         // TRASLADO DE INVENTARIO: Actualizar sede si es diferente
-        if (existing.sede_actual_id !== formData.sede_id) {
+        // A dress already in this contract is not re-checked: it may have moved to another store after it was rented (e.g. a later transfer).
+        if (existing.sede_actual_id !== formData.sede_id && !previos.has(String(existing.id))) {
           const sedeActualNombre = (existing.sedes as any)?.nombre || 'otra sede';
           throw new Error(`❌ El vestido ${existing.codigo} existe pero está ubicado en ${sedeActualNombre}. Por favor, realiza el traslado logístico físico primero o autoriza el movimiento.`);
         }
@@ -1009,7 +1011,6 @@ export default function NuevoContratoPage() {
       }
     }
     // Complete record: warning until the deadline, then only with an administration exception. Dresses already in the contract are not re-checked.
-    const previos = new Set<string>(((editingSnapshot?.items || []) as { vestido_id: unknown }[]).map(i => String(i.vestido_id)));
     const incompletos = fichas.filter(f => !previos.has(f.id) && f.faltan.length);
     if (incompletos.length) {
       const detalle = (l: typeof incompletos) => l.map(f => `${f.codigo}: falta ${f.faltan.join(', ')}`).join(' · ');
