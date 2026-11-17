@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import {useSearchParams} from 'next/navigation';
 import {RefreshCw} from 'lucide-react';
@@ -105,7 +106,7 @@ function ActionDialog({action,busy,onClose,onRun}:{action:Action;busy:boolean;on
   <div className={styles.form} style={{marginTop:12}}>
    {kind==='enviar'&&<><label>Transportadora (opcional)<input maxLength={80} value={f.transportadora||''} onChange={e=>setF({...f,transportadora:e.target.value})} placeholder="Ej.: Servientrega o la persona que lo lleva"/></label>
     <div className={styles.row}><label>Guía (opcional)<input maxLength={80} value={f.guia||''} onChange={e=>setF({...f,guia:e.target.value})}/></label>
-    <label>Costo del envío (opcional)<input inputMode="numeric" value={f.costo||''} onChange={e=>setF({...f,costo:e.target.value.replace(/\D/g,'')})} placeholder="0"/></label></div></>}
+    <label>Costo del envío (opcional)<MoneyInput inputMode="numeric" value={f.costo||''} onChange={e=>setF({...f,costo:e.target.value.replace(/\D/g,'')})} placeholder="0"/></label></div></>}
    {(kind==='rechazar'||kind==='recibir'||kind==='cancelar')&&<label>{kind==='recibir'?'¿En qué estado llegó? (opcional)':kind==='rechazar'?'Motivo del rechazo':'Motivo (opcional)'}<textarea rows={3} maxLength={500} value={f.nota||''} onChange={e=>setF({...f,nota:e.target.value})}/></label>}
    {kind==='devolver'&&<p className={styles.help}>Se crea el envío de regreso a {t.sede_origen}, ya aprobado. Luego márcalo como enviado y {t.sede_origen} lo recibe.</p>}
    {kind==='aprobar'&&<p className={styles.help}>{t.sede_origen} enviará el vestido a {t.sede_destino}.{t.fecha_devolucion?` Debe volver el ${t.fecha_devolucion}.`:''}</p>}

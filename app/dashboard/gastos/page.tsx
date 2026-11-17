@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import ConfigSelect from '@/components/ConfigSelect';
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import {Receipt} from 'lucide-react';
@@ -133,7 +134,7 @@ function FormGasto({sedes,cuentas,finanzas,onClose,onDone}:{sedes:Sede[];cuentas
    <label className="text-xs font-bold text-gray-600">¿De quién es el gasto?<select className={input} value={f.sede_id} onChange={e=>setF({...f,sede_id:e.target.value,cuenta_id:''})}>{finanzas?<option value="">Administración general</option>:<option value="">Elige la sede</option>}{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
    {f.clase==='gasto'&&<label className="text-xs font-bold text-gray-600">Categoría<ConfigSelect lista="gastos_categorias" className={input} placeholder={null} value={f.categoria} onChange={v=>setF(p=>({...p,categoria:v}))}/></label>}
    <label className="text-xs font-bold text-gray-600">Fecha<input type="date" className={input} value={f.fecha} max={hoyBogota()} onChange={e=>setF({...f,fecha:e.target.value})}/></label>
-   <label className="text-xs font-bold text-gray-600">Valor<input className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
+   <label className="text-xs font-bold text-gray-600">Valor<MoneyInput className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
    <label className="text-xs font-bold text-gray-600">Medio<select className={input} value={f.medio} onChange={e=>setF({...f,medio:e.target.value,cuenta_id:''})}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
    {f.medio!=='Efectivo'&&opciones.length>0&&<label className="text-xs font-bold text-gray-600">¿De qué cuenta salió?<select className={input} value={f.cuenta_id} onChange={e=>setF({...f,cuenta_id:e.target.value})}><option value="">{pideCuenta?'Elige la cuenta':'Sin cuenta'}</option>{opciones.map(o=><option key={o.id} value={o.id}>{accountLabel(o)} ({o.sede||'todas las sedes'})</option>)}</select></label>}
    <label className="text-xs font-bold text-gray-600">A quién se pagó<input className={input} maxLength={120} list="gastos-proveedores" value={f.beneficiario} onChange={e=>setF({...f,beneficiario:e.target.value})} placeholder="Elige un proveedor o escribe el nombre"/><datalist id="gastos-proveedores">{proveedores.map(p=><option key={p.nombre} value={p.nombre}>{p.tipo_servicio||'Proveedor'}</option>)}</datalist></label>
@@ -169,7 +170,7 @@ function FormMovimiento({cuentas,onClose,onDone}:{cuentas:CashAccount[];onClose:
    <label className="text-xs font-bold text-gray-600">Fecha<input type="date" className={input} value={f.fecha} max={hoyBogota()} onChange={e=>setF({...f,fecha:e.target.value})}/></label>
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Sale de<select className={input} value={f.cuenta_origen} onChange={e=>setF({...f,cuenta_origen:e.target.value,cuenta_destino:''})}><option value="">Elige la caja o cuenta</option>{deSede.map(c=><option key={c.id} value={c.id}>{etiqueta(c)}</option>)}</select></label>
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Entra a<select className={input} value={f.cuenta_destino} onChange={e=>setF({...f,cuenta_destino:e.target.value})}><option value="">Elige la caja o cuenta</option>{destinos.map(c=><option key={c.id} value={c.id}>{etiqueta(c)}</option>)}</select></label>
-   <label className="text-xs font-bold text-gray-600">Valor<input className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
+   <label className="text-xs font-bold text-gray-600">Valor<MoneyInput className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
    <label className="text-xs font-bold text-gray-600">Nota<input className={input} maxLength={500} value={f.descripcion} onChange={e=>setF({...f,descripcion:e.target.value})} placeholder="Para qué es"/></label>
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Comprobante (foto o PDF, obligatorio)<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="block mt-1 text-sm" onChange={e=>setArchivo(e.target.files?.[0]||null)}/></label>
   </div>

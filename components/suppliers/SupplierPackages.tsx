@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import ConfigSelect from '@/components/ConfigSelect';
 import {useCallback,useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
@@ -75,7 +76,7 @@ function PackageForm({pkg,sedes,codes,onClose,onSaved}:{pkg:Pkg|null;sedes:{id:s
    <div className={styles.row}><label>Código<input value={form.codigo} onChange={e=>setForm({...form,codigo:e.target.value.toUpperCase()})}/></label>
     <label>Sede<select value={form.sede_id} onChange={e=>setForm({...form,sede_id:e.target.value})}><option value="">Selecciona…</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label></div>
    <label>Nombre<input value={form.nombre} onChange={e=>setForm({...form,nombre:e.target.value})} placeholder="Vestido premium + sesión"/></label>
-   <div className={styles.row}><label>Precio al cliente<input inputMode="decimal" value={form.precio} onChange={e=>setForm({...form,precio:e.target.value})}/></label>
+   <div className={styles.row}><label>Precio al cliente<MoneyInput inputMode="decimal" value={form.precio} onChange={e=>setForm({...form,precio:e.target.value})}/></label>
     <label>Comisión empleada<input inputMode="decimal" value={form.comision} onChange={e=>setForm({...form,comision:e.target.value})}/></label></div>
    <div><p className={styles.help}>Servicios que incluye (el proveedor se elige al asignarlo al contrato)</p>
     {parts.map((p,i)=><div key={i} className={styles.row} style={{marginBottom:6}}>

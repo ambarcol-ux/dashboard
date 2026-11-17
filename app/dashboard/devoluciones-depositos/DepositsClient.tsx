@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import ConfigSelect from '@/components/ConfigSelect';
 import { useCallback,useEffect,useMemo,useRef,useState } from 'react';
 import DepositTable from '@/components/DepositTable';
@@ -127,8 +128,8 @@ function EditMovement({target,onClose,onSaved}:{target:EditTarget;onClose:()=>vo
  const save=async()=>{setError('');setBusy(true);const {error:e}=await supabase.rpc('editar_movimiento_deposito',{p_origen:target.origen,p_id:target.id,p_datos:{...f,monto:Number(f.monto),descuento:target.ingreso?0:Number(f.descuento||0)}});setBusy(false);if(e)setError(e.message);else await onSaved();};
  return <div role="dialog" aria-modal="true" style={{position:'fixed',inset:0,background:'rgba(0,0,0,.4)',display:'grid',placeItems:'center',zIndex:50}} onClick={onClose}><div className={styles.card} style={{maxWidth:480,width:'92%',display:'grid',gap:8}} onClick={e=>e.stopPropagation()}>
   <h2>Editar {target.origen==='soporte'?'comprobante de ingreso anterior':target.origen==='entrega'?'comprobante de entrega':target.ingreso?'ingreso':'devolución'}</h2>
-  {withAmount&&<label>Valor<input inputMode="decimal" value={f.monto} onChange={set('monto')}/></label>}
-  {dated&&!target.ingreso&&<label>Descuento<input inputMode="decimal" value={f.descuento} onChange={set('descuento')}/></label>}
+  {withAmount&&<label>Valor<MoneyInput inputMode="decimal" value={f.monto} onChange={set('monto')}/></label>}
+  {dated&&!target.ingreso&&<label>Descuento<MoneyInput inputMode="decimal" value={f.descuento} onChange={set('descuento')}/></label>}
   {dated&&<label>Fecha<input type="date" value={f.fecha} onChange={set('fecha')}/></label>}
   {target.origen!=='anterior'&&<label>Método<select value={f.metodo} onChange={set('metodo')}>{['Efectivo','Transferencia','Tarjeta','Otro'].map(x=><option key={x}>{x}</option>)}</select></label>}
   {dated&&!target.ingreso&&<label>Motivo del descuento<input value={f.motivo_descuento} onChange={set('motivo_descuento')}/></label>}

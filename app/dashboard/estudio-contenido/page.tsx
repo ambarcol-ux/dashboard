@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import {useCallback,useEffect,useState} from 'react';
 import {Clapperboard} from 'lucide-react';
 import SupplierShell from '@/components/suppliers/SupplierShell';
@@ -252,7 +253,7 @@ function Promocion({p,busy,run}:{p:Pieza;busy:string;run:(k:string,b:Record<stri
   <p className="font-black text-indigo-900">Promocionar esta pieza</p>
   <label className="block font-bold text-gray-600">Público<select className={`${input} mt-1`} value={publico} onChange={e=>setPublico(e.target.value)}>{Object.entries(PUBLICO).map(([v,t])=><option key={v} value={v}>{t}</option>)}</select></label>
   <div className="grid grid-cols-2 gap-2">
-   <label className="block font-bold text-gray-600">Presupuesto diario (COP)<input inputMode="numeric" className={`${input} mt-1`} value={presupuesto} onChange={e=>setPresupuesto(e.target.value.replace(/\D/g,''))}/></label>
+   <label className="block font-bold text-gray-600">Presupuesto diario (COP)<MoneyInput inputMode="numeric" className={`${input} mt-1`} value={presupuesto} onChange={e=>setPresupuesto(e.target.value.replace(/\D/g,''))}/></label>
    <label className="block font-bold text-gray-600">Días<input inputMode="numeric" className={`${input} mt-1`} value={dias} onChange={e=>setDias(e.target.value.replace(/\D/g,''))}/></label>
   </div>
   <p className="text-gray-500">Mujeres de 18 a 55 años en la ciudad de la sede, con botón a WhatsApp. Se crea en pausa: no gasta hasta que lo actives en el portafolio.</p>

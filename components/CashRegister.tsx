@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import ConfigSelect from '@/components/ConfigSelect';
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {RefreshCw,Lock,Unlock,Paperclip} from 'lucide-react';
@@ -307,7 +308,7 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
     <label>Categoría<ConfigSelect lista={`caja_categorias_${tipo}`} placeholder={null} fijos={tipo==='ingreso'?[CASH_BASE]:[]} value={categoria} onChange={v=>{setCategoria(v);if(v===CASH_BASE){setMedio('Efectivo');setCuenta('');}}}/></label></div>
    <div className={styles.row}><label>Medio<select value={medio} disabled={categoria===CASH_BASE} onChange={e=>{setMedio(e.target.value);setCuenta('');}}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
     <label>{tipo==='ingreso'?'Cuenta donde llegó':'Cuenta de donde salió'}<AccountSelect medio={medio} cuentas={day.cuentas} sedeId={day.sede_id} value={cuenta} onChange={setCuenta}/></label></div>
-   <div className={styles.row}><label>Valor (COP)<input inputMode="decimal" placeholder="150.000" value={valor} onChange={e=>setValor(e.target.value)}/></label></div>
+   <div className={styles.row}><label>Valor (COP)<MoneyInput inputMode="decimal" placeholder="150.000" value={valor} onChange={e=>setValor(e.target.value)}/></label></div>
    <label>Descripción{tipo==='egreso'?' (obligatoria)':''}<input maxLength={500} value={descripcion} onChange={e=>setDescripcion(e.target.value)} placeholder={tipo==='egreso'?'Ej.: taxi para entrega de vestido':'Opcional'}/></label>
    <label>Comprobante{tipo==='egreso'?' (obligatorio)':' (opcional)'}<input ref={fileInput} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0]||null)}/><span className={styles.help}>PDF o imagen · Máximo 10 MB · Acceso privado</span></label>
    {error&&<p role="alert" className={styles.error}>{error}</p>}

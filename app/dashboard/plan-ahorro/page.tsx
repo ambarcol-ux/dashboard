@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import {useCallback,useEffect,useState} from 'react';
 import {PiggyBank} from 'lucide-react';
 import SupplierShell from '@/components/suppliers/SupplierShell';
@@ -120,7 +121,7 @@ function FormNuevo({sedes,sede,inicial,onClose,onDone}:{sedes:Sede[];sede:string
    <label className="text-xs font-bold text-gray-600">Celular (WhatsApp)<input className={input} inputMode="tel" value={f.telefono} onChange={e=>setF({...f,telefono:e.target.value})}/></label>
    <label className="text-xs font-bold text-gray-600">Correo (opcional)<input className={input} type="email" value={f.email} onChange={e=>setF({...f,email:e.target.value})}/></label>
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Nombre de la quinceañera (opcional)<input className={input} value={f.quinceanera_nombre} onChange={e=>setF({...f,quinceanera_nombre:e.target.value})}/></label>
-   <label className="text-xs font-bold text-gray-600">Cuota mensual (mínimo $150.000)<input className={input} inputMode="numeric" value={f.cuota_mensual} onChange={e=>setF({...f,cuota_mensual:e.target.value.replace(/\D/g,'')})}/></label>
+   <label className="text-xs font-bold text-gray-600">Cuota mensual (mínimo $150.000)<MoneyInput className={input} inputMode="numeric" value={f.cuota_mensual} onChange={e=>setF({...f,cuota_mensual:e.target.value.replace(/\D/g,'')})}/></label>
    <label className="text-xs font-bold text-gray-600">Día de pago de cada mes<input type="number" min={1} max={28} className={input} value={f.dia_pago} onChange={e=>setF({...f,dia_pago:e.target.value})}/></label>
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Notas (opcional)<input className={input} value={f.notas} onChange={e=>setF({...f,notas:e.target.value})}/></label>
   </div>
@@ -140,7 +141,7 @@ function FormCuota({p,cuentas,onClose,onDone}:{p:Plan;cuentas:CashAccount[];onCl
   <p className="text-xs text-gray-500">Entra como ingreso «Plan Ahorro XV» en Cierres de caja de {p.sede}. La fecha debe ser de hoy o de los últimos 31 días y ese día de caja debe estar abierto. Puede abonar más de la cuota.</p>
   <div className="grid sm:grid-cols-2 gap-3">
    <label className="text-xs font-bold text-gray-600">Fecha del pago<input type="date" className={input} value={f.fecha} max={hoyBogota()} onChange={e=>setF({...f,fecha:e.target.value})}/></label>
-   <label className="text-xs font-bold text-gray-600">Valor<input className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
+   <label className="text-xs font-bold text-gray-600">Valor<MoneyInput className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
    <label className="text-xs font-bold text-gray-600">Medio<select className={input} value={f.medio} onChange={e=>setF({...f,medio:e.target.value,cuenta_id:''})}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
    {f.medio!=='Efectivo'&&opciones.length>0&&<label className="text-xs font-bold text-gray-600">¿A qué cuenta llegó?<select className={input} value={f.cuenta_id} onChange={e=>setF({...f,cuenta_id:e.target.value})}><option value="">{pideCuenta?'Elige la cuenta':'Sin cuenta'}</option>{opciones.map(o=><option key={o.id} value={o.id}>{accountLabel(o)}</option>)}</select></label>}
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Nota (opcional)<input className={input} value={f.nota} onChange={e=>setF({...f,nota:e.target.value})}/></label>

@@ -1,4 +1,5 @@
 'use client';
+import MoneyInput from '@/components/MoneyInput';
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import {CalendarClock} from 'lucide-react';
 import SupplierShell from '@/components/suppliers/SupplierShell';
@@ -130,7 +131,7 @@ function FormConcepto({c,sedes,cuentas,onClose,onDone}:{c:Concepto;sedes:Sede[];
    <label className="text-xs font-bold text-gray-600">Referencia de pago o n.º de cuenta (opcional)<input className={input} value={f.referencia} onChange={e=>setF({...f,referencia:e.target.value})}/></label>
    <label className="text-xs font-bold text-gray-600">Frecuencia<select className={input} value={f.frecuencia} onChange={e=>setF({...f,frecuencia:e.target.value})}>{Object.entries(FRECUENCIAS).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label>
    <label className="text-xs font-bold text-gray-600">{f.frecuencia==='unica'?'Fecha de vencimiento':'Primer vencimiento (el día se repite)'}<input type="date" className={input} value={f.primer_vencimiento} onChange={e=>setF({...f,primer_vencimiento:e.target.value})}/></label>
-   <label className="text-xs font-bold text-gray-600">Valor<input className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
+   <label className="text-xs font-bold text-gray-600">Valor<MoneyInput className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
    <label className="text-xs font-bold text-gray-600">Avisar con (días de anticipación)<input type="number" min={0} max={60} className={input} value={f.dias_aviso} onChange={e=>setF({...f,dias_aviso:Number(e.target.value)})}/></label>
    <label className="flex gap-2 items-center text-sm font-bold text-gray-700 sm:col-span-2"><input type="checkbox" checked={f.valor_fijo} onChange={e=>setF({...f,valor_fijo:e.target.checked})}/>El valor es fijo (si no, es aproximado y se ajusta al llegar la factura)</label>
    <label className="text-xs font-bold text-gray-600">Medio de pago habitual<select className={input} value={f.medio} onChange={e=>setF({...f,medio:e.target.value,cuenta_id:''})}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
@@ -149,7 +150,7 @@ function FormAjuste({c,onClose,onDone}:{c:Cuota;onClose:()=>void;onDone:()=>void
  return <Modal titulo={`Ajustar · ${c.concepto} (${c.sede})`} onClose={onClose}>
   <p className="text-xs text-gray-500">Solo cambia esta cuota; el concepto y las demás cuotas siguen igual.</p>
   <label className="block text-xs font-bold text-gray-600">Nueva fecha de vencimiento<input type="date" className={input} value={vence} onChange={e=>setVence(e.target.value)}/></label>
-  <label className="block text-xs font-bold text-gray-600">Valor (por ejemplo, el de la factura)<input className={input} inputMode="numeric" value={valor} onChange={e=>setValor(e.target.value.replace(/\D/g,''))}/></label>
+  <label className="block text-xs font-bold text-gray-600">Valor (por ejemplo, el de la factura)<MoneyInput className={input} inputMode="numeric" value={valor} onChange={e=>setValor(e.target.value.replace(/\D/g,''))}/></label>
   <label className="block text-xs font-bold text-gray-600">Nota (opcional)<input className={input} value={nota} onChange={e=>setNota(e.target.value)}/></label>
   {error&&<p className="text-red-600 text-sm font-bold">{error}</p>}
   <div className="flex gap-2"><button type="button" disabled={busy||!vence||!Number(valor)} onClick={()=>void guardar()} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black disabled:opacity-40">{busy?'Guardando…':'Guardar'}</button>
@@ -176,7 +177,7 @@ function FormPago({c,cuentas,onClose,onDone}:{c:Cuota;cuentas:CashAccount[];onCl
   <p className="text-xs text-gray-500">Queda como egreso en Cierres de caja de la sede (categoría «{c.categoria}»), con el comprobante. La fecha debe ser de hoy o de los últimos 31 días y ese día de caja debe estar abierto.</p>
   <div className="grid sm:grid-cols-2 gap-3">
    <label className="text-xs font-bold text-gray-600">Fecha del pago<input type="date" className={input} value={f.fecha} max={hoyBogota()} onChange={e=>setF({...f,fecha:e.target.value})}/></label>
-   <label className="text-xs font-bold text-gray-600">Valor pagado<input className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
+   <label className="text-xs font-bold text-gray-600">Valor pagado<MoneyInput className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
    <label className="text-xs font-bold text-gray-600">Medio<select className={input} value={f.medio} onChange={e=>setF({...f,medio:e.target.value,cuenta_id:''})}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
    {f.medio!=='Efectivo'&&opciones.length>0&&<label className="text-xs font-bold text-gray-600">¿De qué cuenta salió?<select className={input} value={f.cuenta_id} onChange={e=>setF({...f,cuenta_id:e.target.value})}><option value="">{pideCuenta?'Elige la cuenta':'Sin cuenta'}</option>{opciones.map(o=><option key={o.id} value={o.id}>{accountLabel(o)}</option>)}</select></label>}
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Comprobante (foto o PDF, obligatorio)<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="block mt-1 text-sm" onChange={e=>setArchivo(e.target.files?.[0]||null)}/></label>

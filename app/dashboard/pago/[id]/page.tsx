@@ -1,5 +1,6 @@
 'use client';
 
+import MoneyInput from '@/components/MoneyInput';
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -314,11 +315,8 @@ export default function RegistrarPagoPage() {
                         <label className="text-sm font-medium text-gray-700">
                           Monto del Abono ($)
                         </label>
-                        <input
-                          type="number"
+                        <MoneyInput
                           name="valor_pagado"
-                          min="1"
-                          step="0.01"
                           value={formData.valor_pagado}
                           onChange={handleChange}
                           placeholder={`Máx: ${formatCurrency(saldoNumber)}`}
