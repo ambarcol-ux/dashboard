@@ -154,7 +154,7 @@ Si tienes alguna duda, llama a la sede: {{5}}
 ```
 Hola {{1}}, ¡hoy es tu cita en Ámbar Couture {{2}} a las {{3}}! Te esperamos 💛
 
-¿Alguna duda? Llama a la sede: {{4}}
+¿Alguna duda? Llama a la sede al {{4}} y con gusto te ayudamos.
 ```
 
 El teléfono es el de la sede de la cita (Configuración › Sedes).
