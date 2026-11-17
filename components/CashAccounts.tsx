@@ -7,6 +7,7 @@ import {ACCOUNT_TYPES,CASH_CATEGORIES,CASH_METHODS,accountLabel,accountsFor,need
 import Link from 'next/link';
 import styles from '@/app/dashboard/caja/caja.module.css';
 import {useFieldRequired} from '@/lib/module-config';
+import {BANKS} from '@/lib/deposit-requests';
 
 const TYPE_ICON:Record<string,string>={efectivo:'💵',banco:'🏦',billetera:'📱',sin_cuenta:'❔'};
 
@@ -153,7 +154,7 @@ export function AccountsAdmin({sites,isAdmin,canManage=isAdmin}:{sites:Site[];is
   {canManage&&<section className={styles.card}><h2>{form.id?'Editar cuenta':'Nueva cuenta'}</h2>
    <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
     <div className={styles.row}><label>Clase<select value={form.tipo} onChange={e=>set('tipo',e.target.value)}>{Object.entries(ACCOUNT_TYPES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label></div>
-    {form.tipo!=='efectivo'&&<div className={styles.row}><label>Banco o plataforma{form.tipo==='banco'?' (obligatorio)':''}<input maxLength={60} value={form.banco} onChange={e=>set('banco',e.target.value)} placeholder="Bancolombia, Davivienda, Nequi…"/></label>
+    {form.tipo!=='efectivo'&&<div className={styles.row}><label>Banco o plataforma{form.tipo==='banco'?' (obligatorio)':''}<select value={form.banco} onChange={e=>set('banco',e.target.value)}><option value="">Elige</option>{form.banco&&!BANKS.includes(form.banco)&&<option value={form.banco}>{form.banco}</option>}{BANKS.map(b=><option key={b} value={b}>{b}</option>)}</select></label>
      {form.tipo==='banco'&&<label>Tipo de cuenta<select value={form.tipo_cuenta} onChange={e=>set('tipo_cuenta',e.target.value)}><option value="">Elige</option><option value="ahorros">Ahorros</option><option value="corriente">Corriente</option></select></label>}</div>}
     {form.tipo!=='efectivo'&&<div className={styles.row}><label>Número de cuenta<input maxLength={40} inputMode="numeric" value={form.numero} onChange={e=>set('numero',e.target.value)}/></label>
      <label>Llave (Bre-B)<input maxLength={60} value={form.llave} onChange={e=>set('llave',e.target.value)} placeholder="Celular, cédula, correo o @llave"/></label></div>}
