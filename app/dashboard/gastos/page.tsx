@@ -109,7 +109,7 @@ function FormGasto({sedes,cuentas,finanzas,onClose,onDone}:{sedes:Sede[];cuentas
  const [archivo,setArchivo]=useState<File|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
  // Any active bank account or wallet can pay an expense (the store whose account it is gets the egreso in its cash register);
  // the store's own accounts first, then the others. Deposit accounts never.
- const opciones=f.medio==='Efectivo'?[]:cuentas.filter(c=>c.activo&&c.tipo!=='efectivo'&&!(c as CashAccount&{solo_depositos?:boolean}).solo_depositos)
+ const opciones=f.medio==='Efectivo'?[]:cuentas.filter(c=>c.activo&&c.tipo!=='efectivo'&&!c.solo_depositos)
   .sort((x,y)=>Number(y.sede_id===f.sede_id)-Number(x.sede_id===f.sede_id)||String(x.sede||'').localeCompare(String(y.sede||'')));
  const pideCuenta=needsAccount(f.medio,opciones),sinSede=!f.sede_id&&f.medio==='Efectivo';
  const guardar=async()=>{

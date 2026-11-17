@@ -1,6 +1,6 @@
 export type CashSupport={id:string;path:string;nombre:string;tipo:string;subido_at?:string;subido_por?:string|null};
 export type CashMissingSupport={pago_id:string;numero_contrato:string;cliente:string;valor:number;medio:string;recibo:string|null};
-export type CashAccount={id:string;nombre:string;tipo:'efectivo'|'banco'|'billetera';banco:string|null;numero:string|null;titular:string|null;tipo_cuenta?:'ahorros'|'corriente'|null;llave?:string|null;sede_id:string|null;sede:string|null;activo:boolean;orden:number};
+export type CashAccount={id:string;nombre:string;tipo:'efectivo'|'banco'|'billetera';banco:string|null;numero:string|null;titular:string|null;tipo_cuenta?:'ahorros'|'corriente'|null;llave?:string|null;solo_depositos?:boolean;sede_id:string|null;sede:string|null;activo:boolean;orden:number};
 export type CashEdit={anterior:Record<string,unknown>;nuevo:Record<string,unknown>;motivo:string;usuario:string;created_at:string};
 export type CashMovement={cuenta_id?:string|null;cuenta?:string|null;ediciones?:CashEdit[];pago_id?:string|null;soportes?:CashSupport[]|null;soporte_historico?:boolean|null;id:string;tipo:'ingreso'|'egreso';categoria:string;medio:string;valor:number;descripcion:string;contrato_id:string|null;numero_contrato:string|null;cliente:string|null;
  origen:string|null;comprobante_path:string|null;usuario:string;created_at:string;anulado_at:string|null;motivo_anulacion:string|null;anulado_por:string|null};
@@ -62,7 +62,7 @@ export const ACCOUNT_TYPES:Record<CashAccount['tipo'],string>={efectivo:'Caja me
 
 /** Accounts where money paid by this method can land: cash goes to the site's petty cash; the rest to an active bank or wallet of the site or general. */
 export function accountsFor(medio:string,cuentas:CashAccount[]|undefined,sedeId:string){
- return (cuentas||[]).filter(c=>c.activo&&(c.sede_id===null||c.sede_id===sedeId)&&(medio==='Efectivo'?c.tipo==='efectivo':c.tipo!=='efectivo'));
+ return (cuentas||[]).filter(c=>c.activo&&!c.solo_depositos&&(c.sede_id===null||c.sede_id===sedeId)&&(medio==='Efectivo'?c.tipo==='efectivo':c.tipo!=='efectivo'));
 }
 /** Transfers and card payments must say which account received them once any bank or wallet is configured. */
 export const needsAccount=(medio:string,options:CashAccount[])=>(medio==='Transferencia'||medio==='Tarjeta')&&options.length>0;
