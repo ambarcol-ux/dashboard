@@ -127,13 +127,15 @@ export function AccountsAdmin({sites,isAdmin,canManage=isAdmin}:{sites:Site[];is
  const edit=(c:CashAccount)=>{setNotice('');setError('');setForm({id:c.id,nombre:c.nombre,tipo:c.tipo,banco:c.banco||'',numero:c.numero||'',titular:c.titular||'',tipo_cuenta:c.tipo_cuenta||'',llave:c.llave||'',sede_id:c.sede_id||'',activo:c.activo,orden:c.orden});};
  const submit=async(e:React.FormEvent)=>{
   e.preventDefault();if(saving)return;setError('');
-  if(form.nombre.trim().length<2){setError('Escribe el nombre de la cuenta.');return;}
+  // The name is no longer typed: it is built from class, bank, account type and site (e.g. «Bancolombia Ahorros Bogotá»).
+  const sedeNombre=sites.find(s=>s.sede_id===form.sede_id)?.sede||'';
+  const nombre=(form.tipo==='efectivo'?`Caja menor ${sedeNombre}`:[form.banco.trim()||'Billetera',form.tipo==='banco'&&form.tipo_cuenta?(form.tipo_cuenta==='ahorros'?'Ahorros':'Corriente'):'',sedeNombre||'Todas las sedes'].filter(Boolean).join(' ')).trim().slice(0,80);
   if(form.tipo==='efectivo'&&!form.sede_id){setError('La caja menor debe pertenecer a una sede.');return;}
   if(!isAdmin&&!form.sede_id){setError('Elige la sede de la cuenta.');return;}
   if(form.tipo==='banco'&&!form.banco.trim()){setError('Escribe el banco.');return;}
   if(cuentaObligatoria&&form.tipo!=='efectivo'&&!form.numero.trim()&&!form.llave.trim()){setError('Escribe el número de cuenta o la llave.');return;}
   setSaving(true);
-  const {error:re}=await supabase.rpc('guardar_cuenta_dinero',{p_datos:{...form,id:form.id||null,sede_id:form.sede_id||null}});
+  const {error:re}=await supabase.rpc('guardar_cuenta_dinero',{p_datos:{...form,nombre,id:form.id||null,sede_id:form.sede_id||null}});
   setSaving(false);
   if(re){setError(re.message);return;}
   setNotice(form.id?'Cuenta actualizada.':'Cuenta creada.');setForm(EMPTY);setVersion(v=>v+1);
@@ -150,8 +152,7 @@ export function AccountsAdmin({sites,isAdmin,canManage=isAdmin}:{sites:Site[];is
   </section>
   {canManage&&<section className={styles.card}><h2>{form.id?'Editar cuenta':'Nueva cuenta'}</h2>
    <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
-    <div className={styles.row}><label>Clase<select value={form.tipo} onChange={e=>set('tipo',e.target.value)}>{Object.entries(ACCOUNT_TYPES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label>
-     <label>Nombre<input maxLength={80} value={form.nombre} onChange={e=>set('nombre',e.target.value)} placeholder={form.tipo==='efectivo'?'Caja menor Bogotá':form.tipo==='banco'?'Bancolombia ahorros principal':'Nequi Pereira'}/></label></div>
+    <div className={styles.row}><label>Clase<select value={form.tipo} onChange={e=>set('tipo',e.target.value)}>{Object.entries(ACCOUNT_TYPES).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select></label></div>
     {form.tipo!=='efectivo'&&<div className={styles.row}><label>Banco o plataforma{form.tipo==='banco'?' (obligatorio)':''}<input maxLength={60} value={form.banco} onChange={e=>set('banco',e.target.value)} placeholder="Bancolombia, Davivienda, Nequi…"/></label>
      {form.tipo==='banco'&&<label>Tipo de cuenta<select value={form.tipo_cuenta} onChange={e=>set('tipo_cuenta',e.target.value)}><option value="">Elige</option><option value="ahorros">Ahorros</option><option value="corriente">Corriente</option></select></label>}</div>}
     {form.tipo!=='efectivo'&&<div className={styles.row}><label>Número de cuenta<input maxLength={40} inputMode="numeric" value={form.numero} onChange={e=>set('numero',e.target.value)}/></label>
