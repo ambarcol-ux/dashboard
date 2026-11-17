@@ -18,6 +18,8 @@ const CATEGORIAS=['Nómina y prestaciones','Arriendo','Servicios públicos','Int
 const TIPOS:Record<Mov['tipo'],string>={traslado:'Traslado',prestamo:'Préstamo',devolucion:'Devolución de préstamo'};
 const input='border border-gray-200 rounded-xl px-3 py-2 text-sm w-full bg-white';
 const cop=(n:number)=>`$${Math.round(n).toLocaleString('es-CO')}`;
+// Database errors are plain objects with a message (not Error instances): show their reason.
+const motivo=(e:unknown,porDefecto:string):string=>{if(e instanceof Error)return e.message;const m=e&&typeof e==='object'&&'message' in e?String((e as {message:unknown}).message):'';return m||porDefecto;};
 const hoyBogota=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).format(new Date());
 const fecha=(d:string)=>new Date(d+'T12:00:00').toLocaleDateString('es-CO',{day:'numeric',month:'short'});
 
@@ -60,8 +62,8 @@ function Gastos(){
  const porCategoria=Object.entries(soloGastos.reduce<Record<string,number>>((a,g)=>({...a,[g.categoria]:(a[g.categoria]||0)+Number(g.valor)}),{})).sort((a,b)=>b[1]-a[1]);
  const porSede=Object.entries(soloGastos.reduce<Record<string,number>>((a,g)=>({...a,[g.sede]:(a[g.sede]||0)+Number(g.valor)}),{})).sort((a,b)=>b[1]-a[1]);
  const anular=async(fn:'gastos_anular'|'entre_sedes_anular',id:string)=>{
-  const motivo=prompt('Motivo de la anulación (también se anula en Cierres de caja):');if(!motivo)return;
-  const {error:e}=await supabase.rpc(fn,{p_id:id,p_motivo:motivo});if(e)alert(e.message);else void load();
+  const motivoAnul=prompt('Motivo de la anulación (también se anula en Cierres de caja):');if(!motivoAnul)return;
+  const {error:e}=await supabase.rpc(fn,{p_id:id,p_motivo:motivoAnul});if(e)alert(e.message);else void load();
  };
  const tabBtn=(k:typeof tab,l:string)=><button key={k} type="button" onClick={()=>setTab(k)} className={`px-4 py-2 rounded-xl text-sm font-black ${tab===k?'bg-rose-600 text-white':'border bg-white text-gray-600'}`}>{l}</button>;
  return <div className="space-y-4">
@@ -124,7 +126,7 @@ function FormGasto({sedes,cuentas,finanzas,onClose,onDone}:{sedes:Sede[];cuentas
    const ruta=await subir(archivo,{sede_id:f.sede_id||null,cuenta_id:cuenta,medio:f.medio});
    const {error:e}=await supabase.rpc('gastos_registrar',{p:{...f,sede_id:f.sede_id||null,cuenta_id:cuenta,valor:Number(f.valor),comprobante_path:ruta}});
    if(e)throw e;onDone();
-  }catch(e){setError(e instanceof Error?e.message:'No se pudo registrar el gasto.');}
+  }catch(e){setError(motivo(e,'No se pudo registrar el gasto.'));}
   setBusy(false);
  };
  return <Modal titulo="Registrar gasto" onClose={onClose}>
@@ -160,7 +162,7 @@ function FormMovimiento({cuentas,onClose,onDone}:{cuentas:CashAccount[];onClose:
    const ruta=await subir(archivo,{entre_sedes:true,cuenta_id:f.cuenta_origen});
    const {error:e}=await supabase.rpc('entre_sedes_registrar',{p:{...f,valor:Number(f.valor),comprobante_path:ruta}});
    if(e)throw e;onDone();
-  }catch(e){setError(e instanceof Error?e.message:'No se pudo registrar.');}
+  }catch(e){setError(motivo(e,'No se pudo registrar.'));}
   setBusy(false);
  };
  return <Modal titulo="Movimiento entre sedes" onClose={onClose}>
