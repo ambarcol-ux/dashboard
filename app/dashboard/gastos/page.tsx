@@ -125,9 +125,22 @@ function FormGasto({sedes,cuentas,finanzas,onClose,onDone}:{sedes:Sede[];cuentas
    const cuenta=f.medio==='Efectivo'?null:f.cuenta_id||null;
    const ruta=await subir(archivo,{sede_id:f.sede_id||null,cuenta_id:cuenta,medio:f.medio});
    const {error:e}=await supabase.rpc('gastos_registrar',{p:{...f,sede_id:f.sede_id||null,cuenta_id:cuenta,valor:Number(f.valor),comprobante_path:ruta}});
-   if(e)throw e;onDone();
-  }catch(e){setError(motivo(e,'No se pudo registrar el gasto.'));}
+   if(e)throw e;setBusy(false);onDone();return true;
+  }catch(e){const m=motivo(e,'No se pudo registrar el gasto.');setError(m);setCerrado(/ya está cerrada/i.test(m));}
+  setBusy(false);return false;
+ };
+ // The cash day of that date is closed: the store whose cash register gets the expense (its account's store, or the expense's store).
+ const [cerrado,setCerrado]=useState(false),[aviso,setAviso]=useState('');
+ const sedeCaja=f.medio==='Efectivo'?f.sede_id:(cuentas.find(c=>c.id===f.cuenta_id)?.sede_id||f.sede_id);
+ const nombreSedeCaja=sedes.find(x=>x.id===sedeCaja)?.nombre||cuentas.find(c=>c.sede_id===sedeCaja)?.sede||'la sede';
+ const reabrirYRegistrar=async()=>{
+  const m=window.prompt(`Motivo para reabrir la caja de ${nombreSedeCaja} del ${f.fecha.split('-').reverse().join('/')} (mínimo 5 caracteres):`,'Registrar gasto pagado ese día');
+  if(m===null)return;setBusy(true);setError('');
+  const {error:e}=await supabase.rpc('reabrir_caja',{p_sede:sedeCaja,p_fecha:f.fecha,p_motivo:m});
   setBusy(false);
+  if(e){setError(e.message);return;}
+  setCerrado(false);setAviso(`Caja de ${nombreSedeCaja} del ${f.fecha.split('-').reverse().join('/')} reabierta. Al terminar, ciérrala de nuevo en Finanzas › Cierres de caja.`);
+  if(await guardar())window.alert(`Gasto registrado. Ahora vuelve a cerrar la caja de ${nombreSedeCaja} del ${f.fecha.split('-').reverse().join('/')} en Finanzas › Cierres de caja.`);
  };
  return <Modal titulo="Registrar gasto" onClose={onClose}>
   <p className="text-xs text-gray-500">Si sale de la caja o de una cuenta de una sede, queda también como egreso en sus Cierres de caja: la fecha debe ser de los últimos 31 días y ese día de caja debe estar abierto.</p>
@@ -144,7 +157,17 @@ function FormGasto({sedes,cuentas,finanzas,onClose,onDone}:{sedes:Sede[];cuentas
    <label className="text-xs font-bold text-gray-600 sm:col-span-2">Comprobante (foto o PDF, obligatorio)<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="block mt-1 text-sm" onChange={e=>setArchivo(e.target.files?.[0]||null)}/></label>
   </div>
   {sinSede&&<p className="text-amber-700 text-xs font-bold">Un gasto en efectivo sale de la caja menor de una sede: elige la sede.</p>}
-  {error&&<p className="text-red-600 text-sm font-bold">{error}</p>}
+  {error&&!cerrado&&<p className="text-red-600 text-sm font-bold">{error}</p>}
+  {cerrado&&<div className="rounded-xl border border-amber-300 bg-amber-50 p-3 space-y-2 text-sm">
+   <p className="font-black text-amber-900">La caja de {nombreSedeCaja} del {f.fecha.split('-').reverse().join('/')} ya está cerrada.</p>
+   <p className="text-amber-900">Para registrar el gasto en esa fecha hay que reabrir ese día. Elige una opción:</p>
+   <div className="flex flex-wrap gap-2">
+    <button type="button" disabled={busy} onClick={()=>void reabrirYRegistrar()} className="px-3 py-2 rounded-xl bg-amber-600 text-white text-xs font-black disabled:opacity-40">1. Reabrir ese día y registrar el gasto</button>
+    <button type="button" disabled={busy} onClick={()=>{setF(x=>({...x,fecha:hoyBogota(),descripcion:x.descripcion.includes('Pagado el')?x.descripcion:`${x.descripcion} (pagado el ${x.fecha.split('-').reverse().join('/')})`}));setCerrado(false);setError('');}} className="px-3 py-2 rounded-xl border border-amber-400 bg-white text-amber-900 text-xs font-black">2. Usar la fecha de hoy</button>
+   </div>
+   <p className="text-xs text-amber-800">Con la opción 1, al terminar vuelve a cerrar ese día en <a href="/dashboard/caja" target="_blank" rel="noopener" className="underline font-bold">Finanzas › Cierres de caja</a> (si fue por transferencia, el efectivo del día no cambia). Con la opción 2, el gasto queda con fecha de hoy y en la descripción se anota el día real.</p>
+  </div>}
+  {aviso&&<p className="text-emerald-700 text-xs font-bold">{aviso}</p>}
   <div className="flex gap-2"><button type="button" disabled={busy||!archivo||!Number(f.valor)||f.descripcion.trim().length<3||(pideCuenta&&!f.cuenta_id)||sinSede||(!finanzas&&!f.sede_id)} onClick={()=>void guardar()} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black disabled:opacity-40">{busy?'Registrando…':'Registrar gasto'}</button>
    <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border text-sm font-black text-gray-600">Cancelar</button></div>
  </Modal>;
