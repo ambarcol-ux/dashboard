@@ -130,7 +130,7 @@ export const sendAllyReminder=(settings:{token:string;phoneNumberId:string;templ
 export const allyWelcomeText=(nombre:string,codigo:string)=>`Hola ${nombre} 💛 Ya eres aliado de Ámbar Couture. Tu código de aliado es ${codigo}. Te enviamos al correo tus enlaces para registrar a tus clientas y consultar disponibilidad de vestidos. Responde este mensaje y te explicamos cómo registrar tu primera clienta.`;
 export const sendAllyWelcome=(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string,codigo:string)=>sendOptionalTemplate(settings,to,'ambar_aliado_bienvenida_v2',[nombre.trim()||'aliado',codigo]);
 /** Sends a template that may not be approved in Meta yet: null then, so the caller falls back to the approved one. */
-async function sendOptionalTemplate(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,name:string,values:string[],botones:string[]=[]){
+export async function sendOptionalTemplate(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,name:string,values:string[],botones:string[]=[]){
  const version=process.env.META_GRAPH_VERSION||'v21.0';
  const r=await fetch(`https://graph.facebook.com/${version}/${settings.phoneNumberId}/messages`,{method:'POST',headers:{Authorization:`Bearer ${settings.token}`,'Content-Type':'application/json'},
   body:JSON.stringify({messaging_product:'whatsapp',to,type:'template',template:{name,language:{code:settings.templateLang||'es_CO'},components:[{type:'body',parameters:values.map(text=>({type:'text',text}))},
