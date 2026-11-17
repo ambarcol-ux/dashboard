@@ -27,6 +27,8 @@ export function whatsappPayload(type:string,c:NotificationVisit,site:string,link
 export const REMINDER_CONFIRM_TEMPLATE='ambar_recordatorio_confirmar',RECOVERY_TEMPLATE='ambar_cita_reprogramar';
 /** Same reminder with a third button «No puedo» (see docs/plantillas-whatsapp.md); used first, the two-button one is the fallback. */
 export const REMINDER_CONFIRM_V2_TEMPLATE='ambar_recordatorio_confirmar_v2';
+/** Reminders with the store's phone (see docs/plantillas-whatsapp.md); while Meta has not approved them, the previous ones go out. */
+export const REMINDER_CONFIRM_V3_TEMPLATE='ambar_recordatorio_confirmar_v3',TODAY_REMINDER_V2_TEMPLATE='ambar_recordatorio_hoy_v2';
 /** Post-visit in one step (see docs/plantillas-whatsapp.md): «¿Cómo te fue?» [Fui y alquilé · Aún no decido · No pude ir].
  *  While Meta has not approved it, the previous «Asistí / No asistí» template goes out. */
 export const POST_VISIT_V2_TEMPLATE='ambar_post_cita_v2';
@@ -46,9 +48,12 @@ export function rescheduleChoices(c:NotificationVisit,slots:{fecha:string;hora:s
 }
 /** Day-of reminder outside the 24 hours (template with «Ver ubicación» and «Cambiar hora»). */
 export const TODAY_REMINDER_TEMPLATE='ambar_recordatorio_hoy';
-export function todayReminderPayload(c:NotificationVisit,site:string,lang='es_CO'){
- return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name:TODAY_REMINDER_TEMPLATE,language:{code:lang},components:[
-  {type:'body',parameters:[c.cliente_nombre.split(' ')[0],c.modalidad==='virtual'?'(virtual)':site,visitTime(c.hora)].map(text=>({type:'text',text}))},
+export function todayReminderPayload(c:NotificationVisit,site:string,lang='es_CO',sites?:VisitSite[]){
+ // With the store's phone when the store has one (template v2); else the original template.
+ const tel=sites?visitSite(site,sites)?.telefono:'';
+ if(sites&&!tel)return null;
+ return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name:sites?TODAY_REMINDER_V2_TEMPLATE:TODAY_REMINDER_TEMPLATE,language:{code:lang},components:[
+  {type:'body',parameters:[c.cliente_nombre.split(' ')[0],c.modalidad==='virtual'?'(virtual)':site,visitTime(c.hora),...(sites?[String(tel)]:[])].map(text=>({type:'text',text}))},
   ...['r2_ubicacion','r2_cambiar'].map((payload,i)=>({type:'button',sub_type:'quick_reply',index:String(i),parameters:[{type:'payload',payload}]}))]}};
 }
 const REVIEW_TEXT='Tu opinión ayuda a otras quinceañeras a elegir. ¿Nos cuentas tu experiencia en Google?';
@@ -69,9 +74,13 @@ export function postVisitPayload(c:NotificationVisit,site:string,lang='es_CO'){
   ...POST_VISIT_ACTIONS.map((payload,i)=>({type:'button',sub_type:'quick_reply',index:String(i),parameters:[{type:'payload',payload}]}))]}};
 }
 /** 24-hour reminder with «Confirmo» / «Reagendar» buttons; while Meta has not approved it, the plain reminder goes out. */
-export function reminderConfirmPayload(c:NotificationVisit,site:string,lang='es_CO',v2=false){
- const values=[c.cliente_nombre,site,visitDate(c.fecha),visitTime(c.hora)];
- return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name:v2?REMINDER_CONFIRM_V2_TEMPLATE:REMINDER_CONFIRM_TEMPLATE,language:{code:lang},components:[
+export function reminderConfirmPayload(c:NotificationVisit,site:string,lang='es_CO',v2=false,sites?:VisitSite[]){
+ // With `sites`: the v3 template, which adds the store's phone (three buttons like v2).
+ const tel=sites?visitSite(site,sites)?.telefono:'';
+ if(sites&&!tel)return null;
+ const values=[c.cliente_nombre,site,visitDate(c.fecha),visitTime(c.hora),...(sites?[String(tel)]:[])];
+ if(sites)v2=true;
+ return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name:sites?REMINDER_CONFIRM_V3_TEMPLATE:v2?REMINDER_CONFIRM_V2_TEMPLATE:REMINDER_CONFIRM_TEMPLATE,language:{code:lang},components:[
   {type:'body',parameters:values.map(text=>({type:'text',text}))},
   ...(v2?['rc_confirmo','rc_reagendar','rc_no_puedo']:['rc_confirmo','rc_reagendar']).map((payload,i)=>({type:'button',sub_type:'quick_reply',index:String(i),parameters:[{type:'payload',payload}]}))]}};
 }
@@ -119,7 +128,7 @@ export function inboxCopy(type:string,c:NotificationVisit,site:string,payload:Re
  const when=`${visitDate(c.fecha)} a las ${visitTime(c.hora)}`,name=String(payload.template?.name||'');
  const label:Record<string,string>={confirmacion:`✅ Confirmación de su primera cita: ${when} · ${c.modalidad==='virtual'?'virtual':site}`,recordatorio24:`⏰ Recordatorio: su cita es mañana, ${when} · ${site}`,recordatorio2:`⏰ Recordatorio: su cita es hoy, ${when} · ${site}`,
   post_cita:'¿Asististe a tu cita?\n[Asistí · No asistí]',recuperar:'💛 Te esperábamos en tu cita: elige una nueva fecha (enlace para reprogramar).'};
- return `${name===POST_VISIT_V2_TEMPLATE?'¿Cómo te fue en tu cita en Ámbar?\n[Fui y alquilé · Aún no decido · No pude ir]':label[type]||'Mensaje automático'}${name===REMINDER_CONFIRM_V2_TEMPLATE?'\n[✅ Ahí estaré · 🔄 Cambiar hora · ❌ No puedo]':name===REMINDER_CONFIRM_TEMPLATE?'\n[Confirmo · Reagendar]':''}\n(plantilla ${name})`;
+ return `${name===POST_VISIT_V2_TEMPLATE?'¿Cómo te fue en tu cita en Ámbar?\n[Fui y alquilé · Aún no decido · No pude ir]':label[type]||'Mensaje automático'}${name===REMINDER_CONFIRM_V2_TEMPLATE||name===REMINDER_CONFIRM_V3_TEMPLATE?'\n[✅ Ahí estaré · 🔄 Cambiar hora · ❌ No puedo]':name===REMINDER_CONFIRM_TEMPLATE?'\n[Confirmo · Reagendar]':''}\n(plantilla ${name})`;
 }
 /** Meta's delivery error codes, in words the team can act on. */
 export function metaErrorText(code:unknown,title:unknown){

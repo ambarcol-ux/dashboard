@@ -135,6 +135,30 @@ Tu respuesta nos ayuda a acompañarte en la elección de tu vestido.
 
 Reemplaza a `ambar_post_cita_asistencia` (que sigue de respaldo mientras Meta no la aprueba). «Aún no decido» pide el motivo; «No pude ir» envía el enlace para reagendar. La respuesta queda como asistencia reportada: no marca la llegada (eso lo hacen el QR, la videollamada o el contrato) y, si nada lo confirma, la cita aparece en Primeras visitas como «Dice que asistió · por verificar».
 
+## Recordatorios con el teléfono de la sede — `ambar_recordatorio_confirmar_v3` y `ambar_recordatorio_hoy_v2`
+
+Categoría **Utilidad** · Idioma **Español (COL)**. Se crean con el botón «Crear plantillas en Meta» de Integraciones › WhatsApp. Mientras Meta no las apruebe, salen las versiones anteriores (`ambar_recordatorio_confirmar_v2` y `ambar_recordatorio_hoy`).
+
+`ambar_recordatorio_confirmar_v3` · Botones: **Ahí estaré**, **Cambiar hora** y **No puedo** (en ese orden).
+
+```
+Hola {{1}} 💛 Te recordamos tu primera cita en Ámbar Couture {{2}} el {{3}} a las {{4}}.
+
+Si tienes alguna duda, llama a la sede: {{5}}
+
+¿Nos confirmas que vienes?
+```
+
+`ambar_recordatorio_hoy_v2` · Botones: **Ver ubicación** y **Cambiar hora**.
+
+```
+Hola {{1}}, ¡hoy es tu cita en Ámbar Couture {{2}} a las {{3}}! Te esperamos 💛
+
+¿Alguna duda? Llama a la sede: {{4}}
+```
+
+El teléfono es el de la sede de la cita (Configuración › Sedes).
+
 ## Recordatorio con 3 botones — `ambar_recordatorio_confirmar_v2`
 
 Categoría **Utilidad** · Idioma **Español (COL)** · Botones de respuesta rápida: **Ahí estaré**, **Cambiar hora** y **No puedo** (en ese orden). Mismo texto y variables que `ambar_recordatorio_confirmar`. Se crea con el botón «Crear plantillas en Meta» de Integraciones › WhatsApp. Mientras Meta no la apruebe, sale la de 2 botones.
