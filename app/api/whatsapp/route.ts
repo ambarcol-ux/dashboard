@@ -6,6 +6,7 @@ import {resolveAd,adsSpend,adsTokenReady,adsPortfolio,adsChange} from '@/lib/met
 import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply,COMMENT_GONE} from '@/lib/social-inbox';
 import {attachmentBlocks,type Adjunto} from '@/lib/ai-attachments';
 import {weeklyChatAnalysis} from '@/lib/whatsapp-analysis';
+import {dailyAdsAnalysis} from '@/lib/ads-analysis';
 import {resolveSimilarMissing} from '@/lib/ia-faltantes';
 import {suggestWhatsappReply,suggestCommentReply,testWhatsappAI,knowledgeChatTurn,applyIaChanges,loadContractClauses,loadErpContext,aiErrorText,type IaCambio} from '@/lib/whatsapp-ai';
 export const dynamic='force-dynamic';
@@ -25,6 +26,11 @@ export async function POST(request:Request){
   // WhatsApp 304 › Anuncios: per ad, chats → visits (virtual / in person) → attended → contracts, with spend and cost from Meta. Administration only.
   // Anuncios fase 1: the whole Meta portfolio (campaigns, ad sets and ads with status, budget and metrics) joined with the ERP results
   // of each ad (chats, visits, attendance, contracts). Read only. Administration only.
+  // Marketing › Anuncios: generate the daily AI report now (the same one the 7:10 a. m. task makes). Administration only.
+  if(body.accion==='anuncios_informe'){
+   const {data:admin}=await userDb.rpc('es_admin');if(admin!==true)return publicReply({error:'Solo administración.'},403);
+   try{return publicReply(await dailyAdsAnalysis(publicServerClient()));}catch(e){return publicReply({error:e instanceof Error?e.message:'No se pudo generar el informe.'},502);}
+  }
   if(body.accion==='anuncios_portafolio'){
    const desde=String(body.desde||''),hasta=String(body.hasta||'');
    if(!/^\d{4}-\d{2}-\d{2}$/.test(desde)||!/^\d{4}-\d{2}-\d{2}$/.test(hasta)||desde>hasta)return publicReply({error:'Elige un rango de fechas válido.'},400);

@@ -183,6 +183,7 @@ function AdsPanel(){
  useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
  const tot=(rows||[]).reduce((a,r)=>({chats:a.chats+r.chats,citas:a.citas+r.citas,v:a.v+r.citas_virtuales,p:a.p+r.citas_presenciales,asis:a.asis+r.asistieron,con:a.con+r.contratos,gasto:a.gasto+(r.gasto||0)}),{chats:0,citas:0,v:0,p:0,asis:0,con:0,gasto:0});
  return <section className={styles.card} style={{display:'grid',gap:10}}>
+  <InformeAnuncios/>
   <Portafolio desde={desde} hasta={hasta}/>
   <h2>Efectividad de los anuncios</h2>
   <p className={styles.help}>Chats que llegaron por un anuncio de Meta con botón de WhatsApp, y lo que pasó después con esa clienta (por su celular): agendó primera cita (virtual o presencial), asistió y firmó contrato. La sede sale del nombre del anuncio.</p>
@@ -541,5 +542,32 @@ function InformeFaltantes({onClose}:{onClose:()=>void}){
      {f.pregunta&&<div style={{fontSize:12,color:'#6b7280'}}>Pregunta de la clienta: «{f.pregunta.slice(0,200)}»</div>}
      <div style={{fontSize:11,color:'#9ca3af'}}>Última vez: {fecha(f.ultima_at||f.created_at)}</div></li>)}</ol>}
   </div>
+ </div>;
+}
+
+type Informe={id:number;desde:string;hasta:string;created_at:string;resumen:string;metricas:{gasto:number;chats:number;citas:number;asistieron:number;contratos:number;anterior:{gasto:number;citas:number;contratos:number};errores?:string[]};
+ alertas:{tipo:string;anuncio:string;sede:string|null;detalle:string}[];recomendaciones:{accion:string;anuncio:string;detalle:string}[]};
+const ACCION:Record<string,string>={subir:'⬆️ Subir',bajar:'⬇️ Bajar',apagar:'⏸️ Apagar',duplicar:'📋 Duplicar',renovar:'🎨 Renovar',revisar_chat:'💬 Revisar chats',otra:'👉'};
+/** Marketing › Anuncios: the daily AI report (7:10 a. m.): last 7 days against the 7 before, fixed alerts and recommendations. It only recommends. */
+function InformeAnuncios(){
+ const [inf,setInf]=useState<Informe|null|undefined>(undefined),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const load=useCallback(async()=>{const {data}=await supabase.from('anuncios_ia_informes').select('id,desde,hasta,created_at,resumen,metricas,alertas,recomendaciones').order('id',{ascending:false}).limit(1).maybeSingle();setInf((data as Informe|null)||null);},[]);
+ useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
+ const generar=async()=>{setBusy(true);setError('');try{await api({accion:'anuncios_informe'});await load();}catch(e){setError(e instanceof Error?e.message:'No se pudo generar.');}setBusy(false);};
+ const m=inf?.metricas,var_=(a:number,b:number)=>b?` (${a>=b?'+':''}${Math.round(100*(a/b-1))} %)`:'';
+ return <div style={{display:'grid',gap:8,border:'1px solid #fce7f3',borderRadius:16,padding:12,background:'#fffafc'}}>
+  <div style={{display:'flex',flexWrap:'wrap',gap:8,alignItems:'center',justifyContent:'space-between'}}>
+   <h2 style={{margin:0}}><Sparkles size={16} style={{display:'inline',verticalAlign:'-2px'}}/> Informe diario de anuncios</h2>
+   <button className={styles.button} disabled={busy} onClick={()=>void generar()}>{busy?'Analizando… (hasta 1 minuto)':'Generar ahora'}</button></div>
+  <p className={styles.help}>Cada día a las 7:10 a. m. la IA compara los últimos 7 días con los 7 anteriores: gasto en Meta, y chats, citas, asistencias y contratos que trajo cada anuncio. Solo recomienda; los cambios los haces tú (en el portafolio de abajo o en Meta). El monto de la alerta de gasto sin citas se ajusta en Configuración › Anuncios.</p>
+  {error&&<p role="alert" className={styles.error}>{error}</p>}
+  {inf===undefined?<p className={styles.help}>Cargando…</p>:!inf?<p className={styles.empty}>Aún no hay informe. El primero sale mañana a las 7:10 a. m., o toca «Generar ahora».</p>:<>
+   <p className={styles.help}><strong>Del {inf.desde} al {inf.hasta}</strong> · hecho {new Date(inf.created_at).toLocaleString('es-CO',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}</p>
+   {m&&<p className={styles.help}>Gasto {cop(m.gasto)}{var_(m.gasto,m.anterior.gasto)} · {m.chats} chats · <strong>{m.citas} citas</strong>{var_(m.citas,m.anterior.citas)} · {m.asistieron} asistieron · <strong>{m.contratos} contratos</strong> · costo por cita {m.citas?cop(m.gasto/m.citas):'—'}{m.anterior.citas?` (antes ${cop(m.anterior.gasto/m.anterior.citas)})`:''}</p>}
+   {inf.alertas.length>0&&<div style={{display:'grid',gap:4}}>{inf.alertas.map((a,i)=><p key={i} style={{margin:0,fontSize:13,color:'#b45309'}}>⚠️ <strong>{a.anuncio}</strong>{a.sede?` (${a.sede})`:''}: {a.detalle}</p>)}</div>}
+   <p style={{whiteSpace:'pre-wrap',fontSize:14,margin:0}}>{inf.resumen}</p>
+   {inf.recomendaciones.length>0&&<ol style={{margin:0,paddingLeft:18,display:'grid',gap:4,fontSize:14}}>{inf.recomendaciones.map((r,i)=><li key={i}><strong>{ACCION[r.accion]||r.accion} · {r.anuncio}</strong>: {r.detalle}</li>)}</ol>}
+   {(m?.errores||[]).length>0&&<p className={styles.help} style={{color:'#b45309'}}>Meta no respondió todo: {(m?.errores||[]).join(' · ')}</p>}
+  </>}
  </div>;
 }
