@@ -32,6 +32,7 @@ export default function AllyAvailabilityPage(){
     {result!==null&&<p className={`text-center text-lg font-black rounded-2xl p-4 ${result?'bg-emerald-50 text-emerald-700':'bg-rose-50 text-rose-700'}`}>{result?'Disponible':'No disponible'}</p>}
     <p className="text-xs text-gray-400">Solo consulta. Para reservar, comunícate con Ámbar Couture.</p>
    </section>}
+   {info&&<a href={`/aliados/catalogo#${encodeURIComponent(token)}`} className="block text-center px-4 py-3 rounded-xl border bg-white text-sm font-black text-gray-800">Ver catálogo de todas las sedes con tus precios</a>}
   </div>
  </main>;
 }
