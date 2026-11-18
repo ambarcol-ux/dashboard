@@ -18,7 +18,7 @@ const SYSTEM=`Eres la analista de publicidad de Ámbar Couture (alquiler de vest
 Cada mañana revisas los anuncios de Meta de los últimos 7 días comparados con los 7 anteriores. Lo que importa son las primeras citas, las asistencias y los contratos que trae cada anuncio al ERP, no solo los chats o los clics.
 Recibes por anuncio: sede, estado, presupuesto diario, gasto, conversaciones en Meta, CTR, CPM, chats que llegaron al ERP, citas, asistencias, contratos, costo por cita y por contrato, y las cifras de la semana anterior. También las alertas automáticas.
 Escribe en "resumen" un informe breve en español claro para la dueña (sin tecnicismos, máximo 10 líneas): cómo fue la semana frente a la anterior (gasto, citas, costo por cita, contratos), qué anuncios y sedes funcionan mejor y cuáles gastan sin traer citas, y qué haría hoy.
-En "recomendaciones" da como máximo 5 acciones concretas, cada una sobre un anuncio con su nombre exacto: subir presupuesto (con cuánto), bajar, apagar, duplicar para otra sede, renovar el diseño o revisar cómo se atienden sus chats. Usa solo las cifras recibidas: no inventes datos. Con pocos datos (menos de 3 citas o menos de $30.000 de gasto) dilo y sé prudente. Recuerda que un anuncio nuevo necesita unos días para aprender.`;
+En "recomendaciones" da como máximo 5 acciones concretas, cada una sobre un anuncio con su nombre exacto: subir presupuesto (con cuánto), bajar, apagar, duplicar para otra sede, renovar el diseño o revisar cómo se atienden sus chats. No juzgues un anuncio solo por sus chats: muchas personas ven el anuncio y agendan después por el perfil de Instagram o la página de citas, y esas citas no se le acreditan (vienen en «citas_por_canal»). Recomienda apagar solo si gasta sin traer chats ni citas, o si lleva más de una semana sin resultados; si trae muchos chats y pocas citas, lo primero es revisar cómo se atienden esos chats. Usa solo las cifras recibidas: no inventes datos. Con pocos datos (menos de 3 citas o menos de $30.000 de gasto) dilo y sé prudente. Recuerda que un anuncio nuevo necesita unos días para aprender.`;
 const SCHEMA={type:'object',additionalProperties:false,required:['resumen','recomendaciones'],properties:{
  resumen:{type:'string'},
  recomendaciones:{type:'array',items:{type:'object',additionalProperties:false,required:['accion','anuncio','detalle'],properties:{
@@ -62,7 +62,14 @@ export async function dailyAdsAnalysis(db:SupabaseClient,now=Date.now()){
  const suma=(l:AdFila[],k:'gasto'|'citas'|'contratos'|'chats'|'asistieron')=>l.reduce((n,f)=>n+Number(f[k]||0),0);
  const antTot={gasto:ant.anuncios.reduce((n,a)=>n+a.gasto,0),citas:[...ant.erp.values()].reduce((n,r)=>n+Number(r.citas||0),0),contratos:[...ant.erp.values()].reduce((n,r)=>n+Number(r.contratos||0),0)};
  const metricas={desde,hasta,gasto:suma(filas,'gasto'),chats:suma(filas,'chats'),citas:suma(filas,'citas'),asistieron:suma(filas,'asistieron'),contratos:suma(filas,'contratos'),
-  anterior:antTot,errores:[...act.errores,...ant.errores].slice(0,5),token:adsTokenReady()};
+  anterior:antTot,errores:[...act.errores,...ant.errores].slice(0,5),token:adsTokenReady()} as Record<string,unknown>&{gasto:number;chats:number;citas:number;asistieron:number;contratos:number};
+ // Visits of the period by the way they booked (Instagram profile, booking page, WhatsApp…) and store: context for the ads.
+ const {data:citasCanal}=await db.from('primeras_citas').select('origen_enlace,anuncio_id,sede_id').gte('created_at',`${desde}T05:00:00Z`).lt('created_at',new Date(Date.parse(`${hasta}T05:00:00Z`)+DAY).toISOString()).neq('estado','cancelada').limit(3000);
+ const {data:sedesData}=await db.from('sedes').select('id,nombre');const sedeNom=new Map(((sedesData||[]) as {id:string;nombre:string}[]).map(s=>[s.id,s.nombre]));
+ const CANAL:Record<string,string>={'ig-perfil':'perfil de Instagram','whatsapp-chat':'chat de WhatsApp','ia-whatsapp':'IA de WhatsApp'};
+ const citas_por_canal:Record<string,number>={};
+ for(const c of (citasCanal||[]) as {origen_enlace:string|null;anuncio_id:string|null;sede_id:string|null}[]){const k=`${sedeNom.get(String(c.sede_id))||'Sin sede'} · ${c.anuncio_id?'desde un anuncio':CANAL[String(c.origen_enlace)]||'página de citas u otro'}`;citas_por_canal[k]=(citas_por_canal[k]||0)+1;}
+ Object.assign(metricas,{citas_por_canal,citas_totales:(citasCanal||[]).length});
  let resumen=filas.length?'':'No hubo anuncios con gasto ni chats en los últimos 7 días.',recomendaciones:Recomendacion[]=[];
  if(filas.length&&process.env.ANTHROPIC_API_KEY){
   try{
