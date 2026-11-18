@@ -6,7 +6,7 @@ import {ownerAgreement} from './contract-owner';
 /** Plan Ahorro XV contract (draft reviewed by the owner on 17/11/2026, pending the lawyer): the family signs it from a private link
  *  before its first cuota. Placeholders {…} are filled with the plan and the signer's data; the store's owner replaces the
  *  Villavicencio owner (same as the ally agreement). Change the text here and raise PLAN_CONTRACT_VERSION. */
-export const PLAN_CONTRACT_VERSION='2026-11-17.2';
+export const PLAN_CONTRACT_VERSION='2026-11-18.1';
 const TEXTO:ContractSection[]=[
  {titulo:'CONTRATO DE PLAN AHORRO XV',parrafos:[]},
  {titulo:'Partes',parrafos:[
@@ -48,7 +48,9 @@ const TEXTO:ContractSection[]=[
   'Los valores estimados suponen que se pagan todas las cuotas a tiempo. Lo que vale al usar el plan es el total efectivamente pagado, con el extra y el nivel que le correspondan según las cláusulas quinta y sexta.']},
 ];
 
-export type PlanFirma={id:string;numero:number;sede:string;titular_nombre:string;telefono:string;email:string|null;quinceanera_nombre:string|null;fecha_evento:string;cuota_mensual:number;dia_pago:number};
+export type PlanFirma={id:string;numero:number;sede:string;titular_nombre:string;telefono:string;email:string|null;quinceanera_nombre:string|null;fecha_evento:string;cuota_mensual:number;dia_pago:number;
+ /** Email of the store (Configuración › Sedes); without one, the brand's general email stays. */
+ sede_correo?:string|null};
 export type DatosFirmante={cedula:string;direccion:string;correo:string;quinceanera:string;ti:string};
 const cop=(n:number)=>`$${Math.round(n).toLocaleString('es-CO')}`;
 const fechaLarga=(d:Date|string)=>new Date(typeof d==='string'?d+'T12:00:00-05:00':d).toLocaleDateString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'long',year:'numeric'});
@@ -62,7 +64,12 @@ export function planContractText(p:PlanFirma,d:DatosFirmante,at:Date):ContractSe
   cuota:cop(p.cuota_mensual),dia:String(p.dia_pago),fecha:fechaLarga(at),numero:String(p.numero),sede:p.sede,evento:fechaLarga(p.fecha_evento),usar:fechaLarga(usar),
   cuotas:String(cuotas),ahorro:cop(ahorro),extra:`${cop(extra)} (${pct} %)`,total:cop(ahorro+extra)};
  const f=(s:string)=>s.replace(/\{(\w+)\}/g,(_,k:string)=>v[k]??`{${k}}`);
- return ownerAgreement(TEXTO.map(s=>({titulo:f(s.titulo),parrafos:s.parrafos.map(f),...(s.lista?{lista:s.lista.map(f)}:{})})),p.sede);
+ const secciones=ownerAgreement(TEXTO.map(s=>({titulo:f(s.titulo),parrafos:s.parrafos.map(f),...(s.lista?{lista:s.lista.map(f)}:{})})),p.sede);
+ // The store's owner signs, so the contract carries the store's email (the general one when the store has none).
+ const correo=String(p.sede_correo||'').trim();
+ if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correo))return secciones;
+ const c=(t:string)=>t.replace(/ambarcouturedresses@gmail\.com/g,correo);
+ return secciones.map(s=>/^ANEXO/i.test(s.titulo)?s:({...s,parrafos:s.parrafos.map(c),...(s.lista?{lista:s.lista.map(c)}:{})}));
 }
 
 const purpose='plan-ahorro-firma';

@@ -3,18 +3,19 @@ import {useState} from 'react';
 import {toast} from 'sonner';
 import {supabase} from '@/lib/supabase';
 
-type Sede={id:string;nombre:string;telefono?:string|null;whatsapp?:string|null;direccion_clientes?:string|null;mapa_url?:string|null;mapa_etiqueta?:string|null;resena_url?:string|null};
+type Sede={id:string;nombre:string;telefono?:string|null;whatsapp?:string|null;direccion_clientes?:string|null;mapa_url?:string|null;mapa_etiqueta?:string|null;resena_url?:string|null;correo?:string|null};
 
 /** Contact details each store shows to clients (WhatsApp confirmation and appointment emails). Editable without code. */
 export default function SedeContact({sede,onSaved}:{sede:Sede;onSaved:()=>void}){
- const [f,setF]=useState({telefono:sede.telefono||'',whatsapp:sede.whatsapp||'',direccion_clientes:sede.direccion_clientes||'',mapa_url:sede.mapa_url||'',mapa_etiqueta:sede.mapa_etiqueta||'Cómo llegar en Google Maps',resena_url:sede.resena_url||''}),[busy,setBusy]=useState(false);
+ const [f,setF]=useState({telefono:sede.telefono||'',whatsapp:sede.whatsapp||'',direccion_clientes:sede.direccion_clientes||'',mapa_url:sede.mapa_url||'',mapa_etiqueta:sede.mapa_etiqueta||'Cómo llegar en Google Maps',resena_url:sede.resena_url||'',correo:sede.correo||''}),[busy,setBusy]=useState(false);
  const save=async()=>{
   const whatsapp=f.whatsapp.replace(/\D/g,'');
   if(whatsapp&&!/^\d{10,15}$/.test(whatsapp)){toast.error('WhatsApp: escribe el número con indicativo, ej. 573213473757.');return;}
   if(f.resena_url&&!f.resena_url.trim().startsWith('https://')){toast.error('El enlace de reseñas debe empezar por https://');return;}
+  if(f.correo.trim()&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.correo.trim())){toast.error('Revisa el correo de la sede.');return;}
   if(f.mapa_url&&!f.mapa_url.startsWith('https://')){toast.error('El enlace del mapa debe empezar por https://');return;}
   setBusy(true);
-  const {error}=await supabase.from('sedes').update({telefono:f.telefono.trim()||null,whatsapp:whatsapp||null,direccion_clientes:f.direccion_clientes.trim()||null,mapa_url:f.mapa_url.trim()||null,mapa_etiqueta:f.mapa_etiqueta.trim()||null,resena_url:f.resena_url.trim()||null}).eq('id',sede.id);
+  const {error}=await supabase.from('sedes').update({telefono:f.telefono.trim()||null,whatsapp:whatsapp||null,direccion_clientes:f.direccion_clientes.trim()||null,mapa_url:f.mapa_url.trim()||null,mapa_etiqueta:f.mapa_etiqueta.trim()||null,resena_url:f.resena_url.trim()||null,correo:f.correo.trim().toLowerCase()||null}).eq('id',sede.id);
   setBusy(false);
   if(error){toast.error('No se pudo guardar el contacto de la sede.');return;}
   toast.success(`Contacto de ${sede.nombre} guardado.`);onSaved();
@@ -29,7 +30,8 @@ export default function SedeContact({sede,onSaved}:{sede:Sede;onSaved:()=>void})
    {field('mapa_url','Enlace de Google Maps','https://maps.app.goo.gl/…')}
    {field('mapa_etiqueta','Texto del enlace del mapa','Cómo llegar en Google Maps')}
    {field('resena_url','Enlace de reseñas en Google','https://g.page/r/…/review')}
-   <p className="text-[10px] text-gray-500">Se usa en la confirmación de cita por WhatsApp y en los correos de cita. El enlace de reseñas va en la variable {'{resena}'} de los correos.</p>
+   {field('correo','Correo de la sede','sede@ejemplo.com')}
+   <p className="text-[10px] text-gray-500">Se usa en la confirmación de cita por WhatsApp y en los correos de cita. El correo va en el contrato del Plan Ahorro XV de la sede (sin correo, va el general de la marca). El enlace de reseñas va en la variable {'{resena}'} de los correos.</p>
    <button type="button" disabled={busy} onClick={()=>void save()} className="px-3 py-1.5 rounded-lg bg-gray-900 text-white text-xs font-black disabled:opacity-50">{busy?'Guardando…':'Guardar contacto'}</button>
   </div></details>;
 }
