@@ -10,12 +10,18 @@ import {CASH_METHODS,accountLabel,needsAccount,type CashAccount} from '@/lib/cas
 type Sede={id:string;nombre:string};
 type Gasto={id:string;sede_id:string|null;sede:string;clase:'gasto'|'retiro_utilidades';categoria:string;fecha:string;valor:number;medio:string;cuenta:string|null;
  beneficiario:string|null;descripcion:string;comprobante_path:string;anulado:boolean;motivo_anulacion:string|null;registrado_por:string|null};
-type Mov={id:string;fecha:string;tipo:'traslado'|'prestamo'|'devolucion';origen:string;destino:string;cuenta_origen:string;cuenta_destino:string;valor:number;
- descripcion:string|null;comprobante_path:string;anulado:boolean;motivo_anulacion:string|null};
+type Mov={id:string;fecha:string;tipo:'traslado'|'prestamo'|'devolucion'|'saldo_inicial';origen:string;destino:string;cuenta_origen:string|null;cuenta_destino:string|null;valor:number;
+ descripcion:string|null;comprobante_path:string|null;anulado:boolean;motivo_anulacion:string|null};
 type Deuda={deudor:string;acreedor:string;saldo:number};
+type MovSocio={id:string;fecha:string;tipo:'prestamo'|'devolucion'|'saldo_inicial';socio:string;sede:string;cuenta:string|null;valor:number;descripcion:string|null;
+ comprobante_path:string|null;anulado:boolean;motivo_anulacion:string|null};
+type Socios={movimientos:MovSocio[];saldos:{socio:string;sede:string;saldo:number}[];puede_registrar:boolean};
+/** Cut-off date of the debts that existed before the ERP (agreed with the stores and partners). */
+const CORTE='2026-10-30';
 const CATEGORIAS=['Nómina y prestaciones','Arriendo','Servicios públicos','Internet y telefonía','Publicidad y redes','Transporte y envíos','Compras e insumos',
  'Mantenimiento y arreglos','Honorarios (contador, abogado)','Software y suscripciones','Impuestos','Gastos bancarios','Seguros','Papelería y aseo','Otro gasto'];
-const TIPOS:Record<Mov['tipo'],string>={traslado:'Traslado',prestamo:'Préstamo',devolucion:'Devolución de préstamo'};
+const TIPOS:Record<Mov['tipo'],string>={traslado:'Traslado',prestamo:'Préstamo',devolucion:'Devolución de préstamo',saldo_inicial:'Saldo inicial al 30/10'};
+const TIPOS_SOCIO:Record<MovSocio['tipo'],string>={prestamo:'Préstamo del socio',devolucion:'Devolución al socio',saldo_inicial:'Saldo inicial al 30/10'};
 const input='border border-gray-200 rounded-xl px-3 py-2 text-sm w-full bg-white';
 const cop=(n:number)=>`$${Math.round(n).toLocaleString('es-CO')}`;
 // Database errors are plain objects with a message (not Error instances): show their reason.
@@ -38,20 +44,21 @@ const verComprobante=async(path:string)=>{try{const d=await api({accion:'ver',pa
 /** Finanzas › Gastos: expenses of each store and of the administration (with receipt; when paid from a store's cash or account they
  *  also go to its Cierres de caja), profit withdrawals, and transfers or loans between stores with what each store owes. */
 export default function GastosPage(){
- return <SupplierShell activePage="gastos" crumb="Finanzas / Gastos" title="Gastos y movimientos entre sedes" icon={<Receipt/>}
-  description="Registra los gastos de cada sede y de la administración con su comprobante, los retiros de utilidades y los traslados o préstamos entre sedes. Lo que sale de la caja o la cuenta de una sede queda también en sus Cierres de caja.">
+ return <SupplierShell activePage="gastos" crumb="Finanzas / Gastos" title="Gastos, entre sedes y socios" icon={<Receipt/>}
+  description="Registra los gastos de cada sede y de la administración con su comprobante, los retiros de utilidades, los traslados o préstamos entre sedes y los préstamos de los socios a las sedes. Lo que sale de la caja o la cuenta de una sede queda también en sus Cierres de caja.">
   {()=><Gastos/>}
  </SupplierShell>;
 }
 
 function Gastos(){
- const [tab,setTab]=useState<'gastos'|'sedes'>(()=>typeof window!=='undefined'&&new URLSearchParams(window.location.search).get('v')==='sedes'?'sedes':'gastos'),[desde,setDesde]=useState(()=>`${hoyBogota().slice(0,7)}-01`),[hasta,setHasta]=useState(hoyBogota),[filtro,setFiltro]=useState('todas');
+ const [tab,setTab]=useState<'gastos'|'sedes'|'socios'>(()=>{const v=typeof window!=='undefined'?new URLSearchParams(window.location.search).get('v'):null;return v==='sedes'||v==='socios'?v:'gastos';}),[desde,setDesde]=useState(()=>`${hoyBogota().slice(0,7)}-01`),[hasta,setHasta]=useState(hoyBogota),[filtro,setFiltro]=useState('todas');
  const [gastos,setGastos]=useState<Gasto[]|null>(null),[movs,setMovs]=useState<Mov[]>([]),[deudas,setDeudas]=useState<Deuda[]>([]),[finanzas,setFinanzas]=useState(false);
  const [sedes,setSedes]=useState<Sede[]>([]),[cuentas,setCuentas]=useState<CashAccount[]>([]),[error,setError]=useState('');
- const [nuevo,setNuevo]=useState(false),[nuevoMov,setNuevoMov]=useState(false);
+ const [nuevo,setNuevo]=useState(false),[nuevoMov,setNuevoMov]=useState(false),[saldoSedes,setSaldoSedes]=useState(false),[socios,setSocios]=useState<Socios|null>(null),[nuevoSocio,setNuevoSocio]=useState<'mov'|'saldo'|null>(null);
  const load=useCallback(async()=>{
-  const [{data:g,error:e},{data:s},{data:k},{data:m,error:em}]=await Promise.all([supabase.rpc('gastos_listar',{p_desde:desde,p_hasta:hasta}),supabase.rpc('gastos_sedes'),
-   supabase.rpc('cuentas_dinero_lista'),supabase.rpc('entre_sedes_listar',{p_desde:desde,p_hasta:hasta})]);
+  const [{data:g,error:e},{data:s},{data:k},{data:m,error:em},{data:ps}]=await Promise.all([supabase.rpc('gastos_listar',{p_desde:desde,p_hasta:hasta}),supabase.rpc('gastos_sedes'),
+   supabase.rpc('cuentas_dinero_lista'),supabase.rpc('entre_sedes_listar',{p_desde:desde,p_hasta:hasta}),supabase.rpc('prestamos_socios_listar')]);
+  setSocios((ps as Socios|null)||null);
   if(e)setError(e.message);else{setError('');setGastos((g||[]) as Gasto[]);}
   setSedes((s||[]) as Sede[]);setCuentas((Array.isArray(k)?k:[]) as CashAccount[]);
   setFinanzas(!em);if(!em&&m){const x=m as {movimientos:Mov[];deudas:Deuda[]};setMovs(x.movimientos||[]);setDeudas(x.deudas||[]);}
@@ -61,17 +68,19 @@ function Gastos(){
  const activos=visibles.filter(g=>!g.anulado),soloGastos=activos.filter(g=>g.clase==='gasto'),retiros=activos.filter(g=>g.clase==='retiro_utilidades');
  const porCategoria=Object.entries(soloGastos.reduce<Record<string,number>>((a,g)=>({...a,[g.categoria]:(a[g.categoria]||0)+Number(g.valor)}),{})).sort((a,b)=>b[1]-a[1]);
  const porSede=Object.entries(soloGastos.reduce<Record<string,number>>((a,g)=>({...a,[g.sede]:(a[g.sede]||0)+Number(g.valor)}),{})).sort((a,b)=>b[1]-a[1]);
- const anular=async(fn:'gastos_anular'|'entre_sedes_anular',id:string)=>{
+ const anular=async(fn:'gastos_anular'|'entre_sedes_anular'|'prestamos_socios_anular',id:string)=>{
   const motivoAnul=prompt('Motivo de la anulación (también se anula en Cierres de caja):');if(!motivoAnul)return;
   const {error:e}=await supabase.rpc(fn,{p_id:id,p_motivo:motivoAnul});if(e)alert(e.message);else void load();
  };
  const tabBtn=(k:typeof tab,l:string)=><button key={k} type="button" onClick={()=>setTab(k)} className={`px-4 py-2 rounded-xl text-sm font-black ${tab===k?'bg-rose-600 text-white':'border bg-white text-gray-600'}`}>{l}</button>;
  return <div className="space-y-4">
-  <div className="flex flex-wrap gap-2 items-center">{tabBtn('gastos','Gastos')}{finanzas&&tabBtn('sedes','Entre sedes')}
+  <div className="flex flex-wrap gap-2 items-center">{tabBtn('gastos','Gastos')}{finanzas&&tabBtn('sedes','Entre sedes')}{tabBtn('socios','Préstamos de socios')}
    <label className="text-xs font-bold text-gray-600 flex items-center gap-1">Desde<input type="date" className="border border-gray-200 rounded-xl px-2 py-1.5 text-sm bg-white" value={desde} max={hasta} onChange={e=>e.target.value&&setDesde(e.target.value)}/></label>
    <label className="text-xs font-bold text-gray-600 flex items-center gap-1">Hasta<input type="date" className="border border-gray-200 rounded-xl px-2 py-1.5 text-sm bg-white" value={hasta} min={desde} onChange={e=>e.target.value&&setHasta(e.target.value)}/></label>
    {tab==='gastos'&&<select className="border border-gray-200 rounded-xl px-2 py-1.5 text-sm bg-white" value={filtro} onChange={e=>setFiltro(e.target.value)}><option value="todas">Todas</option>{finanzas&&<option value="admin">Administración</option>}{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select>}
-   <button type="button" onClick={()=>tab==='gastos'?setNuevo(true):setNuevoMov(true)} className="ml-auto px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black">{tab==='gastos'?'+ Registrar gasto':'+ Registrar movimiento'}</button></div>
+   {tab==='sedes'&&<button type="button" onClick={()=>setSaldoSedes(true)} className="ml-auto px-4 py-2 rounded-xl border bg-white text-gray-700 text-sm font-black">+ Saldo inicial al 30/10</button>}
+   {tab==='socios'&&socios?.puede_registrar&&<button type="button" onClick={()=>setNuevoSocio('saldo')} className="ml-auto px-4 py-2 rounded-xl border bg-white text-gray-700 text-sm font-black">+ Saldo inicial al 30/10</button>}
+   {(tab!=='socios'||socios?.puede_registrar)&&<button type="button" onClick={()=>tab==='gastos'?setNuevo(true):tab==='sedes'?setNuevoMov(true):setNuevoSocio('mov')} className={`${tab==='gastos'?'ml-auto ':''}px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black`}>{tab==='gastos'?'+ Registrar gasto':tab==='sedes'?'+ Registrar movimiento':'+ Préstamo o devolución'}</button>}</div>
   {error&&<p role="alert" className="text-red-600 text-sm font-bold">{error}</p>}
   {tab==='gastos'&&<>
    <div className="grid sm:grid-cols-3 gap-3">
@@ -92,9 +101,20 @@ function Gastos(){
     {deudas.length?deudas.map(d=><p key={d.deudor+d.acreedor} className="text-sm"><b>{d.deudor}</b> le debe a <b>{d.acreedor}</b>: <b className="text-red-600">{cop(d.saldo)}</b></p>):<p className="text-sm text-gray-400">Ninguna sede le debe a otra.</p>}</div>
    <div className="bg-white rounded-2xl border p-4">{!movs.length?<p className="text-sm text-gray-400">No hay movimientos entre sedes en estas fechas.</p>:movs.map(m=><div key={m.id} className={`flex flex-wrap justify-between gap-2 py-2 border-b last:border-0 ${m.anulado?'opacity-50 line-through':''}`}>
     <div><p className="font-black text-sm text-gray-900">{TIPOS[m.tipo]} · {cop(m.valor)} <span className="text-xs font-bold text-gray-400">· {fecha(m.fecha)}</span></p>
-     <p className="text-xs text-gray-500">{m.origen} ({m.cuenta_origen}) → {m.destino} ({m.cuenta_destino}){m.descripcion?` · ${m.descripcion}`:''}{m.anulado&&m.motivo_anulacion?` · anulado: ${m.motivo_anulacion}`:''}</p></div>
-    <div className="flex gap-2"><button type="button" onClick={()=>void verComprobante(m.comprobante_path)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-gray-600">Comprobante</button>
+     <p className="text-xs text-gray-500">{m.tipo==='saldo_inicial'?`${m.destino} le debía a ${m.origen}`:`${m.origen} (${m.cuenta_origen}) → ${m.destino} (${m.cuenta_destino})`}{m.descripcion?` · ${m.descripcion}`:''}{m.anulado&&m.motivo_anulacion?` · anulado: ${m.motivo_anulacion}`:''}</p></div>
+    <div className="flex gap-2">{m.comprobante_path&&<button type="button" onClick={()=>void verComprobante(m.comprobante_path!)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-gray-600">Comprobante</button>}
      {!m.anulado&&<button type="button" onClick={()=>void anular('entre_sedes_anular',m.id)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-red-600">Anular</button>}</div></div>)}</div></>}
+  {tab==='socios'&&<>
+   <div className="bg-white rounded-2xl border p-4"><p className="text-xs font-bold text-gray-500 mb-2">Lo que cada sede le debe a cada socio (préstamos sin interés)</p>
+    {!socios?<p className="text-sm text-gray-400">Cargando…</p>:socios.saldos.length?socios.saldos.map(d=><p key={d.socio+d.sede} className="text-sm"><b>{d.sede}</b> le debe a <b>{d.socio}</b>: <b className={d.saldo>0?'text-red-600':'text-emerald-700'}>{cop(d.saldo)}</b>{d.saldo<0?' (le devolvió de más)':''}</p>)
+     :<p className="text-sm text-gray-400">Ninguna sede le debe a un socio.</p>}</div>
+   <div className="bg-white rounded-2xl border p-4">{!socios?.movimientos.length?<p className="text-sm text-gray-400">Aún no hay préstamos de socios registrados.</p>:socios.movimientos.map(m=><div key={m.id} className={`flex flex-wrap justify-between gap-2 py-2 border-b last:border-0 ${m.anulado?'opacity-50 line-through':''}`}>
+    <div><p className="font-black text-sm text-gray-900">{TIPOS_SOCIO[m.tipo]} · {cop(m.valor)} <span className="text-xs font-bold text-gray-400">· {fecha(m.fecha)}</span></p>
+     <p className="text-xs text-gray-500">{m.socio} · {m.sede}{m.cuenta?` · ${m.cuenta}`:''}{m.descripcion?` · ${m.descripcion}`:''}{m.anulado&&m.motivo_anulacion?` · anulado: ${m.motivo_anulacion}`:''}</p></div>
+    <div className="flex gap-2">{m.comprobante_path&&<button type="button" onClick={()=>void verComprobante(m.comprobante_path!)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-gray-600">Comprobante</button>}
+     {!m.anulado&&socios.puede_registrar&&<button type="button" onClick={()=>void anular('prestamos_socios_anular',m.id)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-red-600">Anular</button>}</div></div>)}</div></>}
+  {saldoSedes&&<FormSaldoSedes sedes={sedes} onClose={()=>setSaldoSedes(false)} onDone={()=>{setSaldoSedes(false);void load();}}/>}
+  {nuevoSocio&&<FormSocio modo={nuevoSocio} sedes={sedes} cuentas={cuentas} onClose={()=>setNuevoSocio(null)} onDone={()=>{setNuevoSocio(null);void load();}}/>}
   {nuevo&&<FormGasto sedes={sedes} cuentas={cuentas} finanzas={finanzas} onClose={()=>setNuevo(false)} onDone={()=>{setNuevo(false);void load();}}/>}
   {nuevoMov&&<FormMovimiento cuentas={cuentas} onClose={()=>setNuevoMov(false)} onDone={()=>{setNuevoMov(false);void load();}}/>}
  </div>;
@@ -201,6 +221,65 @@ function FormMovimiento({cuentas,onClose,onDone}:{cuentas:CashAccount[];onClose:
   </div>
   {error&&<p className="text-red-600 text-sm font-bold">{error}</p>}
   <div className="flex gap-2"><button type="button" disabled={busy||!archivo||!Number(f.valor)||!f.cuenta_origen||!f.cuenta_destino} onClick={()=>void guardar()} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black disabled:opacity-40">{busy?'Registrando…':'Registrar'}</button>
+   <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border text-sm font-black text-gray-600">Cancelar</button></div>
+ </Modal>;
+}
+
+/** What one store already owed another at the cut-off (30/10), before the ERP: only the debt, no cash nor account moves. */
+function FormSaldoSedes({sedes,onClose,onDone}:{sedes:Sede[];onClose:()=>void;onDone:()=>void}){
+ const [f,setF]=useState({deudor:'',acreedor:'',valor:'',descripcion:''}),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const guardar=async()=>{
+  setBusy(true);setError('');
+  const {error:e}=await supabase.rpc('entre_sedes_saldo_inicial',{p:{...f,valor:Number(f.valor),fecha:CORTE}});
+  if(e)setError(motivo(e,'No se pudo guardar.'));else onDone();
+  setBusy(false);
+ };
+ return <Modal titulo="Saldo inicial entre sedes al 30/10" onClose={onClose}>
+  <p className="text-xs text-gray-500">Lo que una sede ya le debía a otra el 30 de octubre, acordado con las administradoras. Solo deja la deuda: no mueve ninguna caja ni cuenta. Va uno por cada pareja de sedes.</p>
+  <div className="grid sm:grid-cols-2 gap-3">
+   <label className="text-xs font-bold text-gray-600">Sede que debe<select className={input} value={f.deudor} onChange={e=>setF({...f,deudor:e.target.value})}><option value="">Elige</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
+   <label className="text-xs font-bold text-gray-600">Le debe a<select className={input} value={f.acreedor} onChange={e=>setF({...f,acreedor:e.target.value})}><option value="">Elige</option>{sedes.filter(s=>s.id!==f.deudor).map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
+   <label className="text-xs font-bold text-gray-600">Valor<MoneyInput className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
+   <label className="text-xs font-bold text-gray-600">Qué se acordó<input className={input} maxLength={500} value={f.descripcion} onChange={e=>setF({...f,descripcion:e.target.value})} placeholder="Ej.: deuda histórica acordada con las administradoras"/></label>
+  </div>
+  {error&&<p className="text-red-600 text-sm font-bold">{error}</p>}
+  <div className="flex gap-2"><button type="button" disabled={busy||!f.deudor||!f.acreedor||!Number(f.valor)||f.descripcion.trim().length<5} onClick={()=>void guardar()} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black disabled:opacity-40">{busy?'Guardando…':'Guardar'}</button>
+   <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border text-sm font-black text-gray-600">Cancelar</button></div>
+ </Modal>;
+}
+
+/** A partner's loan to a store (enters its cash or account) or its repayment (leaves it), with receipt; or the partner's initial balance at 30/10. */
+function FormSocio({modo,sedes,cuentas,onClose,onDone}:{modo:'mov'|'saldo';sedes:Sede[];cuentas:CashAccount[];onClose:()=>void;onDone:()=>void}){
+ const [f,setF]=useState({tipo:modo==='saldo'?'saldo_inicial':'prestamo',socio:'',fecha:hoyBogota(),valor:'',cuenta_id:'',sede_id:'',descripcion:''});
+ const [archivo,setArchivo]=useState<File|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const deSede=cuentas.filter(c=>c.activo&&c.sede_id&&!c.solo_depositos);
+ const etiqueta=(c:CashAccount)=>`${c.sede} · ${c.tipo==='efectivo'?'Caja menor (efectivo)':accountLabel(c)}`;
+ const saldo=modo==='saldo';
+ const guardar=async()=>{
+  setBusy(true);setError('');
+  try{
+   const ruta=saldo?null:await subir(archivo!,{socios:true,cuenta_id:f.cuenta_id});
+   const {error:e}=await supabase.rpc('prestamos_socios_registrar',{p:{...f,valor:Number(f.valor),fecha:saldo?CORTE:f.fecha,comprobante_path:ruta}});
+   if(e)throw e;onDone();
+  }catch(e){setError(motivo(e,'No se pudo registrar.'));}
+  setBusy(false);
+ };
+ const listo=f.socio&&Number(f.valor)&&(saldo?f.sede_id&&f.descripcion.trim().length>=5:f.cuenta_id&&archivo);
+ return <Modal titulo={saldo?'Saldo inicial de un socio al 30/10':'Préstamo de socio o devolución'} onClose={onClose}>
+  <p className="text-xs text-gray-500">{saldo?'Lo que una sede ya le debía al socio el 30 de octubre. Solo deja la deuda: no mueve ninguna caja ni cuenta.'
+   :'Préstamo sin interés: entra a la caja o cuenta de la sede. La devolución sale de ella. Quedan en los Cierres de caja de la sede, pero no cuentan como venta ni como gasto.'}</p>
+  <div className="grid sm:grid-cols-2 gap-3">
+   {!saldo&&<label className="text-xs font-bold text-gray-600">Tipo<select className={input} value={f.tipo} onChange={e=>setF({...f,tipo:e.target.value})}><option value="prestamo">Préstamo del socio a la sede</option><option value="devolucion">Devolución de la sede al socio</option></select></label>}
+   <label className="text-xs font-bold text-gray-600">Socio<ConfigSelect lista="socios_prestamistas" className={input} value={f.socio} onChange={v=>setF({...f,socio:v})} placeholder="Elige el socio"/></label>
+   {saldo?<label className="text-xs font-bold text-gray-600">Sede que debe<select className={input} value={f.sede_id} onChange={e=>setF({...f,sede_id:e.target.value})}><option value="">Elige</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
+    :<><label className="text-xs font-bold text-gray-600">Fecha<input type="date" className={input} value={f.fecha} max={hoyBogota()} onChange={e=>setF({...f,fecha:e.target.value})}/></label>
+     <label className="text-xs font-bold text-gray-600 sm:col-span-2">{f.tipo==='prestamo'?'Entra a':'Sale de'}<select className={input} value={f.cuenta_id} onChange={e=>setF({...f,cuenta_id:e.target.value})}><option value="">Elige la caja o cuenta de la sede</option>{deSede.map(c=><option key={c.id} value={c.id}>{etiqueta(c)}</option>)}</select></label></>}
+   <label className="text-xs font-bold text-gray-600">Valor<MoneyInput className={input} inputMode="numeric" value={f.valor} onChange={e=>setF({...f,valor:e.target.value.replace(/\D/g,'')})}/></label>
+   <label className="text-xs font-bold text-gray-600">{saldo?'Qué se acordó':'Nota'}<input className={input} maxLength={500} value={f.descripcion} onChange={e=>setF({...f,descripcion:e.target.value})} placeholder={saldo?'Ej.: deuda histórica acordada con la sede':'Para qué es'}/></label>
+   {!saldo&&<label className="text-xs font-bold text-gray-600 sm:col-span-2">Comprobante (foto o PDF, obligatorio)<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" className="block mt-1 text-sm" onChange={e=>setArchivo(e.target.files?.[0]||null)}/></label>}
+  </div>
+  {error&&<p className="text-red-600 text-sm font-bold">{error}</p>}
+  <div className="flex gap-2"><button type="button" disabled={busy||!listo} onClick={()=>void guardar()} className="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black disabled:opacity-40">{busy?'Registrando…':'Registrar'}</button>
    <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border text-sm font-black text-gray-600">Cancelar</button></div>
  </Modal>;
 }
