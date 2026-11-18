@@ -10,7 +10,7 @@ import {bogotaDay} from '@/lib/contract-calendar';
 import {bogotaDateTime,errorText,supplierFilePath,sumMoney} from '@/lib/suppliers';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Pending={id:string;proveedor_id:string;proveedor:string;servicio:string;descripcion:string;fecha_servicio:string;estado:string;valor_empresa:number;numero_contrato:string;cliente:string;sede_id:string;realizado_at:string|null;banco:string|null;tipo_cuenta:string|null;numero_cuenta:string|null};
+type Pending={id:string;clase?:'servicio'|'arreglo';proveedor_id:string;proveedor:string;servicio:string;descripcion:string;fecha_servicio:string;estado:string;valor_empresa:number;numero_contrato:string;cliente:string;sede_id:string;realizado_at:string|null;banco:string|null;tipo_cuenta:string|null;numero_cuenta:string|null};
 type Payment={id:string;proveedor_id:string;proveedor:string;fecha_pago:string;valor_total:number;medio_pago:string;referencia:string|null;comprobante_path:string|null;registrado_por:string|null;anulado_at:string|null;motivo_anulacion:string|null;servicios:number};
 
 export default function SupplierPaymentsPage(){
@@ -57,7 +57,7 @@ function Payments(){
     const up=await supabase.storage.from('comprobantes_proveedores').upload(comprobante_path,file,{contentType:file.type});
     if(up.error)throw up.error;
    }
-   const {error}=await supabase.rpc('registrar_pago_proveedor',{p_datos:{proveedor_id:chosenSupplier,servicios:picked,...form,comprobante_path}});
+   const {error}=await supabase.rpc('registrar_pago_proveedor',{p_datos:{proveedor_id:chosenSupplier,servicios:chosen.filter(p=>p.clase!=='arreglo').map(p=>p.id),arreglos:chosen.filter(p=>p.clase==='arreglo').map(p=>p.id),...form,comprobante_path}});
    if(error)throw error;
    setNotice(`Pago de ${money(total)} a ${chosen[0].proveedor} registrado.`);setPicked([]);setFile(null);setFileKey(k=>k+1);setForm({...form,referencia:''});void load();
   }catch(e){setError(errorText(e,'No se pudo registrar el pago.'));}

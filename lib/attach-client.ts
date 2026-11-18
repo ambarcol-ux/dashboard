@@ -6,7 +6,7 @@ const MAX_ARCHIVO=2_500_000;
 
 const toBase64=(blob:Blob)=>new Promise<string>((ok,fail)=>{const r=new FileReader();r.onload=()=>ok(String(r.result).split(',')[1]||'');r.onerror=()=>fail(Error('No se pudo leer el archivo.'));r.readAsDataURL(blob);});
 
-async function shrink(file:File):Promise<Blob>{
+export async function shrink(file:File):Promise<Blob>{
  try{
   const bmp=await createImageBitmap(file),scale=Math.min(1,1600/Math.max(bmp.width,bmp.height));
   const c=document.createElement('canvas');c.width=Math.round(bmp.width*scale);c.height=Math.round(bmp.height*scale);
