@@ -117,20 +117,27 @@ export async function POST(request:Request){
   await db.rpc('capi_contratos_encolar',{p_dias:7});
   // Events of chats that came from a WhatsApp ad also go as Business Messaging events with the ad click, so Meta credits that ad.
   // They go to the dataset of the WhatsApp Business account (asked once per run; the usual dataset if Meta does not return one).
-  const waToken=wa.token||capiToken;let bmDataset:string|null|undefined;
+  const waToken=wa.token||capiToken;let bmDataset:string|null|undefined,bmMotivo='';
+  const metaError=(st:number,d:{error?:{message?:string;error_user_msg?:string;error_subcode?:number}})=>
+   `Meta rechazó el evento (${st}) ${[d.error?.message,d.error?.error_user_msg,d.error?.error_subcode].filter(Boolean).join(' · ').slice(0,280)}`;
+  // Business Messaging events only go to the dataset of the WhatsApp Business account: read it, or create it when the account has none.
   const datasetDeWhatsapp=async()=>{
    if(bmDataset!==undefined)return bmDataset;
-   try{
-    const r=await fetch(`https://graph.facebook.com/${version}/${wa.wabaId}/dataset`,{headers:{Authorization:`Bearer ${waToken}`},signal:AbortSignal.timeout(8000)});
-    const d=await r.json().catch(()=>({}));const id=String(d.id||d.data?.[0]?.id||d.data?.[0]?.dataset_id||'');
-    bmDataset=/^\d+$/.test(id)?id:dataset;
-   }catch{bmDataset=dataset;}
+   bmDataset=null;
+   for(const method of ['GET','POST']){
+    try{
+     const r=await fetch(`https://graph.facebook.com/${version}/${wa.wabaId}/dataset`,{method,headers:{Authorization:`Bearer ${waToken}`},signal:AbortSignal.timeout(8000)});
+     const d=await r.json().catch(()=>({}));const id=String(d.id||d.data?.[0]?.id||d.data?.[0]?.dataset_id||'');
+     if(/^\d+$/.test(id)){bmDataset=id;break;}
+     bmMotivo=`sin dataset de la cuenta de WhatsApp: ${metaError(r.status,d)}`;
+    }catch{bmMotivo='sin dataset de la cuenta de WhatsApp: Meta no respondió';}
+   }
    return bmDataset;
   };
   const enviar=async(target:string,token:string,evento:unknown)=>{
    const r=await fetch(`https://graph.facebook.com/${version}/${target}/events`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({data:[evento]}),signal:AbortSignal.timeout(8000)});
    const d=await r.json().catch(()=>({}));
-   return r.ok&&d.events_received>=1?'':`Meta rechazó el evento (${r.status}) ${String(d.error?.message||'').slice(0,200)}`;
+   return r.ok&&d.events_received>=1?'':metaError(r.status,d);
   };
   for(let i=0;i<10;i++){
    const {data:job,error}=await db.rpc('tomar_capi_primera_cita');if(error||!job)break;if(job.omitido)continue;
@@ -143,7 +150,7 @@ export async function POST(request:Request){
    let reemplaza=false;
    if(bm){
     try{
-     const target=await datasetDeWhatsapp(),err=await enviar(target!,waToken,bm);
+     const target=await datasetDeWhatsapp(),err=target?await enviar(target,waToken,bm):bmMotivo;
      nota=err?`Anuncio de WhatsApp: ${err}`:'Anuncio de WhatsApp: enviado';
      reemplaza=!err&&target===dataset&&(job as CapiJob).evento.evento==='Purchase';
     }catch{nota='Anuncio de WhatsApp: sin respuesta de Meta';}
