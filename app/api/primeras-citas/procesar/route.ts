@@ -4,7 +4,7 @@ import {confirmationPayload,isTemplateError,whatsappPayload,reminderConfirmPaylo
 import {whatsappPhone} from '@/lib/first-visit-links';
 import {claimVisitEmails,deliverVisitEmails} from '@/lib/first-visit-email';
 import {Resend} from 'resend';
-import {capiEvent,DEFAULT_CAPI_DATASET,type CapiJob} from '@/lib/meta-capi';
+import {capiEvent,capiMessagingEvent,DEFAULT_CAPI_DATASET,type CapiJob} from '@/lib/meta-capi';
 import {authorizedVisitWorker,visitWorkerConfiguration} from '@/lib/first-visit-worker-config';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {loadVisitSites} from '@/lib/first-visit-sites';
@@ -115,14 +115,45 @@ export async function POST(request:Request){
  if(capiToken&&/^\d+$/.test(dataset)){
   // Every signed contract with marketing data authorization also goes to Meta as a sale (with or without a first visit).
   await db.rpc('capi_contratos_encolar',{p_dias:7});
+  // Events of chats that came from a WhatsApp ad also go as Business Messaging events with the ad click, so Meta credits that ad.
+  // They go to the dataset of the WhatsApp Business account (asked once per run; the usual dataset if Meta does not return one).
+  const waToken=wa.token||capiToken;let bmDataset:string|null|undefined;
+  const datasetDeWhatsapp=async()=>{
+   if(bmDataset!==undefined)return bmDataset;
+   try{
+    const r=await fetch(`https://graph.facebook.com/${version}/${wa.wabaId}/dataset`,{headers:{Authorization:`Bearer ${waToken}`},signal:AbortSignal.timeout(8000)});
+    const d=await r.json().catch(()=>({}));const id=String(d.id||d.data?.[0]?.id||d.data?.[0]?.dataset_id||'');
+    bmDataset=/^\d+$/.test(id)?id:dataset;
+   }catch{bmDataset=dataset;}
+   return bmDataset;
+  };
+  const enviar=async(target:string,token:string,evento:unknown)=>{
+   const r=await fetch(`https://graph.facebook.com/${version}/${target}/events`,{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({data:[evento]}),signal:AbortSignal.timeout(8000)});
+   const d=await r.json().catch(()=>({}));
+   return r.ok&&d.events_received>=1?'':`Meta rechazó el evento (${r.status}) ${String(d.error?.message||'').slice(0,200)}`;
+  };
   for(let i=0;i<10;i++){
    const {data:job,error}=await db.rpc('tomar_capi_primera_cita');if(error||!job)break;if(job.omitido)continue;
-   let estado='error',respuesta='';
-   try{
-    const r=await fetch(`https://graph.facebook.com/${version}/${dataset}/events`,{method:'POST',headers:{Authorization:`Bearer ${capiToken}`,'Content-Type':'application/json'},body:JSON.stringify({data:[capiEvent(job as CapiJob)]}),signal:AbortSignal.timeout(8000)});
-    const d=await r.json().catch(()=>({}));
-    if(r.ok&&d.events_received>=1)estado='enviado';else respuesta=`Meta rechazó el evento (${r.status}) ${String(d.error?.message||'').slice(0,200)}`;
+   let estado='error',respuesta='',nota='';
+   // A retry does not resend the WhatsApp-ad event already accepted (Meta does not de-duplicate those).
+   const yaWa=String((job as {evento:{respuesta?:string|null}}).evento.respuesta||'').includes('Anuncio de WhatsApp: enviado');
+   const bm=yaWa?null:capiMessagingEvent(job as CapiJob,wa.wabaId);
+   if(yaWa)nota='Anuncio de WhatsApp: enviado';
+   // A rental in the same dataset goes once: as the WhatsApp-ad sale when it came from an ad, else as before.
+   let reemplaza=false;
+   if(bm){
+    try{
+     const target=await datasetDeWhatsapp(),err=await enviar(target!,waToken,bm);
+     nota=err?`Anuncio de WhatsApp: ${err}`:'Anuncio de WhatsApp: enviado';
+     reemplaza=!err&&target===dataset&&(job as CapiJob).evento.evento==='Purchase';
+    }catch{nota='Anuncio de WhatsApp: sin respuesta de Meta';}
+   }
+   if(reemplaza)estado='enviado';
+   else try{
+    const err=await enviar(dataset,capiToken,capiEvent(job as CapiJob));
+    if(!err)estado='enviado';else respuesta=err;
    }catch{respuesta='Sin respuesta de Meta; se reintentará';}
+   respuesta=[respuesta,nota].filter(Boolean).join(' · ');
    await db.from('primeras_citas_capi').update({estado,respuesta:respuesta||null,updated_at:new Date().toISOString()}).eq('id',(job as CapiJob).evento.id).eq('estado','enviando');
    if(estado==='enviado')capi.enviados++;else capi.errores++;
   }
