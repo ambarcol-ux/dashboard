@@ -37,12 +37,13 @@ function Tabs({admin}:{admin:boolean}){
  const [tab,setTab]=useState<'chats'|'comentarios'|'ia'|'anuncios'>('chats');
  // ?tab=anuncios from the Marketing menu.
  useEffect(()=>{const t=new URLSearchParams(window.location.search).get('tab');if(t==='anuncios'||t==='comentarios'||t==='ia')setTimeout(()=>setTab(t),0);},[]);
- const [faltan,setFaltan]=useState(0);
+ const [faltan,setFaltan]=useState(0),[informe,setInforme]=useState(false);
  useEffect(()=>{if(!admin)return;void supabase.from('whatsapp_ia_faltantes').select('id',{count:'exact',head:true}).eq('estado','pendiente').then(({count})=>setFaltan(count||0));},[admin,tab]);
  const tabs=([['chats','Chats'],['comentarios','Comentarios de redes'],['ia','IA de WhatsApp'],['anuncios','Anuncios']] as const).filter(([k])=>admin||k==='chats'||k==='comentarios');
  return <>
-  {admin&&faltan>0&&tab!=='ia'&&<button type="button" onClick={()=>setTab('ia')} style={{width:'100%',textAlign:'left',marginBottom:10,padding:'10px 14px',borderRadius:12,border:'1px solid #fcd34d',background:'#fffbeb',color:'#92400e',fontWeight:700,cursor:'pointer'}}>
-   📝 La IA necesita {faltan} dato{faltan===1?'':'s'} para responder sola sin pasar chats a una persona. Tócame para completarlos.</button>}
+  {admin&&faltan>0&&tab!=='ia'&&<button type="button" onClick={()=>setInforme(true)} style={{width:'100%',textAlign:'left',marginBottom:10,padding:'10px 14px',borderRadius:12,border:'1px solid #fcd34d',background:'#fffbeb',color:'#92400e',fontWeight:700,cursor:'pointer'}}>
+   📝 La IA necesita {faltan} dato{faltan===1?'':'s'} para responder sola sin pasar chats a una persona. Tócame para ver el informe.</button>}
+  {informe&&<InformeFaltantes onClose={()=>setInforme(false)}/>}
   <div className={styles.toolbar} style={{marginBottom:12}}>{tabs.map(([k,l])=><button key={k} type="button" className={tab===k?styles.primary:undefined} onClick={()=>setTab(k)}>{l}</button>)}</div>
   {tab==='chats'?<Inbox/>:tab==='comentarios'?<Comments/>:tab==='ia'?<IaSettings/>:<AdsPanel/>}
  </>;
@@ -514,4 +515,31 @@ function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{i
    <button className={`${styles.button} ${styles.primary}`} disabled={!abierta||!texto.trim()||!!busy} onClick={()=>void run('enviar',{accion:'enviar',texto:texto.trim()},()=>setTexto(''))}><Send size={14} style={{display:'inline',verticalAlign:'-2px'}}/> {busy==='enviar'?'Enviando…':'Enviar'}</button>
   </div>
  </section>;
+}
+
+/** Read-only report of what the AI could not answer (pending), most asked first, with a button to copy it as text
+ *  (to hand it over and have it added to the AI's knowledge). Nothing is edited here. */
+function InformeFaltantes({onClose}:{onClose:()=>void}){
+ type F={id:number;falta:string;pregunta:string|null;veces:number|null;created_at:string;ultima_at:string|null};
+ const [filas,setFilas]=useState<F[]|null>(null),[copiado,setCopiado]=useState(false);
+ useEffect(()=>{void supabase.from('whatsapp_ia_faltantes').select('id,falta,pregunta,veces,created_at,ultima_at').eq('estado','pendiente')
+  .order('veces',{ascending:false}).order('created_at',{ascending:false}).then(({data})=>setFilas((data||[]) as F[]));},[]);
+ const fecha=(d:string|null)=>d?new Date(d).toLocaleDateString('es-CO',{timeZone:'America/Bogota',day:'numeric',month:'short'}):'';
+ const texto=()=>`Informe · Datos que le faltan a la IA de WhatsApp (${(filas||[]).length})\n\n`+(filas||[]).map((f,i)=>`${i+1}. ${f.falta}${(f.veces||1)>1?` (preguntado ${f.veces} veces)`:''}${f.pregunta?`\n   Pregunta de la clienta: «${f.pregunta.replace(/\s+/g,' ').slice(0,200)}»`:''}\n   Última vez: ${fecha(f.ultima_at||f.created_at)}`).join('\n\n');
+ const copiar=async()=>{try{await navigator.clipboard.writeText(texto());setCopiado(true);setTimeout(()=>setCopiado(false),2500);}catch{window.prompt('Copia el informe:',texto());}};
+ return <div style={{position:'fixed',inset:0,zIndex:120,background:'rgba(0,0,0,.4)',display:'flex',alignItems:'center',justifyContent:'center',padding:12}} onClick={onClose}>
+  <div style={{background:'#fff',borderRadius:16,padding:18,width:'100%',maxWidth:640,maxHeight:'88vh',overflowY:'auto'}} onClick={e=>e.stopPropagation()}>
+   <h2 style={{fontWeight:900,fontSize:18,margin:0}}>Informe · Lo que le falta a la IA</h2>
+   <p style={{fontSize:13,color:'#6b7280',margin:'6px 0 12px'}}>Preguntas de clientas que la IA no supo responder, de la más repetida a la menos. Solo lectura: copia el informe y pásalo para cargar estos datos en la IA.</p>
+   <div style={{display:'flex',gap:8,marginBottom:12}}>
+    <button type="button" onClick={()=>void copiar()} disabled={!filas?.length} style={{padding:'8px 14px',borderRadius:10,background:'#e11d48',color:'#fff',fontWeight:800,border:0}}>{copiado?'¡Copiado!':'📋 Copiar informe'}</button>
+    <button type="button" onClick={onClose} style={{padding:'8px 14px',borderRadius:10,border:'1px solid #e5e7eb',background:'#fff',fontWeight:800}}>Cerrar</button>
+   </div>
+   {!filas?<p style={{color:'#9ca3af'}}>Cargando…</p>:!filas.length?<p style={{color:'#9ca3af'}}>No hay datos pendientes.</p>:
+    <ol style={{paddingLeft:20,margin:0,display:'grid',gap:10}}>{filas.map(f=><li key={f.id} style={{fontSize:14}}>
+     <b>{f.falta}</b>{(f.veces||1)>1&&<span style={{color:'#b45309',fontWeight:700}}> · preguntado {f.veces} veces</span>}
+     {f.pregunta&&<div style={{fontSize:12,color:'#6b7280'}}>Pregunta de la clienta: «{f.pregunta.slice(0,200)}»</div>}
+     <div style={{fontSize:11,color:'#9ca3af'}}>Última vez: {fecha(f.ultima_at||f.created_at)}</div></li>)}</ol>}
+  </div>
+ </div>;
 }
