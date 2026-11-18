@@ -28,7 +28,7 @@ export default function PlanAhorroPage(){
 
 function Planes(){
  const [planes,setPlanes]=useState<Plan[]|null>(null),[sedes,setSedes]=useState<Sede[]>([]),[sede,setSede]=useState(''),[cuentas,setCuentas]=useState<CashAccount[]>([]),[ver,setVer]=useState<'activo'|'cerrados'>('activo');
- const [error,setError]=useState(''),[nuevo,setNuevo]=useState(false),[pagar,setPagar]=useState<Plan|null>(null),[cerrar,setCerrar]=useState<Plan|null>(null),[firmas,setFirmas]=useState<Record<string,string|null>>({}),[enlace,setEnlace]=useState<{p:Plan;url:string}|null>(null),[desdeChat,setDesdeChat]=useState<{nombre:string;tel:string;sede:string}|null>(null);
+ const [error,setError]=useState(''),[nuevo,setNuevo]=useState(false),[pagar,setPagar]=useState<Plan|null>(null),[abonos,setAbonos]=useState<Plan|null>(null),[cerrar,setCerrar]=useState<Plan|null>(null),[firmas,setFirmas]=useState<Record<string,string|null>>({}),[enlace,setEnlace]=useState<{p:Plan;url:string}|null>(null),[desdeChat,setDesdeChat]=useState<{nombre:string;tel:string;sede:string}|null>(null);
  // From a WhatsApp 304 chat («Inscribir en el plan»): the form opens with her name, phone and store.
  useEffect(()=>{const q=new URLSearchParams(window.location.search);if(q.get('nuevo')!=='1')return;
   const t=setTimeout(()=>{setDesdeChat({nombre:q.get('nombre')||'',tel:q.get('tel')||'',sede:q.get('sede')||''});setNuevo(true);history.replaceState(null,'',window.location.pathname);},0);return()=>clearTimeout(t);},[]);
@@ -84,6 +84,7 @@ function Planes(){
       :<button type="button" onClick={()=>void contrato(p,'enlace')} className="px-3 py-1.5 rounded-lg bg-rose-600 text-white text-xs font-black">Enviar contrato para firmar</button>}
      <button type="button" onClick={()=>setCerrar(p)} className="px-3 py-1.5 rounded-lg border text-xs font-black">Cerrar plan</button>
     </div>}
+    {p.pagos>0&&<button type="button" onClick={()=>setAbonos(p)} className="px-3 py-1.5 rounded-lg border text-xs font-black mr-2">Ver abonos</button>}
     {firmas[p.id]&&<button type="button" onClick={()=>void contrato(p,'pdf')} className="px-3 py-1.5 rounded-lg border text-xs font-black">Ver contrato firmado</button>}
    </article>;})}</div>}
   {enlace&&<Modal titulo={`Contrato · ${enlace.p.quinceanera_nombre||enlace.p.titular_nombre}`} onClose={()=>setEnlace(null)}>
@@ -95,6 +96,7 @@ function Planes(){
   </Modal>}
   {nuevo&&<FormNuevo sedes={sedes} sede={sede} inicial={desdeChat} onClose={()=>{setNuevo(false);setDesdeChat(null);}} onDone={()=>{setNuevo(false);setDesdeChat(null);void load();}}/>}
   {pagar&&<FormCuota p={pagar} cuentas={cuentas} onClose={()=>setPagar(null)} onDone={()=>{setPagar(null);void load();}}/>}
+  {abonos&&<Abonos p={abonos} onClose={()=>setAbonos(null)} onChanged={()=>void load()}/>}
   {cerrar&&<FormCerrar p={cerrar} onClose={()=>setCerrar(null)} onDone={()=>{setCerrar(null);void load();}}/>}
  </div>;
 }
@@ -163,5 +165,29 @@ function FormCerrar({p,onClose,onDone}:{p:Plan;onClose:()=>void;onDone:()=>void}
   {error&&<p className="text-red-600 text-sm font-bold">{error}</p>}
   <div className="flex gap-2"><button type="button" disabled={busy||nota.trim().length<5} onClick={()=>void guardar()} className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-black disabled:opacity-40">{busy?'Guardando…':'Cerrar plan'}</button>
    <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border text-sm font-black text-gray-600">Cancelar</button></div>
+ </Modal>;
+}
+
+type Abono={id:string;fecha:string;valor:number;medio:string;nota:string|null;registrado_por:string|null;anulado:boolean;motivo_anulacion:string|null};
+/** Payments of a plan; one registered by mistake is annulled with its reason (also in Cierres de caja, if that day is still open). */
+function Abonos({p,onClose,onChanged}:{p:Plan;onClose:()=>void;onChanged:()=>void}){
+ const [lista,setLista]=useState<Abono[]|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState('');
+ const load=useCallback(async()=>{const {data,error:e}=await supabase.rpc('plan_ahorro_pagos_listar',{p_plan:p.id});if(e)setError(e.message);else setLista((data||[]) as Abono[]);},[p.id]);
+ useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
+ const anular=async(a:Abono)=>{
+  const motivo=window.prompt(`Motivo para anular el abono de ${cop(a.valor)} del ${fecha(a.fecha)} (también se anula en Cierres de caja):`);
+  if(!motivo)return;setBusy(a.id);setError('');
+  const {error:e}=await supabase.rpc('plan_ahorro_anular_pago',{p_id:a.id,p_motivo:motivo});
+  setBusy('');if(e)setError(e.message);else{void load();onChanged();}
+ };
+ return <Modal titulo={`Abonos · ${p.quinceanera_nombre||p.titular_nombre}`} onClose={onClose}>
+  {error&&<p role="alert" className="text-red-600 text-sm font-bold">{error}</p>}
+  {!lista?<p className="text-sm text-gray-400">Cargando…</p>:!lista.length?<p className="text-sm text-gray-400">Aún no tiene abonos.</p>:<div className="divide-y">{lista.map(a=><div key={a.id} className={`flex flex-wrap justify-between gap-2 py-2 ${a.anulado?'opacity-60':''}`}>
+   <div><p className={`font-black text-sm ${a.anulado?'line-through':''}`}>{cop(a.valor)} <span className="text-xs font-bold text-gray-400">· {fecha(a.fecha)} · {a.medio}</span></p>
+    <p className="text-xs text-gray-500">{a.registrado_por?`Registró ${a.registrado_por}`:''}{a.nota?` · ${a.nota}`:''}{a.anulado?` · ANULADO: ${a.motivo_anulacion||''}`:''}</p></div>
+   {!a.anulado&&p.estado==='activo'&&<button type="button" disabled={busy===a.id} onClick={()=>void anular(a)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-red-600 disabled:opacity-40">{busy===a.id?'Anulando…':'Anular'}</button>}
+  </div>)}</div>}
+  <p className="text-[11px] text-gray-500">Si la caja de ese día ya se cerró, el ERP no deja anular: pide a administración reabrir ese día.</p>
+  <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border text-sm font-black text-gray-600">Cerrar</button>
  </Modal>;
 }
