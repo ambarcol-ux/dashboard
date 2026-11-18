@@ -1116,7 +1116,8 @@ export default function DashboardPage() {
           vestido_id: vId,
           tipo: triageForm.tipo.toUpperCase(),
           dias_estimados: Number(triageForm.dias_estimados),
-          estado: 'en proceso'
+          estado: 'en proceso',
+          descripcion_danos: triageForm.detalles_danos || null
         };
 
         console.log('Payload a enviar (mantenimiento_bitacora):', payload);

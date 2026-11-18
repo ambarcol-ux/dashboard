@@ -25,6 +25,8 @@ import InventoryDuplicates from '@/components/InventoryDuplicates';
 import DressRemovalDialog from '@/components/DressRemovalDialog';
 import {CLASSIFICATION_STYLES, UNCLASSIFIED_STYLE, type DressClassification} from '@/lib/inventory';
 import DressSaleDialog from '@/components/DressSaleDialog';
+import VestidoHistorial from '@/components/arreglos/VestidoHistorial';
+import ArregloFotos from '@/components/arreglos/ArregloFotos';
 
 // Pesos colombianos with thousands separator in price inputs (3.500.000); only digits are saved.
 const soloDigitos = (t: string) => t.replace(/\D/g, '');
@@ -96,7 +98,7 @@ export default function InventoryPage() {
   const [activeDossierTab, setActiveDossierTab] = useState<'alquileres' | 'mantenimiento' | 'estadisticas' | 'traslados'>('alquileres');
   const [dossierRentals, setDossierRentals] = useState<any[]>([]);
   const [dossierMaintenance, setDossierMaintenance] = useState<any[]>([]);
-  const [dossierStats, setDossierStats] = useState<any>(null);
+  const [, setDossierStats] = useState<any>(null);
   const [dossierTransfers, setDossierTransfers] = useState<any[]>([]);
   const [dossierLoading, setDossierLoading] = useState(false);
 
@@ -1474,7 +1476,7 @@ export default function InventoryPage() {
                        {[
                          { id: 'alquileres', label: 'Alquileres', icon: ListIcon },
                          { id: 'mantenimiento', label: 'Mantenimiento', icon: Package },
-                         { id: 'estadisticas', label: 'Estadísticas', icon: TrendingUp },
+                         { id: 'estadisticas', label: 'Historial', icon: TrendingUp },
                          { id: 'traslados', label: 'Traslados', icon: ArrowLeftRight }
                        ].map(t => (
                          <button 
@@ -1549,8 +1551,9 @@ export default function InventoryPage() {
                                           </div>
                                           <p className="text-[11px] text-gray-500 font-bold opacity-80 uppercase tracking-widest mb-2 leading-tight">Estado: {m.estado}</p>
                                           <div className="p-3 bg-gray-50 rounded-xl border border-gray-100 italic text-[10px] text-gray-600">
-                                             "{m.detalle || 'Mantenimiento preventivo estándar sin anotaciones adicionales.'}"
+                                             {m.trabajo || m.descripcion_danos || 'Sin anotaciones.'}{m.costo ? ` · $${Math.round(Number(m.costo)).toLocaleString('es-CO')}` : ''}{m.estado_pago ? ` · pago: ${m.estado_pago}` : ''}
                                           </div>
+                                          <div className="mt-2"><ArregloFotos antes={m.fotos_antes} despues={m.fotos_despues} /></div>
                                        </div>
                                     </div>
                                   ))
@@ -1594,37 +1597,7 @@ export default function InventoryPage() {
                              </div>
                            )}
 
-                           {activeDossierTab === 'estadisticas' && (
-                             <div className="grid grid-cols-1 gap-4">
-                                <div className="bg-gradient-to-br from-emerald-500 to-emerald-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-emerald-100 relative overflow-hidden group">
-                                   <div className="absolute top-0 right-0 opacity-10 -translate-y-4 translate-x-4"><TrendingUp size={120} /></div>
-                                   <p className="text-[10px] font-black uppercase tracking-[0.4em] opacity-80 mb-4">Total Alquileres Confirmados</p>
-                                   <h3 className="text-6xl font-black tracking-tighter mb-2">{dossierStats?.total_alquileres || 0}</h3>
-                                   <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-widest bg-white/20 w-fit px-4 py-1 rounded-full">
-                                      <TrendingUp size={12} /> Alta Rotación Comercial
-                                   </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                   <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm text-center">
-                                      <div className="p-3 bg-rose-50 text-rose-500 rounded-2xl w-fit mx-auto mb-4">
-                                         <TrendingUp size={20} />
-                                      </div>
-                                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">ROI Estidmado</p>
-                                      <h4 className="text-2xl font-black text-gray-900 leading-none">HIGH</h4>
-                                      <p className="text-[8px] text-emerald-500 font-black mt-2 tracking-widest uppercase">Activo Rentable</p>
-                                   </div>
-                                   <div className="bg-white p-6 rounded-[2rem] border border-gray-100 shadow-sm text-center">
-                                      <div className="p-3 bg-amber-50 text-amber-500 rounded-2xl w-fit mx-auto mb-4">
-                                         <ArrowLeftRight size={20} />
-                                      </div>
-                                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em] mb-1">Días en Taller</p>
-                                      <h4 className="text-2xl font-black text-gray-900 leading-none">{dossierMaintenance.length * 3}d</h4>
-                                      <p className="text-[8px] text-gray-400 font-bold mt-2 tracking-widest uppercase">Acumulado Anual</p>
-                                   </div>
-                                </div>
-                             </div>
-                           )}
+                           {activeDossierTab === 'estadisticas' && selectedDressDossier?.id && <VestidoHistorial vestidoId={selectedDressDossier.id} />}
                          </>
                        )}
                     </div>
