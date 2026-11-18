@@ -105,7 +105,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
         { id: 'cobros', label: 'CUENTAS POR COBRAR', icon: HandCoins, href: '/dashboard/cuentas-por-cobrar', color: 'amber' },
         { id: 'caja', label: 'CIERRES DE CAJA', icon: Wallet, href: '/dashboard/caja', color: 'emerald' },
         { id: 'pagos_fijos', label: 'PAGOS FIJOS DE SEDE', icon: CalendarClock, href: '/dashboard/pagos-fijos', color: 'emerald' },
-        { id: 'gastos', label: 'GASTOS Y ENTRE SEDES', icon: Receipt, href: '/dashboard/gastos', color: 'emerald' },
+        { id: 'gastos', label: 'GASTOS, SEDES Y SOCIOS', icon: Receipt, href: '/dashboard/gastos', color: 'emerald' },
         { id: 'depositos', label: 'DEPÓSITOS Y DEVOLUCIONES', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
         { id: 'siigo', label: 'FACTURACIÓN POR SEDE', icon: KeyRound, href: '/admin/config/siigo', color: 'emerald' },
         // Suppliers (purchases) live together inside Finance.
@@ -153,7 +153,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
     'VENTAS Y CRM': ['CLIENTES', 'COTIZACIONES'],
     'INVENTARIO': ['MANTENIMIENTO Y ARREGLOS', 'TOMA FÍSICA'],
     'OPERACIONES Y LOGÍSTICA': ['ENTREGAS Y DEVOLUCIONES'],
-    'FINANZAS Y CONTABILIDAD': ['ÓRDENES DE COMPRA', 'PRESUPUESTO', 'PRÉSTAMOS DE TERCEROS', 'CONCILIACIÓN BANCARIA', 'CONCILIACIÓN CON SIIGO'],
+    'FINANZAS Y CONTABILIDAD': ['ÓRDENES DE COMPRA', 'PRESUPUESTO', 'CONCILIACIÓN BANCARIA', 'CONCILIACIÓN CON SIIGO'],
     'RECURSOS HUMANOS': ['NÓMINA', 'CONTRATOS LABORALES', 'VACACIONES E INCAPACIDADES'],
     'REPORTES E INDICADORES': ['ESTADO DE RESULTADOS POR SEDE', 'RENTABILIDAD POR VESTIDO', 'TABLEROS POR MÓDULO'],
   };
