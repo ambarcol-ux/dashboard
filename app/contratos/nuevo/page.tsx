@@ -405,7 +405,7 @@ export default function NuevoContratoPage() {
               id, vestido_id, tipo_uso, tipo, observaciones,
               vestido:vestidos(id,codigo,nombre,estado,sede_actual_id)
             ),
-            arreglos(*)
+            arreglos!arreglos_contrato_id_fkey(*)
           `)
           .eq('id', editingContractId)
           .single();
