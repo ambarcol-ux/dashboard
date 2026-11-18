@@ -17,7 +17,7 @@ export const ALLY_STATUS:Record<DirectAlly['estado'],{label:string;cls:string}>=
 
 export const onlyDigits=(v:string)=>v.replace(/\D/g,'');
 /** Public links of an ally: sign-up form (same for everyone) and, once Active, client registration and availability (by token). */
-export const allyLinks=(origin:string,token:string)=>({vincular:`${origin}/aliados/vincular`,clientas:`${origin}/aliados/clientas#${token}`,disponibilidad:`${origin}/aliados/disponibilidad#${token}`});
+export const allyLinks=(origin:string,token:string)=>({vincular:`${origin}/aliados/vincular`,clientas:`${origin}/aliados/clientas#${token}`,disponibilidad:`${origin}/aliados/disponibilidad#${token}`,catalogo:`${origin}/aliados/catalogo#${token}`});
 /** Validates the public sign-up form; returns the clean data or throws a message for the visitor. */
 export function allySignup(input:Record<string,unknown>,tipos:number[],sedes?:string[]){
  const t=(k:string,max=200)=>String(input[k]??'').trim().slice(0,max);
