@@ -17,12 +17,12 @@ export async function POST(request:Request){
  if(!id)return publicReply({error:'El enlace no es válido o ya venció. Pide a Ámbar Couture uno nuevo.'},404);
  try{
   const db=publicServerClient();
-  const {data:p,error}=await db.from('planes_ahorro').select('id,numero,estado,titular_nombre,titular_documento,telefono,email,quinceanera_nombre,fecha_evento,cuota_mensual,dia_pago,sede_id,firmado_at,contrato_texto,firma_base64,contrato_pdf_path,sedes(nombre)').eq('id',id).maybeSingle();
+  const {data:p,error}=await db.from('planes_ahorro').select('id,numero,estado,titular_nombre,titular_documento,telefono,email,quinceanera_nombre,fecha_evento,cuota_mensual,dia_pago,sede_id,firmado_at,contrato_texto,firma_base64,contrato_pdf_path,sedes(nombre,correo)').eq('id',id).maybeSingle();
   if(error)return publicReply({error:'El servicio no está disponible.'},503);
   if(!p)return publicReply({error:'Plan no encontrado.'},404);
   if(p.firmado_at)return publicReply({firmado:true,texto:p.contrato_texto,firma:p.firma_base64,firmado_at:p.firmado_at,nombre:p.titular_nombre});
   if(p.estado!=='activo')return publicReply({error:'Este plan ya no está activo.'},409);
-  const plan:PlanFirma={id:p.id,numero:p.numero,sede:String((p.sedes as unknown as {nombre?:string}|null)?.nombre||''),titular_nombre:p.titular_nombre,telefono:p.telefono,email:p.email,
+  const plan:PlanFirma={id:p.id,numero:p.numero,sede:String((p.sedes as unknown as {nombre?:string}|null)?.nombre||''),sede_correo:(p.sedes as unknown as {correo?:string|null}|null)?.correo||null,titular_nombre:p.titular_nombre,telefono:p.telefono,email:p.email,
    quinceanera_nombre:p.quinceanera_nombre,fecha_evento:p.fecha_evento,cuota_mensual:Number(p.cuota_mensual),dia_pago:p.dia_pago};
   const raw=(body.datos||{}) as Record<string,unknown>;
   const datos:DatosFirmante={cedula:limpio(raw.cedula||p.titular_documento,30),direccion:limpio(raw.direccion,160),correo:limpio(raw.correo||p.email,254).toLowerCase(),quinceanera:limpio(raw.quinceanera||p.quinceanera_nombre,120),ti:limpio(raw.ti,30)};
