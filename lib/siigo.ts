@@ -23,9 +23,9 @@ export async function siigoToken(c:SiigoCred,renew=false){
  return b.access_token as string;
 }
 
-export async function siigo(c:SiigoCred,path:string,body?:unknown,retry=true):Promise<any>{
- const r=await fetch(BASE+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json','Partner-Id':c.partner_id,Authorization:'Bearer '+await siigoToken(c,!retry)},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});
- if(r.status===401&&retry)return siigo(c,path,body,false);
+export async function siigo(c:SiigoCred,path:string,body?:unknown,retry=true,method=body?'POST':'GET'):Promise<any>{
+ const r=await fetch(BASE+path,{method,headers:{'Content-Type':'application/json','Partner-Id':c.partner_id,Authorization:'Bearer '+await siigoToken(c,!retry)},body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(30000)});
+ if(r.status===401&&retry)return siigo(c,path,body,false,method);
  const b=await r.json().catch(()=>null);
  if(!r.ok)throw Error(siigoError(r.status,b));
  return b;
@@ -69,13 +69,14 @@ async function codigoProducto(c:SiigoCred,codigo?:string){
 }
 
 const r2=(n:number)=>Math.round(n*100)/100;
-/** Sends one queued invoice; returns Siigo's id and number. */
-export async function siigoEnviarFactura(c:SiigoCred,p:SiigoParams,d:Doc){
+/** Sends one queued invoice (or, with siigoId, edits the one already in Siigo keeping its number); returns Siigo's id and number. */
+export async function siigoEnviarFactura(c:SiigoCred,p:SiigoParams,d:Doc,siigoId?:string){
  // Dress sales follow the site's choice (e.g. Barranquilla bills with its non-electronic «Documento» FV-1).
  const x=d.datos,electronica=(x.tipo_venta==='venta'&&p.factura_ventas?p.factura_ventas:x.tipo_factura)!=='ingreso';
  const documento=electronica?p.documento_electronica:p.documento_ingreso;
  if(!documento)throw Error(`Configura el tipo de comprobante de factura ${electronica?'electrónica':'de ingreso'} de esta sede.`);
  if(!p.vendedor)throw Error('Configura el vendedor de Siigo de esta sede.');
+ if(siigoId&&electronica)throw Error('El contrato cambió de valor, pero su factura electrónica ya está en la DIAN: haz la nota crédito en Siigo.');
  // Paid part by cash-register method (contracts) or the single sale method.
  const medios:{medio:string;valor:number}[]=Array.isArray(x.pagos)&&x.pagos.length?x.pagos:[{medio:String(x.forma_pago),valor:Number(x.pagado)||0}];
  for(const m of medios)if(m.valor>0&&!(p.pagos?.[m.medio]||p.pagos?.Otro))throw Error(`Configura la forma de pago «${m.medio}» de esta sede.`);
@@ -99,7 +100,8 @@ export async function siigoEnviarFactura(c:SiigoCred,p:SiigoParams,d:Doc){
  if(saldo>0&&!p.pago_credito)throw Error('Configura la forma de pago a crédito (saldo pendiente) de esta sede.');
  const payments=[...[...byId].map(([id,value])=>({id,value,due_date:x.fecha})),...(saldo>0?[{id:p.pago_credito,value:saldo,due_date:x.vence||x.fecha}]:[])];
  const obs=[x.fecha_entrega?`Fecha de Entrega: ${x.fecha_entrega}`:'',x.asesora?`Asesora: ${x.asesora}`:'',x.numero_contrato?`Contrato ${x.numero_contrato}`:'',x.venta?`Venta VTA-${String(x.venta).padStart(6,'0')}`:'',`Ref ERP ${d.id.slice(0,8)}`].filter(Boolean).join('\n');
- const r=await siigo(c,'/v1/invoices',{document:{id:documento},date:x.fecha,customer:{identification,branch_office:0},seller:p.vendedor,observations:obs,items,payments,
-  ...(electronica?{stamp:{send:true},mail:{send:!!x.cliente?.email}}:{})});
+ const body={document:{id:documento},date:x.fecha,customer:{identification,branch_office:0},seller:p.vendedor,observations:obs,items,payments,
+  ...(electronica?{stamp:{send:true},mail:{send:!!x.cliente?.email}}:{})};
+ const r=siigoId?await siigo(c,`/v1/invoices/${encodeURIComponent(siigoId)}`,body,true,'PUT'):await siigo(c,'/v1/invoices',body);
  return {id:String(r?.id||''),numero:String(r?.name||r?.number||''),respuesta:r};
 }

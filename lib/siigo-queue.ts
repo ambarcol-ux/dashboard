@@ -4,7 +4,7 @@ import {siigoEnviarFactura,type SiigoCred,type SiigoParams} from '@/lib/siigo';
 
 /** Sends one queued Siigo document (service-role client) and writes the invoice number back to the sale or contract. */
 export async function siigoEnviarDocumento(db:SupabaseClient,id:string):Promise<{ok:true;numero:string}|{ok:false;error:string;status:number}>{
- const {data:d}=await db.from('siigo_documentos').select('id,sede_id,tipo,origen,origen_id,contrato_id,datos,estado,intentos,updated_at').eq('id',id).maybeSingle();
+ const {data:d}=await db.from('siigo_documentos').select('id,sede_id,tipo,origen,origen_id,contrato_id,datos,estado,intentos,updated_at,siigo_id,siigo_numero').eq('id',id).maybeSingle();
  if(!d)return {ok:false,error:'Documento no disponible.',status:404};
  if(d.tipo!=='factura')return {ok:false,error:'Por ahora solo se envían facturas.',status:400};
  if(d.estado==='enviado'||d.estado==='anulado')return {ok:false,error:d.estado==='enviado'?'Ya se envió a Siigo.':'Documento anulado.',status:409};
@@ -18,8 +18,10 @@ export async function siigoEnviarDocumento(db:SupabaseClient,id:string):Promise<
  const {data:c}=await db.rpc('siigo_credencial_servidor',{p_sede_id:d.sede_id});
  if(!c?.access_key)return fail('Esta sede no tiene credenciales de Siigo.');
  try{
-  const r=await siigoEnviarFactura(c as SiigoCred,((c as any).parametros||{}) as SiigoParams,d as any);
-  await db.from('siigo_documentos').update({estado:'enviado',error:null,siigo_id:r.id,siigo_numero:r.numero,respuesta:r.respuesta,enviado_at:now(),updated_at:now()}).eq('id',d.id);
+  // A contract whose value changed after billing edits the same Siigo invoice.
+  const r0=await siigoEnviarFactura(c as SiigoCred,((c as any).parametros||{}) as SiigoParams,d as any,(d.datos as any)?.actualizar&&d.siigo_id?d.siigo_id:undefined);
+  const r={...r0,numero:r0.numero||String(d.siigo_numero||'')};
+  await db.from('siigo_documentos').update({estado:'enviado',error:null,siigo_id:r.id||d.siigo_id,siigo_numero:r.numero,respuesta:r.respuesta,enviado_at:now(),updated_at:now()}).eq('id',d.id);
   if(d.origen==='venta')await db.from('ventas_vestidos').update({siigo_estado:'enviada',numero_factura:r.numero.slice(0,40)||null}).eq('id',d.origen_id);
   if(d.contrato_id&&r.numero)await db.from('contratos').update({numero_factura:r.numero,factura_registrada_at:now()}).eq('id',d.contrato_id);
   return {ok:true,numero:r.numero};
