@@ -44,7 +44,7 @@ export default function PlanAhorroFirmaPage(){
    {!view&&!error&&<p className="flex items-center justify-center gap-2 text-gray-500"><Loader2 className="w-5 h-5 animate-spin"/> Cargando contrato…</p>}
    {view?.firmado&&<>
     <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 flex gap-3 items-start"><CheckCircle className="w-6 h-6 text-emerald-600 shrink-0"/><div><p className="font-black text-emerald-800">Contrato firmado</p>
-     <p className="text-sm text-emerald-700">Firmado por {view.nombre} el {new Date(view.firmado_at).toLocaleString('es-CO',{timeZone:'America/Bogota'})}{view.codigo?` · código ${view.codigo}`:''}. Ya puedes pagar tu primera cuota en la tienda o por transferencia.</p></div></div>
+     <p className="text-sm text-emerald-700">Firmado por {view.nombre} el {new Date(view.firmado_at).toLocaleString('es-CO',{timeZone:'America/Bogota'})}{view.codigo?` · código ${view.codigo}`:''}. La asesora de tu sede te escribirá por WhatsApp con los datos para pagar tu primera cuota (en la tienda o por transferencia).</p></div></div>
     <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm"><AllyContractText sections={view.texto}/><div className="mt-6 border-t pt-4"><p className="text-xs font-bold text-gray-500 mb-2">Firma de EL AHORRADOR</p><img src={view.firma} alt="Firma" className="h-20"/></div></div>
     {view.pdf?<button type="button" onClick={()=>descargar(view.pdf!)} className="w-full rounded-2xl bg-gray-900 text-white py-3 font-bold text-sm">Descargar mi contrato (PDF)</button>
      :<button type="button" onClick={()=>window.print()} className="w-full rounded-2xl border border-gray-200 bg-white py-3 font-bold text-sm">Imprimir o guardar en PDF</button>}

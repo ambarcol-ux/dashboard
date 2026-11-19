@@ -50,6 +50,10 @@ export async function POST(request:Request){
   try{const {tratamiento}=await loadAuthTexts(db);
    await registerAuthorization(db,{documento:datos.cedula,telefono:plan.telefono,nombre:plan.titular_nombre,email:datos.correo||null,sede:p.sede_id,origen:'contrato',tratamiento:true,comercial:body.comercial===true,pendiente:false,versionTratamiento:tratamiento?String(tratamiento.version):null});
   }catch(e){console.error('Autorización de datos (Plan Ahorro XV) no registrada:',e);}
+  // Signed: her WhatsApp chat is flagged «atender» so the store's adviser contacts her for the first cuota and how to pay.
+  try{await db.from('whatsapp_conversaciones').update({ia_atender:true,ia_motivo:`Plan Ahorro XV n.º ${plan.numero} firmado: escríbele con los datos para pagar su primera cuota ($${plan.cuota_mensual.toLocaleString('es-CO')}).`,sede_id:p.sede_id})
+   .like('telefono',`%${plan.telefono.replace(/\D/g,'').slice(-10)}`).eq('canal','whatsapp');
+  }catch(e){console.error('Plan Ahorro XV (aviso a la sede):',e);}
   return publicReply({firmado:true,texto,firma,firmado_at:now.toISOString(),nombre:plan.titular_nombre,codigo,pdf:up?null:Buffer.from(pdf).toString('base64')});
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
 }
