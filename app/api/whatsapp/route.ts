@@ -216,6 +216,8 @@ export async function POST(request:Request){
    return publicReply(url?{url}:img);
   }
   if(body.accion==='leido'){await db.from('whatsapp_conversaciones').update({no_leidos:0}).eq('id',conv.id);return publicReply({ok:true});}
+  // «Marcar resuelto»: the adviser already handled what the AI flagged (answered from the phone, called her…); the chat leaves «Atender persona».
+  if(body.accion==='resuelto'){await db.from('whatsapp_conversaciones').update({ia_atender:false,ia_motivo:null,no_leidos:0}).eq('id',conv.id);return publicReply({ok:true});}
   if(body.accion==='sede'){
    const sede=body.sede_id||null;
    if(sede&&!UUID_RE.test(sede))return publicReply({error:'Sede no válida.'},400);
