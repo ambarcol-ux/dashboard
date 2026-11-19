@@ -5,6 +5,7 @@ import {supabase} from '@/lib/supabase';
 import Sidebar from '@/components/Sidebar';
 import {KeyRound,Loader2,ShieldCheck} from 'lucide-react';
 import {toast,Toaster} from 'sonner';
+import SiigoParams from '@/components/SiigoParams';
 
 export default function SiigoConfigPage(){
   const readAccess = useVerifiedAccess();
@@ -46,6 +47,7 @@ export default function SiigoConfigPage(){
     <label className="text-sm font-bold">Código producto genérico<input className="mt-2 w-full border rounded-xl p-3" value={f.producto_codigo||''} onChange={e=>setForms(v=>({...v,[s.id]:{...f,producto_codigo:e.target.value}}))}/></label>
     <label className="text-sm font-bold md:col-span-2">Nombre producto<input className="mt-2 w-full border rounded-xl p-3" value={f.producto_nombre||''} onChange={e=>setForms(v=>({...v,[s.id]:{...f,producto_nombre:e.target.value}}))}/></label>
    </div><button disabled={saving===s.id} onClick={()=>void save(s.id)} className="mt-5 px-5 py-3 bg-rose-500 text-white rounded-xl font-black">{saving===s.id?'Guardando…':'Guardar credenciales de '+s.nombre}</button>
+   <SiigoParams sede={s.id} configurada={!!cfg?.access_key_configurada}/>
   </section>})}</div>}
  </div></main></div>;
 }
