@@ -501,7 +501,8 @@ function Chat({conv,auto,sedes,onBack,onChange}:{conv:Conv;auto:boolean;sedes:{i
   <div style={{border:'1px solid #ddd6fe',background:'#f5f3ff',borderRadius:12,padding:10,display:'grid',gap:6}}>
    <div style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><Sparkles size={15} color="#7c3aed"/><strong style={{fontSize:13}}>IA</strong>{conv.etiqueta&&<span className={styles.badge}>{conv.etiqueta}</span>}<small style={{color:'#6d28d9',flex:1}}>{conv.ia_resumen||''}</small>
     <button className={styles.button} disabled={!!busy} onClick={()=>void run('ia',{accion:'ia'})}>{busy==='ia'?'Pensando…':'Volver a sugerir'}</button></div>
-   {conv.ia_atender&&<p role="alert" style={{margin:0,color:'#b91c1c',fontWeight:800,fontSize:13}}>Atender persona: {conv.ia_motivo||'la IA recomienda que la atienda una asesora'}</p>}
+   {conv.ia_atender&&<p role="alert" style={{margin:0,color:'#b91c1c',fontWeight:800,fontSize:13,display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><span style={{flex:1,minWidth:200}}>Atender persona: {conv.ia_motivo||'la IA recomienda que la atienda una asesora'}</span>
+    <button type="button" className={`${styles.button} ${styles.primary}`} disabled={!!busy} onClick={()=>void run('resuelto',{accion:'resuelto'})}>{busy==='resuelto'?'Guardando…':'✓ Marcar resuelto'}</button></p>}
    {conv.plan_ahorro_at&&<p style={{margin:0,display:'flex',gap:8,alignItems:'center',flexWrap:'wrap',fontSize:13,color:'#0f766e',fontWeight:800}}>Interesada en el Plan Ahorro XV<a className={`${styles.button} ${styles.primary}`} href={`/dashboard/plan-ahorro?nuevo=1&tel=${encodeURIComponent(conv.telefono)}&nombre=${encodeURIComponent(conv.nombre||'')}${conv.sede_id?`&sede=${conv.sede_id}`:''}`}>Inscribir en el plan</a></p>}
    {conv.ia_error&&<small style={{color:'#b91c1c'}}>La IA no pudo responder: {conv.ia_error}</small>}
    {conv.ia_sugerencia?<><div style={{whiteSpace:'pre-wrap',fontSize:14}}>{conv.ia_sugerencia}</div>
