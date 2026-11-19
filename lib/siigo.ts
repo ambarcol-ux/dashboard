@@ -11,10 +11,12 @@ const tokens=new Map<string,{token:string;exp:number}>();
 const siigoError=(status:number,body:any)=>{const e=body?.Errors||body?.errors;
  return Array.isArray(e)&&e.length?e.map((x:any)=>[x.Message||x.message,x.Params?.length?`(${x.Params.join(', ')})`:''].filter(Boolean).join(' ')).join(' · '):`Siigo respondió ${status}.`;};
 
+/** Keys copied from Siigo often lose the trailing «=» of their base64; Siigo rejects them without it. */
+const padKey=(k:string)=>{const t=k.trim();return /^[A-Za-z0-9+/]+$/.test(t)&&t.length%4?t+'='.repeat(4-t.length%4):t;};
 export async function siigoToken(c:SiigoCred,renew=false){
  const k=c.usuario_api+'|'+c.partner_id,hit=tokens.get(k);
  if(!renew&&hit&&hit.exp>Date.now())return hit.token;
- const r=await fetch(`${BASE}/auth`,{method:'POST',headers:{'Content-Type':'application/json','Partner-Id':c.partner_id},body:JSON.stringify({username:c.usuario_api,access_key:c.access_key}),signal:AbortSignal.timeout(20000)});
+ const r=await fetch(`${BASE}/auth`,{method:'POST',headers:{'Content-Type':'application/json','Partner-Id':c.partner_id},body:JSON.stringify({username:c.usuario_api.trim(),access_key:padKey(c.access_key)}),signal:AbortSignal.timeout(20000)});
  const b=await r.json().catch(()=>null);
  if(!r.ok||!b?.access_token)throw Error('Siigo no aceptó las credenciales: '+siigoError(r.status,b));
  tokens.set(k,{token:b.access_token,exp:Date.now()+Math.max(60,Number(b.expires_in||86400)-600)*1000});
