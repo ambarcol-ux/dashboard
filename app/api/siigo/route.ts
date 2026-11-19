@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply,UUID_RE} from '@/lib/public-db';
-import {siigoCatalogos,siigoEnviarFactura,siigoToken,type SiigoCred,type SiigoParams} from '@/lib/siigo';
+import {siigoCatalogos,siigoToken,type SiigoCred} from '@/lib/siigo';
+import {siigoEnviarDocumento} from '@/lib/siigo-queue';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
@@ -30,23 +31,8 @@ export async function POST(request:Request){
    // RLS decides whether this user may see (and so send) the document.
    const {data:visible}=await userDb.from('siigo_documentos').select('id').eq('id',body.id).maybeSingle();
    if(!visible)return publicReply({error:'Documento no disponible.'},404);
-   const {data:d}=await db.from('siigo_documentos').select('id,sede_id,tipo,origen,origen_id,datos,estado,intentos,updated_at').eq('id',body.id).single();
-   if(!d)return publicReply({error:'Documento no disponible.'},404);
-   if(d.tipo!=='factura')return publicReply({error:'Por ahora solo se envían facturas.'},400);
-   if(d.estado==='enviado'||d.estado==='anulado')return publicReply({error:d.estado==='enviado'?'Ya se envió a Siigo.':'Documento anulado.'},409);
-   // Claim it so two clicks never create two invoices.
-   const {data:claim}=await db.from('siigo_documentos').update({intentos:d.intentos+1,updated_at:new Date().toISOString()}).eq('id',d.id).eq('updated_at',d.updated_at).in('estado',['pendiente','error']).select('id');
-   if(!claim?.length)return publicReply({error:'Este documento se está enviando. Espera un momento.'},409);
-   const c=await cred(d.sede_id);
-   const fail=async(msg:string)=>{await db.from('siigo_documentos').update({estado:'error',error:msg.slice(0,1000),updated_at:new Date().toISOString()}).eq('id',d.id);
-    if(d.origen==='venta')await db.from('ventas_vestidos').update({siigo_estado:'error'}).eq('id',d.origen_id);return publicReply({error:msg},400);};
-   if(!c)return fail('Esta sede no tiene credenciales de Siigo.');
-   try{
-    const r=await siigoEnviarFactura(c,((c as any).parametros||{}) as SiigoParams,d as any);
-    await db.from('siigo_documentos').update({estado:'enviado',error:null,siigo_id:r.id,siigo_numero:r.numero,respuesta:r.respuesta,enviado_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',d.id);
-    if(d.origen==='venta')await db.from('ventas_vestidos').update({siigo_estado:'enviada',numero_factura:r.numero.slice(0,40)||null}).eq('id',d.origen_id);
-    return publicReply({ok:true,numero:r.numero});
-   }catch(e){return fail(e instanceof Error?e.message:'No se pudo enviar a Siigo.');}
+   const r=await siigoEnviarDocumento(db,body.id);
+   return r.ok?publicReply({ok:true,numero:r.numero}):publicReply({error:r.error},r.status);
   }
   return publicReply({error:'Acción no válida.'},400);
  }catch(e){

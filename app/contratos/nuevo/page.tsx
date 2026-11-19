@@ -30,6 +30,9 @@ import { cop } from '@/lib/rental-price';
 import AccountTypeOptions from '@/components/AccountTypeOptions';
 import { accountLabel, keyError } from '@/lib/bank-keys';
 import { useFieldRequired } from '@/lib/module-config';
+
+/** Placeholder until the automatic Siigo invoice replaces it with its real number. */
+const SIIGO_AUTO_INVOICE = 'Siigo automática';
 import { PROMO_FIELDS, promoApplies, promoBenefit, promoDiscount, type Promotion } from '@/lib/promotions';
 
 const MONEY_FIELDS = ['valor_total', 'servicios_adicionales', 'anticipo', 'valor_deposito'];
@@ -225,6 +228,9 @@ export default function NuevoContratoPage() {
   // Promotion (Ventas y CRM › Correo): only on new contracts; active today, for the sede and the selected dresses' type and category.
   const [promos, setPromos] = useState<Promotion[]>([]);
   const [promoId, setPromoId] = useState('');
+  // Sites with automatic Siigo billing: the invoice number is optional (Siigo fills it in).
+  const [siigoAuto, setSiigoAuto] = useState(false);
+  useEffect(() => { if (!formData.sede_id) { setSiigoAuto(false); return; } void supabase.rpc('siigo_sede_automatica', { p_sede_id: formData.sede_id }).then(({ data }) => setSiigoAuto(data === true)); }, [formData.sede_id]);
   useEffect(() => { void supabase.from('promociones').select(PROMO_FIELDS).eq('activo', true).then(({ data }) => setPromos((data || []) as Promotion[])); }, []);
   const promoDress = vestidos.map(v => vestidosMaestro.find(m => m.id === v.vestido_id)).filter(Boolean);
   const promoFit = (p: Promotion) => promoApplies(p, { sede: formData.sede_id, tipos: promoDress.map(d => d.clasificacion_id), categorias: promoDress.map(d => d.categoria) });
@@ -1143,7 +1149,7 @@ export default function NuevoContratoPage() {
     catch { toast.error('El depósito debe ser un valor válido mayor o igual a cero.'); return; }
     let numeroFactura: string;
     try {
-      numeroFactura = requireInvoice(formData.numero_factura);
+      numeroFactura = requireInvoice(formData.numero_factura.trim() || (siigoAuto ? SIIGO_AUTO_INVOICE : ''));
     } catch {
       toast.error(INVOICE_REQUIRED_MESSAGE);
       document.getElementById('numero_factura')?.focus();
@@ -1467,7 +1473,7 @@ export default function NuevoContratoPage() {
     catch { toast.error('El depósito debe ser un valor válido mayor o igual a cero.'); return; }
     let numeroFactura: string;
     try {
-      numeroFactura = requireInvoice(formData.numero_factura);
+      numeroFactura = requireInvoice(formData.numero_factura.trim() || (siigoAuto ? SIIGO_AUTO_INVOICE : ''));
     } catch {
       toast.error(INVOICE_REQUIRED_MESSAGE);
       document.getElementById('numero_factura')?.focus();
@@ -2556,18 +2562,18 @@ export default function NuevoContratoPage() {
           {/* Factura al final, junto a los pagos (sigue obligatoria) */}
           <section className="space-y-3">
             <label htmlFor="numero_factura" className="text-sm font-semibold text-gray-700">
-              Factura <span className="text-rose-500">*</span>
+              Factura {!siigoAuto && <span className="text-rose-500">*</span>}
             </label>
-            <input id="numero_factura" name="numero_factura" type="text" required
-              aria-required="true" aria-describedby="invoice-help"
+            <input id="numero_factura" name="numero_factura" type="text" required={!siigoAuto}
+              aria-required={!siigoAuto} aria-describedby="invoice-help"
               value={formData.numero_factura}
               onChange={(e) => setFormData(prev => ({ ...prev, numero_factura: e.target.value }))}
-              placeholder="Número de factura"
+              placeholder={siigoAuto ? 'Se factura sola en Siigo' : 'Número de factura'}
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300" />
             <p id="invoice-help" className="text-xs text-gray-500">
               {isEditMode
                 ? 'Edición administrativa del contrato existente. El número de contrato, firma y estado actual se conservarán.'
-                : 'El número de factura es obligatorio para guardar y generar el contrato.'}
+                : siigoAuto ? 'Esta sede factura sola en Siigo: deja este campo vacío y el número se llena cuando se emita la factura.' : 'El número de factura es obligatorio para guardar y generar el contrato.'}
             </p>
           </section>
 

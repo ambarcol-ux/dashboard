@@ -60,10 +60,12 @@ async function asegurarCliente(c:SiigoCred,p:SiigoParams,cli:Record<string,any>)
  return doc;
 }
 
-/** Item code: the dress's own Siigo product when it exists (sales «código+V»), otherwise the site's generic product. */
+const existeProducto=async(c:SiigoCred,codigo:string)=>!!codigo&&list(await siigo(c,`/v1/products?code=${encodeURIComponent(codigo)}`)).some((x:any)=>String(x.code)===codigo);
+/** Item code: the dress's own Siigo product when it exists (rentals «código», sales «código+V»), otherwise the site's generic product. */
 async function codigoProducto(c:SiigoCred,codigo?:string){
- if(codigo&&list(await siigo(c,`/v1/products?code=${encodeURIComponent(codigo)}`)).some((x:any)=>String(x.code)===codigo))return codigo;
- return c.producto_codigo;
+ if(codigo&&await existeProducto(c,codigo))return codigo;
+ if(await existeProducto(c,c.producto_codigo))return c.producto_codigo;
+ throw Error(`El producto «${codigo||c.producto_codigo}» no existe en Siigo. Créalo en Siigo o cambia el producto genérico de la sede.`);
 }
 
 const r2=(n:number)=>Math.round(n*100)/100;
@@ -74,23 +76,29 @@ export async function siigoEnviarFactura(c:SiigoCred,p:SiigoParams,d:Doc){
  const documento=electronica?p.documento_electronica:p.documento_ingreso;
  if(!documento)throw Error(`Configura el tipo de comprobante de factura ${electronica?'electrónica':'de ingreso'} de esta sede.`);
  if(!p.vendedor)throw Error('Configura el vendedor de Siigo de esta sede.');
- const contado=p.pagos?.[String(x.forma_pago)]||p.pagos?.Otro;
- if(Number(x.pagado)>0&&!contado)throw Error(`Configura la forma de pago «${x.forma_pago}» de esta sede.`);
- if(Number(x.saldo)>0&&!p.pago_credito)throw Error('Configura la forma de pago a crédito (saldo pendiente) de esta sede.');
+ // Paid part by cash-register method (contracts) or the single sale method.
+ const medios:{medio:string;valor:number}[]=Array.isArray(x.pagos)&&x.pagos.length?x.pagos:[{medio:String(x.forma_pago),valor:Number(x.pagado)||0}];
+ for(const m of medios)if(m.valor>0&&!(p.pagos?.[m.medio]||p.pagos?.Otro))throw Error(`Configura la forma de pago «${m.medio}» de esta sede.`);
  const identification=await asegurarCliente(c,p,x.cliente||{});
  const pct=p.impuesto?Number(p.impuesto_pct)||0:0,incl=p.impuesto&&p.precios_con_iva!==false;
- const items=[];let total=0;
+ const items:{code:string;description:string;quantity:number;price:number;taxes?:{id:number}[]}[]=[];let total=0;
  for(const it of (x.items||[]) as any[]){
   const qty=Number(it.cantidad)||1,bruto=Number(it.precio)||0,price=incl?r2(bruto/(1+pct/100)):bruto;
   total+=r2(price*qty*(1+pct/100));
+  // Without a generic product in Siigo, extras (arreglos) are added to the previous dress line.
+  if(it.generico&&items.length&&!await existeProducto(c,c.producto_codigo)){const last=items[items.length-1];last.price=r2(last.price+price);last.description=`${last.description} + ${it.descripcion}`.slice(0,200);continue;}
   items.push({code:it.generico?c.producto_codigo:await codigoProducto(c,it.codigo),description:String(it.descripcion||c.producto_nombre).slice(0,200),quantity:qty,price,
    ...(p.impuesto?{taxes:[{id:p.impuesto}]}:{})});
  }
  if(!items.length||total<=0)throw Error('La factura no tiene valor.');
  total=r2(total);
- const saldo=Number(x.saldo)>0?Math.min(total,r2(Number(x.saldo))):0,pagado=r2(total-saldo);
- const payments=[...(pagado>0?[{id:contado,value:pagado,due_date:x.fecha}]:[]),...(saldo>0?[{id:p.pago_credito,value:saldo,due_date:x.vence||x.fecha}]:[])];
- const obs=[x.numero_contrato?`Contrato ${x.numero_contrato}`:'',x.venta?`Venta VTA-${String(x.venta).padStart(6,'0')}`:'',`Ref ERP ${d.id.slice(0,8)}`].filter(Boolean).join(' · ');
+ // Paid amounts up to the total; the rest is the balance (credit). Same payment method twice is merged.
+ const byId=new Map<number,number>();let resto=total;
+ for(const m of medios){const v=r2(Math.min(resto,Number(m.valor)||0));if(v<=0)continue;const id=Number(p.pagos?.[m.medio]||p.pagos?.Otro);byId.set(id,r2((byId.get(id)||0)+v));resto=r2(resto-v);}
+ const saldo=r2(total-[...byId.values()].reduce((a,b)=>a+b,0));
+ if(saldo>0&&!p.pago_credito)throw Error('Configura la forma de pago a crédito (saldo pendiente) de esta sede.');
+ const payments=[...[...byId].map(([id,value])=>({id,value,due_date:x.fecha})),...(saldo>0?[{id:p.pago_credito,value:saldo,due_date:x.vence||x.fecha}]:[])];
+ const obs=[x.fecha_entrega?`Fecha de Entrega: ${x.fecha_entrega}`:'',x.asesora?`Asesora: ${x.asesora}`:'',x.numero_contrato?`Contrato ${x.numero_contrato}`:'',x.venta?`Venta VTA-${String(x.venta).padStart(6,'0')}`:'',`Ref ERP ${d.id.slice(0,8)}`].filter(Boolean).join('\n');
  const r=await siigo(c,'/v1/invoices',{document:{id:documento},date:x.fecha,customer:{identification,branch_office:0},seller:p.vendedor,observations:obs,items,payments,
   ...(electronica?{stamp:{send:true},mail:{send:!!x.cliente?.email}}:{})});
  return {id:String(r?.id||''),numero:String(r?.name||r?.number||''),respuesta:r};

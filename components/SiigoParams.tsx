@@ -34,6 +34,11 @@ export default function SiigoParams({sede,configurada}:{sede:string;configurada:
   <div className="grid md:grid-cols-2 gap-4 mt-4">
    {sel('Comprobante factura electrónica',p.documento_electronica,cat?.documentos,v=>setP({...p,documento_electronica:v}))}
    {sel('Comprobante no electrónico / factura de ingreso (opcional)',p.documento_ingreso,cat?.documentos,v=>setP({...p,documento_ingreso:v}),'— Ninguno —')}
+   <label className="md:col-span-2 p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-sm font-bold flex items-start gap-3"><input type="checkbox" className="mt-1" checked={p.automatico===true} onChange={e=>setP({...p,automatico:e.target.checked,auto_desde:e.target.checked?(p.auto_desde||new Date().toISOString()):p.auto_desde})}/>
+    <span>Facturar automáticamente en Siigo<br/><small className="font-normal text-emerald-800">Cada venta y cada contrato firmado (con su primer pago en caja, o 12 horas después) se factura solo, cada 10 minutos. Solo lo creado desde {p.auto_desde?new Date(p.auto_desde).toLocaleString('es-CO'):'que lo actives'}. El número queda en la venta o el contrato.</small></span></label>
+   <label className="text-sm font-bold">Facturar contratos con
+    <select className="mt-2 w-full border rounded-xl p-3" value={p.factura_contratos||p.factura_ventas||'electronica'} onChange={e=>setP({...p,factura_contratos:e.target.value})}>
+     <option value="electronica">Factura electrónica</option><option value="ingreso">Comprobante no electrónico (factura de ingreso)</option></select></label>
    <label className="text-sm font-bold">Facturar ventas de vestidos con
     <select className="mt-2 w-full border rounded-xl p-3" value={p.factura_ventas||'electronica'} onChange={e=>setP({...p,factura_ventas:e.target.value})}>
      <option value="electronica">Factura electrónica</option><option value="ingreso">Comprobante no electrónico (factura de ingreso)</option></select></label>

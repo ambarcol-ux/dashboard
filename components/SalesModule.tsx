@@ -5,7 +5,6 @@ import {useRouter} from 'next/navigation';
 import {toast} from 'sonner';
 import {supabase} from '@/lib/supabase';
 import DressSaleDialog from '@/components/DressSaleDialog';
-import {siigoApi} from '@/components/SiigoParams';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
 type Dress={id:string;codigo:string;nombre:string|null;talla:string|null;color:string|null;precio_venta:number|null;sede_actual_id:string|null;estado:string|null;para_venta?:boolean|null};
@@ -36,12 +35,6 @@ export default function SalesModule({isAdmin}:{isAdmin:boolean}){
   setBuscado(t);setFound((data||[]) as unknown as Dress[]);},[q]);
  const factura=async(s:Sale)=>{const n=window.prompt(`Número de la factura electrónica de Siigo para ${ventaNumero(s.consecutivo)}`,s.numero_factura||'');if(n===null)return;
   const {error}=await supabase.rpc('venta_numero_factura',{p_id:s.id,p_numero:n});if(error)toast.error(error.message);else{toast.success('Número de factura guardado.');setV(x=>x+1);}};
- const [enviando,setEnviando]=useState('');
- // Queues the sale as a Siigo invoice and sends it; the invoice number comes back from Siigo.
- const siigoFacturar=async(s:Sale)=>{if(!window.confirm(`¿Emitir en Siigo la factura de ${ventaNumero(s.consecutivo)} a nombre de ${s.cliente_nombre}?`))return;setEnviando(s.id);
-  try{const {data,error}=await supabase.rpc('siigo_facturar_venta',{p_venta:s.id,p_tipo_factura:'electronica'});if(error)throw Error(error.message);
-   const r=await siigoApi({accion:'enviar',id:(data as {id:string}).id});toast.success(`Factura ${r.numero||''} emitida en Siigo.`);}catch(e){toast.error((e as Error).message);}
-  setEnviando('');setV(x=>x+1);};
  const anular=async(s:Sale)=>{const m=window.prompt(`Motivo para anular la venta ${ventaNumero(s.consecutivo)} (sale de la caja y el vestido vuelve a estar disponible)`);if(m===null)return;
   const {error}=await supabase.rpc('anular_venta_vestido',{p_id:s.id,p_motivo:m});if(error)toast.error(error.message);else{toast.success('Venta anulada.');setV(x=>x+1);}};
  const activas=rows.filter(r=>r.estado==='registrada'),total=activas.reduce((a,r)=>a+Number(r.total),0),sinFactura=activas.filter(r=>!r.numero_factura).length;
@@ -60,8 +53,8 @@ export default function SalesModule({isAdmin}:{isAdmin:boolean}){
    <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>N°</th><th>Fecha</th><th>Sede</th><th>Vestido</th><th>Cliente</th><th>Total</th><th>Factura Siigo</th><th></th></tr></thead>
     <tbody>{rows.map(s=><tr key={s.id} style={s.estado==='anulada'?{opacity:.55}:undefined}><td><strong>{ventaNumero(s.consecutivo)}</strong>{s.estado==='anulada'&&<><br/><small>Anulada</small></>}</td><td>{s.fecha}</td><td>{s.sedes?.nombre||'—'}</td>
      <td>{s.vestidos?.codigo}<br/><small>Siigo {s.codigo_siigo}</small></td><td>{s.cliente_nombre}<br/><small>{s.cliente_documento}</small></td><td>{money(s.total)}<br/><small>{s.medio_pago}{Number(s.descuento)?` · dto ${money(s.descuento)}`:''}</small></td>
-     <td>{s.numero_factura||<span className={`${styles.badge}`}>{s.siigo_estado==='error'?'Error Siigo':'Pendiente'}</span>}</td>
-     <td><div className={styles.actions}><Link className={styles.button} href={`/dashboard/ventas/${s.id}`}>Comprobante</Link>{s.estado==='registrada'&&!s.numero_factura&&<button disabled={enviando===s.id} onClick={()=>void siigoFacturar(s)}>{enviando===s.id?'Enviando…':'Facturar en Siigo'}</button>}{s.estado==='registrada'&&<button onClick={()=>void factura(s)}>N° factura</button>}{isAdmin&&s.estado==='registrada'&&<button onClick={()=>void anular(s)}>Anular</button>}</div></td></tr>)}</tbody></table></div>
+     <td>{s.numero_factura||<span className={`${styles.badge}`}>{s.siigo_estado==='error'?'Error Siigo · se reintenta solo':'Pendiente'}</span>}</td>
+     <td><div className={styles.actions}><Link className={styles.button} href={`/dashboard/ventas/${s.id}`}>Comprobante</Link>{s.estado==='registrada'&&<button onClick={()=>void factura(s)}>N° factura</button>}{isAdmin&&s.estado==='registrada'&&<button onClick={()=>void anular(s)}>Anular</button>}</div></td></tr>)}</tbody></table></div>
    {!rows.length&&<p className={styles.empty}>{loading?'Cargando…':'No hay ventas en este mes.'}</p>}
   </section>
   {selling&&<DressSaleDialog dress={selling} onClose={()=>setSelling(null)} onSaved={id=>{setSelling(null);setFound([]);setQ('');setV(x=>x+1);if(id)router.push(`/dashboard/ventas/${id}`);}}/>}
