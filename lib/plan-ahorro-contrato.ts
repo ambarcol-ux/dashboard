@@ -86,6 +86,21 @@ export function verifyPlanSigningToken(token:string,key:string,now=Date.now()){
  return a.length===b.length&&timingSafeEqual(a,b)?p[0]:null;
 }
 
+/** Self-enrollment link the WhatsApp AI sends (7 days): it carries the chat's phone (verified, the link went to that WhatsApp) and
+ *  the chat's store, so the family enrolls itself without an adviser. No database token. */
+const enrollSign=(tel:string,sede:string,expires:number,key:string)=>createHmac('sha256',key).update(`plan-ahorro-inscripcion:${tel}.${sede}.${expires}`).digest('base64url');
+export function planEnrollToken(telefono:string,sede:string|null,key:string,days=7){
+ if(!key)throw Error('Enlaces no configurados');
+ const tel=telefono.replace(/\D/g,'').slice(-10),s=sede||'',expires=Date.now()+days*86400000;
+ return `${tel}.${s}.${expires}.${enrollSign(tel,s,expires,key)}`;
+}
+export function verifyPlanEnrollToken(token:string,key:string,now=Date.now()):{telefono:string;sede:string|null}|null{
+ const p=token.split('.');
+ if(!key||p.length!==4||!/^\d{10}$/.test(p[0])||!(p[1]===''||/^[0-9a-f-]{36}$/i.test(p[1]))||!/^\d{10,13}$/.test(p[2])||Number(p[2])<=now)return null;
+ const a=Buffer.from(p[3]),b=Buffer.from(enrollSign(p[0],p[1],Number(p[2]),key));
+ return a.length===b.length&&timingSafeEqual(a,b)?{telefono:p[0],sede:p[1]||null}:null;
+}
+
 /** Signed contract as PDF: text, the signer's signature and the verification line. */
 export function planContractPdf(sections:ContractSection[],firma:string,pie:string){
  const doc=new jsPDF({unit:'pt',format:'letter'}),W=532,H=792,M=40;let y=M;
