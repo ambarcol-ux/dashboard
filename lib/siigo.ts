@@ -3,7 +3,7 @@
 const BASE='https://api.siigo.com';
 export type SiigoCred={usuario_api:string;access_key:string;partner_id:string;producto_codigo:string;producto_nombre:string};
 export type SiigoParams={documento_electronica?:number;documento_ingreso?:number;vendedor?:number;pagos?:Record<string,number>;pago_credito?:number;
- impuesto?:number|null;impuesto_pct?:number;precios_con_iva?:boolean;ciudad?:{state_code:string;city_code:string}};
+ impuesto?:number|null;factura_ventas?:'electronica'|'ingreso';impuesto_pct?:number;precios_con_iva?:boolean;ciudad?:{state_code:string;city_code:string}};
 type Doc={id:string;datos:Record<string,any>};
 const tokens=new Map<string,{token:string;exp:number}>();
 
@@ -69,7 +69,8 @@ async function codigoProducto(c:SiigoCred,codigo?:string){
 const r2=(n:number)=>Math.round(n*100)/100;
 /** Sends one queued invoice; returns Siigo's id and number. */
 export async function siigoEnviarFactura(c:SiigoCred,p:SiigoParams,d:Doc){
- const x=d.datos,electronica=x.tipo_factura!=='ingreso';
+ // Dress sales follow the site's choice (e.g. Barranquilla bills with its non-electronic «Documento» FV-1).
+ const x=d.datos,electronica=(x.tipo_venta==='venta'&&p.factura_ventas?p.factura_ventas:x.tipo_factura)!=='ingreso';
  const documento=electronica?p.documento_electronica:p.documento_ingreso;
  if(!documento)throw Error(`Configura el tipo de comprobante de factura ${electronica?'electrónica':'de ingreso'} de esta sede.`);
  if(!p.vendedor)throw Error('Configura el vendedor de Siigo de esta sede.');

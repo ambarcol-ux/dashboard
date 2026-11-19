@@ -38,7 +38,7 @@ export default function SalesModule({isAdmin}:{isAdmin:boolean}){
   const {error}=await supabase.rpc('venta_numero_factura',{p_id:s.id,p_numero:n});if(error)toast.error(error.message);else{toast.success('Número de factura guardado.');setV(x=>x+1);}};
  const [enviando,setEnviando]=useState('');
  // Queues the sale as a Siigo invoice and sends it; the invoice number comes back from Siigo.
- const siigoFacturar=async(s:Sale)=>{if(!window.confirm(`¿Emitir la factura electrónica de ${ventaNumero(s.consecutivo)} en Siigo a nombre de ${s.cliente_nombre}?`))return;setEnviando(s.id);
+ const siigoFacturar=async(s:Sale)=>{if(!window.confirm(`¿Emitir en Siigo la factura de ${ventaNumero(s.consecutivo)} a nombre de ${s.cliente_nombre}?`))return;setEnviando(s.id);
   try{const {data,error}=await supabase.rpc('siigo_facturar_venta',{p_venta:s.id,p_tipo_factura:'electronica'});if(error)throw Error(error.message);
    const r=await siigoApi({accion:'enviar',id:(data as {id:string}).id});toast.success(`Factura ${r.numero||''} emitida en Siigo.`);}catch(e){toast.error((e as Error).message);}
   setEnviando('');setV(x=>x+1);};

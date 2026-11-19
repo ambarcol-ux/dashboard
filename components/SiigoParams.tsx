@@ -33,7 +33,10 @@ export default function SiigoParams({sede,configurada}:{sede:string;configurada:
    <button disabled={!!busy} onClick={()=>void cargar()} className="px-4 py-2 border rounded-xl font-bold text-sm">{busy==='c'?'Conectando…':'Probar conexión y cargar opciones'}</button></div>
   <div className="grid md:grid-cols-2 gap-4 mt-4">
    {sel('Comprobante factura electrónica',p.documento_electronica,cat?.documentos,v=>setP({...p,documento_electronica:v}))}
-   {sel('Comprobante factura de ingreso (opcional)',p.documento_ingreso,cat?.documentos,v=>setP({...p,documento_ingreso:v}),'— Ninguno —')}
+   {sel('Comprobante no electrónico / factura de ingreso (opcional)',p.documento_ingreso,cat?.documentos,v=>setP({...p,documento_ingreso:v}),'— Ninguno —')}
+   <label className="text-sm font-bold">Facturar ventas de vestidos con
+    <select className="mt-2 w-full border rounded-xl p-3" value={p.factura_ventas||'electronica'} onChange={e=>setP({...p,factura_ventas:e.target.value})}>
+     <option value="electronica">Factura electrónica</option><option value="ingreso">Comprobante no electrónico (factura de ingreso)</option></select></label>
    {sel('Vendedor',p.vendedor,cat?.vendedores,v=>setP({...p,vendedor:v}))}
    {sel('Impuesto (opcional)',p.impuesto,cat?.impuestos,v=>setP({...p,impuesto:v}),'— Sin impuesto —')}
    {MEDIOS.map(m=><div key={m}>{sel(`Forma de pago: ${m}`,p.pagos?.[m],cat?.pagos,v=>setP({...p,pagos:{...(p.pagos||{}),[m]:v}}))}</div>)}
