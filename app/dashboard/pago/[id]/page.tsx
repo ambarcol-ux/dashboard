@@ -496,6 +496,11 @@ export default function RegistrarPagoPage() {
                   <span className="text-gray-500 font-medium">Sumatoria Abonos:</span>
                   <span className="font-bold text-gray-900">{formatCurrency(Number(contrato.anticipo))}</span>
                 </div>
+                {Number(contrato.plan_ahorro_aplicado)+Number(contrato.descuento_plan_ahorro)>0 && (
+                  <div className="text-xs text-emerald-800 bg-emerald-50 rounded-lg p-2 mb-1">
+                    Incluye Plan Ahorro XV: ahorro {formatCurrency(Number(contrato.plan_ahorro_aplicado))} (ya entró a caja con cada cuota) + extra como descuento {formatCurrency(Number(contrato.descuento_plan_ahorro))}.
+                  </div>
+                )}
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 font-medium">Valor Total Contrato:</span>
                   <span className="font-bold text-gray-900">{formatCurrency(Number(contrato.valor_total))}</span>

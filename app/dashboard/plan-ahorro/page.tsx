@@ -78,6 +78,7 @@ function Planes(){
     {p.estado==='activo'&&<p className={`text-xs font-bold ${p.al_dia?'text-emerald-700':'text-red-600'}`}>{p.al_dia?'Al día':`Atrasada: lleva ${p.meses_pagados} de ${p.meses_esperados} cuotas`}{p.usar_desde<=hoy?' · ya puede usar su plan: agenda la cita de selección':''}</p>}
     <p className="text-[11px] text-gray-500">Premios: {p.premios}</p>
     {p.estado!=='activo'&&p.cerrado_nota&&<p className="text-[11px] text-gray-500">Nota: {p.cerrado_nota}</p>}
+    {(p.estado==='desistido'||p.estado==='terminado')&&p.ahorrado>0&&<p className="text-[11px] font-bold text-amber-700">Devolver a la familia {cop(p.devolucion)} (egreso en Cierres de caja) · La sede retiene {cop(p.ahorrado-p.devolucion)}: ingreso por facturar.</p>}
     <p className={`text-xs font-bold ${firmas[p.id]?'text-emerald-700':'text-amber-700'}`}>{firmas[p.id]?`Contrato firmado el ${fecha(firmas[p.id]!.slice(0,10))}`:'Contrato sin firmar: envíale el enlace antes de su primera cuota'}</p>
     {p.estado==='activo'&&<div className="flex flex-wrap gap-2 pt-1">
      {firmas[p.id]?<button type="button" onClick={()=>setPagar(p)} className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-black">Registrar cuota</button>
@@ -154,16 +155,24 @@ function FormCuota({p,cuentas,onClose,onDone}:{p:Plan;cuentas:CashAccount[];onCl
  </Modal>;
 }
 
+type ContratoPlan={id:string;numero:string;cliente:string;fecha_evento:string|null;saldo:number;misma_familia:boolean};
 function FormCerrar({p,onClose,onDone}:{p:Plan;onClose:()=>void;onDone:()=>void}){
  const [estado,setEstado]=useState<'usado'|'desistido'|'terminado'>('usado'),[nota,setNota]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
- const guardar=async()=>{setBusy(true);setError('');const {error:e}=await supabase.rpc('plan_ahorro_estado',{p_id:p.id,p_estado:estado,p_nota:nota,p_contrato:null});setBusy(false);if(e)setError(e.message);else onDone();};
+ // «Usado»: the contract where the family uses the plan (same family first). What was saved and the extra are applied to it.
+ const [contratos,setContratos]=useState<ContratoPlan[]|null>(null),[contrato,setContrato]=useState('');
+ useEffect(()=>{let live=true;void supabase.rpc('plan_ahorro_contratos',{p_plan:p.id}).then(({data})=>{if(live)setContratos((data||[]) as ContratoPlan[]);});return()=>{live=false;};},[p.id]);
+ const guardar=async()=>{setBusy(true);setError('');const {error:e}=await supabase.rpc('plan_ahorro_estado',{p_id:p.id,p_estado:estado,p_nota:nota,p_contrato:estado==='usado'?contrato||null:null});setBusy(false);if(e)setError(e.message);else onDone();};
  return <Modal titulo={`Cerrar plan · ${p.quinceanera_nombre||p.titular_nombre}`} onClose={onClose}>
   <label className="block text-xs font-bold text-gray-600">Motivo<select className={input} value={estado} onChange={e=>setEstado(e.target.value as typeof estado)}>
    <option value="usado">Lo usó en su contrato (aplica el extra y los premios)</option><option value="desistido">Desistió (sin extra)</option><option value="terminado">Dejó de pagar 2 cuotas seguidas (sin extra)</option></select></label>
   <p className="text-xs text-gray-600">{estado==='usado'?`Para usar: ${cop(p.disponible)} (${cop(p.ahorrado)} ahorrado + ${cop(p.extra)} extra). Premios: ${p.premios}.`:`Devolución: ${cop(p.devolucion)} (lo pagado menos el 10 % de gastos administrativos), dentro de 15 días hábiles. Regístrala como egreso en Cierres de caja.`}</p>
-  <label className="block text-xs font-bold text-gray-600">Nota (obligatoria){estado==='usado'?' · por ejemplo, el número del contrato':''}<input className={input} value={nota} onChange={e=>setNota(e.target.value)}/></label>
+  {estado==='usado'&&<label className="block text-xs font-bold text-gray-600">Contrato donde lo usa<select className={input} value={contrato} onChange={e=>setContrato(e.target.value)}>
+   <option value="">{contratos===null?'Cargando…':contratos.length?'Elige el contrato':'No hay contratos vigentes de esta sede: créalo primero'}</option>
+   {(contratos||[]).map(c=><option key={c.id} value={c.id}>{c.misma_familia?'★ ':''}{c.numero} · {c.cliente}{c.fecha_evento?` · evento ${fecha(c.fecha_evento)}`:''} · saldo {cop(c.saldo)}</option>)}</select>
+   <span className="block mt-1 font-normal text-gray-500">Se abonan al contrato {cop(p.ahorrado)} ahorrados (sin volver a entrar a la caja) y {cop(p.extra)} de extra como descuento. ★ = misma familia.</span></label>}
+  <label className="block text-xs font-bold text-gray-600">Nota (obligatoria)<input className={input} value={nota} onChange={e=>setNota(e.target.value)}/></label>
   {error&&<p className="text-red-600 text-sm font-bold">{error}</p>}
-  <div className="flex gap-2"><button type="button" disabled={busy||nota.trim().length<5} onClick={()=>void guardar()} className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-black disabled:opacity-40">{busy?'Guardando…':'Cerrar plan'}</button>
+  <div className="flex gap-2"><button type="button" disabled={busy||nota.trim().length<5||(estado==='usado'&&!contrato)} onClick={()=>void guardar()} className="px-4 py-2 rounded-xl bg-gray-900 text-white text-sm font-black disabled:opacity-40">{busy?'Guardando…':'Cerrar plan'}</button>
    <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border text-sm font-black text-gray-600">Cancelar</button></div>
  </Modal>;
 }
