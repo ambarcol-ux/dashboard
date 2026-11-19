@@ -775,13 +775,13 @@ export default function DashboardPage() {
     for (const id of ids) {
       const [{ data: items, error: ie }, { data: legacy, error: le }, { data: special, error: se }] = await Promise.all([
         supabase.from('contrato_items_vestidos')
-          .select('vestido_id,contratos!inner(id,numero_contrato,cliente_nombre,estado,tipo_evento,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial)')
+          .select('vestido_id,contratos!inner(id,numero_contrato,cliente_nombre,estado,anticipo,tipo_evento,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial)')
           .eq('vestido_id', id).neq('contrato_id', currentContractId),
         supabase.from('contratos')
-          .select('id,numero_contrato,cliente_nombre,estado,tipo_evento,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial')
+          .select('id,numero_contrato,cliente_nombre,estado,anticipo,tipo_evento,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial')
           .eq('vestido_id', id).neq('id', currentContractId),
         supabase.from('contratos')
-          .select('id,numero_contrato,cliente_nombre,estado,bloqueo_especial_fecha,bloqueo_especial_vestido_id')
+          .select('id,numero_contrato,cliente_nombre,estado,anticipo,bloqueo_especial_fecha,bloqueo_especial_vestido_id')
           .eq('bloqueo_especial_vestido_id', id).neq('id', currentContractId)
       ]);
       if (ie || le || se) throw ie || le || se;

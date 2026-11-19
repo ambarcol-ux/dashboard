@@ -1,7 +1,7 @@
 import type {publicServerClient} from '@/lib/public-db';
 import {generateBlockedRanges,rangesOverlap} from '@/lib/availability';
 
-const CANCELLED='("cancelado","rechazado","anulado","borrador","CANCELADO","RECHAZADO","ANULADO","BORRADOR")';
+const CANCELLED='("cancelado","rechazado","anulado","CANCELADO","RECHAZADO","ANULADO")';
 
 export type AvailabilityAnswer={error:string;status:number}|{disponible:boolean;nombreCategoria:string|null};
 
@@ -19,7 +19,7 @@ export async function availabilityAnswer(db:ReturnType<typeof publicServerClient
  const [wanted]=generateBlockedRanges([{id:'consulta',numero_contrato:'',cliente_nombre:'',estado:'',tipo_evento:'Evento',fecha_evento:fecha}]);
  let disponible=false;
  if(usable.length){
-  const {data:items}=await db.from('contrato_items_vestidos').select('vestido_id,contratos!inner(id,numero_contrato,cliente_nombre,estado,tipo_evento,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial,bloqueo_especial_fecha,bloqueo_especial_vestido_id)').in('vestido_id',usable.map(d=>d.id)).not('contratos.estado','in',CANCELLED);
+  const {data:items}=await db.from('contrato_items_vestidos').select('vestido_id,contratos!inner(id,numero_contrato,cliente_nombre,estado,anticipo,tipo_evento,fecha_evento,fecha_pre_xv,fechas_bloqueo_especial,bloqueo_especial_fecha,bloqueo_especial_vestido_id)').in('vestido_id',usable.map(d=>d.id)).not('contratos.estado','in',CANCELLED);
   disponible=usable.some(d=>{const busy=generateBlockedRanges((items||[]).filter(i=>i.vestido_id===d.id)).filter(b=>rangesOverlap(b,wanted)).length;return busy<Math.max(1,Number(d.stock_total)||1);});
  }
  const nombreCategoria=categoria?(await db.from('clasificaciones_vestido').select('nombre').eq('id',categoria).maybeSingle()).data?.nombre||null:null;

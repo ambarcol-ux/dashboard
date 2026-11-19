@@ -31,7 +31,9 @@ export function generateBlockedRanges(contracts: any[]): ContractBlock[] {
   const blocks: ContractBlock[] = [];
   for (const item of contracts) {
     const c = item.contratos || item;
-    if (['cancelado', 'anulado', 'rechazado', 'borrador'].includes(String(c.estado || '').toLowerCase())) continue;
+    // A draft blocks the dress once it has money (anticipo): the family already paid even if it has not signed in the ERP.
+    const est = String(c.estado || '').toLowerCase();
+    if (['cancelado', 'anulado', 'rechazado'].includes(est) || (est === 'borrador' && !(Number(c.anticipo) > 0))) continue;
     const addBlock = (kind: keyof typeof BLOCK_DAYS, dateValue: string, id: string) => {
       const date = parseSafeDate(dateValue);
       if (!date) return;

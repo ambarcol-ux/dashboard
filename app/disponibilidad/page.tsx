@@ -155,6 +155,7 @@ export default function AvailabilityPage() {
             tipo_evento,
             tipo_entrega,
             estado,
+            anticipo,
             fecha_entrega_envio,
             fecha_pre_xv,
             fechas_bloqueo_especial,
@@ -170,13 +171,13 @@ export default function AvailabilityPage() {
       // Algunos contratos antiguos guardan el vestido directamente en contratos.
       const { data: legacyContracts, error: legacyError } = await supabase
         .from('contratos')
-        .select('id, vestido_id, numero_contrato, cliente_nombre, tipo_evento, estado, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, bloqueo_especial_fecha, bloqueo_especial_vestido_id, valor_total, created_at')
+        .select('id, vestido_id, numero_contrato, cliente_nombre, tipo_evento, estado, anticipo, fecha_evento, fecha_pre_xv, fechas_bloqueo_especial, bloqueo_especial_fecha, bloqueo_especial_vestido_id, valor_total, created_at')
         .eq('vestido_id', dressId);
       if (legacyError) throw legacyError;
 
       const { data: specialLocks, error: specialLocksError } = await supabase
         .from('contratos')
-        .select('id, numero_contrato, cliente_nombre, estado, bloqueo_especial_referencia, bloqueo_especial_fecha, bloqueo_especial_vestido_id, valor_total, created_at')
+        .select('id, numero_contrato, cliente_nombre, estado, anticipo, bloqueo_especial_referencia, bloqueo_especial_fecha, bloqueo_especial_vestido_id, valor_total, created_at')
         .eq('bloqueo_especial_vestido_id', dressId)
         .not('estado', 'in', '("cancelado","anulado","rechazado","CANCELADO","ANULADO","RECHAZADO")')
         .not('bloqueo_especial_fecha', 'is', null);
