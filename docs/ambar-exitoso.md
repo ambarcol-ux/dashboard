@@ -9,11 +9,11 @@ Objetivo: llevar a Ámbar Couture a ser la marca más fuerte del mercado y franq
 - Toda acción importante queda en el historial (private.config_historial / historial del contrato).
 
 ## Etapa 1 · Orden y números claros (0–60 días)
-1. Siigo conectado y alineado hasta el cierre de caja, incluida la nota crédito. **(en curso)**
+1. Siigo conectado y alineado hasta el cierre de caja, incluida la nota crédito. **(construido; falta configurar y activar cada sede)**
    - Dónde vive: Configuración › Facturación por sede (credenciales, parámetros, cola); Contrato/Pago (factura, recibos, nota crédito); Depósitos (anticipo y devolución); Gastos y Proveedores (gasto / documento soporte); Cierres de caja (renglón «Siigo al día»).
    - Fase A: factura, recibo de caja, anticipo, devolución de anticipo, gastos (factura electrónica, cuenta de cobro, compra de vestidos), nota crédito, envío automático y cola con reintento.
    - Fase B: cuotas del Plan Ahorro (anticipo), ventas de vestidos, pagos a proveedores, traslados caja/banco/sedes, préstamos de socios, retenido de planes desistidos, saldos iniciales; cuentas configurables por la contadora.
-2. Tablero CEO en tiempo real: dónde está la plata, activos, pasivos (depósitos, Plan Ahorro, proveedores, socios), ganancia por sede, punto de equilibrio, proyección y semáforo por sede.
+2. **(construido, en Reportes y Estadísticas)** Tablero CEO en tiempo real: dónde está la plata, activos, pasivos (depósitos, Plan Ahorro, proveedores, socios), ganancia por sede, punto de equilibrio, proyección y semáforo por sede.
 3. Datos limpios: origen de cada cita, códigos de vestido con talla (REF-TALLA), contratos firmados en el ERP, costo de cada vestido.
 4. Embudo por sede: chats → citas → asistencia → contrato → ticket → ganancia; costo por cita y por contrato.
 

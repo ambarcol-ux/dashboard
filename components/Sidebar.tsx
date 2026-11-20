@@ -133,7 +133,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       title: 'REPORTES E INDICADORES',
       adminOnly: false,
       items: [
-        { id: 'reports', label: 'REPORTES Y ESTADÍSTICAS', icon: TrendingUp, href: '/admin/reports', color: 'rose', adminOnly: true },
+        { id: 'reports', label: 'TABLERO CEO Y REPORTES', icon: TrendingUp, href: '/admin/reports', color: 'rose', adminOnly: true },
       ]
     },
     {
@@ -155,7 +155,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
     'OPERACIONES Y LOGÍSTICA': ['ENTREGAS Y DEVOLUCIONES'],
     'FINANZAS Y CONTABILIDAD': ['ÓRDENES DE COMPRA', 'PRESUPUESTO', 'CONCILIACIÓN BANCARIA', 'CONCILIACIÓN CON SIIGO'],
     'RECURSOS HUMANOS': ['NÓMINA', 'CONTRATOS LABORALES', 'VACACIONES E INCAPACIDADES'],
-    'REPORTES E INDICADORES': ['ESTADO DE RESULTADOS POR SEDE', 'RENTABILIDAD POR VESTIDO', 'TABLEROS POR MÓDULO'],
+    'REPORTES E INDICADORES': ['RENTABILIDAD POR VESTIDO', 'TABLEROS POR MÓDULO'],
   };
   const showComingSoon = isAdminProfile(user);
   const blocksWithSoon: SidebarBlock[] = sidebarBlocks.map(block => ({
