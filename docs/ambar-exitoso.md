@@ -22,7 +22,7 @@ Objetivo: llevar a Ámbar Couture a ser la marca más fuerte del mercado y franq
 Protocolo + lista de chequeo en el ERP + video por cada momento: atención (WhatsApp/IA/Instagram), primera cita, contrato (firma, abonos, Plan Ahorro, aliados), medidas y arreglos, entrega y depósito, devolución/lavandería/daños, caja, inventario, marketing local, personas. Cada protocolo con su indicador medido en el ERP. Vive en el módulo Manuales existente.
 
 ## Etapa 3 · Estándar y control (60–180 días)
-**(Puntaje Ámbar por sede construido: public.puntaje_ambar, en Tablero CEO y Manual Ámbar. Auditoría mensual por sede construida: Manual Ámbar › Auditoría mensual, tabla auditorias_sede; vale 10 de los 100 puntos.)**
+**(Puntaje Ámbar por sede construido: public.puntaje_ambar, en Tablero CEO y Manual Ámbar. Auditoría mensual por sede construida: Manual Ámbar › Auditoría mensual, tabla auditorias_sede; vale 10 de los 100 puntos. Academia Ámbar construida: evaluación al final de cada protocolo y avance del equipo en Manual Ámbar › Academia Ámbar, tabla academia_resultados.)**
 Puntaje Ámbar por sede (0–100), auditorías mensuales con lista de chequeo, Academia Ámbar (capacitación con evaluación), metas y comisiones calculadas por el ERP.
 
 ## Etapa 4 · Paquete de franquicia (4–12 meses)
