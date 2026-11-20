@@ -6,7 +6,7 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 type Value=Record<string,any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 export type SiigoCred={sede_id:string;sede:string;usuario_api:string;access_key:string;partner_id:string;parametros:Params};
 export type Params={envio_activo?:boolean;tipo_factura_defecto?:'electronica'|'ingreso';vendedor?:number;grupo_inventario?:number;
- documentos?:{factura_electronica?:number;factura_ingreso?:number;recibo_caja?:number;nota_credito?:number;nota_credito_electronica?:number;comprobante_devolucion?:number;comprobante_interno?:number;gasto?:number;soporte?:number};
+ documentos?:{factura_electronica?:number;factura_ingreso?:number;recibo_caja?:number;nota_credito?:number;nota_credito_electronica?:number;comprobante_devolucion?:number;comprobante_interno?:number;gasto?:number;compra?:number;soporte?:number};
  formas_pago?:Record<string,number>;cuentas?:Record<string,string>;ciudad?:{state_code:string;city_code:string};
  /** Partner name → cédula (loans) and the store's own NIT for internal journals. */
  socios?:Record<string,string>;tercero_defecto?:string};
@@ -193,6 +193,20 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
    items,payments:[{id:formaPago(c,String(d.medio||''),j.cuenta_id),value:valor,due_date:fecha(d.fecha)}],observations:`${d.descripcion||d.categoria||'Gasto'} · ERP Ámbar`.slice(0,500)}});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
+ if(j.tipo==='compra'){
+  // Cierres de caja › egreso › Siigo: «Compra o gasto» (FC, with the supplier's invoice number) or «Documento soporte» (DS); lines of
+  // product (raises stock) or ledger account, with their taxes; paid with the chosen purchase payment method of the company.
+  const p=d.proveedor as Value,id=await ensureThird(c,{documento:p.documento,nombre:p.nombre||'Proveedor',tipo_documento:String(p.documento||'').length>=9?'NIT':'CC'},'Supplier');
+  const items=((d.items||[]) as Value[]).map(it=>({type:it.tipo,code:String(it.codigo),description:String(it.descripcion||'').slice(0,500)||'Gasto',quantity:Number(it.cantidad)||1,price:Number(it.valor),
+   ...(((it.impuestos||[]) as number[]).length?{taxes:((it.impuestos||[]) as number[]).map(t=>({id:t}))}:{})}));
+  const fc=d.comprobante==='FC',producto=items.some(x=>x.type==='Product');
+  const documento=fc?(producto&&c.parametros.documentos?.compra?{id:c.parametros.documentos.compra}:doc(c,'gasto','Compra o gasto')):doc(c,'soporte','Documento soporte');
+  const fe=String(d.factura_numero||''),pf=/^([A-Za-z0-9]*?)-?(\d+)$/.exec(fe.replace(/\s+/g,''));
+  const r=await siigo(c,'/v1/purchases',{method:'POST',body:{document:documento,date:fecha(d.fecha),supplier:{identification:id,branch_office:0},
+   ...(fc?{provider_invoice:{prefix:pf?.[1]||'FE',number:pf?pf[2]:fe.replace(/\D/g,'')||fe}}:{}),items,
+   payments:[{id:Number(d.forma_pago),value:Number(d.total),due_date:fecha(d.fecha)}],observations:`${d.descripcion||d.categoria||'Gasto de caja'} · ERP Ámbar`.slice(0,500)}});
+  return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
+ }
  if(j.tipo==='comprobante'){
   // Internal journal (money between stores, partner loans): accounts from the parameters, caja/banco by the ERP account used.
   const k=c.parametros.cuentas||{},valor=Number(d.valor);
@@ -208,6 +222,16 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
 }
 
 /** Sends the queue (cron every 10 minutes). Each document is independent: one failure does not stop the others. */
+/** Siigo lists for the purchase form (Cierres de caja › Siigo): purchase payment methods (FC and DS), taxes and products of a company. */
+export async function refreshCatalogs(db:SupabaseClient,c:SiigoCred,productos=true){
+ const pick=(x:unknown)=>((Array.isArray(x)?x:[]) as Value[]).filter(v=>v.active!==false);
+ const [fc,ds,tx]=await Promise.all([siigo(c,'/v1/payment-types?document_type=FC'),siigo(c,'/v1/payment-types?document_type=DS'),siigo(c,'/v1/taxes')]);
+ const rows:{tipo:string;datos:Value[]}[]=[{tipo:'formas_pago_fc',datos:pick(fc).map(v=>({id:v.id,name:v.name}))},{tipo:'formas_pago_ds',datos:pick(ds).map(v=>({id:v.id,name:v.name}))},
+  {tipo:'impuestos',datos:pick(tx).map(v=>({id:v.id,name:v.name,type:v.type,percentage:Number(v.percentage)||0}))}];
+ if(productos)rows.push({tipo:'productos',datos:(await siigoAll(c,'/v1/products',40)).filter(v=>v.active!==false).map(v=>({code:v.code,name:v.name,type:v.type}))});
+ const now=new Date().toISOString();
+ await db.from('siigo_catalogos').upsert(rows.map(r=>({sede_id:c.sede_id,...r,updated_at:now})),{onConflict:'sede_id,tipo'});
+}
 export async function processSiigoQueue(db:SupabaseClient,limite=50){
  const [{data:jobs,error},{data:creds,error:e2}]=await Promise.all([db.rpc('siigo_tomar_servidor',{p_limite:limite}),db.rpc('siigo_credenciales_activas_servidor')]);
  if(error||e2)throw Error((error||e2)!.message);
@@ -225,5 +249,10 @@ export async function processSiigoQueue(db:SupabaseClient,limite=50){
    await db.rpc('siigo_resultado_servidor',{p_id:j.id,p_ok:false,p_siigo_id:null,p_numero:null,p_error:e instanceof Error?e.message:'Error al enviar a Siigo',p_respuesta:e instanceof SiigoError&&e.body?{error:e.body}:null,p_esperar:false});
   }
  }
+ // One store a run refreshes its Siigo lists when they are older than a day (products included).
+ try{const {data:cat}=await db.from('siigo_catalogos').select('sede_id,updated_at').eq('tipo','productos');
+  const fresh=new Map(((cat||[]) as {sede_id:string;updated_at:string}[]).map(x=>[x.sede_id,Date.parse(x.updated_at)]));
+  const stale=[...bySede.values()].find(c=>!fresh.has(c.sede_id)||Date.now()-(fresh.get(c.sede_id)||0)>20*3600000);
+  if(stale)await refreshCatalogs(db,stale);}catch(e){console.error('Catálogos Siigo:',e);}
  return out;
 }
