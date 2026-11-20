@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {Trophy,MessageCircle,Sparkles,FileSignature,Ruler,PackageCheck,RotateCcw,Wallet,Shirt,HeartHandshake} from 'lucide-react';
+import {Trophy,ClipboardCheck,MessageCircle,Sparkles,FileSignature,Ruler,PackageCheck,RotateCcw,Wallet,Shirt,HeartHandshake} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 
 /** Ámbar Exitoso · Manual Ámbar (Manuales › Protocolos): how each moment of the service is done in every store, its checklist and
@@ -34,7 +34,7 @@ export function PuntajeAmbar(){
    {r.componentes.map(c=><div key={c.nombre} className="flex items-center gap-3 text-sm py-1 border-b last:border-0"><span className="flex-1">{c.nombre}</span>
     {c.max>0?<><div className="w-28 h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500" style={{width:`${Math.max(0,Math.min(100,c.puntos/c.max*100))}%`}}/></div><b className="w-16 text-right">{c.puntos}/{c.max}</b></>:<b className={`w-16 text-right ${c.puntos<0?'text-rose-700':''}`}>{c.puntos}</b>}</div>)}
    <p className="text-[11px] text-gray-500 mt-2">Para subir: lo que está más lejos de su máximo. Cada punto sale de los indicadores de los protocolos del Manual Ámbar.</p></div>)}
-  <p className="text-[11px] text-gray-500">🟢 85 o más · 🟡 70 a 84 · 🔴 menos de 70. Pesos: ventas 25, conversión 20, caja 15, asistencia 10, atención 10, contratos completos 10, inventario 5, datos limpios 5, menos penalizaciones.</p>
+  <p className="text-[11px] text-gray-500">🟢 85 o más · 🟡 70 a 84 · 🔴 menos de 70. La operación vale 90 puntos (ventas, conversión, caja, asistencia, atención, contratos completos, inventario y datos limpios) y la auditoría mensual cerrada 10, menos penalizaciones.</p>
  </div>;
 }
 
@@ -55,7 +55,10 @@ const P=(id:string,title:string,description:string,icon:React.ReactNode,indicado
 export const PROTOCOLOS=[
  P('pa-puntaje','🏆 Puntaje Ámbar por sede','Un número de 0 a 100 que dice qué tan bien funciona cada sede según el Manual Ámbar.',<Trophy className="w-5 h-5"/>,'puntaje',[
   {type:'intro',title:'🎯 Para qué',content:'El Puntaje Ámbar junta en un solo número lo que mide cada protocolo: ventas, conversión, caja, asistencia, atención, contratos completos, inventario y datos limpios. Es la forma de saber qué sede cumple el estándar Ámbar y qué debe mejorar primero. Es la base para auditorías, premios y franquicias.'},
-  {type:'steps',title:'📝 Cómo usarlo',items:['Revísalo cada lunes en la reunión de sede.','Toca la sede para ver de dónde sale cada punto.','Trabaja primero lo que está más lejos de su máximo (suele ser la caja o la conversión).','Meta: **85 o más** en todas las sedes.']}]),
+  {type:'steps',title:'📝 Cómo usarlo',items:['Revísalo cada lunes en la reunión de sede.','La **auditoría mensual** cerrada suma hasta 10 puntos durante 45 días.','Toca la sede para ver de dónde sale cada punto.','Trabaja primero lo que está más lejos de su máximo (suele ser la caja o la conversión).','Meta: **85 o más** en todas las sedes.']}]),
+ P('pa-auditoria','🔎 Auditoría mensual por sede','Lo que el ERP no ve: la tienda, la atención y una muestra de contratos, caja y vestidos.',<ClipboardCheck className="w-5 h-5"/>,'auditoria',[
+  {type:'intro',title:'🎯 Para qué',content:'Una vez al mes, administración o contabilidad revisa cada sede con esta lista. Cada punto es «cumple» o «no cumple» con su nota. Al cerrarla, el resultado vale 10 puntos del Puntaje Ámbar por 45 días y queda en el historial.'},
+  {type:'steps',title:'📝 Cómo hacerla',items:['Elige la sede y el mes.','Recorre la tienda y revisa una muestra: **5 contratos** del mes y **10 vestidos** del inventario.','Marca cada punto; si no cumple, escribe qué se encontró y qué se debe corregir.','Escribe las conclusiones y los compromisos con la líder de la sede.','Guarda borrador si te falta algo; **Cierra la auditoría** cuando estén todos los puntos.']}]),
  P('pa-atencion','💬 Protocolo 1 · Atención de mensajes','WhatsApp, Instagram y Messenger: responder rápido, con calidez, y llevar a la cita.',<MessageCircle className="w-5 h-5"/>,'atencion',[
   {type:'intro',title:'🎯 Para qué',content:'Cada mensaje es una clienta que quiere su vestido. La IA contesta al instante y la asesora entra cuando el chat queda marcado «Atender persona». La meta es que ningún chat se enfríe y que cada conversación termine con una cita agendada.'},
   {type:'steps',title:'📝 Cómo se hace',items:['Revisa **WhatsApp 304** al llegar, a mediodía y antes de cerrar: filtro **Atender persona** de tu sede primero.','Lee el resumen de la IA antes de escribir: no vuelvas a preguntar lo que la clienta ya dijo.','Saluda con su nombre y responde **exactamente** lo que preguntó; luego invita a la cita: «¿Te muestro los horarios para que vengas a medírtelos?».','Si pide precios, da el rango de su categoría y explica que en la cita se eligen con calma.','Agenda dentro del chat (lista de horarios) y pide su **correo** para enviarle la confirmación.','Cuando lo resuelvas por fuera (celular, llamada), toca **✓ Marcar resuelto**.']},

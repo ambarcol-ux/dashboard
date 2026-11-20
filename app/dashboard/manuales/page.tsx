@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { BookOpen, Search, Menu, X, ChevronRight, CheckCircle2, AlertTriangle, Lightbulb, Play, ArrowRight, LayoutDashboard, CalendarDays, ShoppingBag, HandCoins, Package, TrendingUp, Handshake, Clock, ShieldCheck, Store, Truck, Images, Gift, Wallet, Receipt, BarChart3, Mail, Users, Settings, UserCircle, Sparkles, ClipboardList, Printer } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { PROTOCOLOS, IndicadorAmbar, PuntajeAmbar } from '@/components/ManualAmbar';
+import AuditoriaSede from '@/components/AuditoriaSede';
 
 const MANUAL_DATA = [
   {
@@ -710,8 +711,9 @@ export default function ManualUsuarioPage() {
 
           {/* Cuerpo del Artículo */}
           <div className="p-8 md:p-12">
-            {activeContent.indicador === 'puntaje' ? <div className="mb-8"><PuntajeAmbar /></div> : activeContent.indicador && <IndicadorAmbar clave={activeContent.indicador} />}
+            {activeContent.indicador === 'puntaje' ? <div className="mb-8"><PuntajeAmbar /></div> : activeContent.indicador === 'auditoria' ? null : activeContent.indicador && <IndicadorAmbar clave={activeContent.indicador} />}
             {activeContent.sections.map((sec, i) => renderSection(sec, i))}
+            {activeContent.indicador === 'auditoria' && <AuditoriaSede />}
           </div>
           
         </div>
