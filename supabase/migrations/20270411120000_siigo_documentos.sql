@@ -5,6 +5,7 @@
 --  · recibo_caja       : each abono after the invoice (Abono / Pago factura) lowers the invoice balance.
 --  · anticipo          : the deposit (garantía) when the dress leaves, only for the invoice's customer.
 --  · devolucion_anticipo: comprobante contable, débito 2805 / crédito caja (1105) or bank per payment method.
+--  · nota_credito      : total, partial or correction of an electronic invoice already at the DIAN (administration/accounting only).
 --  · gasto / soporte_gasto / soporte_producto: purchases by the document the supplier gives (factura electrónica, cuenta de cobro,
 --    compra de vestidos).
 -- History: private.config_historial(). Reversible: drop the triggers siigo_pago_recibo, siigo_deposito_documento, the functions
@@ -16,7 +17,7 @@ alter table private.credenciales_siigo add column if not exists parametros jsonb
 create table if not exists public.siigo_documentos(
  id uuid primary key default gen_random_uuid(),
  sede_id uuid not null references public.sedes(id),
- tipo text not null check (tipo in ('factura','recibo_caja','anticipo','devolucion_anticipo','gasto','soporte_gasto','soporte_producto')),
+ tipo text not null check (tipo in ('factura','recibo_caja','anticipo','devolucion_anticipo','gasto','soporte_gasto','soporte_producto','nota_credito')),
  origen text not null,
  origen_id uuid not null,
  contrato_id uuid references public.contratos(id),
@@ -145,6 +146,35 @@ end $$;
 drop trigger if exists siigo_deposito_documento on public.movimientos_depositos;
 create trigger siigo_deposito_documento after insert on public.movimientos_depositos for each row execute function private.siigo_deposito_documento();
 
+-- Credit note of an invoice already sent (administration or accounting): total (annuls it), partial (discount/refund) or
+-- correction (total + the contract can be invoiced again). It does not move money: a refund is registered as an egreso in Cierres de caja.
+create or replace function public.siigo_nota_credito(p_factura uuid, p_tipo text, p_valor numeric, p_motivo text) returns uuid
+language plpgsql security definer set search_path='' as $$
+declare f public.siigo_documentos; v numeric; r text:=btrim(coalesce(p_motivo,'')); d uuid; ya numeric;
+begin
+ if not (public.es_admin() or private.es_finanzas()) then raise exception 'Solo administración o contabilidad hace notas crédito.' using errcode='42501'; end if;
+ select * into f from public.siigo_documentos where id=p_factura and tipo='factura' for update;
+ if f.id is null then raise exception 'Factura no encontrada.'; end if;
+ if f.estado<>'enviado' then raise exception 'La factura aún no está en Siigo: anúlala desde la cola en vez de hacer nota crédito.'; end if;
+ if p_tipo not in ('total','parcial','correccion') then raise exception 'Elige total, parcial o corrección.'; end if;
+ if length(r) not between 5 and 300 then raise exception 'Escribe el motivo (mínimo 5 caracteres).'; end if;
+ select coalesce(sum((datos->>'valor')::numeric),0) into ya from public.siigo_documentos where factura_id=f.id and tipo='nota_credito' and estado<>'anulado';
+ v:=case when p_tipo='parcial' then round(coalesce(p_valor,0)) else (f.datos->>'total')::numeric-ya end;
+ if v<=0 or v>(f.datos->>'total')::numeric-ya then raise exception 'El valor debe ser mayor que cero y no superar lo que queda de la factura.'; end if;
+ insert into public.siigo_documentos(sede_id,tipo,origen,origen_id,contrato_id,factura_id,datos,creado_por)
+ values(f.sede_id,'nota_credito','nota_credito',gen_random_uuid(),f.contrato_id,f.id,jsonb_build_object('tipo',p_tipo,'valor',v,'motivo',r,
+  'fecha',(now() at time zone 'America/Bogota')::date,'cliente',f.datos->'cliente','numero_contrato',f.datos->>'numero_contrato','items',f.datos->'items','total_factura',f.datos->'total'),auth.uid())
+ returning id into d;
+ -- Correction: the invoice is released so the contract can be invoiced again with the right data.
+ if p_tipo='correccion' then update public.siigo_documentos set estado='anulado',error=left('Corregida con nota crédito: '||r,1000),updated_at=now() where id=f.id; end if;
+ if f.contrato_id is not null then
+  insert into public.historial_cambios_contrato(contrato_id,usuario_id,motivo,campo) values(f.contrato_id,auth.uid(),left(format('Nota crédito %s por %s a la factura %s. %s',p_tipo,v,coalesce(f.siigo_numero,'—'),r),500),'Siigo nota crédito');
+ end if;
+ return d;
+end $$;
+revoke all on function public.siigo_nota_credito(uuid,text,numeric,text) from public, anon;
+grant execute on function public.siigo_nota_credito(uuid,text,numeric,text) to authenticated;
+
 -- Purchases and expenses by the supplier's document.
 create or replace function public.siigo_registrar_gasto(p_gasto uuid, p_tipo text, p_proveedor_documento text, p_proveedor_nombre text, p_factura_numero text, p_vestidos text[] default null) returns uuid
 language plpgsql security definer set search_path='' as $$
@@ -218,7 +248,8 @@ end $$;
 create or replace function public.siigo_tomar_servidor(p_limite integer default 20) returns jsonb
 language sql security definer set search_path='' as $$
  select coalesce(jsonb_agg(jsonb_build_object('id',d.id,'sede_id',d.sede_id,'tipo',d.tipo,'datos',d.datos,'intentos',d.intentos,
-   'factura',(select jsonb_build_object('estado',f.estado,'siigo_id',f.siigo_id,'numero',f.siigo_numero,'datos',f.datos,'respuesta',f.respuesta) from public.siigo_documentos f where f.id=d.factura_id)) order by d.created_at),'[]'::jsonb)
+   'factura',(select jsonb_build_object('estado',f.estado,'siigo_id',f.siigo_id,'numero',f.siigo_numero,'datos',f.datos,'respuesta',f.respuesta) from public.siigo_documentos f where f.id=d.factura_id),
+   'cuenta_id',(select m.cuenta_id from public.caja_movimientos m where m.origen_id=d.origen_id and m.anulado_at is null order by m.created_at limit 1)) order by d.created_at),'[]'::jsonb)
  from (select * from public.siigo_documentos where estado='pendiente' or (estado='error' and intentos<5 and updated_at<now()-interval '30 minutes') order by created_at limit p_limite) d;
 $$;
 create or replace function public.siigo_resultado_servidor(p_id uuid, p_ok boolean, p_siigo_id text, p_numero text, p_error text, p_respuesta jsonb, p_esperar boolean default false) returns void
