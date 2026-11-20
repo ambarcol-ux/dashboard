@@ -10,6 +10,7 @@ import Sidebar from '@/components/Sidebar';
 import EventTypeByChannel from '@/components/EventTypeByChannel';
 import FunnelReport from '@/components/FunnelReport';
 import SalesBySite from '@/components/SalesBySite';
+import TableroCEO from '@/components/TableroCEO';
 
 export default function ReportsPage() {
   const readAccess = useVerifiedAccess();
@@ -235,7 +236,7 @@ export default function ReportsPage() {
 
       <main className="flex-1 p-8 overflow-y-auto">
         <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
-          
+          <TableroCEO />
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 bg-white p-6 rounded-2xl shadow-sm border border-rose-50">
             <div>
               <h1 className="text-3xl font-black text-gray-900 tracking-tight">Reportes y Estadísticas</h1>
