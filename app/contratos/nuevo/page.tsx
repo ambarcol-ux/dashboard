@@ -1375,6 +1375,17 @@ export default function NuevoContratoPage() {
     const valorAlquilerBase = parseFloat(String(formData.valor_total).replace(/[^0-9.-]+/g, "")) || 0;
     const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
     const verdaderoValorTotal = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado - descuentoPromo) + serviciosAdicionales;
+    // Already invoiced in Siigo: a change of value or customer is corrected there by itself (private.siigo_ajuste_contrato); warn first.
+    {
+      const antes = Number(editingSnapshot?.valor_total || 0), dif = Math.round(verdaderoValorTotal - antes);
+      const otraCedula = String(editingSnapshot?.cliente_documento || '').replace(/\D/g, '') !== formData.cliente_documento.replace(/\D/g, '') && String(editingSnapshot?.cliente_documento || '').replace(/\D/g, '').length >= 5;
+      if (Math.abs(dif) > 1000 || otraCedula) {
+        const { data: sg } = await supabase.rpc('siigo_contrato', { p_contrato: editingContractId });
+        const facturado = ((sg as { documentos?: { tipo: string; estado: string }[] } | null)?.documentos || []).some(d => d.tipo === 'factura' && d.estado === 'enviado');
+        const que = otraCedula ? 'una nota crédito total y una factura nueva con la nueva clienta' : dif < 0 ? `una nota crédito por $${(-dif).toLocaleString('es-CO')}` : `una factura adicional por $${dif.toLocaleString('es-CO')}`;
+        if (facturado && !window.confirm(`Este contrato ya está facturado en Siigo. Al guardar se enviará ${que}. ¿Continuar?`)) throw new Error('Cambios no guardados.');
+      }
+    }
     const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
 
     const datos = {
