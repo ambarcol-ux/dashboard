@@ -94,6 +94,10 @@ export type Sent={siigoId:string|null;numero:string|null;respuesta:Value;esperar
 /** Builds and sends one queued document. Returns what Siigo answered (or «esperar» when its invoice is not in Siigo yet). */
 export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>{
  const d=j.datos,obs=d.numero_contrato?`Contrato ${d.numero_contrato} · ERP Ámbar`:'ERP Ámbar';
+ // Money that did not come in cash waits until it is passed to the cash register (Cierres de caja), where the ERP account (store bank or
+ // the deposits account) is chosen: that account decides the Siigo payment method. After two days it goes with the store's default bank.
+ if(['recibo_caja','anticipo','devolucion_anticipo'].includes(j.tipo)&&!j.cuenta_id&&!/efectivo/i.test(String(d.medio||''))&&fecha(d.fecha)>=new Date(Date.now()-5*3600000-2*86400000).toISOString().slice(0,10))
+  return {siigoId:null,numero:null,respuesta:{},esperar:true,mensaje:'Esperando que se pase a Cierres de caja con su cuenta (banco o cuenta de depósitos).'};
  if(j.tipo==='factura'&&d.venta){
   const cli=(d.cliente||{}) as Value,v=(d.vestido||{}) as Value,total=Number(d.total);
   const id=cli.documento?await ensureThird(c,cli as never,'Customer'):'222222222222';
@@ -106,6 +110,9 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
  }
  if(j.tipo==='factura'){
   const k=j.contrato!,cli=j.cliente!,venta=d.tipo_venta==='venta';
+  // A draft with no money is not invoiced yet (it may expire): the invoice goes when it is signed or receives its first payment.
+  const {data:est}=await db.from('contratos').select('estado,anticipo').eq('id',j.contrato_id).maybeSingle();
+  if(est&&String(est.estado||'').toLowerCase()==='borrador'&&!(Number(est.anticipo)>0))return {siigoId:null,numero:null,respuesta:{},esperar:true,mensaje:'Esperando la firma o el primer abono del contrato.'};
   const id=await ensureThird(c,cli as never,'Customer');
   const base=Math.max(0,Number(k.valor_total)-Number(k.descuento)),vs=(k.vestidos||[]) as Value[];
   if(!vs.length)throw new SiigoError('El contrato no tiene vestidos con código de inventario.');
@@ -194,7 +201,7 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
 }
 
 /** Sends the queue (cron every 10 minutes). Each document is independent: one failure does not stop the others. */
-export async function processSiigoQueue(db:SupabaseClient,limite=20){
+export async function processSiigoQueue(db:SupabaseClient,limite=50){
  const [{data:jobs,error},{data:creds,error:e2}]=await Promise.all([db.rpc('siigo_tomar_servidor',{p_limite:limite}),db.rpc('siigo_credenciales_activas_servidor')]);
  if(error||e2)throw Error((error||e2)!.message);
  const bySede=new Map(((creds||[]) as SiigoCred[]).map(c=>[c.sede_id,{...c,parametros:(c.parametros||{}) as Params}]));
