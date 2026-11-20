@@ -18,6 +18,7 @@ Objetivo: llevar a Ámbar Couture a ser la marca más fuerte del mercado y franq
 4. **(construido, sección 6 del Tablero CEO)** Embudo por sede: chats → citas → asistencia → contrato → ticket → ganancia; costo por cita y por contrato.
 
 ## Etapa 2 · Manual Ámbar (30–120 días)
+**(versión 1 construida en Manuales › Manual Ámbar · Protocolos: 9 protocolos con lista de chequeo e indicador por sede de public.manual_indicadores; ajustar con las mejores asesoras y agregar videos.)**
 Protocolo + lista de chequeo en el ERP + video por cada momento: atención (WhatsApp/IA/Instagram), primera cita, contrato (firma, abonos, Plan Ahorro, aliados), medidas y arreglos, entrega y depósito, devolución/lavandería/daños, caja, inventario, marketing local, personas. Cada protocolo con su indicador medido en el ERP. Vive en el módulo Manuales existente.
 
 ## Etapa 3 · Estándar y control (60–180 días)
