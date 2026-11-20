@@ -141,8 +141,17 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   const id=await ensureThird(c,(j.cliente||d.cliente) as never,'Customer'),valor=Number(d.valor),k=c.parametros.cuentas||{};
   if(!k.anticipo)throw new SiigoError('Falta la cuenta de anticipos (2805) en Facturación por sede.');
   const cust={identification:id,branch_office:0},desc=`Devolución de depósito ${obs}`;
+  // Siigo crosses the 2805 debit with the advance receipt being returned («due»): the receipt the ERP sent for this contract, or else the
+  // customer's latest advance receipt in Siigo (deposits received before the store was connected).
+  const {data:ant}=await db.from('siigo_documentos').select('siigo_numero,respuesta').eq('contrato_id',j.contrato_id).eq('tipo','anticipo').eq('estado','enviado').order('created_at',{ascending:false}).limit(1).maybeSingle();
+  let rc:{name:string;date:string}|null=ant?.siigo_numero?{name:String(ant.siigo_numero),date:String((ant.respuesta as Value|null)?.date||d.fecha)}:null;
+  if(!rc){const desde=new Date(Date.now()-400*86400000).toISOString().slice(0,10);
+   const vs=(await siigoAll(c,`/v1/vouchers?created_start=${desde}`,15)).filter(v=>v.type==='AdvancePayment'&&String((v.customer as Value)?.identification||'')===String(id)).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+   if(vs[0])rc={name:String(vs[0].name),date:String(vs[0].date)};}
+  const due=rc&&split(rc.name)?{...split(rc.name),quote:1,date:fecha(rc.date)}:null;
+  if(!due)throw new SiigoError('No encontré en Siigo el recibo de anticipo (depósito) de esta clienta para cruzar la devolución.');
   const r=await siigo(c,'/v1/journals',{method:'POST',body:{document:doc(c,'comprobante_devolucion','Devolución de depósitos'),date:fecha(d.fecha),observations:desc,
-   items:[{account:{code:k.anticipo,movement:'Debit'},customer:cust,description:desc,value:valor},{account:{code:cuentaCaja(c,String(d.medio||''),j.cuenta_id),movement:'Credit'},customer:cust,description:desc,value:valor}]}});
+   items:[{account:{code:k.anticipo,movement:'Debit'},customer:cust,description:desc,value:valor,due},{account:{code:cuentaCaja(c,String(d.medio||''),j.cuenta_id),movement:'Credit'},customer:cust,description:desc,value:valor}]}});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
  if(j.tipo==='nota_credito'){
