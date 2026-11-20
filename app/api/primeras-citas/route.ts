@@ -49,6 +49,8 @@ export async function POST(request:Request){
   if(!data?.reservada)return reply({error:data?.error||'El horario ya no está disponible.'},409);
   // o= of the link that brought her (catalog or campaign): saved once on the booked visit.
   if(input.origenEnlace){const {error:o}=await db.from('primeras_citas').update({origen_enlace:input.origenEnlace}).eq('id',data.id).is('origen_enlace',null);if(o)console.error('Origen de la cita no guardado:',o.message);}
+  // «¿Cómo nos conociste?»: the channel when no marked link brought her (Ámbar Exitoso · datos limpios).
+  if(input.comoSeEntero){const {error:c}=await db.from('primeras_citas').update({como_se_entero:input.comoSeEntero}).eq('id',data.id).is('como_se_entero',null);if(c)console.error('Cómo se enteró no guardado:',c.message);}
   // Data authorization: booked by the person → registered; booked by the team (session) → pending until she accepts with her link.
   let autorizacion:string|null=null;
   try{

@@ -10,6 +10,8 @@ export function visitOutcome(v:FirstVisit){
  if(ACTIVE_CONTRACT(v))return 'contrato_pendiente';
  return v.estado;
 }
+/** «¿Cómo nos conociste?» of the booking page (same words as Primeras visitas › Cómo se enteró) — the channel of each visit. */
+export const COMO_NOS_CONOCISTE=['Instagram','Facebook','TikTok','WhatsApp','Google','Recomendación','Pasaba por la tienda','Un aliado (fotógrafo, maquilladora…)','Otro'] as const;
 export const visitOrigin=(v:FirstVisit)=>v.origen==='vitrina'?'vitrina':'cita';
 
 export type Attendance='asistio'|'no_asistio'|'sin_registrar'|'por_atender'|'cancelada';
@@ -98,5 +100,6 @@ export function validateVisitInput(b:Record<string,unknown>){
  if((fechaEvento&&!/^\d{4}-\d{2}-\d{2}$/.test(fechaEvento))||!firstVisitDressTypes.includes(tipoVestido as typeof firstVisitDressTypes[number]))throw Error('Revisa la fecha del evento y tipo de vestido.');
   if(typeof b.comercial!=='boolean')throw Error('Elige si autorizas o no recibir información comercial.');
  const origenEnlace=/^[A-Za-z0-9._-]{1,60}$/.test(String(b.origen||''))?String(b.origen):null;
- return {documento,fechaEvento,tipoVestido,origenEnlace,comercial:b.comercial===true,id:String(b.id),fecha:String(b.fecha),hora:String(b.hora),modalidad:String(b.modalidad),sede:String(b.sede),nombre:name,telefono:phone,email};
+ const comoSeEntero=COMO_NOS_CONOCISTE.includes(String(b.comoSeEntero||'') as typeof COMO_NOS_CONOCISTE[number])?String(b.comoSeEntero):null;
+ return {documento,fechaEvento,tipoVestido,origenEnlace,comoSeEntero,comercial:b.comercial===true,id:String(b.id),fecha:String(b.fecha),hora:String(b.hora),modalidad:String(b.modalidad),sede:String(b.sede),nombre:name,telefono:phone,email};
 }

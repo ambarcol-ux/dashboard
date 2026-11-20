@@ -14,8 +14,8 @@ Objetivo: llevar a Ámbar Couture a ser la marca más fuerte del mercado y franq
    - Fase A: factura, recibo de caja, anticipo, devolución de anticipo, gastos (factura electrónica, cuenta de cobro, compra de vestidos), nota crédito, envío automático y cola con reintento.
    - Fase B: cuotas del Plan Ahorro (anticipo), ventas de vestidos, pagos a proveedores, traslados caja/banco/sedes, préstamos de socios, retenido de planes desistidos, saldos iniciales; cuentas configurables por la contadora.
 2. **(construido, en Reportes y Estadísticas)** Tablero CEO en tiempo real: dónde está la plata, activos, pasivos (depósitos, Plan Ahorro, proveedores, socios), ganancia por sede, punto de equilibrio, proyección y semáforo por sede.
-3. Datos limpios: origen de cada cita, códigos de vestido con talla (REF-TALLA), contratos firmados en el ERP, costo de cada vestido.
-4. Embudo por sede: chats → citas → asistencia → contrato → ticket → ganancia; costo por cita y por contrato.
+3. **(construido)** Datos limpios: origen de cada cita («¿Cómo nos conociste?» en la página de citas y canal calculado), códigos de vestido con talla (REF-TALLA), contratos firmados en el ERP, costo de cada vestido.
+4. **(construido, sección 6 del Tablero CEO)** Embudo por sede: chats → citas → asistencia → contrato → ticket → ganancia; costo por cita y por contrato.
 
 ## Etapa 2 · Manual Ámbar (30–120 días)
 Protocolo + lista de chequeo en el ERP + video por cada momento: atención (WhatsApp/IA/Instagram), primera cita, contrato (firma, abonos, Plan Ahorro, aliados), medidas y arreglos, entrega y depósito, devolución/lavandería/daños, caja, inventario, marketing local, personas. Cada protocolo con su indicador medido en el ERP. Vive en el módulo Manuales existente.
