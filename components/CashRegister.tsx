@@ -11,6 +11,7 @@ import {AccountSelect,AccountsAdmin,CashStartAdmin,DepositsView,EditMovement,Whe
 import {CASH_BASE,CASH_CATEGORIES,CASH_METHODS,accountsFor,cashDifference,cashReceiptPath,editSummary,expectedCash,needsAccount,parseCashAmount,siteTotals,type CashDay,type CashMissingSupport,type CashMovement,type CashSiteSummary,type CashSuggestion,type CashSupport} from '@/lib/cash';
 import {SUPPORT_ACCEPT,SUPPORT_BUCKET,supportFileError,supportPath,supportType} from '@/lib/payment-support';
 import styles from '@/app/dashboard/caja/caja.module.css';
+import SiigoAlDia from '@/components/SiigoAlDia';
 
 type Profile={id:string;rol:string;sede_id:string|null};
 const ALL='todas';
@@ -134,6 +135,7 @@ export default function CashRegister({profile}:{profile:Profile}){
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   {guia&&sede!==ALL&&day&&day.sede_id===sede&&day.fecha===fecha?<GuiaAbonos day={day} pending={pending} onNext={irAbono} onClose={()=>setGuia(false)}/>
    :<PendingPayments abierto={ver==='abonos'} rows={sede===ALL?pending:pending.filter(p=>p.sede_id===sede)} onOpen={irAbono}/>}
+  {sede!==ALL&&day&&<SiigoAlDia sedeId={day.sede_id} fecha={day.fecha}/>}
   {sede===ALL?<AllSites rows={sites} loading={loading} onPick={id=>{setLoading(true);setSede(id);}}/>:day?<SiteDay key={`${day.sede_id}:${day.fecha}`} day={day} siteName={siteName} isAdmin={isAdmin} finanzas={finanzas} canFix={puedeCorregir} canReopen={puedeReabrir} onDone={done} onError={setError}/>:!error&&<p className={styles.empty}>{loading?'Cargando caja…':'No tienes una sede asignada para manejar caja.'}</p>}
  </>;
 }

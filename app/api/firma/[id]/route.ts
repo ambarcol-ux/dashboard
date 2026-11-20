@@ -1,6 +1,7 @@
 import {publicServerClient,publicReply,readJson,UUID_RE,validSignature} from '@/lib/public-db';
 import {INVOICE_REQUIRED_MESSAGE} from '@/lib/invoice-validation';
 import {CONTRACT_EXTRAS_SELECT} from '@/lib/contract-extras';
+import {sendSignedContract} from '@/lib/contract-delivery';
 export const dynamic='force-dynamic';
 const CONTRACT=`*, quinceanera_name, arreglos!arreglos_contrato_id_fkey(*), vestidos:contrato_items_vestidos(*, vestido:vestidos(*)), ${CONTRACT_EXTRAS_SELECT}`;
 
@@ -41,6 +42,8 @@ export async function POST(request:Request,{params}:{params:Promise<{id:string}>
   if(updateError)return publicReply({error:updateError.message||'No se pudo guardar la firma.'},400);
   if(!saved)return publicReply({error:'El contrato ya fue firmado.'},409);
   await db.from('bitacora_contratos').insert({contrato_id:id,accion:'Bloqueo de Inventario',detalle:`Bloqueo de inventario programado hasta el ${contract.fecha_disponibilidad_real||'N/A'} por mantenimiento (Post-Firma).`});
+  // Her copy: e-mail, or WhatsApp only without e-mail (lib/contract-delivery.ts). It never blocks the signature.
+  try{await sendSignedContract(db,id,(process.env.FIRST_VISIT_PUBLIC_ORIGIN||new URL(request.url).origin));}catch(e){console.error('Copia del contrato firmado:',e);}
   return publicReply({ok:true,firma_base64:firma,fecha_firma_cliente:signedAt});
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
 }

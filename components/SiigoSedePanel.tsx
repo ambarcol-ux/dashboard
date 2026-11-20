@@ -5,9 +5,9 @@ import {toast} from 'sonner';
 
 type Opt={id:number|string;nombre:string};
 type Cat={fv:Opt[];rc:Opt[];cc:Opt[];fc:Opt[];nc:Opt[];ds:Opt[];pagos:Opt[];pagos_rc:Opt[];vendedores:Opt[];grupos:Opt[];cuentas_erp:{id:string;nombre:string}[]};
-type P={envio_activo?:boolean;tipo_factura_defecto?:string;vendedor?:number;grupo_inventario?:number;documentos?:Record<string,number>;formas_pago?:Record<string,number>;cuentas?:Record<string,string>};
+type P={envio_activo?:boolean;tipo_factura_defecto?:string;vendedor?:number;grupo_inventario?:number;documentos?:Record<string,number>;formas_pago?:Record<string,number>;cuentas?:Record<string,string>;socios?:Record<string,string>;tercero_defecto?:string};
 type Doc={id:string;tipo:string;estado:string;numero:string|null;error:string|null;valor:string|null;contrato:string|null;proveedor:string|null;fecha:string};
-const TIPO:Record<string,string>={factura:'Factura',recibo_caja:'Recibo de caja',anticipo:'Anticipo (depósito)',devolucion_anticipo:'Devolución de depósito',nota_credito:'Nota crédito',gasto:'Gasto',soporte_gasto:'Doc. soporte gasto',soporte_producto:'Doc. soporte vestidos'};
+const TIPO:Record<string,string>={comprobante:'Comprobante interno',factura:'Factura',recibo_caja:'Recibo de caja',anticipo:'Anticipo (depósito)',devolucion_anticipo:'Devolución de depósito',nota_credito:'Nota crédito',gasto:'Gasto',soporte_gasto:'Doc. soporte gasto',soporte_producto:'Doc. soporte vestidos'};
 const cop=(v:unknown)=>`$${Number(v||0).toLocaleString('es-CO')}`;
 const call=async(body:Record<string,unknown>)=>{const {data:{session}}=await supabase.auth.getSession();
  const r=await fetch('/api/siigo/admin',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session?.access_token||''}`},body:JSON.stringify(body)});
@@ -55,6 +55,7 @@ export default function SiigoSedePanel({sedeId,sede,configurada}:{sedeId:string;
     {sel('Recibo de caja (abonos y anticipos)',p.documentos?.recibo_caja,cat.rc,v=>setIn('documentos','recibo_caja',v))}
     {sel('Nota crédito',p.documentos?.nota_credito,cat.nc,v=>setIn('documentos','nota_credito',v))}
     {sel('Comprobante devolución de depósitos',p.documentos?.comprobante_devolucion,cat.cc,v=>setIn('documentos','comprobante_devolucion',v))}
+    {sel('Comprobante interno (entre sedes y socios)',p.documentos?.comprobante_interno,cat.cc,v=>setIn('documentos','comprobante_interno',v))}
     {sel('Gasto / compra con factura electrónica',p.documentos?.gasto,cat.fc,v=>setIn('documentos','gasto',v))}
     {sel('Documento soporte (cuenta de cobro / vestidos)',p.documentos?.soporte,cat.ds,v=>setIn('documentos','soporte',v))}
     {sel('Vendedor',p.vendedor,cat.vendedores,v=>set('vendedor',Number(v)||undefined))}
@@ -72,6 +73,13 @@ export default function SiigoSedePanel({sedeId,sede,configurada}:{sedeId:string;
     {txt('Banco por defecto (1110…)',p.cuentas?.transferencia,v=>setIn('cuentas','transferencia',v),'11100501')}
     {cat.cuentas_erp.map(k=><div key={k.id}>{txt(`Cuenta contable de ${k.nombre}`,p.cuentas?.[`cuenta:${k.id}`],v=>setIn('cuentas',`cuenta:${k.id}`,v),'1110…')}</div>)}
     {txt('Gastos (cuenta por defecto 51/52…)',p.cuentas?.gasto_defecto,v=>setIn('cuentas','gasto_defecto',v),'51959501')}
+    {txt('Pagos a proveedores (costura, lavandería…)',p.cuentas?.['gasto:proveedores'],v=>setIn('cuentas','gasto:proveedores',v),'51…')}
+    {txt('Plata entre sedes',p.cuentas?.entre_sedes,v=>setIn('cuentas','entre_sedes',v),'1380…')}
+    {txt('Préstamos de socios',p.cuentas?.socios,v=>setIn('cuentas','socios',v),'2355…')}
+    {txt('NIT de la empresa (comprobantes internos)',p.tercero_defecto,v=>set('tercero_defecto',v),'900…')}
+    <label className="text-xs font-bold text-gray-600 md:col-span-2">Socios (uno por línea: Nombre=cédula)<textarea className="mt-1 w-full border rounded-xl p-2 text-sm" rows={2}
+     value={Object.entries(p.socios||{}).map(([k,v])=>`${k}=${v}`).join('\n')} placeholder="Andrés Romero=80031674"
+     onChange={e=>set('socios',Object.fromEntries(e.target.value.split('\n').map(l=>l.split('=').map(x=>x.trim())).filter(x=>x[0]&&x[1])))}/></label>
    </div></div>
    <button type="button" disabled={!!busy} onClick={()=>void guardar(p)} className="px-5 py-2.5 bg-gray-900 text-white rounded-xl text-sm font-black">{busy==='save'?'Guardando…':'Guardar parámetros de '+sede}</button>
   </div>}

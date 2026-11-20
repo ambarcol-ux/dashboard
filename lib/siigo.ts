@@ -6,8 +6,10 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 type Value=Record<string,any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 export type SiigoCred={sede_id:string;sede:string;usuario_api:string;access_key:string;partner_id:string;parametros:Params};
 export type Params={envio_activo?:boolean;tipo_factura_defecto?:'electronica'|'ingreso';vendedor?:number;grupo_inventario?:number;
- documentos?:{factura_electronica?:number;factura_ingreso?:number;recibo_caja?:number;nota_credito?:number;comprobante_devolucion?:number;gasto?:number;soporte?:number};
- formas_pago?:Record<string,number>;cuentas?:Record<string,string>;ciudad?:{state_code:string;city_code:string}};
+ documentos?:{factura_electronica?:number;factura_ingreso?:number;recibo_caja?:number;nota_credito?:number;comprobante_devolucion?:number;comprobante_interno?:number;gasto?:number;soporte?:number};
+ formas_pago?:Record<string,number>;cuentas?:Record<string,string>;ciudad?:{state_code:string;city_code:string};
+ /** Partner name → cédula (loans) and the store's own NIT for internal journals. */
+ socios?:Record<string,string>;tercero_defecto?:string};
 const API='https://api.siigo.com';
 const CITY:Record<string,{state_code:string;city_code:string}>={villavicencio:{state_code:'50',city_code:'50001'},'bogotá':{state_code:'11',city_code:'11001'},bogota:{state_code:'11',city_code:'11001'},
  pereira:{state_code:'66',city_code:'66001'},barranquilla:{state_code:'08',city_code:'08001'}};
@@ -92,6 +94,16 @@ export type Sent={siigoId:string|null;numero:string|null;respuesta:Value;esperar
 /** Builds and sends one queued document. Returns what Siigo answered (or «esperar» when its invoice is not in Siigo yet). */
 export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>{
  const d=j.datos,obs=d.numero_contrato?`Contrato ${d.numero_contrato} · ERP Ámbar`:'ERP Ámbar';
+ if(j.tipo==='factura'&&d.venta){
+  const cli=(d.cliente||{}) as Value,v=(d.vestido||{}) as Value,total=Number(d.total);
+  const id=cli.documento?await ensureThird(c,cli as never,'Customer'):'222222222222';
+  const electronica=d.tipo_factura!=='ingreso';
+  const r=await siigo(c,'/v1/invoices',{method:'POST',body:{document:doc(c,electronica?'factura_electronica':'factura_ingreso',electronica?'Factura electrónica':'Factura de ingreso'),
+   date:fecha(d.fecha),customer:{identification:id,branch_office:0},...(c.parametros.vendedor?{seller:c.parametros.vendedor}:{}),observations:`Venta de vestido${d.numero_venta?` n.º ${d.numero_venta}`:''} · ERP Ámbar`,
+   items:[{code:await ensureProduct(c,db,v,true),description:`${v.codigo} ${v.nombre||''}${v.talla?` talla ${v.talla}`:''} · venta`.slice(0,500),quantity:1,price:total}],
+   payments:[{id:formaPago(c,String(d.medio||''),d.cuenta_id||j.cuenta_id),value:total,due_date:fecha(d.fecha)}],...(electronica?{stamp:{send:true}}:{}),mail:{send:!!cli.email}}});
+  return {siigoId:r.id||null,numero:r.name||String(r.number||''),respuesta:{...r,total}};
+ }
  if(j.tipo==='factura'){
   const k=j.contrato!,cli=j.cliente!,venta=d.tipo_venta==='venta';
   const id=await ensureThird(c,cli as never,'Customer');
@@ -120,13 +132,13 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
  if(j.tipo==='anticipo'){
-  const id=await ensureThird(c,j.cliente as never,'Customer'),valor=Number(d.valor);
+  const id=await ensureThird(c,(j.cliente||d.cliente) as never,'Customer'),valor=Number(d.valor);
   const r=await siigo(c,'/v1/vouchers',{method:'POST',body:{document:doc(c,'recibo_caja','Recibo de caja'),date:fecha(d.fecha),type:'AdvancePayment',customer:{identification:id,branch_office:0},
    payment:{id:formaPago(c,String(d.medio||''),j.cuenta_id),value:valor},observations:`Depósito en garantía ${obs}`}});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
  if(j.tipo==='devolucion_anticipo'){
-  const id=await ensureThird(c,j.cliente as never,'Customer'),valor=Number(d.valor),k=c.parametros.cuentas||{};
+  const id=await ensureThird(c,(j.cliente||d.cliente) as never,'Customer'),valor=Number(d.valor),k=c.parametros.cuentas||{};
   if(!k.anticipo)throw new SiigoError('Falta la cuenta de anticipos (2805) en Facturación por sede.');
   const cust={identification:id,branch_office:0},desc=`Devolución de depósito ${obs}`;
   const r=await siigo(c,'/v1/journals',{method:'POST',body:{document:doc(c,'comprobante_devolucion','Devolución de depósitos'),date:fecha(d.fecha),observations:desc,
@@ -154,6 +166,17 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   const r=await siigo(c,'/v1/purchases',{method:'POST',body:{document:doc(c,j.tipo==='gasto'?'gasto':'soporte',j.tipo==='gasto'?'Gasto / compra':'Documento soporte'),date:fecha(d.fecha),
    supplier:{identification:id,branch_office:0},...(j.tipo==='gasto'?{provider_invoice:{prefix:pf?pf[1]:'FE',number:pf?pf[2]:fe.replace(/\D/g,'')||fe}}:{}),
    items,payments:[{id:formaPago(c,String(d.medio||''),j.cuenta_id),value:valor,due_date:fecha(d.fecha)}],observations:`${d.descripcion||d.categoria||'Gasto'} · ERP Ámbar`.slice(0,500)}});
+  return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
+ }
+ if(j.tipo==='comprobante'){
+  // Internal journal (money between stores, partner loans): accounts from the parameters, caja/banco by the ERP account used.
+  const k=c.parametros.cuentas||{},valor=Number(d.valor);
+  const tercero=String((d.socio&&c.parametros.socios?.[String(d.socio)])||c.parametros.tercero_defecto||'').replace(/\D/g,'');
+  if(!tercero)throw new SiigoError(d.socio?`Falta la cédula del socio «${d.socio}» en Facturación por sede.`:'Falta el NIT de la empresa (tercero de comprobantes internos) en Facturación por sede.');
+  const items=((d.lineas||[]) as Value[]).map(l=>{const code=l.cuenta==='caja'?cuentaCaja(c,'Transferencia',l.cuenta_id||null):k[String(l.cuenta)];
+   if(!code)throw new SiigoError(`Falta la cuenta contable «${l.cuenta==='entre_sedes'?'Entre sedes':l.cuenta==='socios'?'Préstamos de socios':l.cuenta}» en Facturación por sede.`);
+   return {account:{code,movement:l.mov},customer:{identification:tercero,branch_office:0},description:String(d.descripcion||'').slice(0,300),value:valor};});
+  const r=await siigo(c,'/v1/journals',{method:'POST',body:{document:doc(c,'comprobante_interno','Comprobante interno (traslados)'),date:fecha(d.fecha),observations:String(d.descripcion||'').slice(0,500),items}});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
  throw new SiigoError(`Tipo de documento no soportado: ${j.tipo}`);
