@@ -127,13 +127,15 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   for(const [i,v] of vs.entries()){const precio=i===vs.length-1?resto:Math.floor(base/vs.length);resto-=precio;
    items.push({code:await ensureProduct(c,db,v,venta),description:`${v.codigo} ${v.nombre||''}${v.talla?` talla ${v.talla}`:''} · contrato ${k.numero}`.slice(0,500),quantity:1,price:precio});}
   if(Number(k.total_arreglos)>0)items.push({code:items[0].code,description:`Arreglos contrato ${k.numero}`,quantity:1,price:Number(k.total_arreglos)});
+  // Contract edited to a higher value after it was invoiced: an additional invoice only for the difference (private.siigo_ajuste_contrato).
+  if(d.adicional)items.splice(0,items.length,{code:items[0].code,description:`Mayor valor del contrato ${k.numero} (ajuste)`,quantity:1,price:Number(d.valor)});
   const total=items.reduce((s,x)=>s+Number(x.price),0);
   // The store may have invoiced the same sale by hand in Siigo: an invoice of this customer in the last 3 days with the same total is
   // linked instead of creating a duplicate (its payments are then already in Siigo).
   const desde=new Date(Date.now()-3*86400000).toISOString().slice(0,10);
   const previa=((await siigo(c,`/v1/invoices?created_start=${desde}&page_size=100`).catch(()=>({results:[]}))).results||[] as Value[])
    .find((x:Value)=>String((x.customer as Value)?.identification||'')===String(id)&&Math.abs(Number(x.total)-total)<=1000&&!/ERP Ámbar/.test(String(x.observations||'')));
-  if(previa)return {siigoId:String(previa.id),numero:String(previa.name),respuesta:{...previa,total,hecha_en_siigo:true}};
+  if(previa&&!d.adicional)return {siigoId:String(previa.id),numero:String(previa.name),respuesta:{...previa,total,hecha_en_siigo:true}};
   const credito=c.parametros.formas_pago?.credito;if(!credito)throw new SiigoError('Falta la forma de pago «crédito / clientes nacionales» en Facturación por sede.');
   const electronica=d.tipo_factura!=='ingreso';
   // The invoice shows what the customer already paid (as the stores did by hand): each payment registered in the ERP whose receipt was
@@ -142,7 +144,7 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   const {data:rcs}=await db.from('siigo_documentos').select('origen_id,estado').eq('contrato_id',j.contrato_id).eq('tipo','recibo_caja');
   const enviados=new Set(((rcs||[]) as Value[]).filter(x=>x.estado==='enviado').map(x=>String(x.origen_id)));
   const abonos:{id:string;valor:number;forma:number}[]=[];let pagado=0;
-  for(const p of (pg||[]) as Value[]){if(enviados.has(String(p.id)))continue;const v=Math.min(Number(p.valor_pagado)||0,total-pagado);if(v<=0)break;
+  for(const p of (d.adicional?[]:pg||[]) as Value[]){if(enviados.has(String(p.id)))continue;const v=Math.min(Number(p.valor_pagado)||0,total-pagado);if(v<=0)break;
    const {data:mov}=await db.from('caja_movimientos').select('cuenta_id').eq('origen','pago').eq('origen_id',p.id).is('anulado_at',null).limit(1).maybeSingle();
    abonos.push({id:String(p.id),valor:v,forma:formaPago(c,String(p.medio_pago||''),(mov?.cuenta_id as string|null)||null)});pagado+=v;}
   const porCobrar=Math.round((total-pagado)*100)/100;
