@@ -13,7 +13,7 @@ type Promo={nombre:string;beneficio:string;hasta:string;codigo:string|null;condi
 export default function PublicCatalogPage(){
  const params=useParams<{token?:string;sede?:string;tipo?:string}>(),token=String(params.token||'');
  const query=token?`t=${encodeURIComponent(token)}`:`s=${encodeURIComponent(String(params.sede||'').toLowerCase())}&k=${encodeURIComponent(String(params.tipo||'').toLowerCase())}`;
- const [data,setData]=useState<{titulo:string;sede_id:string|null;vestidos:Dress[];promociones?:Promo[]}|null>(null),[error,setError]=useState(''),[open,setOpen]=useState<Dress|null>(null),[zoom,setZoom]=useState<number|null>(null),[touchX,setTouchX]=useState<number|null>(null);
+ const [data,setData]=useState<{titulo:string;sede_id:string|null;vestidos:Dress[];promociones?:Promo[];sin_precios?:boolean}|null>(null),[error,setError]=useState(''),[open,setOpen]=useState<Dress|null>(null),[zoom,setZoom]=useState<number|null>(null),[touchX,setTouchX]=useState<number|null>(null);
  // Photos actually uploaded (front, back, detail), with their labels: only these are shown and zoomed.
  const fotos=open?(['Frente','Espalda','Detalle'] as const).map((label,i)=>({label,url:(open.fotos||[open.foto])[i]||null})).filter((f):f is {label:'Frente'|'Espalda'|'Detalle';url:string}=>!!f.url):[];
  const mover=(d:number)=>setZoom(z=>z==null||!fotos.length?z:(z+d+fotos.length)%fotos.length);
@@ -24,7 +24,7 @@ export default function PublicCatalogPage(){
  return <main translate="no" className="min-h-screen bg-[#faf8f5] py-8 px-4">
   <div className="max-w-5xl mx-auto space-y-6">
    <header className="text-center"><p className="text-[11px] font-black tracking-[.2em] text-amber-700">ÁMBAR COUTURE</p><h1 className="text-2xl font-black text-gray-900 mt-2">{data?.titulo||'Catálogo'}</h1>
-    {data&&<p className="text-sm text-gray-500 mt-1">{data.vestidos.length} vestidos · precios de alquiler y de venta</p>}</header>
+    {data&&<p className="text-sm text-gray-500 mt-1">{data.vestidos.length} vestidos{data.sin_precios?'':' · precios de alquiler y de venta'}</p>}</header>
    {!!data?.promociones?.length&&<section className="space-y-2">{data.promociones.map(p=><article key={p.nombre} className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm">
     <p className="font-black text-amber-900">{p.nombre} · {p.beneficio}</p>
     <p className="text-amber-800 text-xs">Hasta el {p.hasta.split('-').reverse().join('/')}{p.categorias?.length?` · ${p.categorias.join(', ')}`:''}{p.codigo?` · Código ${p.codigo}`:''}</p>
@@ -38,13 +38,13 @@ export default function PublicCatalogPage(){
      <div className="p-3 text-xs space-y-0.5"><p className="font-black text-gray-900 text-sm">{v.codigo}</p>
       <p className="font-bold text-rose-700">{v.tipo}{v.categoria?` · ${v.categoria}`:''}</p>
       <p className="text-gray-500">Talla {v.talla||'—'} · {v.color||'—'}</p>
-      <p className="font-black text-gray-900 pt-1">{v.precio?`Alquiler ${cop(v.precio)}`:'Precio a consultar'}</p>{v.venta&&<p className="text-xs font-bold text-gray-600">Venta {cop(v.venta)}</p>}</div>
+      {!data.sin_precios&&<p className="font-black text-gray-900 pt-1">{v.precio?`Alquiler ${cop(v.precio)}`:'Precio a consultar'}</p>}{v.venta&&<p className="text-xs font-bold text-gray-600">Venta {cop(v.venta)}</p>}</div>
     </article>)}
    </div>}
    {data&&!data.vestidos.length&&<p className="text-center text-gray-500">No hay vestidos en este catálogo por ahora.</p>}
    {open&&<div onClick={()=>{setOpen(null);setZoom(null);}} className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
     <div onClick={e=>e.stopPropagation()} className="bg-white rounded-3xl p-4 w-full max-w-3xl max-h-[92vh] overflow-y-auto space-y-3">
-     <div className="flex justify-between gap-2"><div className="text-sm"><p className="font-black text-lg">{open.codigo}</p><p className="font-bold text-rose-700">{open.tipo}{open.categoria?` · ${open.categoria}`:''}</p><p className="text-gray-600">Talla {open.talla||'—'} · {open.color||'—'}</p><p className="font-black">{open.precio?`Alquiler ${cop(open.precio)}`:'Precio a consultar'}</p>{open.venta&&<p className="font-bold text-gray-600">Venta {cop(open.venta)}</p>}</div>
+     <div className="flex justify-between gap-2"><div className="text-sm"><p className="font-black text-lg">{open.codigo}</p><p className="font-bold text-rose-700">{open.tipo}{open.categoria?` · ${open.categoria}`:''}</p><p className="text-gray-600">Talla {open.talla||'—'} · {open.color||'—'}</p>{!data?.sin_precios&&<p className="font-black">{open.precio?`Alquiler ${cop(open.precio)}`:'Precio a consultar'}</p>}{open.venta&&<p className="font-bold text-gray-600">Venta {cop(open.venta)}</p>}</div>
       <button type="button" onClick={()=>{setOpen(null);setZoom(null);}} className="self-start px-4 py-2 rounded-xl bg-gray-900 text-white text-xs font-black">Cerrar</button></div>
      {fotos.length?<div className={`grid grid-cols-1 gap-3 ${fotos.length===1?'max-w-sm mx-auto':fotos.length===2?'sm:grid-cols-2':'sm:grid-cols-3'}`}>{fotos.map((f,i)=><figure key={f.label}>
       <button type="button" onClick={()=>setZoom(i)} className="block w-full aspect-[3/4] bg-gray-100 rounded-2xl overflow-hidden cursor-zoom-in" aria-label={`Ampliar foto ${f.label}`}><img src={f.url} alt={`${open.codigo} ${f.label}`} className="w-full h-full object-cover"/></button>

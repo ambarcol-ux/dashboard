@@ -30,7 +30,7 @@ const SLOTS=[['foto_frente','Frente'],['foto_espalda','Espalda'],['foto_detalle'
 function Catalog({profile}:{profile:ShellProfile}){
  const [open,setOpen]=useState<Dress|null>(null);
  const [rows,setRows]=useState<Dress[]>([]),[tipos,setTipos]=useState<{id:number;nombre:string}[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]);
- const [tipo,setTipo]=useState(''),[categoria,setCategoria]=useState(''),[sede,setSede]=useState(''),[q,setQ]=useState(''),[soloFoto,setSoloFoto]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const [tipo,setTipo]=useState(''),[categoria,setCategoria]=useState(''),[sede,setSede]=useState(''),[q,setQ]=useState(''),[soloFoto,setSoloFoto]=useState(false),[sinPrecios,setSinPrecios]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState('');
  // Sede-limited roles (e.g. store leader) only see their own sedes here (reuses sedes_inventario_editables).
  const [limite,setLimite]=useState<string[]|null>(null);
  useEffect(()=>{void Promise.all([
@@ -61,7 +61,7 @@ function Catalog({profile}:{profile:ShellProfile}){
  const copy=async(t:string)=>{try{await navigator.clipboard.writeText(urlOf(t));setNotice('Link copiado.');}catch{setNotice(urlOf(t));}};
  const createLink=async()=>{
   const titulo=[tipo?tipoNombre(Number(tipo)):'Catálogo Ámbar Couture',categoria,sede?sedes.find(s=>s.id===sede)?.nombre:''].filter(Boolean).join(' · ');
-  const {data,error:e}=await supabase.from('catalogos_publicos').insert({titulo,clasificacion_id:tipo?Number(tipo):null,categoria:categoria||null,sede_id:sede||null,creado_por:profile.id}).select('token').single();
+  const {data,error:e}=await supabase.from('catalogos_publicos').insert({titulo:sinPrecios?`${titulo} · sin precios`:titulo,clasificacion_id:tipo?Number(tipo):null,categoria:categoria||null,sede_id:sede||null,creado_por:profile.id,sin_precios:sinPrecios}).select('token').single();
   if(e||!data){setNotice('No se pudo crear el link.');return;}
   await copy(data.token);void loadLinks();
  };
@@ -83,6 +83,7 @@ function Catalog({profile}:{profile:ShellProfile}){
    <label><input type="checkbox" checked={soloFoto} onChange={e=>setSoloFoto(e.target.checked)}/> Solo con foto</label>
    <button type="button" disabled={busy||!list.length} onClick={()=>pdf()} className={styles.primary}><Download size={14}/> {busy?'Generando…':`Catálogo PDF (${list.length})`}</button>
    <button type="button" disabled={busy||!list.length} onClick={()=>pdf('tres')} className={styles.primary} title="Un vestido por fila con frente, espalda y detalle"><Download size={14}/> PDF con 3 fotos</button>
+   <label title="El link no muestra precios de alquiler ni de venta"><input type="checkbox" checked={sinPrecios} onChange={e=>setSinPrecios(e.target.checked)}/> Sin precios</label>
    <button type="button" onClick={()=>void createLink()} className={styles.primary} title="Crea un link público con este filtro (tipo, categoría y sede) y lo copia"><Link2 size={14}/> Copiar link público</button>
   </div>
   {fixedUrl&&<p style={{marginBottom:10}}><button type="button" onClick={()=>void copyFixed()} className={styles.primary}><Link2 size={14}/> Copiar enlace fijo</button></p>}
