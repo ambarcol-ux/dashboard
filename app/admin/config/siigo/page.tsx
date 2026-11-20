@@ -5,6 +5,7 @@ import {supabase} from '@/lib/supabase';
 import Sidebar from '@/components/Sidebar';
 import {KeyRound,Loader2,ShieldCheck} from 'lucide-react';
 import {toast,Toaster} from 'sonner';
+import SiigoSedePanel from '@/components/SiigoSedePanel';
 
 export default function SiigoConfigPage(){
   const readAccess = useVerifiedAccess();
@@ -36,7 +37,7 @@ export default function SiigoConfigPage(){
  return <div className="min-h-screen bg-slate-50 flex"><Toaster richColors position="top-right"/><Sidebar user={user} handleLogout={logout} activePage="config"/>
  <main className="flex-1 p-4 md:p-8"><div className="max-w-5xl mx-auto space-y-6">
   <div><h1 className="text-3xl font-black text-gray-900 flex items-center gap-3"><KeyRound className="text-rose-500"/> Facturación por sede</h1><p className="text-gray-500 mt-2">Cada sede usa sus propias credenciales de Siigo. El Access Key guardado nunca vuelve a mostrarse.</p></div>
-  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-sm flex gap-3"><ShieldCheck/>Producto contable genérico: <b>Alquiler de Vestido</b>. La referencia real del vestido se enviará como descripción/nota, no como inventario contable.</div>
+  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-100 text-emerald-800 text-sm flex gap-3"><ShieldCheck/>Producto contable genérico: <b>Alquiler de Vestido</b>. Cada vestido se factura con su producto en Siigo: alquiler = su código, venta = código + V (se crea si falta). Con «Enviar a Siigo» activo, la sede trabaja solo en el ERP.</div>
   {loading?<div className="py-20 flex justify-center"><Loader2 className="animate-spin"/></div>:<div className="grid gap-5">{sedes.map(s=>{const f=forms[s.id]||{};const cfg=configs.find(c=>c.sede_id===s.id);return <section key={s.id} className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
    <div className="flex justify-between gap-3 mb-5"><div><h2 className="text-xl font-black">{s.nombre}</h2><p className="text-xs text-gray-400">{cfg?.access_key_configurada?'● Access Key configurado':'○ Sin credenciales'}</p></div></div>
    <div className="grid md:grid-cols-2 gap-4">
@@ -46,6 +47,7 @@ export default function SiigoConfigPage(){
     <label className="text-sm font-bold">Código producto genérico<input className="mt-2 w-full border rounded-xl p-3" value={f.producto_codigo||''} onChange={e=>setForms(v=>({...v,[s.id]:{...f,producto_codigo:e.target.value}}))}/></label>
     <label className="text-sm font-bold md:col-span-2">Nombre producto<input className="mt-2 w-full border rounded-xl p-3" value={f.producto_nombre||''} onChange={e=>setForms(v=>({...v,[s.id]:{...f,producto_nombre:e.target.value}}))}/></label>
    </div><button disabled={saving===s.id} onClick={()=>void save(s.id)} className="mt-5 px-5 py-3 bg-rose-500 text-white rounded-xl font-black">{saving===s.id?'Guardando…':'Guardar credenciales de '+s.nombre}</button>
+   <SiigoSedePanel sedeId={s.id} sede={s.nombre} configurada={!!cfg?.access_key_configurada}/>
   </section>})}</div>}
  </div></main></div>;
 }

@@ -64,6 +64,8 @@ export default function NuevoContratoPage() {
   const [editingSnapshot, setEditingSnapshot] = useState<any>(null);
   const [loadingEditContract, setLoadingEditContract] = useState(false);
   const isEditMode = Boolean(editingContractId);
+  // Stores with «Enviar a Siigo» on: the invoice is created by the ERP in Siigo when the contract is saved (its number arrives by itself).
+  const [siigoFactura, setSiigoFactura] = useState({ activa: false, tipo_factura: 'electronica', tipo_venta: 'alquiler' });
   const [firstVisit,setFirstVisit]=useState<any>(null);
   const [firstVisitError,setFirstVisitError]=useState('');
   const [firstVisitLoading,setFirstVisitLoading]=useState(false);
@@ -226,6 +228,17 @@ export default function NuevoContratoPage() {
   const [promos, setPromos] = useState<Promotion[]>([]);
   const [promoId, setPromoId] = useState('');
   useEffect(() => { void supabase.from('promociones').select(PROMO_FIELDS).eq('activo', true).then(({ data }) => setPromos((data || []) as Promotion[])); }, []);
+  useEffect(() => {
+    if (isEditMode || !formData.sede_id) return;
+    let live = true;
+    void supabase.rpc('siigo_sede_activa', { p_sede: formData.sede_id }).then(({ data }) => {
+      if (!live) return;
+      const d = (data || {}) as { activa?: boolean; tipo_factura?: string };
+      setSiigoFactura(v => ({ ...v, activa: !!d.activa, tipo_factura: d.tipo_factura || 'electronica' }));
+      setFormData(prev => d.activa ? { ...prev, numero_factura: 'SIIGO-PENDIENTE' } : prev.numero_factura === 'SIIGO-PENDIENTE' ? { ...prev, numero_factura: '' } : prev);
+    });
+    return () => { live = false; };
+  }, [formData.sede_id, isEditMode]);
   const promoDress = vestidos.map(v => vestidosMaestro.find(m => m.id === v.vestido_id)).filter(Boolean);
   const promoFit = (p: Promotion) => promoApplies(p, { sede: formData.sede_id, tipos: promoDress.map(d => d.clasificacion_id), categorias: promoDress.map(d => d.categoria) });
   const promoPicked = isEditMode ? null : promos.find(p => p.id === promoId) || null;
@@ -1208,6 +1221,7 @@ export default function NuevoContratoPage() {
         ...(firstVisit?{primera_cita_id:firstVisit.id}:{}),
         numero_contrato,
         numero_factura: numeroFactura,
+        ...(siigoFactura.activa && !isEditMode ? { siigo_tipo_factura: siigoFactura.tipo_factura, siigo_tipo_venta: siigoFactura.tipo_venta } : {}),
         estado: 'borrador',
 
         // Cliente
@@ -1605,6 +1619,7 @@ export default function NuevoContratoPage() {
         ...(firstVisit?{primera_cita_id:firstVisit.id}:{}),
         numero_contrato,
         numero_factura: numeroFactura,
+        ...(siigoFactura.activa && !isEditMode ? { siigo_tipo_factura: siigoFactura.tipo_factura, siigo_tipo_venta: siigoFactura.tipo_venta } : {}),
         estado: 'borrador',
 
         // Cliente
@@ -2554,6 +2569,18 @@ export default function NuevoContratoPage() {
           {!isEditMode && <DataAuthorization documento={formData.cliente_documento} telefono={formData.whatsapp} value={dataAuth} onChange={setDataAuth} onState={setDataAuthState} />}
 
           {/* Factura al final, junto a los pagos (sigue obligatoria) */}
+          {siigoFactura.activa && !isEditMode ? <section className="space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
+            <p className="text-sm font-semibold text-indigo-900">Factura en Siigo (automática)</p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <label className="text-xs font-bold text-gray-600">Tipo de factura
+                <select className="mt-1 w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm" value={siigoFactura.tipo_factura} onChange={e => setSiigoFactura(v => ({ ...v, tipo_factura: e.target.value }))}>
+                  <option value="electronica">Factura electrónica</option><option value="ingreso">Factura de ingreso (no va a la DIAN)</option></select></label>
+              <label className="text-xs font-bold text-gray-600">Tipo de venta
+                <select className="mt-1 w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-sm" value={siigoFactura.tipo_venta} onChange={e => setSiigoFactura(v => ({ ...v, tipo_venta: e.target.value }))}>
+                  <option value="alquiler">Servicio de alquiler</option><option value="venta">Venta</option></select></label>
+            </div>
+            <p className="text-xs text-gray-500">Al guardar, el ERP crea la factura en Siigo para la clienta nacional (a crédito por el valor del contrato); cada abono sale como recibo de caja y el número de factura llega solo. Siigo la envía al correo de la clienta.</p>
+          </section> :
           <section className="space-y-3">
             <label htmlFor="numero_factura" className="text-sm font-semibold text-gray-700">
               Factura <span className="text-rose-500">*</span>
@@ -2569,7 +2596,7 @@ export default function NuevoContratoPage() {
                 ? 'Edición administrativa del contrato existente. El número de contrato, firma y estado actual se conservarán.'
                 : 'El número de factura es obligatorio para guardar y generar el contrato.'}
             </p>
-          </section>
+          </section>}
 
           {/* Submit */}
           <div className="pt-6 border-t border-gray-200">

@@ -4,6 +4,7 @@ import ConfigSelect from '@/components/ConfigSelect';
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import {Receipt} from 'lucide-react';
 import SupplierShell from '@/components/suppliers/SupplierShell';
+import SiigoGasto from '@/components/SiigoGasto';
 import {supabase} from '@/lib/supabase';
 import {CASH_METHODS,accountLabel,needsAccount,type CashAccount} from '@/lib/cash';
 
@@ -52,6 +53,7 @@ export default function GastosPage(){
 
 function Gastos(){
  const [tab,setTab]=useState<'gastos'|'sedes'|'socios'>(()=>{const v=typeof window!=='undefined'?new URLSearchParams(window.location.search).get('v'):null;return v==='sedes'||v==='socios'?v:'gastos';}),[desde,setDesde]=useState(()=>`${hoyBogota().slice(0,7)}-01`),[hasta,setHasta]=useState(hoyBogota),[filtro,setFiltro]=useState('todas');
+ const [siigoG,setSiigoG]=useState<Record<string,{tipo:string;estado:string;numero:string|null;error:string|null}>>({});
  const [gastos,setGastos]=useState<Gasto[]|null>(null),[movs,setMovs]=useState<Mov[]>([]),[deudas,setDeudas]=useState<Deuda[]>([]),[finanzas,setFinanzas]=useState(false);
  const [sedes,setSedes]=useState<Sede[]>([]),[cuentas,setCuentas]=useState<CashAccount[]>([]),[error,setError]=useState('');
  const [nuevo,setNuevo]=useState(false),[nuevoMov,setNuevoMov]=useState(false),[saldoSedes,setSaldoSedes]=useState(false),[socios,setSocios]=useState<Socios|null>(null),[nuevoSocio,setNuevoSocio]=useState<'mov'|'saldo'|null>(null);
@@ -59,7 +61,9 @@ function Gastos(){
   const [{data:g,error:e},{data:s},{data:k},{data:m,error:em},{data:ps}]=await Promise.all([supabase.rpc('gastos_listar',{p_desde:desde,p_hasta:hasta}),supabase.rpc('gastos_sedes'),
    supabase.rpc('cuentas_dinero_lista'),supabase.rpc('entre_sedes_listar',{p_desde:desde,p_hasta:hasta}),supabase.rpc('prestamos_socios_listar')]);
   setSocios((ps as Socios|null)||null);
-  if(e)setError(e.message);else{setError('');setGastos((g||[]) as Gasto[]);}
+  if(e)setError(e.message);else{setError('');setGastos((g||[]) as Gasto[]);
+   // What each expense already has in Siigo (Configuración › Facturación por sede).
+   const ids=((g||[]) as Gasto[]).map(x=>x.id);if(ids.length){const {data:sg}=await supabase.rpc('siigo_gastos_registrados',{p_ids:ids});setSiigoG((sg||{}) as typeof siigoG);}}
   setSedes((s||[]) as Sede[]);setCuentas((Array.isArray(k)?k:[]) as CashAccount[]);
   setFinanzas(!em);if(!em&&m){const x=m as {movimientos:Mov[];deudas:Deuda[]};setMovs(x.movimientos||[]);setDeudas(x.deudas||[]);}
  },[desde,hasta]);
@@ -94,6 +98,7 @@ function Gastos(){
      <div className="min-w-0"><p className="font-black text-sm text-gray-900">{g.clase==='retiro_utilidades'?'💜 ':''}{g.categoria} · {cop(g.valor)} <span className="text-xs font-bold text-gray-400">· {g.sede} · {fecha(g.fecha)}</span></p>
       <p className="text-xs text-gray-500">{g.descripcion}{g.beneficiario?` · ${g.beneficiario}`:''} · {g.medio}{g.cuenta?` · ${g.cuenta}`:''}{g.registrado_por?` · por ${g.registrado_por}`:''}{g.anulado&&g.motivo_anulacion?` · anulado: ${g.motivo_anulacion}`:''}</p></div>
      <div className="flex gap-2"><button type="button" onClick={()=>void verComprobante(g.comprobante_path)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-gray-600">Comprobante</button>
+      {!g.anulado&&<SiigoGasto gastoId={g.id} beneficiario={g.beneficiario} estado={siigoG[g.id]} onDone={()=>void load()}/>}
       {!g.anulado&&<button type="button" onClick={()=>void anular('gastos_anular',g.id)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-red-600">Anular</button>}</div></div>)}
    </div></>}
   {tab==='sedes'&&finanzas&&<>
