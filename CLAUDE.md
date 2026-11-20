@@ -9,6 +9,7 @@
 - Nunca borres ni renombres tablas, columnas, rutas o funciones existentes. Solo cambios aditivos y migraciones reversibles.
 - Historial: no crees tablas de bitácora nuevas. Para registrar cambios de una tabla, adjúntale el trigger `private.config_historial()` (guarda en `public.config_historial`; se ve en Configuración › Historial y auditoría).
 - No rompas lo que funciona: contratos, primeras citas, aliados y disponibilidad deben seguir operando igual.
+- Proyecto «Ámbar Exitoso»: hoja de ruta y regla de organización en docs/ambar-exitoso.md. Cada función en su módulo, sin dispersión ni duplicidad.
 - Al terminar cada paso, responde solo: archivos tocados, migraciones creadas y una línea "Reutilizado:" con lo existente que aprovechaste.
 
 # Contexto del módulo Catálogo

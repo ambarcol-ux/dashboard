@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import PaymentSupportUpload from '@/components/PaymentSupportUpload';
+import SiigoContrato from '@/components/SiigoContrato';
 import { SUPPORT_BUCKET, type UploadedSupport } from '@/lib/payment-support';
 import { porPagarContrato, puedeAbonar, saldoContrato } from '@/lib/saldo';
 
@@ -435,6 +436,7 @@ export default function RegistrarPagoPage() {
 
           {/* Columna Derecha: Historial */}
           <div className="lg:col-span-1 space-y-6">
+            <SiigoContrato contratoId={contrato.id} />
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
               <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-gray-400" /> Historial de Pagos

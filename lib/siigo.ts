@@ -1,0 +1,181 @@
+import type {SupabaseClient} from '@supabase/supabase-js';
+
+/** Siigo API per store (credentials in Configuración › Facturación por sede). The ERP is the only place where people work: this module
+ *  turns each queued ERP document (public.siigo_documentos) into its Siigo document. Rental = the dress code (service), sale = code + V
+ *  (product), as each store's Siigo already has them; a missing product or customer is created first. */
+type Value=Record<string,any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+export type SiigoCred={sede_id:string;sede:string;usuario_api:string;access_key:string;partner_id:string;parametros:Params};
+export type Params={envio_activo?:boolean;tipo_factura_defecto?:'electronica'|'ingreso';vendedor?:number;grupo_inventario?:number;
+ documentos?:{factura_electronica?:number;factura_ingreso?:number;recibo_caja?:number;nota_credito?:number;comprobante_devolucion?:number;gasto?:number;soporte?:number};
+ formas_pago?:Record<string,number>;cuentas?:Record<string,string>;ciudad?:{state_code:string;city_code:string}};
+const API='https://api.siigo.com';
+const CITY:Record<string,{state_code:string;city_code:string}>={villavicencio:{state_code:'50',city_code:'50001'},'bogotá':{state_code:'11',city_code:'11001'},bogota:{state_code:'11',city_code:'11001'},
+ pereira:{state_code:'66',city_code:'66001'},barranquilla:{state_code:'08',city_code:'08001'}};
+const tokens=new Map<string,{token:string;at:number}>();
+
+export class SiigoError extends Error{constructor(msg:string,public status=0,public body:unknown=null){super(msg);}}
+const errorText=(d:Value)=>{const e=(d?.Errors||d?.errors||[]) as Value[];return e.length?e.map(x=>[x.Code,x.Message,x.Params?.join?.(', ')].filter(Boolean).join(': ')).join(' · '):String(d?.Message||d?.message||'')};
+
+export async function siigoToken(c:SiigoCred){
+ const hit=tokens.get(c.sede_id);if(hit&&Date.now()-hit.at<20*3600000)return hit.token;
+ const r=await fetch(`${API}/auth`,{method:'POST',headers:{'Content-Type':'application/json','Partner-Id':c.partner_id},body:JSON.stringify({username:c.usuario_api,access_key:c.access_key}),signal:AbortSignal.timeout(20000)});
+ const d=await r.json().catch(()=>({})) as Value;
+ if(!r.ok||!d.access_token)throw new SiigoError(`Siigo no aceptó las credenciales de ${c.sede}: ${errorText(d)||r.status}`,r.status,d);
+ tokens.set(c.sede_id,{token:d.access_token,at:Date.now()});return String(d.access_token);
+}
+export async function siigo(c:SiigoCred,path:string,init:{method?:string;body?:unknown}={}){
+ const r=await fetch(`${API}${path}`,{method:init.method||'GET',headers:{'Content-Type':'application/json','Partner-Id':c.partner_id,Authorization:`Bearer ${await siigoToken(c)}`},
+  body:init.body===undefined?undefined:JSON.stringify(init.body),signal:AbortSignal.timeout(40000)});
+ if(r.status===401)tokens.delete(c.sede_id);
+ const d=await r.json().catch(()=>({})) as Value;
+ if(!r.ok)throw new SiigoError(errorText(d)||`Siigo respondió ${r.status}`,r.status,d);
+ return d;
+}
+/** All pages of a Siigo list (products: ~3.000 per store). */
+export async function siigoAll(c:SiigoCred,path:string,max=60){
+ const out:Value[]=[];
+ for(let page=1;page<=max;page++){const d=await siigo(c,`${path}${path.includes('?')?'&':'?'}page_size=100&page=${page}`);const rows=(d.results||[]) as Value[];out.push(...rows);if(rows.length<100)break;}
+ return out;
+}
+
+const hoy=()=>new Date(Date.now()-5*3600000).toISOString().slice(0,10);
+const fecha=(v:unknown)=>/^\d{4}-\d{2}-\d{2}/.test(String(v||''))?String(v).slice(0,10):hoy();
+const ID_TYPE=(t:string)=>/nit/i.test(t)?'31':/c[eé]dula de extranjer|^ce$/i.test(t)?'22':/tarjeta|^ti$/i.test(t)?'12':/pasaporte|^pp$/i.test(t)?'41':'13';
+const name2=(full:string)=>{const p=full.trim().split(/\s+/);return p.length>2?[p.slice(0,p.length-2).join(' '),p.slice(-2).join(' ')]:p.length===2?p:[p[0]||'Cliente','.'];};
+
+/** Customer (or supplier) by identification; created when missing. */
+async function ensureThird(c:SiigoCred,t:{documento:string;nombre:string;tipo_documento?:string;email?:string|null;telefono?:string|null;direccion?:string|null},type:'Customer'|'Supplier'){
+ const id=String(t.documento||'').replace(/\D/g,'');
+ if(id.length<5)throw new SiigoError('Falta la cédula o NIT del tercero.');
+ const found=await siigo(c,`/v1/customers?identification=${id}`);
+ if((found.results||[]).length)return id;
+ const company=ID_TYPE(t.tipo_documento||'')==='31';
+ const city=c.parametros.ciudad||CITY[c.sede.toLowerCase()]||CITY.villavicencio;
+ const [first,last]=name2(t.nombre||'Cliente');
+ await siigo(c,'/v1/customers',{method:'POST',body:{type,person_type:company?'Company':'Person',id_type:ID_TYPE(t.tipo_documento||''),identification:id,
+  name:company?[t.nombre||'Proveedor']:[first,last],address:{address:(t.direccion||'Sin dirección').slice(0,100),city:{country_code:'Co',...city}},
+  ...(t.telefono?{phones:[{number:String(t.telefono).replace(/\D/g,'').slice(-10)}]}:{}),
+  contacts:[{first_name:company?(t.nombre||'Proveedor').slice(0,50):first,last_name:company?'.':last,...(t.email?{email:t.email}:{})}]}});
+ return id;
+}
+
+/** Product of a dress: rental = code (service), sale = code + V (product with stock). Uses the saved link, else the code, else creates it. */
+async function ensureProduct(c:SiigoCred,db:SupabaseClient,v:Value,venta:boolean){
+ const linked=venta?v.venta:v.alquiler,code=String(linked||`${String(v.codigo).trim()}${venta?'V':''}`).toUpperCase();
+ const found=await siigo(c,`/v1/products?code=${encodeURIComponent(code)}`);
+ if(!(found.results||[]).length){
+  if(!c.parametros.grupo_inventario)throw new SiigoError('Falta elegir el grupo de inventario de Siigo en Facturación por sede.');
+  await siigo(c,'/v1/products',{method:'POST',body:{code,name:`${code} ${String(v.nombre||'').toUpperCase()}${v.talla?` T.${v.talla}`:''}`.slice(0,100),account_group:c.parametros.grupo_inventario,
+   type:venta?'Product':'Service',stock_control:venta,tax_classification:'Excluded',prices:[{currency_code:'COP',price_list:[{position:1,value:Number(v.precio)||0}]}]}});
+ }
+ if(!linked)await db.rpc('siigo_producto_vincular_servidor',{p_sede:c.sede_id,p_vestido:v.id,p_alquiler:venta?null:code,p_venta:venta?code:null,p_origen:'factura'});
+ return code;
+}
+
+const formaPago=(c:SiigoCred,medio:string,cuenta:string|null)=>{
+ const f=c.parametros.formas_pago||{};
+ const id=(cuenta&&f[`cuenta:${cuenta}`])||(/efectivo/i.test(medio)?f.efectivo:f.transferencia)||f.transferencia||f.efectivo;
+ if(!id)throw new SiigoError('Falta emparejar las formas de pago con Siigo en Facturación por sede.');
+ return id;
+};
+const cuentaCaja=(c:SiigoCred,medio:string,cuenta:string|null)=>{
+ const k=c.parametros.cuentas||{};const code=(cuenta&&k[`cuenta:${cuenta}`])||(/efectivo/i.test(medio)?k.efectivo:k.transferencia);
+ if(!code)throw new SiigoError('Falta la cuenta contable de caja/banco en Facturación por sede.');return code;
+};
+const doc=(c:SiigoCred,k:keyof NonNullable<Params['documentos']>,label:string)=>{const id=c.parametros.documentos?.[k];if(!id)throw new SiigoError(`Falta elegir el tipo de documento «${label}» en Facturación por sede.`);return {id};};
+/** «FV-2-756» → prefix FV-2, consecutive 756. */
+const split=(name:string)=>{const m=/^(.*)-(\d+)$/.exec(String(name||''));return m?{prefix:m[1],consecutive:Number(m[2])}:null;};
+
+export type Job={id:string;sede_id:string;tipo:string;datos:Value;intentos:number;contrato_id:string|null;cliente:Value|null;contrato:Value|null;factura:Value|null;cuenta_id:string|null};
+export type Sent={siigoId:string|null;numero:string|null;respuesta:Value;esperar?:boolean;mensaje?:string};
+
+/** Builds and sends one queued document. Returns what Siigo answered (or «esperar» when its invoice is not in Siigo yet). */
+export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>{
+ const d=j.datos,obs=d.numero_contrato?`Contrato ${d.numero_contrato} · ERP Ámbar`:'ERP Ámbar';
+ if(j.tipo==='factura'){
+  const k=j.contrato!,cli=j.cliente!,venta=d.tipo_venta==='venta';
+  const id=await ensureThird(c,cli as never,'Customer');
+  const base=Math.max(0,Number(k.valor_total)-Number(k.descuento)),vs=(k.vestidos||[]) as Value[];
+  if(!vs.length)throw new SiigoError('El contrato no tiene vestidos con código de inventario.');
+  const items:Value[]=[];let resto=base;
+  for(const [i,v] of vs.entries()){const precio=i===vs.length-1?resto:Math.floor(base/vs.length);resto-=precio;
+   items.push({code:await ensureProduct(c,db,v,venta),description:`${v.codigo} ${v.nombre||''}${v.talla?` talla ${v.talla}`:''} · contrato ${k.numero}`.slice(0,500),quantity:1,price:precio});}
+  if(Number(k.total_arreglos)>0)items.push({code:items[0].code,description:`Arreglos contrato ${k.numero}`,quantity:1,price:Number(k.total_arreglos)});
+  const total=items.reduce((s,x)=>s+Number(x.price),0);
+  const credito=c.parametros.formas_pago?.credito;if(!credito)throw new SiigoError('Falta la forma de pago «crédito / clientes nacionales» en Facturación por sede.');
+  const electronica=d.tipo_factura!=='ingreso';
+  const r=await siigo(c,'/v1/invoices',{method:'POST',body:{document:doc(c,electronica?'factura_electronica':'factura_ingreso',electronica?'Factura electrónica':'Factura de ingreso'),
+   date:fecha(d.fecha),customer:{identification:id,branch_office:0},...(c.parametros.vendedor?{seller:c.parametros.vendedor}:{}),observations:obs,items,
+   payments:[{id:credito,value:total,due_date:fecha(k.fecha_evento&&String(k.fecha_evento)>hoy()?k.fecha_evento:hoy())}],
+   ...(electronica?{stamp:{send:true}}:{}),mail:{send:!!cli.email}}});
+  return {siigoId:r.id||null,numero:r.name||String(r.number||''),respuesta:{...r,total}};
+ }
+ if(j.tipo==='recibo_caja'){
+  const f=j.factura;if(!f||f.estado!=='enviado'||!f.numero)return {siigoId:null,numero:null,respuesta:{},esperar:true,mensaje:'Esperando que la factura llegue a Siigo.'};
+  const due=split(f.numero);if(!due)throw new SiigoError(`No se reconoce el número de factura ${f.numero}.`);
+  const idCli=String((j.cliente||{}).documento||'').replace(/\D/g,'')||String((f.respuesta?.customer as Value)?.identification||'');
+  const valor=Number(d.valor),medio=String(d.medio||'');
+  const r=await siigo(c,'/v1/vouchers',{method:'POST',body:{document:doc(c,'recibo_caja','Recibo de caja'),date:fecha(d.fecha),type:'DebtPayment',customer:{identification:idCli,branch_office:0},
+   items:[{due:{...due,quote:1,date:fecha(f.respuesta?.date||f.datos?.fecha)},value:valor}],payment:{id:formaPago(c,medio,j.cuenta_id),value:valor},observations:`Abono ${obs}${d.recibo?` · recibo ${d.recibo}`:''}`}});
+  return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
+ }
+ if(j.tipo==='anticipo'){
+  const id=await ensureThird(c,j.cliente as never,'Customer'),valor=Number(d.valor);
+  const r=await siigo(c,'/v1/vouchers',{method:'POST',body:{document:doc(c,'recibo_caja','Recibo de caja'),date:fecha(d.fecha),type:'AdvancePayment',customer:{identification:id,branch_office:0},
+   payment:{id:formaPago(c,String(d.medio||''),j.cuenta_id),value:valor},observations:`Depósito en garantía ${obs}`}});
+  return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
+ }
+ if(j.tipo==='devolucion_anticipo'){
+  const id=await ensureThird(c,j.cliente as never,'Customer'),valor=Number(d.valor),k=c.parametros.cuentas||{};
+  if(!k.anticipo)throw new SiigoError('Falta la cuenta de anticipos (2805) en Facturación por sede.');
+  const cust={identification:id,branch_office:0},desc=`Devolución de depósito ${obs}`;
+  const r=await siigo(c,'/v1/journals',{method:'POST',body:{document:doc(c,'comprobante_devolucion','Devolución de depósitos'),date:fecha(d.fecha),observations:desc,
+   items:[{account:{code:k.anticipo,movement:'Debit'},customer:cust,description:desc,value:valor},{account:{code:cuentaCaja(c,String(d.medio||''),j.cuenta_id),movement:'Credit'},customer:cust,description:desc,value:valor}]}});
+  return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
+ }
+ if(j.tipo==='nota_credito'){
+  const f=j.factura;if(!f||f.estado!=='enviado'&&f.estado!=='anulado'||!f.siigo_id)throw new SiigoError('La factura original no está en Siigo.');
+  const fr=(f.respuesta||{}) as Value,items=((fr.items||[]) as Value[]).map(x=>({code:x.code,description:x.description,quantity:Number(x.quantity)||1,price:Number(x.price)||0}));
+  const valor=Number(d.valor),parcial=d.tipo==='parcial';
+  const lines=parcial?[{code:items[0]?.code,description:`Descuento / devolución parcial · ${d.motivo}`.slice(0,500),quantity:1,price:valor}]:items;
+  const credito=c.parametros.formas_pago?.credito;if(!credito)throw new SiigoError('Falta la forma de pago «crédito» en Facturación por sede.');
+  const r=await siigo(c,'/v1/credit-notes',{method:'POST',body:{document:doc(c,'nota_credito','Nota crédito'),date:fecha(d.fecha),invoice:f.siigo_id,reason:parcial?'3':'2',
+   items:lines,payments:[{id:credito,value:lines.reduce((s,x)=>s+Number(x.price)*Number(x.quantity),0)}],observations:`${d.motivo} · ${obs}`.slice(0,500)}});
+  return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
+ }
+ if(j.tipo==='gasto'||j.tipo==='soporte_gasto'||j.tipo==='soporte_producto'){
+  const p=d.proveedor as Value,id=await ensureThird(c,{documento:p.documento,nombre:p.nombre||'Proveedor',tipo_documento:String(p.documento||'').length>=9?'NIT':'CC'},'Supplier'),valor=Number(d.valor),k=c.parametros.cuentas||{};
+  let items:Value[];
+  if(j.tipo==='soporte_producto'){const vs=(d.vestidos||[]) as Value[],each=Math.floor(valor/vs.length);
+   items=[];for(const [i,v] of vs.entries())items.push({type:'Product',code:await ensureProduct(c,db,{...v,precio:0},true),description:String(v.descripcion||v.codigo).slice(0,500),quantity:1,price:i===vs.length-1?valor-each*(vs.length-1):each});}
+  else{const cuenta=k[`gasto:${String(d.categoria||'').toLowerCase()}`]||k.gasto_defecto;if(!cuenta)throw new SiigoError('Falta la cuenta contable de gastos en Facturación por sede.');
+   items=[{type:'Account',code:cuenta,description:String(d.descripcion||d.categoria||'Gasto').slice(0,500),quantity:1,price:valor}];}
+  const fe=String(d.factura_numero||''),pf=/^([A-Za-z]+)-?(\d+)$/.exec(fe);
+  const r=await siigo(c,'/v1/purchases',{method:'POST',body:{document:doc(c,j.tipo==='gasto'?'gasto':'soporte',j.tipo==='gasto'?'Gasto / compra':'Documento soporte'),date:fecha(d.fecha),
+   supplier:{identification:id,branch_office:0},...(j.tipo==='gasto'?{provider_invoice:{prefix:pf?pf[1]:'FE',number:pf?pf[2]:fe.replace(/\D/g,'')||fe}}:{}),
+   items,payments:[{id:formaPago(c,String(d.medio||''),j.cuenta_id),value:valor,due_date:fecha(d.fecha)}],observations:`${d.descripcion||d.categoria||'Gasto'} · ERP Ámbar`.slice(0,500)}});
+  return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
+ }
+ throw new SiigoError(`Tipo de documento no soportado: ${j.tipo}`);
+}
+
+/** Sends the queue (cron every 10 minutes). Each document is independent: one failure does not stop the others. */
+export async function processSiigoQueue(db:SupabaseClient,limite=20){
+ const [{data:jobs,error},{data:creds,error:e2}]=await Promise.all([db.rpc('siigo_tomar_servidor',{p_limite:limite}),db.rpc('siigo_credenciales_activas_servidor')]);
+ if(error||e2)throw Error((error||e2)!.message);
+ const bySede=new Map(((creds||[]) as SiigoCred[]).map(c=>[c.sede_id,{...c,parametros:(c.parametros||{}) as Params}]));
+ const out={enviados:0,esperando:0,errores:0};
+ for(const j of (jobs||[]) as Job[]){
+  const c=bySede.get(j.sede_id);
+  try{
+   if(!c)throw new SiigoError('La sede no tiene credenciales de Siigo.');
+   const r=await sendJob(db,c,j);
+   await db.rpc('siigo_resultado_servidor',{p_id:j.id,p_ok:!r.esperar,p_siigo_id:r.siigoId,p_numero:r.numero,p_error:r.mensaje||null,p_respuesta:r.respuesta,p_esperar:!!r.esperar});
+   if(r.esperar)out.esperando++;else out.enviados++;
+  }catch(e){
+   out.errores++;
+   await db.rpc('siigo_resultado_servidor',{p_id:j.id,p_ok:false,p_siigo_id:null,p_numero:null,p_error:e instanceof Error?e.message:'Error al enviar a Siigo',p_respuesta:e instanceof SiigoError&&e.body?{error:e.body}:null,p_esperar:false});
+  }
+ }
+ return out;
+}
