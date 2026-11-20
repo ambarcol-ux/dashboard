@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { BookOpen, Search, Menu, X, ChevronRight, CheckCircle2, AlertTriangle, Lightbulb, Play, ArrowRight, LayoutDashboard, CalendarDays, ShoppingBag, HandCoins, Package, TrendingUp, Handshake, Clock, ShieldCheck, Store, Truck, Images, Gift, Wallet, Receipt, BarChart3, Mail, Users, Settings, UserCircle, Sparkles, ClipboardList, Printer } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { PROTOCOLOS, IndicadorAmbar } from '@/components/ManualAmbar';
 
 const MANUAL_DATA = [
   {
@@ -489,16 +490,19 @@ const MANUAL_DATA = [
   }
 ];
 
+// Manual de usuario (how the ERP is used) + Manual Ámbar (how the service is done, Ámbar Exitoso): one module, one search.
+const MANUAL_ALL = [...MANUAL_DATA.map(m => ({ ...m, grupo: 'erp', indicador: null as string | null })), ...PROTOCOLOS] as (typeof MANUAL_DATA[number] & { grupo: string; indicador: string | null })[];
+
 export default function ManualUsuarioPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState(MANUAL_DATA[0].id);
+  const [activeTab, setActiveTab] = useState(MANUAL_ALL[0].id);
   const [search, setSearch] = useState('');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   const filteredData = useMemo(() => {
-    if (!search.trim()) return MANUAL_DATA;
+    if (!search.trim()) return MANUAL_ALL;
     const q = search.toLowerCase();
-    return MANUAL_DATA.filter(item => 
+    return MANUAL_ALL.filter(item => 
       item.title.toLowerCase().includes(q) || 
       item.description.toLowerCase().includes(q) ||
       item.sections.some(sec => 
@@ -510,7 +514,7 @@ export default function ManualUsuarioPage() {
   }, [search]);
 
   const activeContent = useMemo(() => {
-    return MANUAL_DATA.find(t => t.id === activeTab) || MANUAL_DATA[0];
+    return MANUAL_ALL.find(t => t.id === activeTab) || MANUAL_ALL[0];
   }, [activeTab]);
 
   const renderSection = (section: any, index: number) => {
@@ -585,6 +589,15 @@ export default function ManualUsuarioPage() {
             </p>
           </div>
         );
+      case 'checklist':
+        return (
+          <div key={index} className="mb-8 p-6 bg-emerald-50/60 rounded-2xl border border-emerald-100">
+            <h3 className="text-lg font-black text-emerald-900 mb-3">✅ {section.title.replace('✅ ', '')}</h3>
+            <div className="space-y-2">{section.items.map((item: string, i: number) => (
+              <label key={i} className="flex items-center gap-3 text-gray-800 font-medium"><input type="checkbox" className="w-5 h-5 accent-emerald-600" />{item}</label>
+            ))}</div>
+          </div>
+        );
       default:
         return null;
     }
@@ -637,7 +650,9 @@ export default function ManualUsuarioPage() {
               No encontré nada con esa palabra 😢
             </div>
           ) : (
-            filteredData.map(tab => (
+            filteredData.map((tab, i) => (
+              <React.Fragment key={tab.id}>
+              {tab.grupo === 'ambar' && filteredData[i - 1]?.grupo !== 'ambar' && <p className="px-3 pt-4 pb-1 text-[11px] font-black uppercase tracking-widest text-rose-600">✨ Manual Ámbar · Protocolos</p>}
               <button
                 key={tab.id}
                 onClick={() => {
@@ -660,6 +675,7 @@ export default function ManualUsuarioPage() {
                   </p>
                 </div>
               </button>
+              </React.Fragment>
             ))
           )}
         </div>
@@ -681,7 +697,7 @@ export default function ManualUsuarioPage() {
             </div>
             <div className="relative z-10">
               <span className="px-3 py-1 bg-white/20 text-white text-xs font-black rounded-lg uppercase tracking-wider mb-4 inline-block backdrop-blur-md">
-                Guía Oficial
+                {activeContent.grupo === 'ambar' ? 'Manual Ámbar · Protocolo' : 'Guía Oficial'}
               </span>
               <h1 className="text-3xl md:text-5xl font-black mb-4 tracking-tight leading-tight">
                 {activeContent.title}
@@ -694,6 +710,7 @@ export default function ManualUsuarioPage() {
 
           {/* Cuerpo del Artículo */}
           <div className="p-8 md:p-12">
+            {activeContent.indicador && <IndicadorAmbar clave={activeContent.indicador} />}
             {activeContent.sections.map((sec, i) => renderSection(sec, i))}
           </div>
           
