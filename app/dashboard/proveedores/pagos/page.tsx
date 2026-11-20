@@ -4,6 +4,7 @@ import {Suspense,useCallback,useEffect,useMemo,useState} from 'react';
 import {useSearchParams} from 'next/navigation';
 import {Banknote} from 'lucide-react';
 import SupplierShell,{openSupplierFile} from '@/components/suppliers/SupplierShell';
+import SiigoGasto from '@/components/SiigoGasto';
 import {supabase} from '@/lib/supabase';
 import {money} from '@/lib/deposits';
 import {bogotaDay} from '@/lib/contract-calendar';
@@ -26,11 +27,13 @@ function Payments(){
  const [sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[sede,setSede]=useState(''),[proveedor,setProveedor]=useState(params.get('proveedor')||'');
  const [pending,setPending]=useState<Pending[]>([]),[payments,setPayments]=useState<Payment[]>([]),[picked,setPicked]=useState<string[]>([]);
  const [form,setForm]=useState({fecha_pago:today,medio_pago:'Transferencia',referencia:''}),[file,setFile]=useState<File|null>(null),[fileKey,setFileKey]=useState(0);
+ const [siigoP,setSiigoP]=useState<Record<string,{tipo:string;estado:string;numero:string|null;error:string|null}>>({});
  const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
 
  const load=useCallback(async()=>{
   const [r,s]=await Promise.all([supabase.rpc('servicios_por_pagar',{p_sede:sede||null,p_proveedor:proveedor||null}),supabase.from('sedes').select('id,nombre').order('nombre')]);
-  if(r.error)setError(r.error.message);else{setPending(r.data.pendientes||[]);setPayments(r.data.pagos||[]);setError('');}
+  if(r.error)setError(r.error.message);else{setPending(r.data.pendientes||[]);setPayments(r.data.pagos||[]);setError('');
+   const ids=((r.data.pagos||[]) as Payment[]).map(x=>x.id);if(ids.length){const {data:sp}=await supabase.rpc('siigo_pagos_proveedor_registrados',{p_ids:ids});setSiigoP((sp||{}) as typeof siigoP);}}
   setSedes(s.data||[]);setLoading(false);
  },[sede,proveedor]);
  useEffect(()=>{void load();},[load]);
@@ -111,6 +114,7 @@ function Payments(){
     <tbody>{payments.map(p=><tr key={p.id} className={p.anulado_at?styles.annulled:''}>
      <td>{p.fecha_pago}</td><td>{p.proveedor}</td><td>{money(p.valor_total)}</td><td>{p.servicios}</td><td>{p.medio_pago}</td><td>{p.referencia||'—'}{p.anulado_at&&<small>Anulado: {p.motivo_anulacion}</small>}</td><td>{p.registrado_por||'—'}</td>
      <td><div className={styles.actions}>{p.comprobante_path&&<button onClick={()=>void openSupplierFile('comprobantes_proveedores',p.comprobante_path!).catch(e=>setError(errorText(e,'')))}>Comprobante</button>}
+      {!p.anulado_at&&<SiigoGasto gastoId={p.id} estado={siigoP[p.id]} sedes={sedes} onDone={()=>void load()}/>}
       {!p.anulado_at&&<button className={styles.danger} onClick={()=>void annul(p)}>Anular</button>}</div></td></tr>)}</tbody>
    </table></div>
    {!payments.length&&<p className={styles.empty}>Aún no hay pagos.</p>}
