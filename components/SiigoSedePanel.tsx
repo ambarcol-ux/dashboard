@@ -54,6 +54,7 @@ export default function SiigoSedePanel({sedeId,sede,configurada}:{sedeId:string;
     <label className="text-xs font-bold text-gray-600">Factura por defecto<select className="mt-1 w-full border rounded-xl p-2 text-sm" value={p.tipo_factura_defecto||'electronica'} onChange={e=>set('tipo_factura_defecto',e.target.value)}><option value="electronica">Electrónica</option><option value="ingreso">De ingreso</option></select></label>
     {sel('Recibo de caja (abonos y anticipos)',p.documentos?.recibo_caja,cat.rc,v=>setIn('documentos','recibo_caja',v))}
     {sel('Nota crédito',p.documentos?.nota_credito,cat.nc,v=>setIn('documentos','nota_credito',v))}
+    {sel('Nota crédito de facturas electrónicas',p.documentos?.nota_credito_electronica,cat.nc,v=>setIn('documentos','nota_credito_electronica',v))}
     {sel('Comprobante devolución de depósitos',p.documentos?.comprobante_devolucion,cat.cc,v=>setIn('documentos','comprobante_devolucion',v))}
     {sel('Comprobante interno (entre sedes y socios)',p.documentos?.comprobante_interno,cat.cc,v=>setIn('documentos','comprobante_interno',v))}
     {sel('Gasto / compra con factura electrónica',p.documentos?.gasto,cat.fc,v=>setIn('documentos','gasto',v))}

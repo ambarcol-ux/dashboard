@@ -6,7 +6,7 @@ import type {SupabaseClient} from '@supabase/supabase-js';
 type Value=Record<string,any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 export type SiigoCred={sede_id:string;sede:string;usuario_api:string;access_key:string;partner_id:string;parametros:Params};
 export type Params={envio_activo?:boolean;tipo_factura_defecto?:'electronica'|'ingreso';vendedor?:number;grupo_inventario?:number;
- documentos?:{factura_electronica?:number;factura_ingreso?:number;recibo_caja?:number;nota_credito?:number;comprobante_devolucion?:number;comprobante_interno?:number;gasto?:number;soporte?:number};
+ documentos?:{factura_electronica?:number;factura_ingreso?:number;recibo_caja?:number;nota_credito?:number;nota_credito_electronica?:number;comprobante_devolucion?:number;comprobante_interno?:number;gasto?:number;soporte?:number};
  formas_pago?:Record<string,number>;cuentas?:Record<string,string>;ciudad?:{state_code:string;city_code:string};
  /** Partner name → cédula (loans) and the store's own NIT for internal journals. */
  socios?:Record<string,string>;tercero_defecto?:string};
@@ -151,7 +151,9 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   const valor=Number(d.valor),parcial=d.tipo==='parcial';
   const lines=parcial?[{code:items[0]?.code,description:`Descuento / devolución parcial · ${d.motivo}`.slice(0,500),quantity:1,price:valor}]:items;
   const credito=c.parametros.formas_pago?.credito;if(!credito)throw new SiigoError('Falta la forma de pago «crédito» en Facturación por sede.');
-  const r=await siigo(c,'/v1/credit-notes',{method:'POST',body:{document:doc(c,'nota_credito','Nota crédito'),date:fecha(d.fecha),invoice:f.siigo_id,reason:parcial?'3':'2',
+  // An electronic invoice takes the electronic credit note when the store has one configured.
+  const elec=!!c.parametros.documentos?.nota_credito_electronica&&Number((fr.document as Value|undefined)?.id)===Number(c.parametros.documentos?.factura_electronica);
+  const r=await siigo(c,'/v1/credit-notes',{method:'POST',body:{document:doc(c,elec?'nota_credito_electronica':'nota_credito',elec?'Nota crédito electrónica':'Nota crédito'),date:fecha(d.fecha),invoice:f.siigo_id,reason:parcial?'3':'2',
    items:lines,payments:[{id:credito,value:lines.reduce((s,x)=>s+Number(x.price)*Number(x.quantity),0)}],observations:`${d.motivo} · ${obs}`.slice(0,500)}});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
