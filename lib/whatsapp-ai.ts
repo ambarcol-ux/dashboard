@@ -347,10 +347,13 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
    out.respuesta=out.respuesta.replace(/[^.!?\n]*\S*agendar-primera-cita\S*[^.!?\n]*[.!?]?/g,' Te envío los horarios disponibles aquí abajo para que elijas con un toque 👇').replace(/ {2,}/g,' ').trim();
   }
   // When an adviser sends the suggestion by hand the slot list does not go out: the suggestion carries the booking link instead.
-  const sedeCita=conv.sede_id||sede?.id||null,conAgenda=!social&&sedeCita&&(out.agendar==='presencial'||out.agendar==='virtual');
+  // She asked to book in another store than the chat's (e.g. the chat came from Bogotá and she says «en Barranquilla»): the slots and the
+  // booking go to the store she chose, and the chat moves to that store.
+  const sedeElegida=!social&&sede&&sede.id!==conv.sede_id&&out.agendar==='presencial'?sede.id:null;
+  const sedeCita=sedeElegida||conv.sede_id||sede?.id||null,conAgenda=!social&&sedeCita&&(out.agendar==='presencial'||out.agendar==='virtual');
   const sugerencia=conAgenda?`${out.respuesta}\n\n${(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'')}/agendar-primera-cita?sede=${sedeCita}&o=ia-whatsapp`:out.respuesta;
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:sugerencia.slice(0,2000),
-   ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...(!conv.sede_id&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
+   ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...((!conv.sede_id||sedeElegida)&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
   // Automatic reply: general switch on and chat not paused by a person (or paused longer than the configured hours).
   // When a person must continue, the reply is still sent (it helps with what the AI can solve) and the chat stays flagged.
   if(!cfg.auto_activa||!out.respuesta.trim())return;
@@ -368,7 +371,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   else{const settings=await loadWhatsappSettings(db);if(!settings.token||!settings.phoneNumberId)return;waId=opts.empujon&&texto.length<=1024?await sendWhatsappButtons(settings,conv.telefono,texto,CRM_BOTONES):await sendWhatsappText(settings,conv.telefono,texto);
    if(out.fotos?.length)await sendDressPhotos(db,settings,conversationId,conv.telefono,out.fotos,conv.sede_id||sede?.id||null);
    // Booking inside the chat: the list of free slots goes after her reply (lib/whatsapp-booking.ts).
-   if(out.agendar==='presencial'||out.agendar==='virtual')agenda=()=>enviarHorarios(db,settings,{conversacion:conversationId,telefono:conv.telefono,sede_id:conv.sede_id||sede?.id||null},out.agendar as 'presencial'|'virtual',out.tipo_vestido_cita||'Quince',
+   if(out.agendar==='presencial'||out.agendar==='virtual')agenda=()=>enviarHorarios(db,settings,{conversacion:conversationId,telefono:conv.telefono,sede_id:sedeCita},out.agendar as 'presencial'|'virtual',out.tipo_vestido_cita||'Quince',
     // The list starts on the day she asked for (horariosLibres lists the days after «desde»).
     /^\d{4}-\d{2}-\d{2}$/.test(String(out.agendar_desde||''))?new Date(Date.parse(`${out.agendar_desde}T12:00:00Z`)-86400000).toISOString().slice(0,10):undefined).then(()=>undefined).catch(e=>console.error('Horarios por WhatsApp:',e));}
   const at=new Date().toISOString();
