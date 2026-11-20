@@ -94,10 +94,17 @@ export type Sent={siigoId:string|null;numero:string|null;respuesta:Value;esperar
 /** Builds and sends one queued document. Returns what Siigo answered (or «esperar» when its invoice is not in Siigo yet). */
 export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>{
  const d=j.datos,obs=d.numero_contrato?`Contrato ${d.numero_contrato} · ERP Ámbar`:'ERP Ámbar';
- // Money that did not come in cash waits until it is passed to the cash register (Cierres de caja), where the ERP account (store bank or
- // the deposits account) is chosen: that account decides the Siigo payment method. After two days it goes with the store's default bank.
- if(['recibo_caja','anticipo','devolucion_anticipo'].includes(j.tipo)&&!j.cuenta_id&&!/efectivo/i.test(String(d.medio||''))&&fecha(d.fecha)>=new Date(Date.now()-5*3600000-2*86400000).toISOString().slice(0,10))
-  return {siigoId:null,numero:null,respuesta:{},esperar:true,mensaje:'Esperando que se pase a Cierres de caja con su cuenta (banco o cuenta de depósitos).'};
+ const noEfectivo=!/efectivo/i.test(String(d.medio||''));
+ // Deposits do not go through the cash register: a deposit received or returned by transfer uses the deposits account («solo depósitos»)
+ // when the store has it set up in Facturación por sede (Pereira has none: its own bank).
+ if((j.tipo==='anticipo'||j.tipo==='devolucion_anticipo')&&!j.cuenta_id&&noEfectivo){
+  const {data:dep}=await db.from('cuentas_dinero').select('id').eq('solo_depositos',true).eq('activo',true).or(`sede_id.is.null,sede_id.eq.${c.sede_id}`).limit(1).maybeSingle();
+  if(dep?.id&&c.parametros.formas_pago?.[`cuenta:${dep.id}`])j={...j,cuenta_id:String(dep.id)};
+ }
+ // A contract payment that did not come in cash waits until it is passed to Cierres de caja, where its account (bank) is chosen: that
+ // account decides the Siigo payment method. After two days it goes with the store's default bank.
+ if(j.tipo==='recibo_caja'&&!j.cuenta_id&&noEfectivo&&fecha(d.fecha)>=new Date(Date.now()-5*3600000-2*86400000).toISOString().slice(0,10))
+  return {siigoId:null,numero:null,respuesta:{},esperar:true,mensaje:'Esperando que se pase a Cierres de caja con su cuenta (banco).'};
  if(j.tipo==='factura'&&d.venta){
   const cli=(d.cliente||{}) as Value,v=(d.vestido||{}) as Value,total=Number(d.total);
   const id=cli.documento?await ensureThird(c,cli as never,'Customer'):'222222222222';
