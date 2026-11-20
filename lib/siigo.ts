@@ -128,6 +128,12 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
    items.push({code:await ensureProduct(c,db,v,venta),description:`${v.codigo} ${v.nombre||''}${v.talla?` talla ${v.talla}`:''} · contrato ${k.numero}`.slice(0,500),quantity:1,price:precio});}
   if(Number(k.total_arreglos)>0)items.push({code:items[0].code,description:`Arreglos contrato ${k.numero}`,quantity:1,price:Number(k.total_arreglos)});
   const total=items.reduce((s,x)=>s+Number(x.price),0);
+  // The store may have invoiced the same sale by hand in Siigo: an invoice of this customer in the last 3 days with the same total is
+  // linked instead of creating a duplicate (its payments are then already in Siigo).
+  const desde=new Date(Date.now()-3*86400000).toISOString().slice(0,10);
+  const previa=((await siigo(c,`/v1/invoices?created_start=${desde}&page_size=100`).catch(()=>({results:[]}))).results||[] as Value[])
+   .find((x:Value)=>String((x.customer as Value)?.identification||'')===String(id)&&Math.abs(Number(x.total)-total)<=1000&&!/ERP Ámbar/.test(String(x.observations||'')));
+  if(previa)return {siigoId:String(previa.id),numero:String(previa.name),respuesta:{...previa,total,hecha_en_siigo:true}};
   const credito=c.parametros.formas_pago?.credito;if(!credito)throw new SiigoError('Falta la forma de pago «crédito / clientes nacionales» en Facturación por sede.');
   const electronica=d.tipo_factura!=='ingreso';
   const r=await siigo(c,'/v1/invoices',{method:'POST',body:{document:doc(c,electronica?'factura_electronica':'factura_ingreso',electronica?'Factura electrónica':'Factura de ingreso'),
@@ -138,6 +144,8 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
  }
  if(j.tipo==='recibo_caja'){
   const f=j.factura;if(!f||f.estado!=='enviado'||!f.numero)return {siigoId:null,numero:null,respuesta:{},esperar:true,mensaje:'Esperando que la factura llegue a Siigo.'};
+  // A payment made on or before the date of an invoice the store made by hand in Siigo is already in that invoice.
+  if((f.respuesta as Value|null)?.hecha_en_siigo&&fecha(d.fecha)<=fecha((f.respuesta as Value).date))return {siigoId:null,numero:`Incluido en ${f.numero}`,respuesta:{omitido:true}};
   const due=split(f.numero);if(!due)throw new SiigoError(`No se reconoce el número de factura ${f.numero}.`);
   const idCli=String((j.cliente||{}).documento||'').replace(/\D/g,'')||String((f.respuesta?.customer as Value)?.identification||'');
   const valor=Number(d.valor),medio=String(d.medio||'');
