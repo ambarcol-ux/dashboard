@@ -80,6 +80,17 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
  useEffect(()=>{if(!selected)return;dialog.current?.showModal();setHistory([]);let live=true;void supabase.from('primeras_citas_historial').select('id,created_at,accion,detalle').eq('cita_id',selected.id).order('created_at',{ascending:false}).limit(100).then(({data,error})=>{if(live){if(error)setError('No se pudo cargar el historial.');else setHistory(data||[]);}});return()=>{live=false;};},[selected]);
  const filtered=rows.filter(v=>(!site||v.sede_id===site)&&(!state||(state==='por_confirmar'?v.estado==='agendada'&&visitStatus(v)==='por_atender':visitStatus(v)===state))&&(!mode||v.modalidad===mode)&&(!origin||visitOrigin(v)===origin)&&`${v.cliente_nombre} ${v.cliente_documento||''} ${v.telefono} ${v.numero_contrato||''}`.toLocaleLowerCase('es').includes(search.toLocaleLowerCase('es')));
  const metrics=visitMetrics(filtered),mCitas=visitMetrics(filtered.filter(v=>visitOrigin(v)!=='vitrina')),mVitrinas=visitMetrics(filtered.filter(v=>visitOrigin(v)==='vitrina')),pages=Math.max(1,Math.ceil(filtered.length/12)),current=Math.min(page,pages);
+ // «Valor alquilado»: value, paid and pending of the contracts of the visits that rented, with the same filters.
+ const rentedIds=[...new Set(filtered.filter(v=>visitRented(v)&&v.contrato_id).map(v=>v.contrato_id as string))].sort().join(',');
+ const [valor,setValor]=useState<{total:number;pagado:number;n:number}|null>(null);
+ useEffect(()=>{let live=true;const ids=rentedIds?rentedIds.split(','):[];
+  const t=setTimeout(()=>{if(!ids.length){setValor({total:0,pagado:0,n:0});return;}
+   void supabase.from('contratos').select('valor_total,total_arreglos,saldo,estado').in('id',ids).then(({data})=>{if(!live)return;
+    const ks=((data||[]) as {valor_total:number|null;total_arreglos:number|null;saldo:number|null;estado:string|null}[]).filter(k=>!['anulado','cancelado','cancelada','rechazado'].includes((k.estado||'').toLowerCase()));
+    const total=ks.reduce((a,k)=>a+Number(k.valor_total||0)+Number(k.total_arreglos||0),0),debe=ks.reduce((a,k)=>a+Math.max(0,Number(k.saldo||0)),0);
+    setValor({total,pagado:Math.max(0,total-debe),n:ks.length});});},0);
+  return()=>{live=false;clearTimeout(t);};},[rentedIds]);
+ const cop=(n:number)=>`$${Math.round(n).toLocaleString('es-CO')}`;
  async function copy(reschedule=false){const link=reschedule?`${window.location.origin}/reprogramar-primera-cita`:`${window.location.origin}/agendar-primera-cita${site?'?sede='+encodeURIComponent(site):''}`;try{await navigator.clipboard.writeText(link);setNotice('Enlace copiado. Puedes compartirlo con tus clientes.');}catch{setNotice(`Enlace para compartir: ${link}`);}}
  async function remove(){if(!selected||busy.current||!window.confirm(`¿Eliminar definitivamente la cita de ${selected.cliente_nombre} (${selected.fecha} · ${selected.hora.slice(0,5)})? No se puede deshacer.`))return;busy.current=true;setSaving(true);setError('');try{const {data:session}=await supabase.auth.getSession();const r=await fetch('/api/primeras-citas/gestionar',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.session?.access_token||''}`},body:JSON.stringify({accion:'eliminar',id:selected.id,motivo:deleteReason,version:selected.updated_at})});const d=await r.json();if(!r.ok)throw Error(d.error||'No se pudo eliminar la cita.');setSelected(null);setNotice('Cita eliminada.');await load();}catch(e){setError(e instanceof Error?e.message:'No se pudo eliminar.');}finally{busy.current=false;setSaving(false);}}
  const yesNo=(b:boolean|null|undefined)=>b===true?'si':b===false?'no':'';
@@ -109,6 +120,7 @@ export default function FirstVisits({isAdmin=false,profile}:{isAdmin?:boolean;pr
   ['Asistieron',metrics.asistieron,`${mCitas.asistieron} citas · ${mVitrinas.asistieron} vitrinas`],
   ['No asistieron',metrics.noAsistieron,`${mCitas.noAsistieron} citas · ${mVitrinas.noAsistieron} vitrinas`],
   ['Alquilaron (cerraron)',metrics.alquilaron,`${mCitas.alquilaron} citas · ${mVitrinas.alquilaron} vitrinas`],
+  ['💰 Valor alquilado',valor?cop(valor.total):'…',valor?`${valor.n} contratos · pagado ${cop(valor.pagado)} · por cobrar ${cop(valor.total-valor.pagado)} · ticket ${cop(valor.n?valor.total/valor.n:0)}`:'Calculando…'],
   ['No alquilaron',metrics.noAlquilaron,`${mCitas.noAlquilaron} citas · ${mVitrinas.noAlquilaron} vitrinas`],
   ...(['asistida','vitrina','no_asistida'].map(t=>[`Seguimiento · ${followupTypeLabel[t]}`,filtered.filter(v=>v.tipo_seguimiento===t).length] as [string,number])),
   ['Conversión',`${metrics.conversion}%`,`Alquilaron ÷ asistieron · Citas ${metrics.conversionCitas}% · Vitrina ${metrics.conversionVitrinas}%`],
