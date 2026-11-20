@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {Trophy,ClipboardCheck,MessageCircle,Sparkles,FileSignature,Ruler,PackageCheck,RotateCcw,Wallet,Shirt,HeartHandshake} from 'lucide-react';
+import {Trophy,ClipboardCheck,MessageCircle,Sparkles,FileSignature,Ruler,PackageCheck,RotateCcw,Wallet,Shirt,HeartHandshake,GraduationCap} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 
 /** Ámbar Exitoso · Manual Ámbar (Manuales › Protocolos): how each moment of the service is done in every store, its checklist and
@@ -59,6 +59,9 @@ export const PROTOCOLOS=[
  P('pa-auditoria','🔎 Auditoría mensual por sede','Lo que el ERP no ve: la tienda, la atención y una muestra de contratos, caja y vestidos.',<ClipboardCheck className="w-5 h-5"/>,'auditoria',[
   {type:'intro',title:'🎯 Para qué',content:'Una vez al mes, administración o contabilidad revisa cada sede con esta lista. Cada punto es «cumple» o «no cumple» con su nota. Al cerrarla, el resultado vale 10 puntos del Puntaje Ámbar por 45 días y queda en el historial.'},
   {type:'steps',title:'📝 Cómo hacerla',items:['Elige la sede y el mes.','Recorre la tienda y revisa una muestra: **5 contratos** del mes y **10 vestidos** del inventario.','Marca cada punto; si no cumple, escribe qué se encontró y qué se debe corregir.','Escribe las conclusiones y los compromisos con la líder de la sede.','Guarda borrador si te falta algo; **Cierra la auditoría** cuando estén todos los puntos.']}]),
+ P('pa-academia','🎓 Academia Ámbar','Capacitación del equipo: cada protocolo termina con una evaluación; con todos aprobados, «Certificada Ámbar».',<GraduationCap className="w-5 h-5"/>,'academia',[
+  {type:'intro',title:'🎯 Para qué',content:'Que todas atiendan, vendan y operen igual en cada sede. Cada persona lee el protocolo, presenta su evaluación al final y se aprueba con 80 % o más. Quien aprueba los 9 protocolos queda «Certificada Ámbar».'},
+  {type:'steps',title:'📝 Cómo se hace',items:['Toda persona nueva presenta los 9 protocolos en su **primera semana**.','Abre cada protocolo, léelo y responde la **evaluación** al final; puedes repetirla.','La líder revisa aquí el avance de su equipo cada lunes.','Cuando se ajuste un protocolo, todas vuelven a presentar esa evaluación.']}]),
  P('pa-atencion','💬 Protocolo 1 · Atención de mensajes','WhatsApp, Instagram y Messenger: responder rápido, con calidez, y llevar a la cita.',<MessageCircle className="w-5 h-5"/>,'atencion',[
   {type:'intro',title:'🎯 Para qué',content:'Cada mensaje es una clienta que quiere su vestido. La IA contesta al instante y la asesora entra cuando el chat queda marcado «Atender persona». La meta es que ningún chat se enfríe y que cada conversación termine con una cita agendada.'},
   {type:'steps',title:'📝 Cómo se hace',items:['Revisa **WhatsApp 304** al llegar, a mediodía y antes de cerrar: filtro **Atender persona** de tu sede primero.','Lee el resumen de la IA antes de escribir: no vuelvas a preguntar lo que la clienta ya dijo.','Saluda con su nombre y responde **exactamente** lo que preguntó; luego invita a la cita: «¿Te muestro los horarios para que vengas a medírtelos?».','Si pide precios, da el rango de su categoría y explica que en la cita se eligen con calma.','Agenda dentro del chat (lista de horarios) y pide su **correo** para enviarle la confirmación.','Cuando lo resuelvas por fuera (celular, llamada), toca **✓ Marcar resuelto**.']},

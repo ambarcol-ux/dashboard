@@ -5,6 +5,7 @@ import { BookOpen, Search, Menu, X, ChevronRight, CheckCircle2, AlertTriangle, L
 import { useRouter } from 'next/navigation';
 import { PROTOCOLOS, IndicadorAmbar, PuntajeAmbar } from '@/components/ManualAmbar';
 import AuditoriaSede from '@/components/AuditoriaSede';
+import { AcademiaAvance, EvaluacionAmbar } from '@/components/AcademiaAmbar';
 
 const MANUAL_DATA = [
   {
@@ -711,9 +712,11 @@ export default function ManualUsuarioPage() {
 
           {/* Cuerpo del Artículo */}
           <div className="p-8 md:p-12">
-            {activeContent.indicador === 'puntaje' ? <div className="mb-8"><PuntajeAmbar /></div> : activeContent.indicador === 'auditoria' ? null : activeContent.indicador && <IndicadorAmbar clave={activeContent.indicador} />}
+            {activeContent.indicador === 'puntaje' ? <div className="mb-8"><PuntajeAmbar /></div> : activeContent.indicador === 'auditoria' || activeContent.indicador === 'academia' ? null : activeContent.indicador && <IndicadorAmbar clave={activeContent.indicador} />}
             {activeContent.sections.map((sec, i) => renderSection(sec, i))}
             {activeContent.indicador === 'auditoria' && <AuditoriaSede />}
+            {activeContent.indicador === 'academia' && <AcademiaAvance />}
+            {activeContent.grupo === 'ambar' && <EvaluacionAmbar key={activeContent.id} clave={activeContent.id} />}
           </div>
           
         </div>
