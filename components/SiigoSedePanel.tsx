@@ -2,6 +2,7 @@
 import {useCallback,useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 import {toast} from 'sonner';
+import {leerCatalogoCuentas} from '@/lib/siigo-cuentas-excel';
 
 type Opt={id:number|string;nombre:string};
 type Cat={fv:Opt[];rc:Opt[];cc:Opt[];fc:Opt[];nc:Opt[];ds:Opt[];pagos:Opt[];pagos_rc:Opt[];vendedores:Opt[];grupos:Opt[];cuentas_erp:{id:string;nombre:string}[]};
@@ -44,6 +45,11 @@ export default function SiigoSedePanel({sedeId,sede,configurada}:{sedeId:string;
    <button type="button" disabled={!!busy} onClick={()=>void traer()} className="px-4 py-2 rounded-xl border text-sm font-black">{busy==='cat'?'Consultando Siigo…':'Traer opciones desde Siigo'}</button>
    <button type="button" disabled={!!busy} onClick={()=>void run('cruce',async()=>{const r=await call({accion:'cruce',sede_id:sedeId});setInforme(`Cruce de productos: ${r.vestidos} vestidos del ERP · ${r.siigo} productos en Siigo · ✅ ${r.coinciden} coinciden · ⚠️ ${r.total_parecidos} parecidos vinculados${r.parecidos.length?`: ${r.parecidos.slice(0,30).join(', ')}`:''} · ❌ ${r.total_solo_erp} solo en el ERP (se crearán en Siigo al facturarlos)${r.solo_erp.length?`: ${r.solo_erp.slice(0,60).join(', ')}`:''}.`);})} className="px-4 py-2 rounded-xl border text-sm font-black">{busy==='cruce'?'Cruzando (1–2 min)…':'Cruzar vestidos con Siigo'}</button>
    <button type="button" disabled={!!busy} onClick={()=>void run('vincular',async()=>{const r=await call({accion:'vincular',sede_id:sedeId});setInforme(`Facturas hechas a mano: ${r.vinculados.length} contratos vinculados${r.vinculados.length?` (${r.vinculados.slice(0,40).join(', ')})`:''}. No encontradas en Siigo (${r.no_encontrados.length}): ${r.no_encontrados.slice(0,60).join(', ')||'ninguna'}.${r.pendientes?` Quedan ${r.pendientes}: vuelve a pulsar.`:''}`);await load();})} className="px-4 py-2 rounded-xl border text-sm font-black">{busy==='vincular'?'Vinculando…':'Vincular facturas hechas a mano'}</button>
+   {/* Siigo does not expose the chart of accounts: each company's export feeds the account search of Cierres de caja › Siigo. */}
+   <label className={`px-4 py-2 rounded-xl border text-sm font-black cursor-pointer ${busy?'opacity-50 pointer-events-none':''}`}>{busy==='cuentas'?'Cargando cuentas…':'Cargar catálogo de cuentas (Excel de Siigo)'}
+    <input type="file" accept=".xlsx" className="hidden" onChange={e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;void run('cuentas',async()=>{const {empresa,cuentas}=await leerCatalogoCuentas(f);
+     if(!confirm(`Catálogo de ${empresa||'la empresa'} con ${cuentas.length} cuentas. ¿Cargarlo para ${sede}?`))return;
+     const {data,error}=await supabase.rpc('siigo_cuentas_cargar',{p_sede:sedeId,p_cuentas:cuentas});if(error)throw error;setInforme(`Catálogo de cuentas de ${sede}: ${data} cuentas cargadas (${empresa}).`);});}}/></label>
    <button type="button" disabled={!!busy||!p.envio_activo} onClick={()=>void run('enviar',async()=>{const r=await call({accion:'enviar',sede_id:sedeId});toast.success(`Enviados ${r.enviados} · esperando ${r.esperando} · con error ${r.errores}`);await load();})} className="px-4 py-2 rounded-xl border text-sm font-black">{busy==='enviar'?'Enviando…':'Enviar cola ahora'}</button>
   </div>
   {informe&&<p className="text-xs bg-slate-50 border rounded-xl p-3 text-gray-700 whitespace-pre-wrap">{informe}</p>}
