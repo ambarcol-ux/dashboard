@@ -385,6 +385,14 @@ export default function HorariosPage() {
         <ArrowLeft className="w-4 h-4" />
         Volver al Dashboard
       </Link>
+      {/* Entry and exit of the staff are now recorded in Nexora; this page keeps the history. */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-rose-50 border border-rose-200 p-5 rounded-3xl">
+        <div>
+          <p className="font-black text-rose-900">La entrada y salida del personal ahora se registra en Nexora</p>
+          <p className="text-sm text-rose-800">Cada persona marca su ingreso y su salida desde Nexora. Aquí queda el historial anterior.</p>
+        </div>
+        <a href="https://nexora-tau-liard.vercel.app/ingresar" target="_blank" rel="noopener noreferrer" className="px-5 py-3 rounded-2xl bg-rose-600 text-white text-sm font-black whitespace-nowrap">Ingresar a Nexora ↗</a>
+      </div>
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
         <div>
           <h1 className="text-2xl font-black text-gray-900 flex items-center gap-3">
