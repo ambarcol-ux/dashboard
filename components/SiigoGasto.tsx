@@ -1,6 +1,7 @@
 'use client';
 import {useState} from 'react';
 import {supabase} from '@/lib/supabase';
+import Link from 'next/link';
 
 type Estado={tipo:string;estado:string;numero:string|null;error:string|null}|undefined;
 const TIPOS=[['gasto','El proveedor entregó factura electrónica'],['soporte_gasto','Cuenta de cobro o recibo (documento soporte)'],['soporte_producto','Compra de vestidos para inventario (documento soporte)']] as const;
@@ -15,6 +16,8 @@ export default function SiigoGasto({gastoId,beneficiario,estado,onDone,sedes}:{g
    :await supabase.rpc('siigo_registrar_gasto',{p_gasto:gastoId,p_tipo:tipo,p_proveedor_documento:nit,p_proveedor_nombre:nombre,p_factura_numero:factura,p_vestidos:tipo==='soporte_producto'?vestidos.split(/[\s,;]+/).filter(Boolean):null});
   setBusy(false);if(e)setError(e.message);else{setOpen(false);onDone();}};
  const input='w-full mt-1 border rounded-lg p-2 text-sm';
+ // Gastos: expenses go to Siigo from Cierres de caja › egreso › Siigo (purchase payment methods), the single route for the stores.
+ if(!sedes)return <Link href="/dashboard/caja" title="Los gastos se envían a Siigo desde Cierres de caja, en el egreso del día." className="px-3 py-1.5 rounded-xl border text-xs font-black text-indigo-700">Enviar desde Cierres de caja</Link>;
  return <>
   <button type="button" onClick={()=>setOpen(true)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-indigo-700">Enviar a Siigo</button>
   {open&&<div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={()=>setOpen(false)}><div className="bg-white rounded-2xl p-5 w-full max-w-md space-y-3" onClick={e=>e.stopPropagation()}>
