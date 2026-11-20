@@ -1,6 +1,7 @@
 'use client';
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import {supabase} from '@/lib/supabase';
+import {PuntajeAmbar} from '@/components/ManualAmbar';
 
 type Sede={id:string;nombre:string;efectivo:number;bancos:number;depositos:number;plan_ahorro:number;socios:number;por_cobrar:number;por_cobrar_vencido:number;asegurado:number;contratos_futuros:number;
  vendido:number;vendido_ant:number;contratos_mes:number;citas_mes:number;entro:number;salio:number;salio_ant:number;fijos_mes:number;fijos_pendientes:number;vestidos:number};
@@ -46,6 +47,8 @@ export default function TableroCEO(){
    <div><h2 className="text-2xl font-black text-gray-900">Tablero CEO</h2><p className="text-xs text-gray-500">En tiempo real desde el ERP · día {data.dia_mes} de {data.dias_mes} del mes · se actualiza cada 5 minutos</p></div>
    <select className="border rounded-xl px-3 py-2 text-sm font-bold bg-white" value={sede} onChange={e=>setSede(e.target.value)}><option value="">Todas las sedes</option>{data.sedes.map(x=><option key={x.id} value={x.id}>{x.nombre}</option>)}</select>
   </div>
+
+  {!sede&&<section><h3 className="font-black text-gray-800 mb-2">Puntaje Ámbar por sede (últimos 30 días)</h3><PuntajeAmbar/></section>}
 
   <section><h3 className="font-black text-gray-800 mb-2">1. Dónde está la plata</h3><div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
    <Card titulo="Efectivo en cajas" valor={cop(t.efectivo)} nota="Contado en el último cierre"/>
