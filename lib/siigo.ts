@@ -136,11 +136,23 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   if(previa)return {siigoId:String(previa.id),numero:String(previa.name),respuesta:{...previa,total,hecha_en_siigo:true}};
   const credito=c.parametros.formas_pago?.credito;if(!credito)throw new SiigoError('Falta la forma de pago «crédito / clientes nacionales» en Facturación por sede.');
   const electronica=d.tipo_factura!=='ingreso';
+  // The invoice shows what the customer already paid (as the stores did by hand): each payment registered in the ERP whose receipt was
+  // not sent yet goes as a payment line (cash, bank…), and only the rest goes on credit. Those receipts are then not sent again.
+  const {data:pg}=await db.from('pagos').select('id,valor_pagado,medio_pago,fecha_pago').eq('contrato_id',j.contrato_id).is('anulado_at',null).order('fecha_pago');
+  const {data:rcs}=await db.from('siigo_documentos').select('origen_id,estado').eq('contrato_id',j.contrato_id).eq('tipo','recibo_caja');
+  const enviados=new Set(((rcs||[]) as Value[]).filter(x=>x.estado==='enviado').map(x=>String(x.origen_id)));
+  const abonos:{id:string;valor:number;forma:number}[]=[];let pagado=0;
+  for(const p of (pg||[]) as Value[]){if(enviados.has(String(p.id)))continue;const v=Math.min(Number(p.valor_pagado)||0,total-pagado);if(v<=0)break;
+   const {data:mov}=await db.from('caja_movimientos').select('cuenta_id').eq('origen','pago').eq('origen_id',p.id).is('anulado_at',null).limit(1).maybeSingle();
+   abonos.push({id:String(p.id),valor:v,forma:formaPago(c,String(p.medio_pago||''),(mov?.cuenta_id as string|null)||null)});pagado+=v;}
+  const porCobrar=Math.round((total-pagado)*100)/100;
+  const payments=[...abonos.map(a=>({id:a.forma,value:a.valor,due_date:fecha(d.fecha)})),...(porCobrar>0?[{id:credito,value:porCobrar,due_date:fecha(k.fecha_evento&&String(k.fecha_evento)>hoy()?k.fecha_evento:hoy())}]:[])];
   const r=await siigo(c,'/v1/invoices',{method:'POST',body:{document:doc(c,electronica?'factura_electronica':'factura_ingreso',electronica?'Factura electrónica':'Factura de ingreso'),
-   date:fecha(d.fecha),customer:{identification:id,branch_office:0},...(c.parametros.vendedor?{seller:c.parametros.vendedor}:{}),observations:obs,items,
-   payments:[{id:credito,value:total,due_date:fecha(k.fecha_evento&&String(k.fecha_evento)>hoy()?k.fecha_evento:hoy())}],
+   date:fecha(d.fecha),customer:{identification:id,branch_office:0},...(c.parametros.vendedor?{seller:c.parametros.vendedor}:{}),observations:obs,items,payments,
    ...(electronica?{stamp:{send:true}}:{}),mail:{send:!!cli.email}}});
-  return {siigoId:r.id||null,numero:r.name||String(r.number||''),respuesta:{...r,total}};
+  if(abonos.length)await db.from('siigo_documentos').update({estado:'enviado',siigo_numero:`Incluido en ${r.name||'la factura'}`,error:null,updated_at:new Date().toISOString()})
+   .eq('tipo','recibo_caja').eq('origen','pago').in('origen_id',abonos.map(a=>a.id)).neq('estado','enviado');
+  return {siigoId:r.id||null,numero:r.name||String(r.number||''),respuesta:{...r,total,abonos_incluidos:abonos.map(a=>a.id)}};
  }
  if(j.tipo==='recibo_caja'){
   const f=j.factura;if(!f||f.estado!=='enviado'||!f.numero)return {siigoId:null,numero:null,respuesta:{},esperar:true,mensaje:'Esperando que la factura llegue a Siigo.'};
@@ -245,11 +257,16 @@ export async function processSiigoQueue(db:SupabaseClient,limite=50){
  if(error||e2)throw Error((error||e2)!.message);
  const bySede=new Map(((creds||[]) as SiigoCred[]).map(c=>[c.sede_id,{...c,parametros:(c.parametros||{}) as Params}]));
  const out={enviados:0,esperando:0,errores:0};
+ // Contracts whose invoice was sent in this run: their receipts were taken before it (and some are now included in the invoice), so
+ // they are left for the next run, which reads them again.
+ const facturados=new Set<string>();
  for(const j of (jobs||[]) as Job[]){
   const c=bySede.get(j.sede_id);
+  if(j.tipo==='recibo_caja'&&j.contrato_id&&facturados.has(j.contrato_id))continue;
   try{
    if(!c)throw new SiigoError('La sede no tiene credenciales de Siigo.');
    const r=await sendJob(db,c,j);
+   if(j.tipo==='factura'&&!r.esperar&&j.contrato_id)facturados.add(j.contrato_id);
    await db.rpc('siigo_resultado_servidor',{p_id:j.id,p_ok:!r.esperar,p_siigo_id:r.siigoId,p_numero:r.numero,p_error:r.mensaje||null,p_respuesta:r.respuesta,p_esperar:!!r.esperar});
    if(r.esperar)out.esperando++;else out.enviados++;
   }catch(e){
