@@ -24,7 +24,7 @@ export default function SiigoGasto({gastoId,beneficiario,estado,onDone,sedes}:{g
    {!sedes&&<><label className="block text-xs font-bold text-gray-600">NIT o cédula del proveedor<input className={input} inputMode="numeric" value={nit} onChange={e=>setNit(e.target.value)}/></label>
    <label className="block text-xs font-bold text-gray-600">Nombre del proveedor<input className={input} value={nombre} onChange={e=>setNombre(e.target.value)}/></label></>}
    {tipo==='gasto'&&<label className="block text-xs font-bold text-gray-600">Número de la factura electrónica<input className={input} value={factura} onChange={e=>setFactura(e.target.value)} placeholder="Ej.: FE-1234"/></label>}
-   {tipo==='soporte_producto'&&<label className="block text-xs font-bold text-gray-600">Códigos de los vestidos comprados (ya creados en Inventario)<input className={input} value={vestidos} onChange={e=>setVestidos(e.target.value)} placeholder="Ej.: 1046-S, 1046-M"/></label>}
+   {tipo==='soporte_producto'&&<label className="block text-xs font-bold text-gray-600">Códigos de los vestidos comprados (ya creados en Inventario). El costo de cada uno se guarda solo, repartiendo el valor de la compra<input className={input} value={vestidos} onChange={e=>setVestidos(e.target.value)} placeholder="Ej.: 1046-S, 1046-M"/></label>}
    {error&&<p role="alert" className="text-xs font-bold text-rose-700">{error}</p>}
    <div className="flex gap-2"><button type="button" disabled={busy} onClick={()=>void enviar()} className="flex-1 py-2 rounded-xl bg-indigo-600 text-white text-sm font-black disabled:opacity-50">{busy?'Guardando…':'Enviar'}</button>
     <button type="button" onClick={()=>setOpen(false)} className="px-4 py-2 rounded-xl border text-sm font-black">Cancelar</button></div>
