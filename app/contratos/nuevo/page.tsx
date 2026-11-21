@@ -91,8 +91,6 @@ export default function NuevoContratoPage() {
   // -- New States for Cross-Branch & Pricing --
   const [userRole, setUserRole] = useState<string>('user');
   const [motivoValores, setMotivoValores] = useState('');
-  // Edit: the value was typed wrong → the same Siigo invoice is corrected (no additional invoice). See private.siigo_ajuste_contrato.
-  const [errorDigitacion, setErrorDigitacion] = useState(false);
   const [puedeCorregirValores, setPuedeCorregirValores] = useState(false);
   // Admin or 'contratos.corregir_valores_iniciales' (asesora líder) may correct the initial payment and deposit, with reason and history, until the caja is closed.
   const canFixInitial = isEditMode && (String(userRole).toLowerCase() === 'admin' || puedeCorregirValores);
@@ -1390,15 +1388,13 @@ export default function NuevoContratoPage() {
     const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
     const verdaderoValorTotal = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado - descuentoPromo) + serviciosAdicionales;
     // Already invoiced in Siigo: a change of value or customer is corrected there by itself (private.siigo_ajuste_contrato); warn first.
-    let marcarDigitacion = false;
     {
       const antes = Number(editingSnapshot?.valor_total || 0), dif = Math.round(verdaderoValorTotal - antes);
       const otraCedula = String(editingSnapshot?.cliente_documento || '').replace(/\D/g, '') !== formData.cliente_documento.replace(/\D/g, '') && String(editingSnapshot?.cliente_documento || '').replace(/\D/g, '').length >= 5;
       if (Math.abs(dif) > 1000 || otraCedula) {
         const { data: sg } = await supabase.rpc('siigo_contrato', { p_contrato: editingContractId });
         const facturado = ((sg as { documentos?: { tipo: string; estado: string }[] } | null)?.documentos || []).some(d => d.tipo === 'factura' && d.estado === 'enviado');
-        marcarDigitacion = facturado && errorDigitacion && !otraCedula;
-        const que = otraCedula ? 'una nota crédito total y una factura nueva con la nueva clienta' : marcarDigitacion ? `la corrección de la misma factura de $${antes.toLocaleString('es-CO')} a $${Math.round(verdaderoValorTotal).toLocaleString('es-CO')} (error de digitación, sin factura adicional)` : dif < 0 ? `una nota crédito por $${(-dif).toLocaleString('es-CO')}` : `una factura adicional por $${dif.toLocaleString('es-CO')}`;
+        const que = otraCedula ? 'una nota crédito total y una factura nueva con la nueva clienta' : `la corrección de la misma factura de $${antes.toLocaleString('es-CO')} a $${Math.round(verdaderoValorTotal).toLocaleString('es-CO')} (sin factura adicional)`;
         if (facturado && !window.confirm(`Este contrato ya está facturado en Siigo. Al guardar se enviará ${que}. ¿Continuar?`)) throw new Error('Cambios no guardados.');
       }
     }
@@ -1481,10 +1477,6 @@ export default function NuevoContratoPage() {
       }
     }
 
-    if (marcarDigitacion) {
-      const { error: markError } = await supabase.from('contratos').update({ siigo_correccion_at: new Date().toISOString() }).eq('id', editingContractId);
-      if (markError) throw markError;
-    }
     const { data, error } = await supabase.rpc('editar_contrato_completo_admin', {
       p_contrato: editingContractId,
       p_datos: sinFechasVacias(datos),
@@ -1492,7 +1484,6 @@ export default function NuevoContratoPage() {
       p_arreglos: arreglosPayload
     });
 
-    if (marcarDigitacion) await supabase.from('contratos').update({ siigo_correccion_at: null }).eq('id', editingContractId);
     if (error) throw error;
     await guardarConceptosContrato(editingContractId, conceptosLineas);
     await supabase.from('contratos').update({ tipo_documento_cliente: formData.tipo_documento_cliente || null, tipo_documento_titular: formData.tipo_documento_titular || null, documento_titular: formData.documento_titular || null }).eq('id', editingContractId);
@@ -2340,12 +2331,6 @@ export default function NuevoContratoPage() {
               <div className="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100 shadow-sm space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   {renderTextInput("Valor Alquiler Base", "valor_total", <DollarSign className="w-4 h-4 text-emerald-600" />, "number", true)}
-                  {isEditMode && siigoFactura.activa && (
-                    <label className="flex items-start gap-2 text-xs font-semibold text-indigo-900 bg-indigo-50 border border-indigo-100 rounded-xl p-3">
-                      <input type="checkbox" className="mt-0.5" checked={errorDigitacion} onChange={e => setErrorDigitacion(e.target.checked)} />
-                      <span>El valor se digitó mal: corregir la misma factura en Siigo, sin factura adicional (la de ingreso se edita; la electrónica va con nota crédito, o nota crédito y factura nueva).</span>
-                    </label>
-                  )}
                   <div className="col-span-2">
                     <ContratoConceptos lineas={conceptosLineas} onChange={cambiarConceptos} />
                   </div>

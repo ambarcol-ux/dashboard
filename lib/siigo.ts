@@ -213,7 +213,7 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
    items:[{account:{code:k.anticipo,movement:'Debit'},customer:cust,description:desc,value:valor,due},{account:{code:cuentaCaja(c,String(d.medio||''),j.cuenta_id),movement:'Credit'},customer:cust,description:desc,value:valor}]}});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
- // Typing error in the contract value (private.siigo_ajuste_contrato): the same invoice is corrected. A «factura de ingreso» is edited in
+ // Contract value adjusted (private.siigo_ajuste_contrato): the same invoice is corrected. A «factura de ingreso» is edited in
  // Siigo; an electronic one (DIAN) cannot be edited, so it gets a partial credit note (lower) or a total credit note plus a new invoice (higher).
  if(j.tipo==='correccion_factura'){
   const f=j.factura;if(!f||f.estado!=='enviado'||!f.siigo_id)throw new SiigoError('La factura a corregir no está en Siigo.');
@@ -226,11 +226,11 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
    const base={sede_id:j.sede_id,contrato_id:j.contrato_id,factura_id:orig.id,origen:'nota_credito'};
    const hoyB=hoy();
    if(dif<0){
-    await db.from('siigo_documentos').insert({...base,tipo:'nota_credito',origen_id:crypto.randomUUID(),datos:{tipo:'parcial',valor:-dif,total_factura:Number(inv.total)||0,motivo:'Error de digitación en el valor',fecha:hoyB,numero_contrato:d.numero_contrato}});
+    await db.from('siigo_documentos').insert({...base,tipo:'nota_credito',origen_id:crypto.randomUUID(),datos:{tipo:'parcial',valor:-dif,total_factura:Number(inv.total)||0,motivo:'Ajuste del valor del contrato',fecha:hoyB,numero_contrato:d.numero_contrato}});
     return {siigoId:null,numero:`Nota crédito a ${f.numero}`,respuesta:{electronica:true}};
    }
    const total=(Number(inv.total)||0)-((prev||[]) as Value[]).reduce((s,x)=>s+Number((x.datos as Value)?.valor||0),0);
-   if(total>0)await db.from('siigo_documentos').insert({...base,tipo:'nota_credito',origen_id:crypto.randomUUID(),datos:{tipo:'total',valor:total,total_factura:total,motivo:'Error de digitación en el valor (se reemplaza la factura)',fecha:hoyB,numero_contrato:d.numero_contrato}});
+   if(total>0)await db.from('siigo_documentos').insert({...base,tipo:'nota_credito',origen_id:crypto.randomUUID(),datos:{tipo:'total',valor:total,total_factura:total,motivo:'Ajuste del valor del contrato (se reemplaza la factura)',fecha:hoyB,numero_contrato:d.numero_contrato}});
    await db.from('siigo_documentos').insert({sede_id:j.sede_id,contrato_id:j.contrato_id,tipo:'factura',origen:'ajuste',origen_id:crypto.randomUUID(),
     datos:{fecha:hoyB,tipo_factura:'electronica',tipo_venta:d.tipo_venta||'alquiler',numero_contrato:d.numero_contrato,reemplaza:true}});
    return {siigoId:null,numero:`Nota crédito y factura nueva (reemplaza ${f.numero})`,respuesta:{electronica:true}};
