@@ -32,18 +32,19 @@ export const EVALUACIONES:Record<string,{titulo:string;preguntas:Q[]}>={
   q('d4','En la prueba final se verifica…',['Talla, largo y detalles','Solo el color','Nada'],0)]},
  'pa-entrega':{titulo:'Entrega y depósito',preguntas:[
   q('e1','¿Se puede entregar un vestido con saldo pendiente?',['Sí, si promete pagar','Nunca','Solo a clientas conocidas'],1),
-  q('e2','Al entregar se recibe…',['El depósito con su soporte','Nada más','Solo una firma'],0),
+  q('e2','Para poder entregar el vestido, el depósito debe estar…',['Pagado completo y registrado en «Pago de depósito»','Solo escrito en el contrato','Pendiente: se cobra después'],0),
   q('e3','¿Para qué se toman fotos en la entrega?',['Para redes','Para comparar el estado en la devolución','No se toman'],1),
   q('e4','Al final de la entrega se le recuerda…',['La fecha de devolución','El precio de otros vestidos','Nada'],0)]},
  'pa-devolucion':{titulo:'Devolución, lavandería y depósito',preguntas:[
   q('f1','El vestido devuelto se revisa contra…',['Las fotos de la entrega','La memoria de la asesora','Nada'],0),
   q('f2','¿En cuántos días máximo se devuelve el depósito?',['8 días','30 días','Cuando la clienta lo pida'],0),
+  q('f5','Si el vestido vuelve con daños, el valor retenido del depósito…',['Se registra como descuento en «Aprobar devolución» con su motivo','Se devuelve igual y se cobra después','No se registra'],0),
   q('f3','Si llegó tarde, la multa…',['Se calcula sola en el ERP','Se inventa','No se cobra nunca'],0),
   q('f4','Después de lavandería y depósito se…',['Deja abierto el contrato','Finaliza el contrato','Borra el contrato'],1)]},
  'pa-caja':{titulo:'Caja del día',preguntas:[
   q('g1','¿Cada cuánto se cierra la caja?',['Cada semana','Todos los días','Cada mes'],1),
   q('g2','Una clienta te pagó un abono. ¿Dónde lo registras?',['En el contrato, con Registrar Abono y su soporte','Escribiéndolo a mano en Cierres de caja','En un cuaderno y luego en el ERP'],0),
-  q('g3','Si no tienes talonario, en «Número de recibo de caja» escribes…',['Nada','La referencia de la transferencia o, en efectivo, la fecha y tus iniciales','El número del contrato'],1),
+  q('g3','El número del recibo de caja de un abono…',['Lo escribo yo del talonario','Lo asigna Siigo automáticamente','Es el número del contrato'],1),
   q('g4','Después de registrar el abono en el contrato…',['Lo vuelvo a escribir en la caja','Entra solo a la caja, a Siigo y le llega el recibo a la clienta','Le aviso a la contadora para que lo pase'],1),
   q('g5','¿Cómo se cuenta el efectivo al cerrar?',['Escribiendo el total','Escribiendo cuántos billetes hay de cada valor y las monedas','No se cuenta'],1),
   q('g6','El cajón quedó con $900.000 y el tope es $500.000. ¿Qué haces?',['Nada','Al día siguiente consigno al menos $400.000 y lo registro como Consignación a banco con el comprobante','Me llevo el dinero a la casa'],1),
