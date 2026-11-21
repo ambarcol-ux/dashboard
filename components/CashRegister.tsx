@@ -13,6 +13,7 @@ import {CASH_BASE,CASH_CATEGORIES,CASH_METHODS,accountsFor,cashDifference,cashRe
 import {SUPPORT_ACCEPT,SUPPORT_BUCKET,supportFileError,supportPath,supportType} from '@/lib/payment-support';
 import styles from '@/app/dashboard/caja/caja.module.css';
 import SiigoAlDia from '@/components/SiigoAlDia';
+import SiigoConciliacion from '@/components/SiigoConciliacion';
 
 type Profile={id:string;rol:string;sede_id:string|null};
 const ALL='todas';
@@ -92,7 +93,7 @@ export default function CashRegister({profile}:{profile:Profile}){
  const [day,setDay]=useState<CashDay|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [pending,setPending]=useState<PendingPayment[]>([]),[guia,setGuia]=useState(false);
  const irAbono=(p:PendingPayment)=>{setLoading(true);setNotice('');setSede(p.sede_id);setFecha(p.fecha);if(p.fecha<desde)setDesde(p.fecha);setGuia(true);setTimeout(()=>document.getElementById('guia-abonos')?.scrollIntoView({behavior:'smooth',block:'start'}),400);};
- const request=useRef(0),[view,setView]=useState<'caja'|'plata'|'depositos'|'cuentas'>('caja');
+ const request=useRef(0),[view,setView]=useState<'caja'|'plata'|'depositos'|'cuentas'|'siigo'>('caja');
 
  const load=useCallback(async()=>{
   const id=++request.current;
@@ -119,10 +120,11 @@ export default function CashRegister({profile}:{profile:Profile}){
  const done=(message:string)=>{setNotice(message);refresh();};
 
  const siteName=sites.find(s=>s.sede_id===sede)?.sede||'';
- const tabs=<div className={styles.tabs} role="tablist">{([['caja','Caja del día'],['plata','¿Dónde está la plata?'],['depositos','Depósitos (aparte)'],...(seesAll||puedeCuentas?[['cuentas','Cuentas y caja menor']]:[])] as [typeof view,string][]).map(([k,label])=>
+ const tabs=<div className={styles.tabs} role="tablist">{([['caja','Caja del día'],['plata','¿Dónde está la plata?'],['depositos','Depósitos (aparte)'],['siigo','Cuadre con Siigo'],...(seesAll||puedeCuentas?[['cuentas','Cuentas y caja menor']]:[])] as [typeof view,string][]).map(([k,label])=>
   <button key={k} role="tab" aria-selected={view===k} className={`${styles.tab} ${view===k?styles.tabActive:''}`} onClick={()=>setView(k)}>{label}</button>)}</div>;
  if(view==='plata')return <>{tabs}<WhereIsMoneyView today={today}/></>;
  if(view==='depositos')return <>{tabs}<DepositsView today={today}/></>;
+ if(view==='siigo')return <>{tabs}<SiigoConciliacion sites={sites} sede={sede===ALL?'':sede} today={today}/></>;
  if(view==='cuentas')return <>{tabs}{seesAll&&<CashStartAdmin isAdmin={finanzas} today={today}/>}<AccountsAdmin sites={sites} isAdmin={finanzas} canManage={puedeCuentas}/></>;
  return <>
   {tabs}
@@ -195,7 +197,8 @@ function AssignAccountBulk({day,canEdit,canFix,onDone,onError}:{day:CashDay;canE
 
 function SiteDay({day,siteName,isAdmin,finanzas,canFix,canReopen,onDone,onError}:{day:CashDay;siteName:string;isAdmin:boolean;finanzas:boolean;canFix:boolean;canReopen:boolean;onDone:(m:string)=>void;onError:(m:string)=>void}){
  const open=!day.cierre,canWork=open&&day.puede_operar;
- const ie=Number(day.totales.ingresos_efectivo||0),ee=Number(day.totales.egresos_efectivo||0),esperado=expectedCash(day.saldo_inicial,ie,ee);
+ // Cash deposits received minus cash returned are in the drawer, though they are not income of the day.
+ const dep=Number(day.totales.depositos_efectivo||0),ie=Number(day.totales.ingresos_efectivo||0),ee=Number(day.totales.egresos_efectivo||0),esperado=expectedCash(day.saldo_inicial,ie+dep,ee);
  const active=day.movimientos.filter(m=>!m.anulado_at);
  const missing=day.pagos_sin_soporte||[];
  const [editing,setEditing]=useState<CashMovement|null>(null),canEdit=open&&canFix;
@@ -342,7 +345,7 @@ function CloseForm({day,esperado,pendingSupports,onDone}:{day:CashDay;esperado:n
  };
  return <section id="paso-cerrar" className={styles.card} style={{scrollMarginTop:80}}><h2>Cerrar caja</h2><p>Cuenta el efectivo físico y compáralo con lo esperado.</p>
   <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
-   <p className={styles.help}>Esperado = saldo inicial {money(day.saldo_inicial)} + ingresos en efectivo (incluida la base) − egresos en efectivo = <strong>{money(esperado)}</strong>. Los depósitos en garantía no se cuentan aquí.</p>
+   <p className={styles.help}>Esperado = saldo inicial {money(day.saldo_inicial)} + ingresos en efectivo (incluida la base) − egresos en efectivo = <strong>{money(esperado)}</strong>. Incluye los depósitos en garantía recibidos o devueltos en efectivo (no son venta).</p>
    <label>Efectivo contado (COP)<input inputMode="decimal" placeholder="0" value={contado} onChange={e=>setContado(e.target.value)}/></label>
    {diff!==null&&<p className={styles.help}>Diferencia: <span className={`${styles.diff} ${diff<0?styles.out:diff>0?styles.in:''}`}>{money(diff)}</span>{diff===0?' · Cuadra':diff<0?' · Falta dinero':' · Sobra dinero'}</p>}
    <label>Observaciones{diff!==null&&diff!==0?' (obligatorias)':''}<textarea maxLength={1000} value={obs} onChange={e=>setObs(e.target.value)}/></label>

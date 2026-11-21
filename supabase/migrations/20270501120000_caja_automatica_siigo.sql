@@ -58,8 +58,7 @@ begin
  end if;
  return new;
 end $$;
-drop trigger if exists caja_auto_pago on public.pagos;
-create trigger caja_auto_pago after insert or update of anulado_at on public.pagos for each row execute function private.caja_auto_pago();
+create or replace trigger caja_auto_pago after insert or update of anulado_at on public.pagos for each row execute function private.caja_auto_pago();
 
 -- Deposits and returns registered in Depósitos.
 create or replace function private.caja_auto_deposito() returns trigger
@@ -74,8 +73,7 @@ begin
   private.caja_cuenta_deposito(c.sede_id));
  return new;
 end $$;
-drop trigger if exists caja_auto_deposito on public.movimientos_depositos;
-create trigger caja_auto_deposito after insert on public.movimientos_depositos for each row execute function private.caja_auto_deposito();
+create or replace trigger caja_auto_deposito after insert on public.movimientos_depositos for each row execute function private.caja_auto_deposito();
 
 -- Siigo advance for a deposit received at signing or delivery (the Depósitos ones queue it in private.siigo_deposito_documento).
 create or replace function private.siigo_anticipo_deposito(c public.contratos, p_fecha date, p_valor numeric, p_medio text, p_origen text, p_origen_id uuid) returns void
@@ -102,8 +100,7 @@ begin
  perform private.siigo_anticipo_deposito(new,f,new.valor_deposito,new.medio_deposito,'contrato',new.id);
  return new;
 end $$;
-drop trigger if exists caja_auto_deposito_contrato on public.contratos;
-create trigger caja_auto_deposito_contrato after insert or update of estado on public.contratos for each row execute function private.caja_auto_deposito_contrato();
+create or replace trigger caja_auto_deposito_contrato after insert or update of estado on public.contratos for each row execute function private.caja_auto_deposito_contrato();
 
 -- Deposit collected at delivery (Entregas asks its method and receipt), when it was not paid at signing nor registered in Depósitos.
 create or replace function private.caja_auto_deposito_entrega() returns trigger
@@ -120,8 +117,7 @@ begin
  perform private.siigo_anticipo_deposito(c,f,c.valor_deposito,new.metodo_deposito,'entrega',new.id);
  return new;
 end $$;
-drop trigger if exists caja_auto_deposito_entrega on public.entregas_bitacora;
-create trigger caja_auto_deposito_entrega after insert on public.entregas_bitacora for each row execute function private.caja_auto_deposito_entrega();
+create or replace trigger caja_auto_deposito_entrega after insert on public.entregas_bitacora for each row execute function private.caja_auto_deposito_entrega();
 
 -- Deposit movements may use the deposits account; the rest of the rules stay.
 create or replace function private.caja_cuenta_movimiento() returns trigger

@@ -7,7 +7,7 @@ export type CashMovement={cuenta_id?:string|null;cuenta?:string|null;ediciones?:
 export type CashSuggestion={soportes?:CashSupport[];soporte_historico?:boolean;origen:'pago'|'deposito'|'devolucion';origen_id:string;tipo:'ingreso'|'egreso';categoria:string;medio:string;valor:number;contrato_id:string;numero_contrato:string;cliente:string;hora:string};
 export type CashClosing={id:string;saldo_inicial:number;ingresos_efectivo:number;egresos_efectivo:number;esperado:number;contado:number;diferencia:number;observaciones:string;cerrado_at:string;cerrado_por_nombre:string};
 export type CashDay={sede_id:string;fecha:string;saldo_inicial:number;movimientos:CashMovement[];
- totales:{ingresos:number;egresos:number;ingresos_efectivo:number;egresos_efectivo:number;base?:number;por_medio:Record<string,{ingresos:number|null;egresos:number|null}>;
+ totales:{ingresos:number;egresos:number;ingresos_efectivo:number;egresos_efectivo:number;base?:number;depositos_efectivo?:number;por_medio:Record<string,{ingresos:number|null;egresos:number|null}>;
   por_cuenta?:{cuenta_id:string|null;cuenta:string;tipo:CashAccount['tipo']|null;ingresos:number;egresos:number}[]};
  cuentas?:CashAccount[];inicio?:string|null;
  cierre:CashClosing|null;sugerencias:CashSuggestion[];puede_operar:boolean;es_hoy:boolean;
@@ -24,7 +24,8 @@ export type WhereIsMoney={desde:string;hasta:string;cuentas:MoneyAccountRow[];si
 
 export const CASH_METHODS=['Efectivo','Transferencia','Tarjeta','Otro'] as const;
 export const CASH_CATEGORIES={
- ingreso:['Pago de contrato','Base de caja','Venta de accesorios','Arreglos','Otro ingreso'],
+ // Contract payments and deposits arrive by themselves (they are not written by hand).
+ ingreso:['Base de caja','Venta de accesorios','Arreglos','Otro ingreso'],
  egreso:['Gasto operativo','Transporte','Compras e insumos','Nómina / anticipos','Consignación a banco','Otro egreso'],
 } as const;
 /** Opening float added during the day: cash put in the drawer with no sale behind it; it counts for the expected cash but not as income. */
