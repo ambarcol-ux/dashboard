@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import PaymentSupportUpload from '@/components/PaymentSupportUpload';
+import AttachPaymentSupport from '@/components/AttachPaymentSupport';
 import SiigoContrato from '@/components/SiigoContrato';
 import { SUPPORT_BUCKET, type UploadedSupport } from '@/lib/payment-support';
 import { porPagarContrato, puedeAbonar, saldoContrato } from '@/lib/saldo';
@@ -495,6 +496,9 @@ export default function RegistrarPagoPage() {
                           <FileText className="w-3.5 h-3.5" /> Ver soporte · {s.nombre}
                         </button>
                       ))}
+                      {!pago.anulado_at && contrato?.sede_id && !((pago.soportes_pago || []) as PagoSoporte[]).some(s => s.activo) && (
+                        <AttachPaymentSupport sedeId={contrato.sede_id} pagoId={pago.id} onDone={() => void fetchData()} />
+                      )}
                     </div>
                   ))
                 )}

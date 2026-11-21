@@ -216,6 +216,8 @@ export default function NuevoContratoPage() {
   const [metodosPago, setMetodosPago] = useState<string[]>([]);
   const [anticipoSoportes, setAnticipoSoportes] = useState<UploadedSupport[]>([]);
   const [subiendoSoporte, setSubiendoSoporte] = useState(false);
+  // «El soporte lo adjunto después»: the initial payment is saved without support (public.registrar_abono_inicial_sin_soporte).
+  const [soporteDespues, setSoporteDespues] = useState(false);
 
   // Arreglos dinámicos
   const [arreglos, setArreglos] = useState<{ tipo: string; cm: string; precio: string }[]>([]);
@@ -1545,7 +1547,7 @@ export default function NuevoContratoPage() {
     if (llaveInvalida) { toast.error(llaveInvalida); return; }
     if (!isEditMode && abonoConSoporte > 0) {
       if (subiendoSoporte) { toast.error('Espera a que termine de subir el soporte del anticipo.'); return; }
-      if (!anticipoSoportes.length) { toast.error('Falta el soporte de ingreso. Adjunta el comprobante del anticipo para poder guardar el contrato.'); return; }
+      if (!anticipoSoportes.length && !soporteDespues) { toast.error('Falta el soporte de ingreso. Adjunta el comprobante del anticipo o marca «El soporte lo adjunto después».'); return; }
     }
 
     setLoading(true);
@@ -1724,7 +1726,9 @@ export default function NuevoContratoPage() {
       // REGISTRO DE RECAUDO REAL: Si hay abono inicial, insertarlo inmediatamente en la tabla 'pagos'
       if (abonoInicial > 0 && insertedContract) {
         const metodosString = metodosPago && metodosPago.length > 0 ? metodosPago.join(', ') : 'Múltiple/Otro';
-        const { error: pagoError } = await supabase.rpc('registrar_pago_con_soporte', {
+        const { error: pagoError } = !anticipoSoportes.length && soporteDespues
+          ? await supabase.rpc('registrar_abono_inicial_sin_soporte', { p_contrato: insertedContract.id, p_valor: abonoInicial, p_medio: metodosString })
+          : await supabase.rpc('registrar_pago_con_soporte', {
           p_contrato: insertedContract.id,
           p_valor: abonoInicial,
           p_medio: metodosString,
@@ -1732,6 +1736,7 @@ export default function NuevoContratoPage() {
           p_observaciones: 'Abono inicial al firmar contrato',
           p_soportes: anticipoSoportes,
         });
+        if (!pagoError && !anticipoSoportes.length && soporteDespues) toast.warning('Abono guardado sin soporte: adjúntalo desde el contrato o Cierres de caja antes de cerrar la caja de hoy.');
         if (pagoError) {
           console.error("Error al registrar el anticipo en pagos:", pagoError);
           toast.error(`El contrato se creó, pero el anticipo no quedó registrado: ${pagoError.message} Avisa a administración para registrarlo sin duplicar el valor.`);
@@ -2443,9 +2448,16 @@ export default function NuevoContratoPage() {
                     value={anticipoSoportes}
                     onChange={setAnticipoSoportes}
                     onBusyChange={setSubiendoSoporte}
-                    help="Comprobante de la transferencia o del pago. Obligatorio para guardar el contrato."
+                    help="Comprobante de la transferencia o del pago. Obligatorio, o márcalo para adjuntarlo después."
+                    required={!soporteDespues}
                     missingMessage="Falta el soporte de ingreso. Adjunta el comprobante del anticipo para poder guardar el contrato."
                   />
+                )}
+                {!isEditMode && (parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0) > 0 && !anticipoSoportes.length && (
+                  <label className="flex items-start gap-2 text-xs font-semibold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <input type="checkbox" className="mt-0.5" checked={soporteDespues} onChange={e => setSoporteDespues(e.target.checked)} />
+                    <span>El soporte lo adjunto después (desde el contrato o Cierres de caja). La caja de hoy no se podrá cerrar hasta adjuntarlo.</span>
+                  </label>
                 )}
 
                 <div className="pt-2 border-t border-emerald-200/50">
