@@ -16,6 +16,7 @@ import SiigoAlDia from '@/components/SiigoAlDia';
 import SiigoConciliacion from '@/components/SiigoConciliacion';
 import AnulacionesPago from '@/components/AnulacionesPago';
 import CashLimitsAdmin from '@/components/CashLimitsAdmin';
+import CajaPendientes from '@/components/CajaPendientes';
 
 type Profile={id:string;rol:string;sede_id:string|null};
 const ALL='todas';
@@ -143,6 +144,7 @@ export default function CashRegister({profile}:{profile:Profile}){
   {guia&&sede!==ALL&&day&&day.sede_id===sede&&day.fecha===fecha?<GuiaAbonos day={day} pending={pending} onNext={irAbono} onClose={()=>setGuia(false)}/>
    :<PendingPayments abierto={ver==='abonos'} rows={sede===ALL?pending:pending.filter(p=>p.sede_id===sede)} onOpen={irAbono}/>}
   {sede!==ALL&&day&&<SiigoAlDia sedeId={day.sede_id} fecha={day.fecha}/>}
+  {sede!==ALL&&day&&<CajaPendientes sedeId={day.sede_id} version={`${day.fecha}:${day.movimientos.length}:${day.cierre?1:0}`} onIr={f=>{setLoading(true);setNotice('');setFecha(f);}}/>}
   {sede===ALL?<AllSites rows={sites} loading={loading} onPick={id=>{setLoading(true);setSede(id);}}/>:day?<SiteDay key={`${day.sede_id}:${day.fecha}`} day={day} siteName={siteName} isAdmin={isAdmin} finanzas={finanzas} canFix={puedeCorregir} canReopen={puedeReabrir} onDone={done} onError={setError}/>:!error&&<p className={styles.empty}>{loading?'Cargando caja…':'No tienes una sede asignada para manejar caja.'}</p>}
  </>;
 }
