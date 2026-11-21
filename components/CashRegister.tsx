@@ -206,11 +206,12 @@ function SiteDay({day,siteName,isAdmin,finanzas,canFix,canReopen,onDone,onError}
  const missing=day.pagos_sin_soporte||[];
  const [editing,setEditing]=useState<CashMovement|null>(null),canEdit=open&&canFix;
  // Siigo: each cash outflow can be registered as «Compra o gasto» or «Documento soporte» (components/SiigoCompra).
- const [siigoOn,setSiigoOn]=useState(false),[compras,setCompras]=useState<Record<string,{estado:string;numero:string|null;error:string|null}>>({}),[compra,setCompra]=useState<CashMovement|null>(null);
+ const [siigoOn,setSiigoOn]=useState(false),[compras,setCompras]=useState<Record<string,{id:string;estado:string;numero:string|null;error:string|null;retenido?:boolean;datos?:Record<string,unknown>}>>({}),[compra,setCompra]=useState<CashMovement|null>(null),[recarga,setRecarga]=useState(0);
  const egresos=day.movimientos.filter(m=>m.tipo==='egreso'&&!m.anulado_at).map(m=>m.id).join(',');
  useEffect(()=>{let live=true;void supabase.rpc('siigo_sede_activa',{p_sede:day.sede_id}).then(({data})=>{if(live)setSiigoOn(!!(data as {activa?:boolean}|null)?.activa);});
   if(egresos)void supabase.rpc('siigo_compras_estado',{p_ids:egresos.split(',')}).then(({data})=>{if(live)setCompras((data||{}) as typeof compras);});
-  return()=>{live=false;};},[day.sede_id,egresos]);
+  return()=>{live=false;};},[day.sede_id,egresos,recarga]);
+ const siigoAccion=async(fn:'siigo_compra_retener'|'siigo_compra_quitar',args:Record<string,unknown>,msg:string)=>{const {error:e}=await supabase.rpc(fn,args);if(e)onError(e.message);else{setRecarga(x=>x+1);onDone(msg);}};
  const porCuenta=day.totales.por_cuenta||[];
  const openReceipt=async(path:string)=>{const {data,error}=await supabase.storage.from('comprobantes_caja').createSignedUrl(path,300);if(error||!data)onError('No se pudo abrir el comprobante.');else window.open(data.signedUrl,'_blank','noopener,noreferrer');};
  const annul=async(m:CashMovement)=>{const motivo=window.prompt(`Motivo para anular "${m.categoria} ${money(m.valor)}" (mínimo 5 caracteres)`);if(motivo===null)return;const {error}=await supabase.rpc('anular_movimiento_caja',{p_id:m.id,p_motivo:motivo});if(error)onError(error.message);else onDone('Movimiento anulado. Queda visible tachado con su motivo.');};
@@ -244,13 +245,19 @@ function SiteDay({day,siteName,isAdmin,finanzas,canFix,canReopen,onDone,onError}
     <tbody>{day.movimientos.map(m=><tr key={m.id} className={m.anulado_at?styles.annulled:''}>
      <td>{time(m.created_at)}</td>
      <td><span className={`${styles.badge} ${m.tipo==='ingreso'?styles.badgeIn:styles.badgeOut}`}>{m.tipo==='ingreso'?'Ingreso':'Egreso'}</span></td>
-     <td><strong>{m.categoria}</strong>{m.numero_contrato&&<small>{m.numero_contrato} · {m.cliente}</small>}{m.descripcion&&<small>{m.descripcion}</small>}{m.anulado_at&&<small>Anulado por {m.anulado_por}: {m.motivo_anulacion}</small>}{(m.ediciones||[]).map((e,i)=><small key={i} title={editSummary(e,money).join('\n')}>✎ Editado por {e.usuario} el {new Date(e.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'})}: {editSummary(e,money).join(' · ')} — {e.motivo}</small>)}</td>
+     <td><strong>{m.categoria}</strong>{m.numero_contrato&&<small>{m.numero_contrato} · {m.cliente}</small>}{m.descripcion&&<small>{m.descripcion}</small>}{m.anulado_at&&<small>Anulado por {m.anulado_por}: {m.motivo_anulacion}</small>}{(m.ediciones||[]).map((e,i)=><small key={i} title={editSummary(e,money).join('\n')}>✎ Editado por {e.usuario} el {new Date(e.created_at).toLocaleString('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'})}: {editSummary(e,money).join(' · ')} — {e.motivo}</small>)}{compras[m.id]&&(()=>{const c=compras[m.id];return <small style={{display:'block'}}>
+      <span className={`${styles.badge} ${c.estado==='error'?styles.badgeWarn:''}`}>{c.estado==='enviado'?`Siigo: enviado ${c.numero||''} ✓`:c.estado==='error'?'Siigo: error':c.retenido?'Siigo: retenido por contabilidad':'Siigo: en cola'}</span>
+      {c.estado!=='enviado'&&c.error&&<span style={{display:'block'}}>{c.error}</span>}
+      {c.estado!=='enviado'&&<span style={{display:'flex',gap:6,marginTop:4}}><button className={styles.button} onClick={()=>setCompra(m)}>Corregir</button>
+       {finanzas&&<button className={styles.button} onClick={()=>void siigoAccion('siigo_compra_retener',{p_doc:c.id,p_retener:!c.retenido},c.retenido?'Liberado: se envía a Siigo.':'Retenido: no se envía hasta que lo liberes.')}>{c.retenido?'Liberar':'Retener'}</button>}
+       <button className={`${styles.button} ${styles.danger}`} onClick={()=>{if(confirm('¿Quitar este gasto de la cola de Siigo?'))void siigoAccion('siigo_compra_quitar',{p_doc:c.id},'Quitado de la cola de Siigo.');}}>Quitar</button></span>}
+     </small>;})()}</td>
      <td>{m.medio}</td><td>{m.cuenta||<span className={`${styles.badge} ${styles.badgeWarn}`}>Sin cuenta</span>}</td><td className={m.tipo==='ingreso'?styles.in:styles.out}>{m.tipo==='ingreso'?'+':'−'}{money(m.valor)}</td><td>{m.usuario}</td>
      <td>{m.origen==='pago'?<SupportCell soportes={m.soportes} historico={m.soporte_historico} onError={onError}/>:m.comprobante_path?<button className={styles.button} onClick={()=>void openReceipt(m.comprobante_path!)}><Paperclip size={12} style={{display:'inline'}}/> Ver</button>:'—'}</td>
-     {(canWork||canEdit)&&<td>{!m.anulado_at&&<div style={{display:'flex',gap:6}}>{canEdit&&<button className={styles.button} onClick={()=>setEditing(m)}>Editar</button>}{siigoOn&&m.tipo==='egreso'&&(compras[m.id]?<span title={compras[m.id].error||''} className={`${styles.badge} ${compras[m.id].estado==='error'?styles.badgeWarn:''}`}>Siigo: {compras[m.id].estado}{compras[m.id].numero?` ${compras[m.id].numero}`:''}</span>:<button className={styles.button} onClick={()=>setCompra(m)}>Siigo</button>)}{canWork&&<button className={`${styles.button} ${styles.danger}`} onClick={()=>void annul(m)}>Anular</button>}</div>}</td>}
+     {(canWork||canEdit)&&<td>{!m.anulado_at&&<div style={{display:'flex',gap:6}}>{canEdit&&<button className={styles.button} onClick={()=>setEditing(m)}>Editar</button>}{siigoOn&&m.tipo==='egreso'&&(compras[m.id]?null:<button className={styles.button} onClick={()=>setCompra(m)}>Siigo</button>)}{canWork&&<button className={`${styles.button} ${styles.danger}`} onClick={()=>void annul(m)}>Anular</button>}</div>}</td>}
     </tr>)}</tbody></table></div>
    {!day.movimientos.length&&<p className={styles.empty}>No hay movimientos registrados este día.</p>}
-   {compra&&<SiigoCompra movimiento={{id:compra.id,sede_id:day.sede_id,valor:Number(compra.valor),descripcion:compra.descripcion,categoria:compra.categoria}} onClose={()=>setCompra(null)} onDone={m=>{setCompras(c=>({...c,[compra.id]:{estado:'pendiente',numero:null,error:null}}));onDone(m);}}/>}
+   {compra&&<SiigoCompra existente={(compras[compra.id]?.datos||null) as never} movimiento={{id:compra.id,sede_id:day.sede_id,valor:Number(compra.valor),descripcion:compra.descripcion,categoria:compra.categoria}} onClose={()=>setCompra(null)} onDone={m=>{setRecarga(x=>x+1);onDone(m);}}/>}
   </section>
   {canWork&&day.sugerencias.length>0&&<Suggestions day={day} onDone={onDone} onError={onError}/>}
   {canWork&&<div className={styles.grid2}><NewMovement day={day} onDone={onDone}/><CloseForm day={day} esperado={esperado} pendingSupports={missing.length} onDone={onDone}/></div>}

@@ -239,6 +239,10 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
  if(j.tipo==='compra'){
+  // Opción C: held by contabilidad, or a cash-register expense whose day is not closed yet, waits (it can still be corrected).
+  if(d.retenido===true)return {siigoId:null,numero:null,respuesta:{},esperar:true,mensaje:'Retenido por contabilidad.'};
+  if(d.caja_fecha){const {data:cierre}=await db.from('caja_cierres').select('id').eq('sede_id',j.sede_id).eq('fecha',String(d.caja_fecha)).is('reabierto_at',null).limit(1).maybeSingle();
+   if(!cierre)return {siigoId:null,numero:null,respuesta:{},esperar:true,mensaje:`Se envía a Siigo cuando se cierre la caja del ${String(d.caja_fecha)}.`};}
   // Cierres de caja › egreso › Siigo: «Compra o gasto» (FC, with the supplier's invoice number) or «Documento soporte» (DS); lines of
   // product (raises stock) or ledger account, with their taxes; paid with the chosen purchase payment method of the company.
   const p=d.proveedor as Value,id=await ensureThird(c,{documento:p.documento,nombre:p.nombre||'Proveedor',tipo_documento:String(p.documento||'').length>=9?'NIT':'CC'},'Supplier');
@@ -250,6 +254,9 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   const r=await siigo(c,'/v1/purchases',{method:'POST',body:{document:documento,date:fecha(d.fecha),supplier:{identification:id,branch_office:0},
    ...(fc?{provider_invoice:{prefix:pf?.[1]||'FE',number:pf?pf[2]:fe.replace(/\D/g,'')||fe}}:{}),items,
    payments:[{id:Number(d.forma_pago),value:Number(d.total),due_date:fecha(d.fecha)}],observations:`${d.descripcion||d.categoria||'Gasto de caja'} · ERP Ámbar`.slice(0,500)}});
+  // Accounts typed by code that Siigo accepted join the store's catalog.
+  const nuevas=((d.items||[]) as Value[]).filter(it=>it.tipo==='Account'&&it.nueva).map(it=>({codigo:String(it.codigo),nombre:String(it.descripcion||'')}));
+  if(nuevas.length)await db.rpc('siigo_cuentas_agregar_servidor',{p_sede:j.sede_id,p_cuentas:nuevas});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
  if(j.tipo==='comprobante'){
