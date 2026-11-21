@@ -15,6 +15,7 @@ import styles from '@/app/dashboard/caja/caja.module.css';
 import SiigoAlDia from '@/components/SiigoAlDia';
 import SiigoConciliacion from '@/components/SiigoConciliacion';
 import AnulacionesPago from '@/components/AnulacionesPago';
+import CashLimitsAdmin from '@/components/CashLimitsAdmin';
 
 type Profile={id:string;rol:string;sede_id:string|null};
 const ALL='todas';
@@ -127,7 +128,7 @@ export default function CashRegister({profile}:{profile:Profile}){
  if(view==='plata')return <>{tabs}<WhereIsMoneyView today={today}/></>;
  if(view==='depositos')return <>{tabs}<DepositsView today={today}/></>;
  if(view==='siigo')return <>{tabs}<SiigoConciliacion sites={sites} sede={sede===ALL?'':sede} today={today}/></>;
- if(view==='cuentas')return <>{tabs}{seesAll&&<CashStartAdmin isAdmin={finanzas} today={today}/>}<AccountsAdmin sites={sites} isAdmin={finanzas} canManage={puedeCuentas}/></>;
+ if(view==='cuentas')return <>{tabs}{seesAll&&<CashStartAdmin isAdmin={finanzas} today={today}/>}{seesAll&&<CashLimitsAdmin sites={sites}/>}<AccountsAdmin sites={sites} isAdmin={finanzas} canManage={puedeCuentas}/></>;
  return <>
   {tabs}
   {finanzas&&<AnulacionesPago/>}
@@ -342,7 +343,12 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
 
 function CloseForm({day,esperado,pendingSupports,onDone}:{day:CashDay;esperado:number;pendingSupports:number;onDone:(m:string)=>void}){
  // Cash is counted bill by bill (mandatory): the counted total is their sum, so the report can be checked from far away.
- const [billetes,setBilletes]=useState<Record<string,string>>({}),[obs,setObs]=useState(''),[saving,setSaving]=useState(false),[error,setError]=useState('');
+ const [billetes,setBilletes]=useState<Record<string,string>>({}),[obs,setObs]=useState(''),[saving,setSaving]=useState(false),[error,setError]=useState(''),[foto,setFoto]=useState<File|null>(null),[tope,setTope]=useState<number|null>(null);
+ // Cash cap of the store: what the drawer started with above it must be deposited in the bank before closing (private.caja_exceso_sin_consignar).
+ useEffect(()=>{let live=true;void supabase.rpc('caja_topes').then(({data})=>{const t=(data as Record<string,{tope_efectivo:number|null}>|null)?.[day.sede_id]?.tope_efectivo;if(live)setTope(t==null?null:Number(t));});return()=>{live=false;};},[day.sede_id]);
+ const consignado=day.movimientos.filter(m=>!m.anulado_at&&m.tipo==='egreso'&&m.categoria==='Consignación a banco').reduce((t,m)=>t+Number(m.valor),0);
+ // Same rule as the server: from the closings of 2026-11-21 on (older days closed late do not block).
+ const exceso=tope==null||day.fecha<='2026-11-21'?0:Math.max(0,Number(day.saldo_inicial)-tope-consignado);
  const faltan=[...DENOMINACIONES.map(String),'monedas'].filter(k=>(billetes[k]??'').trim()==='');
  const counted=faltan.length?null:DENOMINACIONES.reduce((t,d)=>t+d*(Number(billetes[String(d)])||0),0)+(Number(billetes.monedas)||0),diff=counted===null?null:cashDifference(counted,esperado);
  const submit=async(e:React.FormEvent)=>{
@@ -350,10 +356,15 @@ function CloseForm({day,esperado,pendingSupports,onDone}:{day:CashDay;esperado:n
   if(pendingSupports>0){setError(`Hay ${pendingSupports} ingreso(s) del día sin soporte. Adjunta el soporte para poder confirmar el cierre.`);return;}
   if(counted===null){setError('Escribe cuántos billetes hay de cada valor y el valor de las monedas (pon 0 donde no haya).');return;}
   if(diff!==0&&obs.trim().length<5){setError('Hay diferencia: explica el motivo en observaciones.');return;}
+  if(diff!==0&&!foto){setError('Hay diferencia: adjunta la foto de los billetes contados.');return;}
+  if(exceso>0){setError(`El cajón empezó con ${money(exceso)} más del tope: registra la «Consignación a banco» con su comprobante y luego cierra.`);return;}
   if(!window.confirm(`¿Cerrar la caja del ${day.fecha} con ${money(counted)} contados? Después no se podrán registrar ni anular movimientos de ese día.`))return;
   setSaving(true);
   const conteo:Record<string,number>={};for(const k of [...DENOMINACIONES.map(String),'monedas'])conteo[k]=Number(billetes[k])||0;
-  const {error:re}=await supabase.rpc('cerrar_caja_billetes',{p_sede:day.sede_id,p_fecha:day.fecha,p_billetes:conteo,p_observaciones:obs.trim()});
+  let fotoPath:string|null=null;
+  if(foto){try{if(foto.size>10*1024*1024)throw Error('La foto supera 10 MB.');fotoPath=cashReceiptPath(day.sede_id,day.fecha,`conteo-${crypto.randomUUID()}`,foto.type);
+   const {error:ue}=await supabase.storage.from('comprobantes_caja').upload(fotoPath,foto,{upsert:false});if(ue)throw Error('No se pudo subir la foto.');}catch(err){setSaving(false);setError(errorText(err,'No se pudo subir la foto.'));return;}}
+  const {error:re}=await supabase.rpc('cerrar_caja_billetes',{p_sede:day.sede_id,p_fecha:day.fecha,p_billetes:conteo,p_observaciones:obs.trim(),p_foto:fotoPath});
   setSaving(false);if(re)setError(re.message);else onDone('Caja cerrada. El efectivo contado es el saldo inicial del siguiente día.');
  };
  return <section id="paso-cerrar" className={styles.card} style={{scrollMarginTop:80}}><h2>Cerrar caja</h2><p>Cuenta el efectivo físico y compáralo con lo esperado.</p>
@@ -367,6 +378,8 @@ function CloseForm({day,esperado,pendingSupports,onDone}:{day:CashDay;esperado:n
     <p className={styles.help}>Efectivo contado: <strong>{counted===null?'— completa todas las casillas':money(counted)}</strong></p></div>
    {diff!==null&&<p className={styles.help}>Diferencia: <span className={`${styles.diff} ${diff<0?styles.out:diff>0?styles.in:''}`}>{money(diff)}</span>{diff===0?' · Cuadra':diff<0?' · Falta dinero':' · Sobra dinero'}</p>}
    <label>Observaciones{diff!==null&&diff!==0?' (obligatorias)':''}<textarea maxLength={1000} value={obs} onChange={e=>setObs(e.target.value)}/></label>
+   <label>Foto de los billetes contados{diff!==null&&diff!==0?' (obligatoria: hay diferencia)':' (opcional)'}<input type="file" accept="image/*,application/pdf" capture="environment" onChange={e=>setFoto(e.target.files?.[0]||null)}/></label>
+   {exceso>0&&<p className={styles.error}>El cajón empezó con {money(Number(day.saldo_inicial))}, más del tope de {money(tope||0)}. Antes de cerrar, consigna al banco al menos {money(exceso)} y regístralo como egreso «Consignación a banco» con su comprobante.</p>}
    {pendingSupports>0&&<p className={styles.error}>{pendingSupports} ingreso{pendingSupports===1?'':'s'} sin soporte. Adjunta el soporte para poder confirmar el cierre.</p>}
    {error&&<p role="alert" className={styles.error}>{error}</p>}
    <button className={`${styles.button} ${styles.primary}`} type="submit" disabled={pendingSupports>0}>{saving?'Cerrando…':'Cerrar caja del día'}</button>
