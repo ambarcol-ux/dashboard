@@ -38,6 +38,9 @@ export default function RegistrarPagoPage() {
   const [condonar, setCondonar] = useState<{ valor: string; motivo: string } | null>(null);
   const [condonando, setCondonando] = useState(false);
   useEffect(() => { void supabase.rpc('es_finanzas').then(({ data }) => setEsAdmin(data === true)); }, []);
+  // Stores with Siigo: the receipt number is the one Siigo gives (RC-…), not typed here.
+  const [siigoActivo, setSiigoActivo] = useState(false);
+  useEffect(() => { if (!contrato?.sede_id) return; let live = true; void supabase.rpc('siigo_sede_activa', { p_sede: contrato.sede_id }).then(({ data }) => { if (live) setSiigoActivo(!!(data as { activa?: boolean } | null)?.activa); }); return () => { live = false; }; }, [contrato?.sede_id]);
 
   const [formData, setFormData] = useState({
     valor_pagado: '',
@@ -152,7 +155,7 @@ export default function RegistrarPagoPage() {
         p_contrato: id,
         p_valor: montoAbono,
         p_medio: formData.medio_pago,
-        p_recibo: formData.numero_recibo,
+        p_recibo: siigoActivo ? '' : formData.numero_recibo,
         p_observaciones: formData.observaciones,
         p_soportes: soportes,
       });
@@ -163,7 +166,7 @@ export default function RegistrarPagoPage() {
       await supabase.from('bitacora_contratos').insert({
         contrato_id: id,
         accion: 'Abono Registrado',
-        detalle: `Se registró un abono de $${montoAbono.toLocaleString('es-CO')} con el recibo #${formData.numero_recibo}. Soporte adjunto (${soportes.length} archivo${soportes.length === 1 ? '' : 's'}).`,
+        detalle: `Se registró un abono de $${montoAbono.toLocaleString('es-CO')} ${siigoActivo ? 'con recibo de caja de Siigo (número automático)' : `con el recibo #${formData.numero_recibo}`}. Soporte adjunto (${soportes.length} archivo${soportes.length === 1 ? '' : 's'}).`,
         usuario: contrato.asesora || 'Administrador'
       });
 
@@ -363,7 +366,10 @@ export default function RegistrarPagoPage() {
                     </div>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div className="space-y-1">
+                      {siigoActivo ? <div className="space-y-1">
+                        <span className="text-sm font-medium text-gray-700">Número de Recibo de Caja</span>
+                        <p className="w-full bg-indigo-50 border border-indigo-100 text-indigo-800 rounded-xl px-4 py-3 text-sm font-semibold">Lo asigna Siigo automáticamente (RC-…) al registrar el abono.</p>
+                      </div> : <div className="space-y-1">
                         <label className="text-sm font-medium text-gray-700">Número de Recibo de Caja</label>
                         <div className="relative">
                           <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
@@ -379,7 +385,7 @@ export default function RegistrarPagoPage() {
                             required
                           />
                         </div>
-                      </div>
+                      </div>}
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-gray-700">Observaciones (Opcional)</label>
                         <textarea
