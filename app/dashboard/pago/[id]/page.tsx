@@ -454,8 +454,9 @@ export default function RegistrarPagoPage() {
                         <button type="button" className="float-right text-[11px] font-bold text-rose-600 underline" onClick={async () => {
                           const motivo = window.prompt('Motivo de la anulación (mínimo 10 caracteres):');
                           if (!motivo) return;
-                          const { error } = await supabase.rpc('anular_pago_contrato', { p_pago: pago.id, p_motivo: motivo });
-                          if (error) toast.error(error.message); else { toast.success('Pago anulado. El saldo se recalculó.'); fetchData(); }
+                          const { data: res, error } = await supabase.rpc('anular_pago_contrato', { p_pago: pago.id, p_motivo: motivo });
+                          // Only administración or contabilidad annul: anyone else sends a request that they approve.
+                          if (error) toast.error(error.message); else if ((res as { solicitud?: boolean; mensaje?: string } | null)?.solicitud) toast.success((res as { mensaje?: string }).mensaje || 'Solicitud enviada a administración.'); else { toast.success('Pago anulado. El saldo se recalculó.'); fetchData(); }
                         }}>Anular</button>
                       )}
                       <div className="flex justify-between items-start mb-2">
