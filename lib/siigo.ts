@@ -232,7 +232,14 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   if(resta>0)debitos.push({account:{code:k.anticipo,movement:'Debit'},customer:cust,description:desc,value:resta,due});
   const creditos:Value[]=[];
   if(valor>0)creditos.push({account:{code:cuentaCaja(c,String(d.medio||''),j.cuenta_id),movement:'Credit'},customer:cust,description:desc,value:valor});
-  if(retenido>0)creditos.push({account:{code:k.ingreso_danos||'41700502',movement:'Credit'},customer:cust,description:`Ingreso por daños ${d.motivo_descuento?`· ${d.motivo_descuento} `:''}${obs}`.slice(0,500),value:retenido});
+  if(retenido>0){
+   // Siigo asks for a product on an income account: the store's «arreglo» service/product (or the one set in Facturación por sede).
+   let prod=k.producto_danos||'';
+   if(!prod){const {data:cat}=await db.from('siigo_catalogos').select('datos').eq('sede_id',j.sede_id).eq('tipo','productos').maybeSingle();
+    prod=String((((cat?.datos||[]) as Value[]).find(x=>/arregl/i.test(String(x.name||'')))||{}).code||'');}
+   if(!prod)throw new SiigoError('Falta el producto de «Ingreso por daños» (arreglos) en Facturación por sede.');
+   creditos.push({account:{code:k.ingreso_danos||'41700502',movement:'Credit'},customer:cust,product:{code:prod,quantity:1},description:`Ingreso por daños ${d.motivo_descuento?`· ${d.motivo_descuento} `:''}${obs}`.slice(0,500),value:retenido});
+  }
   const r=await siigo(c,'/v1/journals',{method:'POST',body:{document:doc(c,'comprobante_devolucion','Devolución de depósitos'),date:fecha(d.fecha),observations:desc,items:[...debitos,...creditos]}});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
