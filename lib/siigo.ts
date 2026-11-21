@@ -283,8 +283,24 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   if(cr)cr.value=Math.round((cr.value+dif)*100)/100;else if(dif>0)payments.push({id:Number(credito),value:dif,due_date:fecha(inv.date)});
   if(!cr&&dif<0||cr&&cr.value<0)throw new SiigoError('La factura ya tiene pagos por más del nuevo valor: la contadora debe corregirla en Siigo.');
   const cust=(inv.customer||{}) as Value;
-  const r=await siigo(c,`/v1/invoices/${f.siigo_id}`,{method:'PUT',body:{document:{id:docId},date:fecha(inv.date),customer:{identification:cust.identification,branch_office:Number(cust.branch_office)||0},
-   ...(inv.seller?{seller:inv.seller}:{}),observations:String(inv.observations||obs).slice(0,4000),items,payments:payments.filter(p=>p.value>0)}});
+  let r:Value;
+  try{
+   r=await siigo(c,`/v1/invoices/${f.siigo_id}`,{method:'PUT',body:{document:{id:docId},date:fecha(inv.date),customer:{identification:cust.identification,branch_office:Number(cust.branch_office)||0},
+    ...(inv.seller?{seller:inv.seller}:{}),observations:String(inv.observations||obs).slice(0,4000),items,payments:payments.filter(p=>p.value>0)}});
+  }catch(e){
+   // Siigo does not edit an invoice that already has cash receipts crossed with it: the difference goes as an additional «factura de
+   // ingreso» (higher value) or a partial credit note (lower), and later payments are crossed with what is pending (recibo_caja).
+   if(!(e instanceof SiigoError)||!/update_not_allowed/.test(e.message))throw e;
+   const {data:orig}=await db.from('siigo_documentos').select('id').eq('tipo','factura').eq('siigo_id',f.siigo_id).limit(1).maybeSingle();
+   if(dif<0){
+    if(!orig)throw e;
+    await db.from('siigo_documentos').insert({sede_id:j.sede_id,contrato_id:j.contrato_id,factura_id:orig.id,tipo:'nota_credito',origen:'nota_credito',origen_id:crypto.randomUUID(),datos:{tipo:'parcial',valor:-dif,total_factura:Number(inv.total)||0,motivo:'Ajuste del valor del contrato',fecha:hoy(),numero_contrato:d.numero_contrato}});
+    return {siigoId:null,numero:`Nota crédito a ${f.numero} (la factura ya tiene recibos)`,respuesta:{con_recibos:true}};
+   }
+   await db.from('siigo_documentos').insert({sede_id:j.sede_id,contrato_id:j.contrato_id,tipo:'factura',origen:'ajuste',origen_id:crypto.randomUUID(),
+    datos:{fecha:hoy(),tipo_factura:'ingreso',tipo_venta:d.tipo_venta||'alquiler',numero_contrato:d.numero_contrato,adicional:true,valor:dif}});
+   return {siigoId:null,numero:`Factura adicional de ingreso (${f.numero} ya tiene recibos)`,respuesta:{con_recibos:true}};
+  }
   return {siigoId:String(r.id||f.siigo_id),numero:String(r.name||f.numero),respuesta:{...r,total:Number(r.total)||Number(inv.total)+dif,editada:true}};
  }
  if(j.tipo==='nota_credito'){
@@ -296,7 +312,7 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   // An electronic invoice takes the electronic credit note when the store has one configured.
   const elec=!!c.parametros.documentos?.nota_credito_electronica&&Number((fr.document as Value|undefined)?.id)===Number(c.parametros.documentos?.factura_electronica);
   const r=await siigo(c,'/v1/credit-notes',{method:'POST',body:{document:doc(c,elec?'nota_credito_electronica':'nota_credito',elec?'Nota crédito electrónica':'Nota crédito'),date:fecha(d.fecha),invoice:f.siigo_id,reason:parcial?'3':'2',
-   items:lines,payments:[{id:credito,value:lines.reduce((s,x)=>s+Number(x.price)*Number(x.quantity),0)}],observations:`${d.motivo} · ${obs}`.slice(0,500)}});
+   items:lines,payments:[{id:credito,value:lines.reduce((s,x)=>s+Number(x.price)*Number(x.quantity),0),due_date:fecha(d.fecha)}],observations:`${d.motivo} · ${obs}`.slice(0,500)}});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
  if(j.tipo==='gasto'||j.tipo==='soporte_gasto'||j.tipo==='soporte_producto'){
