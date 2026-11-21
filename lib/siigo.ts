@@ -213,6 +213,42 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
    items:[{account:{code:k.anticipo,movement:'Debit'},customer:cust,description:desc,value:valor,due},{account:{code:cuentaCaja(c,String(d.medio||''),j.cuenta_id),movement:'Credit'},customer:cust,description:desc,value:valor}]}});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
+ // Typing error in the contract value (private.siigo_ajuste_contrato): the same invoice is corrected. A «factura de ingreso» is edited in
+ // Siigo; an electronic one (DIAN) cannot be edited, so it gets a partial credit note (lower) or a total credit note plus a new invoice (higher).
+ if(j.tipo==='correccion_factura'){
+  const f=j.factura;if(!f||f.estado!=='enviado'||!f.siigo_id)throw new SiigoError('La factura a corregir no está en Siigo.');
+  const inv=await siigo(c,`/v1/invoices/${f.siigo_id}`) as Value,dif=Math.round(Number(d.valor)),docId=Number((inv.document as Value|undefined)?.id);
+  const ingreso=docId===Number(c.parametros.documentos?.factura_ingreso)&&docId!==Number(c.parametros.documentos?.factura_electronica);
+  if(!ingreso){
+   const {data:orig}=await db.from('siigo_documentos').select('id').eq('tipo','factura').eq('siigo_id',f.siigo_id).limit(1).maybeSingle();
+   if(!orig)throw new SiigoError('No se encontró la factura original en el ERP.');
+   const {data:prev}=await db.from('siigo_documentos').select('datos').eq('factura_id',orig.id).eq('tipo','nota_credito').neq('estado','anulado');
+   const base={sede_id:j.sede_id,contrato_id:j.contrato_id,factura_id:orig.id,origen:'nota_credito'};
+   const hoyB=hoy();
+   if(dif<0){
+    await db.from('siigo_documentos').insert({...base,tipo:'nota_credito',origen_id:crypto.randomUUID(),datos:{tipo:'parcial',valor:-dif,total_factura:Number(inv.total)||0,motivo:'Error de digitación en el valor',fecha:hoyB,numero_contrato:d.numero_contrato}});
+    return {siigoId:null,numero:`Nota crédito a ${f.numero}`,respuesta:{electronica:true}};
+   }
+   const total=(Number(inv.total)||0)-((prev||[]) as Value[]).reduce((s,x)=>s+Number((x.datos as Value)?.valor||0),0);
+   if(total>0)await db.from('siigo_documentos').insert({...base,tipo:'nota_credito',origen_id:crypto.randomUUID(),datos:{tipo:'total',valor:total,total_factura:total,motivo:'Error de digitación en el valor (se reemplaza la factura)',fecha:hoyB,numero_contrato:d.numero_contrato}});
+   await db.from('siigo_documentos').insert({sede_id:j.sede_id,contrato_id:j.contrato_id,tipo:'factura',origen:'ajuste',origen_id:crypto.randomUUID(),
+    datos:{fecha:hoyB,tipo_factura:'electronica',tipo_venta:d.tipo_venta||'alquiler',numero_contrato:d.numero_contrato,reemplaza:true}});
+   return {siigoId:null,numero:`Nota crédito y factura nueva (reemplaza ${f.numero})`,respuesta:{electronica:true}};
+  }
+  const items=((inv.items||[]) as Value[]).map(x=>({code:x.code,description:x.description,quantity:Number(x.quantity)||1,price:Number(x.price)||0,...(x.taxes?{taxes:x.taxes}:{})}));
+  if(!items.length)throw new SiigoError('La factura no tiene ítems en Siigo.');
+  items[0].price=Math.round((items[0].price+dif/items[0].quantity)*100)/100;
+  if(items[0].price<=0)throw new SiigoError('El nuevo valor deja la factura en cero o negativo: corrígela con nota crédito.');
+  const credito=c.parametros.formas_pago?.credito;if(!credito)throw new SiigoError('Falta la forma de pago «crédito / clientes nacionales» en Facturación por sede.');
+  const payments=((inv.payments||[]) as Value[]).map(p=>({id:Number(p.id),value:Number(p.value)||0,due_date:fecha(p.due_date||inv.date)}));
+  const cr=payments.find(p=>p.id===Number(credito));
+  if(cr)cr.value=Math.round((cr.value+dif)*100)/100;else if(dif>0)payments.push({id:Number(credito),value:dif,due_date:fecha(inv.date)});
+  if(!cr&&dif<0||cr&&cr.value<0)throw new SiigoError('La factura ya tiene pagos por más del nuevo valor: la contadora debe corregirla en Siigo.');
+  const cust=(inv.customer||{}) as Value;
+  const r=await siigo(c,`/v1/invoices/${f.siigo_id}`,{method:'PUT',body:{document:{id:docId},date:fecha(inv.date),customer:{identification:cust.identification,branch_office:Number(cust.branch_office)||0},
+   ...(inv.seller?{seller:inv.seller}:{}),observations:String(inv.observations||obs).slice(0,4000),items,payments:payments.filter(p=>p.value>0)}});
+  return {siigoId:String(r.id||f.siigo_id),numero:String(r.name||f.numero),respuesta:{...r,total:Number(r.total)||Number(inv.total)+dif,editada:true}};
+ }
  if(j.tipo==='nota_credito'){
   const f=j.factura;if(!f||f.estado!=='enviado'&&f.estado!=='anulado'||!f.siigo_id)throw new SiigoError('La factura original no está en Siigo.');
   const fr=(f.respuesta||{}) as Value,items=((fr.items||[]) as Value[]).map(x=>({code:x.code,description:x.description,quantity:Number(x.quantity)||1,price:Number(x.price)||0}));

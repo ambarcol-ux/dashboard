@@ -4,7 +4,7 @@ import {supabase} from '@/lib/supabase';
 
 type Doc={id:string;tipo:string;estado:string;numero:string|null;error:string|null;valor:string|null;fecha:string};
 type Info={configurada:boolean;activa:boolean;nota_credito:boolean;tipo_factura:string;tipo_venta:string;documentos:Doc[]}|null;
-const TIPO:Record<string,string>={factura:'Factura',recibo_caja:'Recibo de caja',anticipo:'Anticipo (depósito)',devolucion_anticipo:'Devolución de depósito',nota_credito:'Nota crédito'};
+const TIPO:Record<string,string>={factura:'Factura',recibo_caja:'Recibo de caja',anticipo:'Anticipo (depósito)',devolucion_anticipo:'Devolución de depósito',nota_credito:'Nota crédito',correccion_factura:'Corrección de factura'};
 const cop=(v:unknown)=>`$${Number(v||0).toLocaleString('es-CO')}`;
 
 /** Contract › payment page: its Siigo documents, invoice it (contracts from before the cut-over) and credit notes (administration/accounting). */
