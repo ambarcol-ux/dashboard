@@ -8,7 +8,7 @@ type Opt={id:number|string;nombre:string};
 type Cat={fv:Opt[];rc:Opt[];cc:Opt[];fc:Opt[];nc:Opt[];ds:Opt[];pagos:Opt[];pagos_rc:Opt[];vendedores:Opt[];grupos:Opt[];cuentas_erp:{id:string;nombre:string}[]};
 type P={envio_activo?:boolean;tipo_factura_defecto?:string;vendedor?:number;grupo_inventario?:number;documentos?:Record<string,number>;formas_pago?:Record<string,number>;cuentas?:Record<string,string>;socios?:Record<string,string>;tercero_defecto?:string};
 type Doc={id:string;tipo:string;estado:string;numero:string|null;error:string|null;valor:string|null;contrato:string|null;proveedor:string|null;fecha:string};
-const TIPO:Record<string,string>={comprobante:'Comprobante interno',factura:'Factura',recibo_caja:'Recibo de caja',anticipo:'Anticipo (depósito)',devolucion_anticipo:'Devolución de depósito',nota_credito:'Nota crédito',gasto:'Gasto',soporte_gasto:'Doc. soporte gasto',soporte_producto:'Doc. soporte vestidos'};
+const TIPO:Record<string,string>={comprobante:'Comprobante interno',factura:'Factura',recibo_caja:'Recibo de caja',anticipo:'Anticipo (depósito)',devolucion_anticipo:'Devolución de depósito',nota_credito:'Nota crédito',correccion_factura:'Corrección de factura',gasto:'Gasto',soporte_gasto:'Doc. soporte gasto',soporte_producto:'Doc. soporte vestidos'};
 const cop=(v:unknown)=>`$${Number(v||0).toLocaleString('es-CO')}`;
 const call=async(body:Record<string,unknown>)=>{const {data:{session}}=await supabase.auth.getSession();
  const r=await fetch('/api/siigo/admin',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session?.access_token||''}`},body:JSON.stringify(body)});

@@ -3,7 +3,7 @@ import {useEffect,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 
 type Estado={activa:boolean;pendientes:number;errores:number;enviados:number;detalle:{tipo:string;estado:string;error:string|null}[]};
-const TIPO:Record<string,string>={factura:'factura',recibo_caja:'recibo de caja',anticipo:'anticipo',devolucion_anticipo:'devolución de depósito',nota_credito:'nota crédito',gasto:'gasto',soporte_gasto:'documento soporte',soporte_producto:'documento soporte',comprobante:'comprobante'};
+const TIPO:Record<string,string>={factura:'factura',recibo_caja:'recibo de caja',anticipo:'anticipo',devolucion_anticipo:'devolución de depósito',nota_credito:'nota crédito',correccion_factura:'corrección de factura',gasto:'gasto',soporte_gasto:'documento soporte',soporte_producto:'documento soporte',comprobante:'comprobante'};
 
 /** Cierres de caja › one store and day: whether everything of that day already reached Siigo (only stores with «Enviar a Siigo» on). */
 export default function SiigoAlDia({sedeId,fecha}:{sedeId:string;fecha:string}){
