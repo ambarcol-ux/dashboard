@@ -74,6 +74,20 @@ async function ensureProduct(c:SiigoCred,db:SupabaseClient,v:Value,venta:boolean
  return code;
 }
 
+// Siigo product of a contract concept for this store: the one linked in Configuración, or one created here (code ERP###) and linked.
+async function ensureConcepto(c:SiigoCred,db:SupabaseClient,cp:Value){
+ const map=(cp.siigo_productos||{}) as Record<string,string>;if(map[c.sede_id])return map[c.sede_id];
+ const code=`ERP${String(cp.codigo).padStart(3,'0')}`;
+ const found=await siigo(c,`/v1/products?code=${encodeURIComponent(code)}`);
+ if(!(found.results||[]).length){
+  if(!c.parametros.grupo_inventario)throw new SiigoError('Falta elegir el grupo de inventario de Siigo en Facturación por sede.');
+  await siigo(c,'/v1/products',{method:'POST',body:{code,name:String(cp.nombre).toUpperCase().slice(0,100),account_group:c.parametros.grupo_inventario,type:'Service',stock_control:false,tax_classification:'Excluded'}});
+ }
+ const {data:act}=await db.from('conceptos_contrato').select('siigo_productos').eq('id',cp.id).maybeSingle();
+ await db.from('conceptos_contrato').update({siigo_productos:{...((act?.siigo_productos||{}) as Record<string,string>),[c.sede_id]:code},updated_at:new Date().toISOString()}).eq('id',cp.id);
+ return code;
+}
+
 const formaPago=(c:SiigoCred,medio:string,cuenta:string|null)=>{
  const f=c.parametros.formas_pago||{};
  const id=(cuenta&&f[`cuenta:${cuenta}`])||(/efectivo/i.test(medio)?f.efectivo:f.transferencia)||f.transferencia||f.efectivo;
@@ -118,14 +132,23 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
  if(j.tipo==='factura'){
   const k=j.contrato!,cli=j.cliente!,venta=d.tipo_venta==='venta';
   // A draft with no money is not invoiced yet (it may expire): the invoice goes when it is signed or receives its first payment.
-  const {data:est}=await db.from('contratos').select('estado,anticipo').eq('id',j.contrato_id).maybeSingle();
+  const {data:est}=await db.from('contratos').select('estado,anticipo,tipo_evento,created_at').eq('id',j.contrato_id).maybeSingle();
   if(est&&String(est.estado||'').toLowerCase()==='borrador'&&!(Number(est.anticipo)>0))return {siigoId:null,numero:null,respuesta:{},esperar:true,mensaje:'Esperando la firma o el primer abono del contrato.'};
+  // The contract's concepts are saved right after the contract: a contract just created waits a moment so its invoice includes them.
+  if(est?.created_at&&Date.now()-Date.parse(String(est.created_at))<120000)return {siigoId:null,numero:null,respuesta:{},esperar:true,mensaje:'Esperando que se guarden los conceptos del contrato.'};
   const id=await ensureThird(c,cli as never,'Customer');
-  const base=Math.max(0,Number(k.valor_total)-Number(k.descuento)),vs=(k.vestidos||[]) as Value[];
-  if(!vs.length)throw new SiigoError('El contrato no tiene vestidos con código de inventario.');
-  const items:Value[]=[];let resto=base;
-  for(const [i,v] of vs.entries()){const precio=i===vs.length-1?resto:Math.floor(base/vs.length);resto-=precio;
-   items.push({code:await ensureProduct(c,db,v,venta),description:`${v.codigo} ${v.nombre||''}${v.talla?` talla ${v.talla}`:''} · contrato ${k.numero}`.slice(0,500),quantity:1,price:precio});}
+  const vs=(k.vestidos||[]) as Value[];
+  // Concepts of the contract (Pre XV, laundry, bows…): one line each with its Siigo product; the dresses take the rest of the value.
+  const {data:lin}=await db.from('contrato_conceptos').select('descripcion,cantidad,valor_unitario,concepto:conceptos_contrato(id,codigo,nombre,siigo_productos)').eq('contrato_id',j.contrato_id).order('created_at');
+  const conceptos=((lin||[]) as Value[]).filter(x=>Number(x.valor_unitario)*Number(x.cantidad)>0);
+  const extras=conceptos.reduce((t,x)=>t+Number(x.valor_unitario)*Number(x.cantidad),0);
+  const base=Math.max(0,Number(k.valor_total)-Number(k.descuento)-extras);
+  if(!vs.length&&!conceptos.length)throw new SiigoError('El contrato no tiene vestidos con código de inventario.');
+  const items:Value[]=[];let resto=base;const uso=String(est?.tipo_evento||'')==='PreXV'?'Alquiler Pre XV':'Alquiler';
+  if(base>0||!conceptos.length)for(const [i,v] of vs.entries()){const precio=i===vs.length-1?resto:Math.floor(base/vs.length);resto-=precio;
+   items.push({code:await ensureProduct(c,db,v,venta),description:`${uso} · ${v.codigo} ${v.nombre||''}${v.talla?` talla ${v.talla}`:''} · contrato ${k.numero}`.slice(0,500),quantity:1,price:precio});}
+  for(const x of conceptos){const cp=x.concepto as Value;
+   items.push({code:await ensureConcepto(c,db,cp),description:`${cp.nombre}${x.descripcion?` · ${x.descripcion}`:''} · contrato ${k.numero}`.slice(0,500),quantity:Number(x.cantidad),price:Number(x.valor_unitario)});}
   if(Number(k.total_arreglos)>0)items.push({code:items[0].code,description:`Arreglos contrato ${k.numero}`,quantity:1,price:Number(k.total_arreglos)});
   // Contract edited to a higher value after it was invoiced: an additional invoice only for the difference (private.siigo_ajuste_contrato).
   if(d.adicional)items.splice(0,items.length,{code:items[0].code,description:`Mayor valor del contrato ${k.numero} (ajuste)`,quantity:1,price:Number(d.valor)});
