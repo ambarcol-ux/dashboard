@@ -144,7 +144,8 @@ export function confirmationPayload(c:NotificationVisit,siteName:string,lang='es
  const values=c.modalidad==='virtual'
   ?[c.cliente_nombre,visitDate(c.fecha),visitTime(c.hora),site.nombre,site.telefono,`https://wa.me/${site.whatsapp}`]
   :[c.cliente_nombre,site.nombre,visitDate(c.fecha),visitTime(c.hora),site.parqueadero?`${site.direccion} · ${site.parqueadero}`:site.direccion,site.mapa,site.nombre,site.telefono,`https://wa.me/${site.whatsapp}`];
- const name=(c.modalidad==='virtual'?CONFIRMATION_TEMPLATES.virtual:CONFIRMATION_TEMPLATES.presencial)+(v2?'_v2':'');
+ // Virtual visits are a WhatsApp video call from the advisor (no link): its detailed confirmation is _v3.
+ const name=(c.modalidad==='virtual'?CONFIRMATION_TEMPLATES.virtual:CONFIRMATION_TEMPLATES.presencial)+(v2?(c.modalidad==='virtual'?'_v3':'_v2'):'');
  return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),type:'template',template:{name,language:{code:lang},components:[{type:'body',parameters:values.map(text=>({type:'text',text}))},
   ...(v2?['cf_confirmo','cf_cambiar'].map((payload,i)=>({type:'button',sub_type:'quick_reply',index:String(i),parameters:[{type:'payload',payload}]})):[])]}};
 }

@@ -27,6 +27,7 @@ import {CLASSIFICATION_STYLES, UNCLASSIFIED_STYLE, type DressClassification} fro
 import DressSaleDialog from '@/components/DressSaleDialog';
 import VestidoHistorial from '@/components/arreglos/VestidoHistorial';
 import ArregloFotos from '@/components/arreglos/ArregloFotos';
+import EstiloVestido, { estiloDe, estiloFalta, estiloVacio, type Estilo } from '@/components/EstiloVestido';
 
 // Pesos colombianos with thousands separator in price inputs (3.500.000); only digits are saved.
 const soloDigitos = (t: string) => t.replace(/\D/g, '');
@@ -59,7 +60,8 @@ export default function InventoryPage() {
     costo_compra: '',
     sede_actual_id: '',
     para_alquiler: true,
-    para_venta: false
+    para_venta: false,
+    estilo: estiloVacio() as Estilo
   });
   const [clasificaciones, setClasificaciones] = useState<DressClassification[]>([]);
   const [clasificacionFilter, setClasificacionFilter] = useState<string>(''); // '' todas, 'none' sin clasificar, o id
@@ -166,6 +168,7 @@ export default function InventoryPage() {
         precio_sugerido: newDress.precio ? Number(newDress.precio) : null,
         precio_venta: newDress.precio_venta ? Number(newDress.precio_venta) : null,
         costo_compra: newDress.costo_compra ? Number(newDress.costo_compra) : null,
+        silueta: newDress.estilo.silueta, corpino: newDress.estilo.corpino, escote: newDress.estilo.escote, mangas: newDress.estilo.mangas, detalles: newDress.estilo.detalles,
         para_alquiler: newDress.para_alquiler,
         para_venta: newDress.para_venta,
         clasificacion_id: Number(newDress.clasificacion_id),
@@ -210,7 +213,8 @@ export default function InventoryPage() {
         costo_compra: '',
         sede_actual_id: '',
         para_alquiler: true,
-        para_venta: false
+        para_venta: false,
+        estilo: estiloVacio()
       });
       loadData();
     } catch (err: any) {
@@ -276,7 +280,7 @@ export default function InventoryPage() {
     try {
       const { data, error } = await supabase
         .from('vestidos')
-        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, costo_compra, para_alquiler, para_venta, stock_total, clasificacion_id, categoria, archivado, archivado_at, motivo_archivo, qr_token, imagen_url, foto_frente, foto_espalda, foto_detalle')
+        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, costo_compra, para_alquiler, para_venta, stock_total, clasificacion_id, categoria, archivado, archivado_at, motivo_archivo, qr_token, imagen_url, foto_frente, foto_espalda, foto_detalle, silueta, corpino, escote, mangas, detalles')
         .order('codigo', { ascending: true });
       
       if (error) {
@@ -553,6 +557,7 @@ export default function InventoryPage() {
     if (!sedeExiste(v.sede_actual_id)) n.push('Sin sede');
     if (!String(v.talla || '').trim()) n.push('Sin talla');
     if (!String(v.color || '').trim()) n.push('Sin color');
+    if (!(v as {silueta?: unknown}).silueta) n.push('Sin estilo');
     if (!String(v.nombre || '').trim()) n.push('Sin nombre');
     if (!(Number(v.precio_sugerido) > 0)) n.push('Sin precio de alquiler');
     if (v.precio_venta == null) n.push('Sin precio de venta');
@@ -707,7 +712,7 @@ export default function InventoryPage() {
             >
               <option value="">⚠️ Novedades: todas</option>
               <option value="any">Con alguna novedad</option>
-              {['Sin clasificación','Código inválido','Sin sede','Sin talla','Sin color','Sin nombre','Sin precio de alquiler','Sin precio de venta','Sin fotos','Faltan fotos'].map(n => <option key={n} value={n}>{n}</option>)}
+              {['Sin clasificación','Código inválido','Sin sede','Sin talla','Sin color','Sin estilo','Sin nombre','Sin precio de alquiler','Sin precio de venta','Sin fotos','Faltan fotos'].map(n => <option key={n} value={n}>{n}</option>)}
             </select>
           </div>}
           <div className="w-full md:w-auto">
@@ -867,6 +872,7 @@ export default function InventoryPage() {
                       onChange={(e) => setNewDress({...newDress, color: e.target.value})}
                     />
                   </div>
+                  <EstiloVestido value={newDress.estilo} onChange={estilo => setNewDress({...newDress, estilo})} input="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none" label="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1" />
                   <div className="space-y-1 col-span-full">
                     <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Disponible para *</span>
                     <div className="flex gap-4 px-1 py-2 text-sm font-bold text-gray-700">
@@ -1642,7 +1648,7 @@ export default function InventoryPage() {
 function cleanDressCode(v: string) { return v.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 20); }
 /** Required fields of a new dress, in the form order. */
 /** What is wrong in a dress form, each with what to fix. New dresses also need the 3 photos. */
-function dressMissing(d: { codigo: string; clasificacion_id: string; nombre: string; talla: string; color: string; precio: string; sede_actual_id: string; precio_venta?: string; para_alquiler?: boolean; para_venta?: boolean }, fotos?: Partial<Record<string, File>>) {
+function dressMissing(d: { codigo: string; clasificacion_id: string; nombre: string; talla: string; color: string; precio: string; sede_actual_id: string; precio_venta?: string; para_alquiler?: boolean; para_venta?: boolean; estilo?: Estilo }, fotos?: Partial<Record<string, File>>) {
   const alquiler = d.para_alquiler !== false, venta = !!d.para_venta, out: string[] = [];
   if (d.codigo.length < 2) out.push('Código: escribe la referencia del vestido (mínimo 2 caracteres, ej.: CD384A).');
   else if (!/^[A-Z0-9][A-Z0-9-]{1,19}$/.test(d.codigo)) out.push('Código: debe empezar por letra o número y tener solo letras, números o guiones, sin espacios (máximo 20).');
@@ -1654,6 +1660,7 @@ function dressMissing(d: { codigo: string; clasificacion_id: string; nombre: str
   if (alquiler && !(Number(d.precio) > 0)) out.push('Precio de alquiler: escribe un valor mayor a 0.');
   if (venta && !(Number(d.precio_venta) > 0)) out.push('Precio de venta: escribe un valor mayor a 0 (está marcado para venta).');
   if (!d.sede_actual_id) out.push('Sede base: elige la sede donde queda el vestido.');
+  if (d.estilo) out.push(...estiloFalta(d.estilo));
   if (fotos) { const f = PHOTO_SLOTS.filter(([k]) => !fotos[k]).map(([, l]) => l); if (f.length) out.push(`Fotos: falta${f.length > 1 ? 'n' : ''} ${f.join(', ')}. Sube las 3 (frente, espalda y detalle).`); }
   return out;
 }
@@ -1674,7 +1681,7 @@ function FixList({ items }: { items: string[] }) {
 type EditableDress = { id: number; codigo: string; nombre: string | null; clasificacion_id: number | null; talla: string | null; color: string | null; precio_sugerido: number | null; precio_venta?: number | null; para_alquiler?: boolean | null; para_venta?: boolean | null };
 /** Edit every data field of an existing dress (same rules as a new one; sede and estado keep their own flows). */
 function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: EditableDress; clasificaciones: { id: number; nombre: string; activo: boolean }[]; onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState({ codigo: dress.codigo.trim(), clasificacion_id: dress.clasificacion_id ? String(dress.clasificacion_id) : '', nombre: dress.nombre || '', talla: dress.talla || '', color: dress.color || '', precio: dress.precio_sugerido ? String(dress.precio_sugerido) : '', precio_venta: dress.precio_venta ? String(dress.precio_venta) : '', sede_actual_id: 'x', para_alquiler: dress.para_alquiler !== false, para_venta: !!dress.para_venta });
+  const [f, setF] = useState({ codigo: dress.codigo.trim(), clasificacion_id: dress.clasificacion_id ? String(dress.clasificacion_id) : '', nombre: dress.nombre || '', talla: dress.talla || '', color: dress.color || '', precio: dress.precio_sugerido ? String(dress.precio_sugerido) : '', precio_venta: dress.precio_venta ? String(dress.precio_venta) : '', sede_actual_id: 'x', para_alquiler: dress.para_alquiler !== false, para_venta: !!dress.para_venta , estilo: estiloDe(dress as never) });
   const [saving, setSaving] = useState(false);
   // An old code with a format no longer allowed does not block editing other data (only a new code must follow the rule).
   const faltan = dressMissing(f).filter(m => !(m.startsWith('Código: debe') && f.codigo === dress.codigo.trim()));
@@ -1692,6 +1699,8 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
     if (f.para_alquiler !== (dress.para_alquiler !== false)) changes.para_alquiler = f.para_alquiler;
     if (f.para_venta !== !!dress.para_venta) changes.para_venta = f.para_venta;
     if ((f.precio_venta ? Number(f.precio_venta) : null) !== (dress.precio_venta ?? null)) changes.precio_venta = f.precio_venta ? Number(f.precio_venta) : null;
+    { const o = estiloDe(dress as never); for (const k of ['silueta', 'corpino', 'escote', 'mangas'] as const) if (f.estilo[k] !== o[k]) changes[k] = f.estilo[k];
+      if (f.estilo.detalles.join('|') !== o.detalles.join('|')) changes.detalles = f.estilo.detalles; }
     if (!Object.keys(changes).length) { setSaving(false); onClose(); return; }
     const { error } = await supabase.from('vestidos').update(changes).eq('id', dress.id);
     setSaving(false);
@@ -1712,6 +1721,7 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
       <div className="grid grid-cols-3 gap-4">
         <label className={label}>4. Talla *<input className={input} value={f.talla} onChange={(e) => setF({ ...f, talla: e.target.value.toUpperCase() })} /></label>
         <label className={label}>5. Color *<input className={input} value={f.color} onChange={(e) => setF({ ...f, color: e.target.value.toUpperCase() })} /></label>
+        <EstiloVestido value={f.estilo} onChange={estilo => setF({ ...f, estilo })} input={input} label={label} />
         <div className={`${label} col-span-3`}>Disponible para *<div className="flex gap-4 py-2 text-sm font-bold text-gray-700 normal-case tracking-normal"><label className="flex items-center gap-2"><input type="checkbox" checked={f.para_alquiler} onChange={(e) => setF({ ...f, para_alquiler: e.target.checked })} /> Alquiler</label><label className="flex items-center gap-2"><input type="checkbox" checked={f.para_venta} onChange={(e) => setF({ ...f, para_venta: e.target.checked })} /> Venta</label></div></div>
         <label className={label}>6. Precio de alquiler {f.para_alquiler ? '*' : '(opcional)'}<input type="text" inputMode="numeric" className={input} value={miles(f.precio)} onChange={(e) => setF({ ...f, precio: soloDigitos(e.target.value) })} /></label>
         <label className={label}>Precio de venta {f.para_venta ? '*' : 'sugerido'}<input type="text" inputMode="numeric" placeholder="Opcional" className={input} value={miles(f.precio_venta)} onChange={(e) => setF({ ...f, precio_venta: soloDigitos(e.target.value) })} /></label>

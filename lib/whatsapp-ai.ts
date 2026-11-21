@@ -10,6 +10,7 @@ import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatF
 import {marcarCanal} from './event-channel';
 import {documentsForAI} from './doc-ia';
 import {inventoryCandidates} from './dress-photo-match';
+import {estiloTexto} from './dress-style';
 import {planEnrollToken} from './plan-ahorro-contrato';
 import {enviarHorarios} from './whatsapp-booking';
 import {aiClient} from './ai-usage';
@@ -156,7 +157,7 @@ const ventaTxt=(d:CatalogDress&{precio_venta?:number|null})=>Number(d.precio_ven
 export async function loadCatalogLinks(db:SupabaseClient){
  const origin=(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'');
  const [{data:dresses},{data:sites},{data:types}]=await Promise.all([
-  db.from('vestidos').select('codigo,categoria,talla,color,sede_actual_id,clasificacion_id,foto_frente,foto_espalda,foto_detalle,imagen_url,precio_sugerido,precio_venta,para_alquiler,estado').eq('archivado',false).order('precio_sugerido'),
+  db.from('vestidos').select('codigo,categoria,talla,color,sede_actual_id,clasificacion_id,foto_frente,foto_espalda,foto_detalle,imagen_url,precio_sugerido,precio_venta,para_alquiler,estado,silueta,corpino,escote,mangas,detalles').eq('archivado',false).order('precio_sugerido'),
   db.from('sedes').select('id,nombre').eq('activo',true).order('nombre'),
   db.from('clasificaciones_vestido').select('id,nombre').eq('activo',true).order('nombre'),
  ]);
@@ -184,8 +185,8 @@ export async function loadCatalogLinks(db:SupabaseClient){
  const inv=((dresses||[]) as (CatalogDress&{codigo:string;categoria:string|null;talla:string|null;color:string|null;sede_actual_id:string|null;clasificacion_id:number|null})[]).filter(d=>d.sede_actual_id&&isPublicCatalogDress(d));
  for(const s of (sites||[]) as {id:string;nombre:string}[]){
   const del=inv.filter(d=>d.sede_actual_id===s.id);if(!del.length)continue;
-  lines.push(`\nInventario visible en ${s.nombre} (código · tipo · categoría · talla · color · alquiler · venta; 📷 = tiene foto):`);
-  for(const d of del)lines.push(`${String(d.codigo).trim()} · ${tipoNombre.get(d.clasificacion_id!)||'—'} · ${d.categoria||'—'} · ${d.talla||'—'} · ${d.color||'—'} · $${Number(d.precio_sugerido).toLocaleString('es-CO')} · ${ventaTxt(d)}${dressPhoto(d)?' 📷':''}`);
+  lines.push(`\nInventario visible en ${s.nombre} (código · tipo · categoría · talla · color · estilo [silueta, corpiño, escote, mangas, detalles] · alquiler · venta; 📷 = tiene foto):`);
+  for(const d of del)lines.push(`${String(d.codigo).trim()} · ${tipoNombre.get(d.clasificacion_id!)||'—'} · ${d.categoria||'—'} · ${d.talla||'—'} · ${d.color||'—'} · ${estiloTexto(d as never)||'estilo sin registrar'} · $${Number(d.precio_sugerido).toLocaleString('es-CO')} · ${ventaTxt(d)}${dressPhoto(d)?' 📷':''}`);
  }
  return lines.join('\n');
 }
