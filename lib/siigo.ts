@@ -222,8 +222,18 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
    if(vs[0])rc={name:String(vs[0].name),date:String(vs[0].date)};}
   const due=rc&&split(rc.name)?{...split(rc.name),quote:1,date:fecha(rc.date)}:null;
   if(!due)throw new SiigoError('No encontré en Siigo el recibo de anticipo (depósito) de esta clienta para cruzar la devolución.');
-  const r=await siigo(c,'/v1/journals',{method:'POST',body:{document:doc(c,'comprobante_devolucion','Devolución de depósitos'),date:fecha(d.fecha),observations:desc,
-   items:[{account:{code:k.anticipo,movement:'Debit'},customer:cust,description:desc,value:valor,due},{account:{code:cuentaCaja(c,String(d.medio||''),j.cuenta_id),movement:'Credit'},customer:cust,description:desc,value:valor}]}});
+  // Deposit paid in parts: each advance receipt of the contract is crossed with its share (oldest first). Retained amount for damages or
+  // missing items goes in the same voucher to «Ingreso por daños» (account in Facturación por sede, by default 41700502).
+  const retenido=Number(d.descuento)||0,total=valor+retenido;
+  const {data:ants}=await db.from('siigo_documentos').select('siigo_numero,respuesta,datos').eq('contrato_id',j.contrato_id).eq('tipo','anticipo').eq('estado','enviado').order('created_at');
+  const debitos:Value[]=[];let resta=total;
+  for(const a of (ants||[]) as Value[]){const s=split(String(a.siigo_numero||''));const v=Math.min(resta,Number((a.datos as Value)?.valor)||0);if(!s||v<=0)continue;
+   debitos.push({account:{code:k.anticipo,movement:'Debit'},customer:cust,description:desc,value:v,due:{...s,quote:1,date:fecha((a.respuesta as Value|null)?.date||(a.datos as Value)?.fecha)}});resta=Math.round((resta-v)*100)/100;}
+  if(resta>0)debitos.push({account:{code:k.anticipo,movement:'Debit'},customer:cust,description:desc,value:resta,due});
+  const creditos:Value[]=[];
+  if(valor>0)creditos.push({account:{code:cuentaCaja(c,String(d.medio||''),j.cuenta_id),movement:'Credit'},customer:cust,description:desc,value:valor});
+  if(retenido>0)creditos.push({account:{code:k.ingreso_danos||'41700502',movement:'Credit'},customer:cust,description:`Ingreso por daños ${d.motivo_descuento?`· ${d.motivo_descuento} `:''}${obs}`.slice(0,500),value:retenido});
+  const r=await siigo(c,'/v1/journals',{method:'POST',body:{document:doc(c,'comprobante_devolucion','Devolución de depósitos'),date:fecha(d.fecha),observations:desc,items:[...debitos,...creditos]}});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
  // Contract value adjusted (private.siigo_ajuste_contrato): the same invoice is corrected. A «factura de ingreso» is edited in
