@@ -186,8 +186,21 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   const due=split(f.numero);if(!due)throw new SiigoError(`No se reconoce el número de factura ${f.numero}.`);
   const idCli=String((j.cliente||{}).documento||'').replace(/\D/g,'')||String((f.respuesta?.customer as Value)?.identification||'');
   const valor=Number(d.valor),medio=String(d.medio||'');
+  // The payment is crossed with what is really pending in Siigo: the contract's invoices are read live (balance) and the payment goes
+  // to the one queued first, then to the others with balance (an additional invoice, a replacement…), split if it covers several.
+  let items:Value[]=[{due:{...due,quote:1,date:fecha(f.respuesta?.date||f.datos?.fecha)},value:valor}];
+  if(j.contrato_id){
+   const {data:fs}=await db.from('siigo_documentos').select('siigo_id,siigo_numero,created_at').eq('contrato_id',j.contrato_id).eq('tipo','factura').eq('estado','enviado').order('created_at');
+   const lista=((fs||[]) as Value[]).filter(x=>x.siigo_id).sort((a,b)=>(b.siigo_numero===f.numero?1:0)-(a.siigo_numero===f.numero?1:0));
+   const vivas:{name:string;date:string;balance:number}[]=[];
+   for(const x of lista){try{const v=await siigo(c,`/v1/invoices/${x.siigo_id}`) as Value;vivas.push({name:String(v.name||x.siigo_numero),date:String(v.date||''),balance:Number(v.balance)||0});}catch{/* annulled or not readable: skip */}}
+   let resta=valor;const rep:Value[]=[];
+   for(const v of vivas){if(resta<=0)break;const s=split(v.name);if(!s||v.balance<=0)continue;const parte=Math.min(resta,v.balance);rep.push({due:{...s,quote:1,date:fecha(v.date)},value:parte});resta=Math.round((resta-parte)*100)/100;}
+   if(rep.length&&resta<=0)items=rep;
+   else if(vivas.length&&resta>0)throw new SiigoError(`El abono ($${valor.toLocaleString('es-CO')}) supera lo pendiente en las facturas de Siigo del contrato: revisa si ya estaba pagado.`);
+  }
   const r=await siigo(c,'/v1/vouchers',{method:'POST',body:{document:doc(c,'recibo_caja','Recibo de caja'),date:fecha(d.fecha),type:'DebtPayment',customer:{identification:idCli,branch_office:0},
-   items:[{due:{...due,quote:1,date:fecha(f.respuesta?.date||f.datos?.fecha)},value:valor}],payment:{id:formaPago(c,medio,j.cuenta_id),value:valor},observations:`Abono ${obs}${d.recibo?` · recibo ${d.recibo}`:''}`}});
+   items,payment:{id:formaPago(c,medio,j.cuenta_id),value:valor},observations:`Abono ${obs}${d.recibo?` · recibo ${d.recibo}`:''}`}});
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
  if(j.tipo==='anticipo'){
@@ -251,7 +264,18 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   }
   const items=((inv.items||[]) as Value[]).map(x=>({code:x.code,description:x.description,quantity:Number(x.quantity)||1,price:Number(x.price)||0,...(x.taxes?{taxes:x.taxes}:{})}));
   if(!items.length)throw new SiigoError('La factura no tiene ítems en Siigo.');
-  items[0].price=Math.round((items[0].price+dif/items[0].quantity)*100)/100;
+  // Concepts added to the contract (laundry, bows…) go as their own line with their Siigo product; only the rest adjusts the dress line.
+  const meta=Math.round(((Number(inv.total)||items.reduce((s,x)=>s+x.price*x.quantity,0))+dif)*100)/100;
+  if(dif>0&&j.contrato_id){
+   const {data:lin}=await db.from('contrato_conceptos').select('descripcion,cantidad,valor_unitario,concepto:conceptos_contrato(id,codigo,nombre,siigo_productos)').eq('contrato_id',j.contrato_id).order('created_at');
+   for(const x of ((lin||[]) as Value[]).filter(x=>Number(x.valor_unitario)*Number(x.cantidad)>0)){
+    const cp=x.concepto as Value,code=await ensureConcepto(c,db,cp);
+    if(items.some(it=>String(it.code)===String(code)))continue;
+    items.push({code,description:`${cp.nombre}${x.descripcion?` · ${x.descripcion}`:''} · contrato ${d.numero_contrato||''}`.slice(0,500),quantity:Number(x.cantidad),price:Number(x.valor_unitario)});
+   }
+  }
+  const resto=Math.round((meta-items.reduce((s,x)=>s+x.price*x.quantity,0))*100)/100;
+  items[0].price=Math.round((items[0].price+resto/items[0].quantity)*100)/100;
   if(items[0].price<=0)throw new SiigoError('El nuevo valor deja la factura en cero o negativo: corrígela con nota crédito.');
   const credito=c.parametros.formas_pago?.credito;if(!credito)throw new SiigoError('Falta la forma de pago «crédito / clientes nacionales» en Facturación por sede.');
   const payments=((inv.payments||[]) as Value[]).map(p=>({id:Number(p.id),value:Number(p.value)||0,due_date:fecha(p.due_date||inv.date)}));
