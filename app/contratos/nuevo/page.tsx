@@ -2479,7 +2479,7 @@ export default function NuevoContratoPage() {
                         {Number(formData.valor_deposito) !== depositoSugerido && <button type="button" onClick={() => setFormData(prev => ({ ...prev, valor_deposito: String(depositoSugerido) }))} className="px-3 py-1 rounded-lg bg-emerald-600 text-white font-bold text-xs">Usar este valor</button>}
                       </div>
                     )}
-                    <p className="text-sm text-emerald-700">Registra el valor del depósito (ya recibido o a pagar el día de la entrega). No se suma al alquiler ni al abono. Adjunta su comprobante en Depósitos y devoluciones, sin registrar nuevamente el ingreso.</p>
+                    <p className="text-sm text-emerald-700">Registra el valor PACTADO del depósito. No se suma al alquiler ni al abono. Cuando la clienta lo pague (completo o por partes), regístralo en Depósitos › «Pago de depósito»: ahí se genera su recibo en Siigo. El vestido solo se entrega con el depósito pagado.</p>
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm font-semibold text-gray-700">¿Cómo pagó el depósito?{Number(formData.valor_deposito || 0) > 0 && !isEditMode ? ' *' : ''}</label>

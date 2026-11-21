@@ -1,5 +1,6 @@
 'use client';
 import ConfigSelect from '@/components/ConfigSelect';
+import DepositAccountSelect from '@/components/DepositAccountSelect';
 import {useState,useRef,useEffect} from 'react';
 import writeXlsxFile from 'write-excel-file';
 import {supabase} from '@/lib/supabase';
@@ -9,6 +10,7 @@ import {can,usePermissions} from '@/lib/use-permissions';
 import {ACCOUNT_TYPES,accountError,accountPlaceholder,canPay,cleanAccount,isKeyType,isPending,requestLabels,type DepositRequest,type RequestEvent} from '@/lib/deposit-requests';
 import styles from '@/app/dashboard/devoluciones-depositos/deposits.module.css';
 export default function DepositRequests({requests,events,contracts,profile,onChange,openReceipt,canExport=false}:{requests:DepositRequest[];events:RequestEvent[];contracts:DepositContract[];profile:{id:string;rol:string};onChange:()=>Promise<unknown>;openReceipt:(path:string|null,url:string|null)=>Promise<void>;canExport?:boolean}){
+ const [cuentaPago,setCuentaPago]=useState('');
  const [filter,setFilter]=useState('pendientes'),[query,setQuery]=useState(''),[site,setSite]=useState(''),[selected,setSelected]=useState<string|null>(null),[error,setError]=useState(''),[saving,setSaving]=useState(false),[file,setFile]=useState<File|null>(null),[date,setDate]=useState(bogotaDay(new Date().toISOString())!),[reason,setReason]=useState(''),[editing,setEditing]=useState(false),[bank,setBank]=useState(''),[accountType,setAccountType]=useState(''),[account,setAccount]=useState(''),[holder,setHolder]=useState(''),[holderId,setHolderId]=useState('');const perms=usePermissions(profile.id),[notes,setNotes]=useState('');
  const busy=useRef(false),uploaded=useRef<{id:string;path:string}|null>(null);
  const visibleRequests=requests;
@@ -44,7 +46,7 @@ export default function DepositRequests({requests,events,contracts,profile,onCha
    if(action==='pagar'){
     if(!path){if(!file)throw Error('Adjunta el comprobante de salida.');if(file.size>10485760||!['application/pdf','image/jpeg','image/png','image/webp'].includes(file.type))throw Error('Usa un PDF o imagen de hasta 10 MB.');path=`${r.contrato_id}/${r.id}/salida-${crypto.randomUUID()}`;const {error}=await supabase.storage.from('comprobantes_depositos').upload(path,file);if(error)throw Error('No se pudo subir el comprobante.');uploaded.current={id:r.id,path};}
    }
-   const {error}=await supabase.rpc('gestionar_deposito',{p_accion:action,p_datos:{id:r.id,fecha:date,comprobante_path:path,motivo:reason}});if(error)throw Error(error.message);
+   const {error}=await supabase.rpc('gestionar_deposito',{p_accion:action,p_datos:{id:r.id,fecha:date,comprobante_path:path,motivo:reason,cuenta_id:cuentaPago||null}});if(error)throw Error(error.message);
    await onChange();window.dispatchEvent(new Event('depositos-actualizados'));
   }catch(e){setError(e instanceof Error?e.message:'No se pudo actualizar la solicitud.');}finally{busy.current=false;setSaving(false);}
  }
@@ -64,7 +66,7 @@ export default function DepositRequests({requests,events,contracts,profile,onCha
    {current.comprobante_path&&<button onClick={()=>void openReceipt(current.comprobante_path,null)}>Ver comprobante de salida</button>}
    {current.estado==='pendiente'&&canPay(profile.rol)&&<button disabled={saving} onClick={()=>void act('proceso',current)}>Tomar solicitud e iniciar pago</button>}
    {current.estado==='en_proceso'&&current.responsable_id!==profile.id&&canPay(profile.rol)&&<button disabled={saving} onClick={()=>void retake(current)}>Retomar pago a mi nombre</button>}
-   {current.estado==='en_proceso'&&current.responsable_id===profile.id&&canPay(profile.rol)&&<form onSubmit={e=>{e.preventDefault();void act('pagar',current);}}><label>Fecha del pago<input type="date" required min={bogotaDay(current.created_at)!} max={bogotaDay(new Date().toISOString())!} value={date} onChange={e=>setDate(e.target.value)}/></label><label>Comprobante de salida obligatorio<input type="file" required={!uploaded.current||uploaded.current.id!==current.id} accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>{uploaded.current=null;setFile(e.target.files?.[0]||null);}}/></label><p>Registra aquí la transferencia ya realizada. Al guardar el comprobante, el depósito quedará devuelto.</p><button className={styles.primary} disabled={saving}>Registrar pago y comprobante</button></form>}
+   {current.estado==='en_proceso'&&current.responsable_id===profile.id&&canPay(profile.rol)&&<form onSubmit={e=>{e.preventDefault();void act('pagar',current);}}><label>Fecha del pago<input type="date" required min={bogotaDay(current.created_at)!} max={bogotaDay(new Date().toISOString())!} value={date} onChange={e=>setDate(e.target.value)}/></label><label>Comprobante de salida obligatorio<input type="file" required={!uploaded.current||uploaded.current.id!==current.id} accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>{uploaded.current=null;setFile(e.target.files?.[0]||null);}}/></label><DepositAccountSelect sedeId={contracts.find(c=>c.id===current.contrato_id)?.sede_id} medio={current.metodo||'Transferencia'} value={cuentaPago} onChange={setCuentaPago}/><p>Registra aquí la transferencia ya realizada. Al guardar el comprobante, el depósito quedará devuelto.</p><button className={styles.primary} disabled={saving}>Registrar pago y comprobante</button></form>}
    {current.estado==='pendiente'&&(current.solicitante_id===profile.id||canPay(profile.rol))&&<form onSubmit={e=>{e.preventDefault();void act('cancelar',current);}}><label>Motivo de cancelación<input required value={reason} onChange={e=>setReason(e.target.value)}/></label><button disabled={saving}>Cancelar solicitud</button></form>}
    {error&&<p role="alert" className={styles.error}>{error}</p>}
    <button disabled={saving} onClick={()=>setSelected(null)}>Cerrar</button></div></div>}

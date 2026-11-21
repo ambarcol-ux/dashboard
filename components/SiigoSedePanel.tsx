@@ -76,6 +76,7 @@ export default function SiigoSedePanel({sedeId,sede,configurada}:{sedeId:string;
    </div></div>
    <div><p className="text-xs font-black text-gray-700 mb-2">Cuentas contables (las define la contadora)</p><div className="grid md:grid-cols-3 gap-3">
     {txt('Anticipos de clientes (2805…)',p.cuentas?.anticipo,v=>setIn('cuentas','anticipo',v),'28050501')}
+    {txt('Ingreso por daños (retención del depósito)',p.cuentas?.ingreso_danos,v=>setIn('cuentas','ingreso_danos',v),'41700502')}
     {txt('Caja (1105…)',p.cuentas?.efectivo,v=>setIn('cuentas','efectivo',v),'11050501')}
     {txt('Banco por defecto (1110…)',p.cuentas?.transferencia,v=>setIn('cuentas','transferencia',v),'11100501')}
     {cat.cuentas_erp.map(k=><div key={k.id}>{txt(`Cuenta contable de ${k.nombre}`,p.cuentas?.[`cuenta:${k.id}`],v=>setIn('cuentas',`cuenta:${k.id}`,v),'1110…')}</div>)}
