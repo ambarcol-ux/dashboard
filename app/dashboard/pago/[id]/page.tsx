@@ -34,6 +34,10 @@ export default function RegistrarPagoPage() {
   const [contrato, setContrato] = useState<any>(null);
   const [pagos, setPagos] = useState<any[]>([]);
   const [soportes, setSoportes] = useState<UploadedSupport[]>([]);
+  // «Fecha del pago»: the real day the customer paid (today or up to 15 days back); the cash register and Siigo receipt take it.
+  const hoyBogota = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const minFechaPago = new Date(Date.parse(hoyBogota) - 15 * 86400000).toISOString().slice(0, 10);
+  const [fechaPago, setFechaPago] = useState(hoyBogota);
   const [subiendoSoporte, setSubiendoSoporte] = useState(false);
   const [esAdmin, setEsAdmin] = useState(false);
   const [condonar, setCondonar] = useState<{ valor: string; motivo: string } | null>(null);
@@ -159,6 +163,7 @@ export default function RegistrarPagoPage() {
         p_recibo: siigoActivo ? '' : formData.numero_recibo,
         p_observaciones: formData.observaciones,
         p_soportes: soportes,
+        p_fecha: fechaPago || hoyBogota,
       });
 
       if (insertError) throw insertError;
@@ -175,12 +180,13 @@ export default function RegistrarPagoPage() {
       
       // Limpiar y recargar
       setFormData({ valor_pagado: '', medio_pago: 'Transferencia', numero_recibo: '', observaciones: '' });
+      setFechaPago(hoyBogota);
       setSoportes([]);
       fetchData();
       
     } catch (err: any) {
       console.error(err);
-      toast.error(err?.code === 'P0001' && err?.message ? err.message : 'Ocurrió un error al registrar el pago.');
+      toast.error(err?.message ? `No se registró el pago: ${err.message}` : 'Ocurrió un error al registrar el pago.');
     } finally {
       setSubmitting(false);
     }
@@ -387,6 +393,12 @@ export default function RegistrarPagoPage() {
                           />
                         </div>
                       </div>}
+                      <div className="space-y-1">
+                        <label htmlFor="fecha_pago" className="text-sm font-medium text-gray-700">Fecha del pago</label>
+                        <input id="fecha_pago" type="date" value={fechaPago} min={minFechaPago} max={hoyBogota} onChange={e => setFechaPago(e.target.value)}
+                          className="w-full bg-gray-50 border border-gray-200 text-gray-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
+                        <p className="text-[11px] text-gray-500">El día en que la clienta pagó (hasta 15 días atrás). La caja y el recibo de Siigo quedan con esa fecha.</p>
+                      </div>
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-gray-700">Observaciones (Opcional)</label>
                         <textarea
