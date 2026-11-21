@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar';
 import {KeyRound,Loader2,ShieldCheck} from 'lucide-react';
 import {toast,Toaster} from 'sonner';
 import SiigoSedePanel from '@/components/SiigoSedePanel';
+import ConceptosContratoAdmin from '@/components/ConceptosContratoAdmin';
 
 export default function SiigoConfigPage(){
   const readAccess = useVerifiedAccess();
@@ -49,5 +50,6 @@ export default function SiigoConfigPage(){
    </div><button disabled={saving===s.id} onClick={()=>void save(s.id)} className="mt-5 px-5 py-3 bg-rose-500 text-white rounded-xl font-black">{saving===s.id?'Guardando…':'Guardar credenciales de '+s.nombre}</button>
    <SiigoSedePanel sedeId={s.id} sede={s.nombre} configurada={!!cfg?.access_key_configurada}/>
   </section>})}</div>}
+  {!loading&&<ConceptosContratoAdmin sedes={sedes}/>}
  </div></main></div>;
 }

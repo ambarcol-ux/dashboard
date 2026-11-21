@@ -31,6 +31,7 @@ import AccountTypeOptions from '@/components/AccountTypeOptions';
 import { accountLabel, keyError } from '@/lib/bank-keys';
 import { useFieldRequired } from '@/lib/module-config';
 import { PROMO_FIELDS, promoApplies, promoBenefit, promoDiscount, type Promotion } from '@/lib/promotions';
+import ContratoConceptos, { errorConceptos, guardarConceptosContrato, leerConceptosContrato, totalConceptos, type LineaConcepto } from '@/components/ContratoConceptos';
 
 const MONEY_FIELDS = ['valor_total', 'servicios_adicionales', 'anticipo', 'valor_deposito'];
 // Deposit returned in cash at the store (instead of a bank account or key).
@@ -216,6 +217,9 @@ export default function NuevoContratoPage() {
 
   // Arreglos dinámicos
   const [arreglos, setArreglos] = useState<{ tipo: string; cm: string; precio: string }[]>([]);
+  // Concepts besides the dress (Pre XV, laundry, bows…): their total is the contract's «servicios adicionales».
+  const [conceptosLineas, setConceptosLineas] = useState<LineaConcepto[]>([]);
+  const cambiarConceptos = (l: LineaConcepto[]) => { setConceptosLineas(l); const t = totalConceptos(l); setFormData(prev => ({ ...prev, servicios_adicionales: t > 0 ? String(t) : '' })); };
 
   // Totales Calculados
   const [totalArreglos, setTotalArreglos] = useState(0);
@@ -466,6 +470,9 @@ export default function NuevoContratoPage() {
           documento_titular: contract.documento_titular || '',
           autoriza_uso_imagen: Boolean(contract.autoriza_uso_imagen)
         });
+        // Saved concepts are part of the stored total: the base shows the rest so nothing is counted twice.
+        void leerConceptosContrato(contract.id).then(l => { if (!l.length) return; const t = totalConceptos(l); setConceptosLineas(l);
+          setFormData(prev => ({ ...prev, servicios_adicionales: String(t), valor_total: String(Math.max(0, Number(contract.valor_total || 0) - t)) })); });
         if (contract.tiene_aliado && contract.aliado_id) {
           const d = contract.aliado_datos || {};
           const { data: cl } = contract.aliado_clienta_id ? await supabase.from('aliado_clientas').select('*').eq('id', contract.aliado_clienta_id).maybeSingle() : { data: null };
@@ -1317,6 +1324,7 @@ export default function NuevoContratoPage() {
 
       const { error: errV } = await supabase.from('contrato_items_vestidos').insert(itemPayload);
       if (errV) throw errV;
+      await guardarConceptosContrato(newDoc.id, conceptosLineas);
 
       // 4. Inserción de Tabla Relacional de Arreglos
       if (validArreglos.length > 0 && newDoc) {
@@ -1473,6 +1481,7 @@ export default function NuevoContratoPage() {
     });
 
     if (error) throw error;
+    await guardarConceptosContrato(editingContractId, conceptosLineas);
     await supabase.from('contratos').update({ tipo_documento_cliente: formData.tipo_documento_cliente || null, tipo_documento_titular: formData.tipo_documento_titular || null, documento_titular: formData.documento_titular || null }).eq('id', editingContractId);
     await syncRetablo(editingContractId);
 
@@ -1483,6 +1492,8 @@ export default function NuevoContratoPage() {
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (prexv.prexv_componentes?.length && !formData.fecha_fotografia) { toast.error('Indica la fecha de sesión PRE-XV.'); return; }
+    const conceptoError = errorConceptos(conceptosLineas);
+    if (conceptoError) { toast.error(conceptoError); return; }
     if ((formData.tipo_evento === 'Evento' || formData.tipo_evento === 'Ambos') && !formData.fecha_evento) { toast.error('Falta la fecha del evento.'); document.querySelector<HTMLInputElement>('[name="fecha_evento"]')?.focus(); return; }
     if (formData.tipo_evento === 'PreXV' && !formData.fecha_fotografia) { toast.error('Falta la fecha de la sesión PRE-XV.'); return; }
     if (!formData.por_agendar && (!formData.cita_medidas || !formData.prueba_final || !formData.fecha_entrega)) { toast.error('Indica las fechas de cita de medidas, prueba final y entrega/envío, o marca «Fechas por agendar».'); document.querySelector<HTMLInputElement>('[name="cita_medidas"]')?.focus(); return; }
@@ -1746,6 +1757,7 @@ export default function NuevoContratoPage() {
           throw vestidosError;
         }
       }
+      if (insertedContract) await guardarConceptosContrato(insertedContract.id, conceptosLineas);
 
       // 7. Inserción de Tabla Relacional de Arreglos
       if (validArreglos.length > 0 && insertedContract) {
@@ -2312,18 +2324,8 @@ export default function NuevoContratoPage() {
               <div className="bg-emerald-50/50 p-6 rounded-2xl border border-emerald-100 shadow-sm space-y-5">
                 <div className="grid grid-cols-2 gap-4">
                   {renderTextInput("Valor Alquiler Base", "valor_total", <DollarSign className="w-4 h-4 text-emerald-600" />, "number", true)}
-                  <div className="space-y-1">
-                    <label className="text-sm font-semibold text-gray-700 flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-emerald-600" /> Servicios Adicionales (Maquillaje, Fotografía, Otros)
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      name="servicios_adicionales"
-                      value={moneyShow(formData.servicios_adicionales)}
-                      onChange={(e) => setFormData(prev => ({ ...prev, servicios_adicionales: moneyValue(e.target.value) }))}
-                      className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-rose-300 font-medium"
-                    />
+                  <div className="col-span-2">
+                    <ContratoConceptos lineas={conceptosLineas} onChange={cambiarConceptos} />
                   </div>
                 </div>
 
