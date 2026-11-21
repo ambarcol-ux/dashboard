@@ -4,6 +4,7 @@
 - Respuestas mínimas. No muestres código ni resúmenes.
 - Edita solo lo necesario. Nunca reescribas archivos completos.
 - Reutiliza lo que ya existe. No hagas nada que no se pida.
+- Manuales y protocolos siempre al día (orden permanente del dueño): todo cambio que altere cómo trabaja el equipo se refleja en el mismo paso en components/ManualAmbar.tsx (protocolo afectado) y, si cambia una respuesta, en la evaluación de components/AcademiaAmbar.tsx, sin esperar a que se pida.
 - Nunca modifiques datos existentes sin aprobación explícita (ver paso 1).
 - ANTES de crear cualquier cosa (tabla, columna, ruta, componente, función, bucket, política, trigger), busca si ya existe algo equivalente. Si existe: reutilízalo y ajústalo a lo nuevo, sin duplicar. Si lo existente choca con el paso: detente y pregunta en una línea.
 - Nunca borres ni renombres tablas, columnas, rutas o funciones existentes. Solo cambios aditivos y migraciones reversibles.
