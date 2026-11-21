@@ -78,6 +78,8 @@ export function rolePanelAccess(panelId:string,profile:Profile,permissions?:stri
  const panel=panelById(panelId);
  if(!panel||!profile||isSupplierProfile(profile))return false;
  if(isAdminProfile(profile))return true;
+ // The user manual (protocols) is visible to every team member, whatever their role (owner's order).
+ if(panelId==='manual')return true;
  if(panelId==='accesos')return false;
  return !!permissions?.includes(`panel.${panelId}`);
 }
