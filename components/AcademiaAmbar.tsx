@@ -42,9 +42,13 @@ export const EVALUACIONES:Record<string,{titulo:string;preguntas:Q[]}>={
   q('f4','Después de lavandería y depósito se…',['Deja abierto el contrato','Finaliza el contrato','Borra el contrato'],1)]},
  'pa-caja':{titulo:'Caja del día',preguntas:[
   q('g1','¿Cada cuánto se cierra la caja?',['Cada semana','Todos los días','Cada mes'],1),
-  q('g2','Los gastos se registran…',['Con su soporte en Gastos, sedes y socios','Sin soporte','Al final del mes'],0),
-  q('g3','Si «Siigo al día» muestra errores…',['Lo ignoro','Le aviso a administración','Lo borro'],1),
-  q('g4','Si la caja no se cierra, el Tablero CEO…',['No sabe dónde está la plata','Funciona igual','Se cierra solo'],0)]},
+  q('g2','Una clienta te pagó un abono. ¿Dónde lo registras?',['En el contrato, con Registrar Abono y su soporte','Escribiéndolo a mano en Cierres de caja','En un cuaderno y luego en el ERP'],0),
+  q('g3','Si no tienes talonario, en «Número de recibo de caja» escribes…',['Nada','La referencia de la transferencia o, en efectivo, la fecha y tus iniciales','El número del contrato'],1),
+  q('g4','Después de registrar el abono en el contrato…',['Lo vuelvo a escribir en la caja','Entra solo a la caja, a Siigo y le llega el recibo a la clienta','Le aviso a la contadora para que lo pase'],1),
+  q('g5','¿Cómo se cuenta el efectivo al cerrar?',['Escribiendo el total','Escribiendo cuántos billetes hay de cada valor y las monedas','No se cuenta'],1),
+  q('g6','El cajón quedó con $900.000 y el tope es $500.000. ¿Qué haces?',['Nada','Al día siguiente consigno al menos $400.000 y lo registro como Consignación a banco con el comprobante','Me llevo el dinero a la casa'],1),
+  q('g7','Te equivocaste en el valor de un abono. ¿Qué haces?',['Lo borro','Oprimo Anular con el motivo; administración lo aprueba y registro el correcto','Lo dejo así'],1),
+  q('g8','Una clienta quiere dejar $500.000 de depósito en efectivo (tope $300.000)…',['Lo recibo en efectivo','Le pido transferencia o datáfono','No le recibo depósito'],1)]},
  'pa-inventario':{titulo:'Inventario',preguntas:[
   q('h1','Si hay varias tallas del mismo modelo, el código es…',['El mismo para todas','Referencia-talla (ej.: 1046-S)','Un número al azar'],1),
   q('h2','Cada vestido debe tener…',['Fotos y costo','Solo nombre','Nada más'],0),
