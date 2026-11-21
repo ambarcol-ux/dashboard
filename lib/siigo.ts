@@ -219,6 +219,20 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   const f=j.factura;if(!f||f.estado!=='enviado'||!f.siigo_id)throw new SiigoError('La factura a corregir no está en Siigo.');
   const inv=await siigo(c,`/v1/invoices/${f.siigo_id}`) as Value,dif=Math.round(Number(d.valor)),docId=Number((inv.document as Value|undefined)?.id);
   const ingreso=docId===Number(c.parametros.documentos?.factura_ingreso)&&docId!==Number(c.parametros.documentos?.factura_electronica);
+  // A payment included in the invoice had its method corrected in Cierres de caja: move its value to the new payment form.
+  if(d.pago_medio){
+   if(!ingreso)throw new SiigoError('La factura electrónica no se puede editar: contabilidad debe ajustar la forma de pago en Siigo.');
+   const viejo=formaPago(c,String(d.medio_anterior||''),d.cuenta_anterior||null),nuevo=formaPago(c,String(d.medio_nuevo||''),d.cuenta_nuevo||null),valor=Number(d.valor);
+   const pays=((inv.payments||[]) as Value[]).map(p=>({id:Number(p.id),value:Number(p.value)||0,...(p.due_date?{due_date:fecha(p.due_date)}:{})}));
+   const o=pays.find(p=>p.id===Number(viejo)&&p.value>=valor-1);
+   if(!o)throw new SiigoError('No encontré en la factura el pago a corregir: contabilidad debe ajustarlo en Siigo.');
+   if(Number(viejo)!==Number(nuevo)){o.value=Math.round((o.value-valor)*100)/100;const n=pays.find(p=>p.id===Number(nuevo));if(n)n.value+=valor;else pays.push({id:Number(nuevo),value:valor});}
+   const cu=(inv.customer||{}) as Value;
+   const items=((inv.items||[]) as Value[]).map(x=>({code:x.code,description:x.description,quantity:Number(x.quantity)||1,price:Number(x.price)||0,...(x.taxes?{taxes:x.taxes}:{})}));
+   const r=await siigo(c,`/v1/invoices/${f.siigo_id}`,{method:'PUT',body:{document:{id:docId},date:fecha(inv.date),customer:{identification:cu.identification,branch_office:Number(cu.branch_office)||0},
+    ...(inv.seller?{seller:inv.seller}:{}),observations:String(inv.observations||obs).slice(0,4000),items,payments:pays.filter(p=>p.value>0)}});
+   return {siigoId:String(r.id||f.siigo_id),numero:String(r.name||f.numero),respuesta:{...r,total:Number(r.total)||Number(inv.total),editada:true}};
+  }
   if(!ingreso){
    const {data:orig}=await db.from('siigo_documentos').select('id').eq('tipo','factura').eq('siigo_id',f.siigo_id).limit(1).maybeSingle();
    if(!orig)throw new SiigoError('No se encontró la factura original en el ERP.');
