@@ -233,12 +233,14 @@ export default function NuevoContratoPage() {
   const [promoId, setPromoId] = useState('');
   useEffect(() => { void supabase.from('promociones').select(PROMO_FIELDS).eq('activo', true).then(({ data }) => setPromos((data || []) as Promotion[])); }, []);
   useEffect(() => {
-    if (isEditMode || !formData.sede_id) return;
+    if (!formData.sede_id) return;
     let live = true;
     void supabase.rpc('siigo_sede_activa', { p_sede: formData.sede_id }).then(({ data }) => {
       if (!live) return;
       const d = (data || {}) as { activa?: boolean; tipo_factura?: string };
       setSiigoFactura(v => ({ ...v, activa: !!d.activa, tipo_factura: d.tipo_factura || 'electronica' }));
+      // Editing keeps the invoice number Siigo gave (read-only below); only an empty one waits for Siigo.
+      if (isEditMode) { if (d.activa) setFormData(prev => prev.numero_factura.trim() ? prev : { ...prev, numero_factura: 'SIIGO-PENDIENTE' }); return; }
       setFormData(prev => d.activa ? { ...prev, numero_factura: 'SIIGO-PENDIENTE' } : prev.numero_factura === 'SIIGO-PENDIENTE' ? { ...prev, numero_factura: '' } : prev);
     });
     return () => { live = false; };
@@ -2600,12 +2602,16 @@ export default function NuevoContratoPage() {
             </label>
             <input id="numero_factura" name="numero_factura" type="text" required
               aria-required="true" aria-describedby="invoice-help"
-              value={formData.numero_factura}
-              onChange={(e) => setFormData(prev => ({ ...prev, numero_factura: e.target.value }))}
+              value={siigoFactura.activa && formData.numero_factura === 'SIIGO-PENDIENTE' ? 'Pendiente: lo asigna Siigo' : formData.numero_factura}
+              readOnly={siigoFactura.activa}
+              title={siigoFactura.activa ? 'Lo asigna Siigo: no se escribe en el ERP.' : undefined}
+              onChange={(e) => { if (!siigoFactura.activa) setFormData(prev => ({ ...prev, numero_factura: e.target.value })); }}
               placeholder="Número de factura"
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300" />
             <p id="invoice-help" className="text-xs text-gray-500">
-              {isEditMode
+              {isEditMode && siigoFactura.activa
+                ? 'El número de factura lo asigna Siigo y no se escribe en el ERP. Si cambias el valor, el ERP hace la nota crédito o la factura adicional en Siigo.'
+                : isEditMode
                 ? 'Edición administrativa del contrato existente. El número de contrato, firma y estado actual se conservarán.'
                 : 'El número de factura es obligatorio para guardar y generar el contrato.'}
             </p>
