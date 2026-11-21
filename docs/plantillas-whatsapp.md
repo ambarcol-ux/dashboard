@@ -336,3 +336,13 @@ Hola {{1}} 🎉 Ya puedes usar tu Plan Ahorro XV en Ámbar Couture {{2}}: tienes
 | {{3}} | $1.320.000 |
 
 Se envía una vez, 3 meses antes del evento.
+
+## Recibos para la clienta — `ambar_recibo_pago`, `ambar_deposito_recibido`, `ambar_deposito_devuelto`
+
+Utilidad. Se crean con «Crear plantillas en Meta». Salen solos cuando un abono, un depósito o una devolución entra a la caja (dentro de las 24 h sale como texto libre). Si la sede recibe dinero y no lo registra, o registra menos, la clienta lo nota.
+
+```
+Hola {{1}} 💛 Ámbar Couture {{2}} registró tu pago de {{3}} en {{4}} para el contrato {{5}}. Saldo pendiente: {{6}}. Si no reconoces este pago o el valor no es correcto, responde este mensaje.
+Hola {{1}} 💛 Ámbar Couture {{2}} registró tu depósito en garantía de {{3}} en {{4}} para el contrato {{5}}. Se devuelve al terminar el alquiler según tu contrato. Si no reconoces este valor, responde este mensaje.
+Hola {{1}} 💛 Ámbar Couture {{2}} registró la devolución de tu depósito por {{3}} en {{4}} del contrato {{5}}. Si no la recibiste o el valor no es correcto, responde este mensaje.
+```

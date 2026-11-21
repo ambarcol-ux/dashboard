@@ -14,6 +14,7 @@ import {SUPPORT_ACCEPT,SUPPORT_BUCKET,supportFileError,supportPath,supportType} 
 import styles from '@/app/dashboard/caja/caja.module.css';
 import SiigoAlDia from '@/components/SiigoAlDia';
 import SiigoConciliacion from '@/components/SiigoConciliacion';
+import AnulacionesPago from '@/components/AnulacionesPago';
 
 type Profile={id:string;rol:string;sede_id:string|null};
 const ALL='todas';
@@ -129,6 +130,7 @@ export default function CashRegister({profile}:{profile:Profile}){
  if(view==='cuentas')return <>{tabs}{seesAll&&<CashStartAdmin isAdmin={finanzas} today={today}/>}<AccountsAdmin sites={sites} isAdmin={finanzas} canManage={puedeCuentas}/></>;
  return <>
   {tabs}
+  {finanzas&&<AnulacionesPago/>}
   <div className={styles.toolbar} style={{marginBottom:18}}>
    <label>Sede<select value={sede} onChange={e=>{setLoading(true);setNotice('');setSede(e.target.value);}}>{seesAll&&<option value={ALL}>Todas las sedes</option>}{sites.map(s=><option key={s.sede_id} value={s.sede_id}>{s.sede}</option>)}</select></label>
    {sede===ALL&&<label>Desde<input type="date" max={fecha} value={desde} onChange={e=>{if(e.target.value){setLoading(true);setDesde(e.target.value);}}}/></label>}
