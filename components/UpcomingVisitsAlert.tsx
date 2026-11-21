@@ -28,7 +28,7 @@ export default function UpcomingVisitsAlert(){
     </div>
     <p className="font-black text-gray-900 mt-1">{c.nombre}</p>
     {vitrina?<p className="text-sm font-bold text-emerald-700">Se registró por QR a las {c.hora.slice(0,5)}: atiéndela y registra el resultado.</p>:<p className={`text-sm font-bold ${m<0?'text-red-600':urgente?'text-amber-700':'text-gray-600'}`}>{c.hora.slice(0,5)} · {m<0?`empezó hace ${-m} min y no se ha registrado llegada`:m===0?'es ahora':`en ${m} min`}</p>}
-    {virtual&&!c.enlace_virtual&&<p className="text-xs font-bold text-red-600 mt-1">Sin enlace de videollamada: créalo y envíalo ya.</p>}
+    {virtual&&!c.enlace_virtual&&<p className="text-xs font-bold text-violet-700 mt-1">📱 Llámala por videollamada de WhatsApp a la hora de la cita.</p>}
     <div className="flex gap-2 mt-2 text-xs font-black">
      {virtual&&c.enlace_virtual&&<a href={c.enlace_virtual} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 rounded-lg bg-violet-600 text-white">Entrar a la videollamada</a>}
      <Link href="/dashboard/primeras-citas" className="px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700">Ver cita</Link>

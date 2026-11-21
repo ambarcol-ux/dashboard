@@ -29,7 +29,7 @@ export function appointmentEmail(event:'reserva'|'confirmacion'|'reprogramacion'
  const intro=moved?`Tu cita ${where} fue reprogramada. ✨`:`Tu cita ${where} está confirmada. ✨`;
  const blocks:Block[]=[{icon:'📅',label:'Fecha',value:plainDate(detail.fecha)},{icon:'🕒',label:'Hora',value:visitTime(detail.hora)}];
  if(moved&&detail.anterior)blocks.push({icon:'↩️',label:'Antes',value:`${plainDate(detail.anterior.fecha)}, ${visitTime(detail.anterior.hora)}`});
- if(virtual)blocks.push(detail.enlace_virtual?{icon:'💻',label:'Enlace de la videollamada',href:detail.enlace_virtual}:{icon:'💻',label:'Videollamada',note:'Te enviaremos el enlace antes de tu cita.'});
+ if(virtual)blocks.push(detail.enlace_virtual?{icon:'💻',label:'Enlace de la videollamada',href:detail.enlace_virtual}:{icon:'📱',label:'Videollamada de WhatsApp',note:'A la hora de tu cita, la asesora te llama por videollamada de WhatsApp a tu número.'});
  else if(site)blocks.push({icon:'📍',label:'Dirección',value:site.direccion},{icon:'🗺️',label:site.mapaEtiqueta,href:site.mapa},...(site.parqueadero?[{icon:'🚗',label:'Parqueadero',value:site.parqueadero.replace(/^🚗\s*/,'')}]:[]));
  else if(siteName)blocks.push({icon:'📍',label:'Sede',value:siteName});
  if(site)blocks.push({icon:'📲',label:'¿Tienes alguna pregunta?',note:`Contacta a nuestra sede ${site.nombre}: ${site.telefono}`},{icon:'',label:'Escribir por WhatsApp',href:`https://wa.me/${site.whatsapp}`});
