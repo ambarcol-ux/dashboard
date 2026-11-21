@@ -17,6 +17,7 @@ import SiigoConciliacion from '@/components/SiigoConciliacion';
 
 type Profile={id:string;rol:string;sede_id:string|null};
 const ALL='todas';
+const DENOMINACIONES=[100000,50000,20000,10000,5000,2000,1000];
 const time=(iso:string)=>new Date(iso).toLocaleTimeString('es-CO',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit'});
 const errorText=(e:unknown,fallback:string)=>e&&typeof e==='object'&&'message' in e&&typeof (e as {message:unknown}).message==='string'?(e as {message:string}).message:fallback;
 
@@ -331,22 +332,30 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
 }
 
 function CloseForm({day,esperado,pendingSupports,onDone}:{day:CashDay;esperado:number;pendingSupports:number;onDone:(m:string)=>void}){
- const [contado,setContado]=useState(''),[obs,setObs]=useState(''),[saving,setSaving]=useState(false),[error,setError]=useState('');
- const counted=contado.trim()==='0'?0:parseCashAmount(contado),diff=counted===null?null:cashDifference(counted,esperado);
+ // Cash is counted bill by bill (mandatory): the counted total is their sum, so the report can be checked from far away.
+ const [billetes,setBilletes]=useState<Record<string,string>>({}),[obs,setObs]=useState(''),[saving,setSaving]=useState(false),[error,setError]=useState('');
+ const faltan=[...DENOMINACIONES.map(String),'monedas'].filter(k=>(billetes[k]??'').trim()==='');
+ const counted=faltan.length?null:DENOMINACIONES.reduce((t,d)=>t+d*(Number(billetes[String(d)])||0),0)+(Number(billetes.monedas)||0),diff=counted===null?null:cashDifference(counted,esperado);
  const submit=async(e:React.FormEvent)=>{
   e.preventDefault();if(saving)return;setError('');
   if(pendingSupports>0){setError(`Hay ${pendingSupports} ingreso(s) del día sin soporte. Adjunta el soporte para poder confirmar el cierre.`);return;}
-  if(counted===null){setError('Escribe el efectivo contado.');return;}
+  if(counted===null){setError('Escribe cuántos billetes hay de cada valor y el valor de las monedas (pon 0 donde no haya).');return;}
   if(diff!==0&&obs.trim().length<5){setError('Hay diferencia: explica el motivo en observaciones.');return;}
   if(!window.confirm(`¿Cerrar la caja del ${day.fecha} con ${money(counted)} contados? Después no se podrán registrar ni anular movimientos de ese día.`))return;
   setSaving(true);
-  const {error:re}=await supabase.rpc('cerrar_caja',{p_sede:day.sede_id,p_fecha:day.fecha,p_contado:counted,p_observaciones:obs.trim()});
+  const conteo:Record<string,number>={};for(const k of [...DENOMINACIONES.map(String),'monedas'])conteo[k]=Number(billetes[k])||0;
+  const {error:re}=await supabase.rpc('cerrar_caja_billetes',{p_sede:day.sede_id,p_fecha:day.fecha,p_billetes:conteo,p_observaciones:obs.trim()});
   setSaving(false);if(re)setError(re.message);else onDone('Caja cerrada. El efectivo contado es el saldo inicial del siguiente día.');
  };
  return <section id="paso-cerrar" className={styles.card} style={{scrollMarginTop:80}}><h2>Cerrar caja</h2><p>Cuenta el efectivo físico y compáralo con lo esperado.</p>
   <form className={styles.form} onSubmit={submit}><fieldset disabled={saving} style={{border:0,padding:0,margin:0,display:'grid',gap:12}}>
    <p className={styles.help}>Esperado = saldo inicial {money(day.saldo_inicial)} + ingresos en efectivo (incluida la base) − egresos en efectivo = <strong>{money(esperado)}</strong>. Incluye los depósitos en garantía recibidos o devueltos en efectivo (no son venta).</p>
-   <label>Efectivo contado (COP)<input inputMode="decimal" placeholder="0" value={contado} onChange={e=>setContado(e.target.value)}/></label>
+   <div><strong>Conteo por billetes (obligatorio)</strong><p className={styles.help}>Cuenta los billetes del cajón y escribe cuántos hay de cada valor. Pon 0 donde no haya.</p>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))',gap:8}}>
+     {DENOMINACIONES.map(d=><label key={d}>Billetes de {money(d)}<input inputMode="numeric" placeholder="0" value={billetes[String(d)]??''} onChange={e=>setBilletes(b=>({...b,[String(d)]:e.target.value.replace(/\D/g,'')}))}/></label>)}
+     <label>Monedas (valor total)<input inputMode="numeric" placeholder="0" value={billetes.monedas??''} onChange={e=>setBilletes(b=>({...b,monedas:e.target.value.replace(/\D/g,'')}))}/></label>
+    </div>
+    <p className={styles.help}>Efectivo contado: <strong>{counted===null?'— completa todas las casillas':money(counted)}</strong></p></div>
    {diff!==null&&<p className={styles.help}>Diferencia: <span className={`${styles.diff} ${diff<0?styles.out:diff>0?styles.in:''}`}>{money(diff)}</span>{diff===0?' · Cuadra':diff<0?' · Falta dinero':' · Sobra dinero'}</p>}
    <label>Observaciones{diff!==null&&diff!==0?' (obligatorias)':''}<textarea maxLength={1000} value={obs} onChange={e=>setObs(e.target.value)}/></label>
    {pendingSupports>0&&<p className={styles.error}>{pendingSupports} ingreso{pendingSupports===1?'':'s'} sin soporte. Adjunta el soporte para poder confirmar el cierre.</p>}
