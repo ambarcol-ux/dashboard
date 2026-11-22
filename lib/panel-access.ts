@@ -32,6 +32,7 @@ export const PANELS:Panel[]=[
  {id:'reports',label:'Reportes y estadísticas',href:'/admin/reports',block:'OPERACIONES',paths:['/admin/reports'],grantable:true},
  {id:'cobros',label:'Cuentas por cobrar',href:'/dashboard/cuentas-por-cobrar',block:'FINANZAS',paths:['/dashboard/cuentas-por-cobrar'],staff:true,grantable:true},
  {id:'caja',label:'Cierres de caja',href:'/dashboard/caja',block:'FINANZAS',paths:['/dashboard/caja'],staff:true,grantable:true},
+ {id:'bancos',label:'Bancos y conciliación',href:'/dashboard/bancos',block:'FINANZAS',paths:['/dashboard/bancos'],grantable:true},
  {id:'pagos_fijos',label:'Pagos fijos de sede',href:'/dashboard/pagos-fijos',block:'FINANZAS',paths:['/dashboard/pagos-fijos'],grantable:true},
  {id:'gastos',label:'Gastos, entre sedes y socios',href:'/dashboard/gastos',block:'FINANZAS',paths:['/dashboard/gastos'],grantable:true},
  {id:'proveedores-catalogo',label:'Catálogo de proveedores',href:'/dashboard/proveedores/catalogo',block:'PROVEEDORES',paths:['/dashboard/proveedores/catalogo'],staff:true,grantable:true},
