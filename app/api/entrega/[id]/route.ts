@@ -1,4 +1,5 @@
 import {publicServerClient,publicReply,readJson,UUID_RE,validSignature} from '@/lib/public-db';
+import {signDeliveryPhotos} from '@/lib/delivery-photos';
 export const dynamic='force-dynamic';
 const DELIVERY='id,contrato_id,usuario_id,fotos_uris,firma_cliente,finalizado,tipo_entrega,anulada_at';
 
@@ -13,7 +14,8 @@ export async function GET(_request:Request,{params}:{params:Promise<{id:string}>
   if(!bitacora||bitacora.anulada_at)return publicReply({error:'No se encontró el registro de entrega.'},404);
   const {data:contrato,error:contractError}=await db.from('contratos').select('*, vestidos:contrato_items_vestidos(id, vestido_id, vestido:vestidos(id, codigo))').eq('id',bitacora.contrato_id).maybeSingle();
   if(contractError||!contrato)return publicReply({error:'No se encontró el contrato de la entrega.'},404);
-  return publicReply({bitacora,contrato});
+  // Private photos: the act shows them through temporary links (lib/delivery-photos.ts).
+  return publicReply({bitacora:{...bitacora,fotos_uris:await signDeliveryPhotos(db,bitacora.fotos_uris)},contrato});
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
 }
 

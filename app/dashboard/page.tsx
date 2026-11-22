@@ -16,6 +16,7 @@ import {useDepositCount} from '@/components/DepositAlert';
 import DashboardAlerts from '@/components/DashboardAlerts';
 import NovedadesContables from '@/components/NovedadesContables';
 import {liquidarDesistimiento} from '@/lib/desistimiento';
+import {signDeliveryPhotos} from '@/lib/delivery-photos';
 
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -100,6 +101,8 @@ export default function DashboardPage() {
   const [contractsError, setContractsError] = useState('');
   const [pdfGeneratingId, setPdfGeneratingId] = useState<string | null>(null);
   const [contractForPdf, setContractForPdf] = useState<ContractData | null>(null);
+  // Clauses of the signed copy (contratos_copia_firmada) for the PDF of a signed contract.
+  const [pdfPlantillas, setPdfPlantillas] = useState<typeof plantillas | null>(null);
   const [plantillas, setPlantillas] = useState<any[]>([]);
 
   // -- Quality Control Filters --
@@ -313,6 +316,10 @@ export default function DashboardPage() {
     let signature;
     try { signature = await loadContractSignature(supabase, contrato.id); }
     catch { toast.error('No se pudo cargar la firma. Reintenta generar el PDF.'); setPdfGeneratingId(null); return; }
+    // A signed contract prints exactly as it was signed: its fixed copy (data and clauses) wins over the current ones.
+    const { data: copia } = await supabase.from('contratos_copia_firmada').select('datos,plantillas').eq('contrato_id', contrato.id).maybeSingle();
+    if (copia) contrato = { ...contrato, ...(copia.datos as Record<string, unknown>), items: contrato.items };
+    setPdfPlantillas(copia ? (copia.plantillas as typeof plantillas) : null);
     // Deposit, discounts, services and retablo also go in the PDF.
     const { data: extra } = await supabase.from('contratos').select(`tipo_documento_cliente,valor_deposito,medio_deposito,tipo_documento_titular,documento_titular,descuento_promocion,descuento_aliado,lleva_retablo,metodos_pago,${CONTRACT_EXTRAS_SELECT}`).eq('id', contrato.id).maybeSingle();
     const mappedData: ContractData = {
@@ -704,7 +711,8 @@ export default function DashboardPage() {
           .select('*')
           .eq('contrato_id', contrato.id)
           .maybeSingle()
-          .then(({ data }) => setDrawerDelivery(data))
+          // Private photos: shown through temporary links (lib/delivery-photos.ts).
+          .then(async ({ data }) => setDrawerDelivery(data ? { ...data, fotos_uris: await signDeliveryPhotos(supabase, data.fotos_uris) } : data))
       );
     }
     
@@ -2969,7 +2977,7 @@ export default function DashboardPage() {
       {contractForPdf && (
         <div style={{ position: 'absolute', top: '-10000px', left: '-10000px', opacity: 0, pointerEvents: 'none' }}>
           <div id="hidden-pdf-template" style={{ width: '800px', backgroundColor: 'white' }}>
-            <ContractTemplate data={contractForPdf} plantillas={plantillas} />
+            <ContractTemplate data={contractForPdf} plantillas={pdfPlantillas || plantillas} />
           </div>
         </div>
       )}
