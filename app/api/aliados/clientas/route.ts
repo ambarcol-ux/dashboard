@@ -1,4 +1,5 @@
 import {publicServerClient,publicReply,readJson,UUID_RE} from '@/lib/public-db';
+import {erpNoticeEmails} from '@/lib/erp-notice-email';
 import {ALLY_EVENT_LABEL,allyClientSignup,clientId,type AllyCategory} from '@/lib/ally-clients';
 import {allyClientConfirmEmail,allyClientDuplicateEmail,allyClientNoticeEmail,sendAllyEmail} from '@/lib/ally-emails';
 import {authLink,loadAuthTexts,registerAuthorization} from '@/lib/data-authorization';
@@ -26,11 +27,11 @@ export async function POST(request:Request){
   let d;
   try{d=allyClientSignup((body.datos||{}) as Record<string,unknown>,today(),categorias);}catch(e){return publicReply({error:e instanceof Error?e.message:'Revisa los datos.'},400);}
   const {data:prev}=await db.from('aliado_clientas').select('numero,aliado_id,aliados(nombre_completo)').eq('clienta_documento',d.clienta_documento).maybeSingle();
-  const {data:admins}=await db.from('profiles').select('email').eq('rol','admin').eq('activo',true);
-  const adminEmails=(admins||[]).map(a=>a.email).filter(Boolean) as string[];
+  // Internal notices go only to the ERP notifications address (Configuración › Parámetros), not to every administrator.
+  const adminEmails=await erpNoticeEmails(db);
   if(prev){
    // The original ally is kept; administration is told about the attempt.
-   await sendAllyEmail(adminEmails,allyClientDuplicateEmail(d.clienta_nombre,d.clienta_documento,(prev.aliados as {nombre_completo?:string}|null)?.nombre_completo||'',ally.nombre_completo));
+   if(adminEmails.length)await sendAllyEmail(adminEmails,allyClientDuplicateEmail(d.clienta_nombre,d.clienta_documento,(prev.aliados as {nombre_completo?:string}|null)?.nombre_completo||'',ally.nombre_completo));
    return publicReply({ok:true,duplicado:true});
   }
   const now=new Date().toISOString();

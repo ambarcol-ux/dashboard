@@ -1,4 +1,5 @@
 import {createHash} from 'node:crypto';
+import {erpNoticeEmails} from '@/lib/erp-notice-email';
 import type {publicServerClient} from './public-db';
 import {ALLY_CONTRACT_VERSION,DATA_AUTHORIZATION,agreementDate,allyContractText,fillAgreement,missingConfig,type AllyContractConfig,type AllyProfile,type ContractSection} from './ally-contract-text';
 import {allyAgreementPdf} from './ally-pdf';
@@ -33,10 +34,10 @@ export async function finishAllySigning(db:Db,ally:{id:string;nombre:string;cedu
  const {error:up}=await db.storage.from('aliados_documentos').upload(pdfPath,pdf,{contentType:'application/pdf',upsert:true});
  await db.from('aliados').update({estado:'pendiente',acuerdo_version:version,datos_autorizados_at:now.toISOString(),datos_texto_version:ALLY_CONTRACT_VERSION,acuerdo_pdf_path:up?null:pdfPath,vigente_hasta:`${Number(now.toLocaleDateString('en-CA',{timeZone:'America/Bogota'}).slice(0,4))+1}${now.toLocaleDateString('en-CA',{timeZone:'America/Bogota'}).slice(4)}`}).eq('id',ally.id).in('estado',['pendiente_firma','pendiente']);
  const origin=process.env.FIRST_VISIT_PUBLIC_ORIGIN?.replace(/\/$/,'')||new URL(request.url).origin;
- const {data:admins}=await db.from('profiles').select('email').eq('rol','admin').eq('activo',true);
+ const avisos=await erpNoticeEmails(db as never);
  await Promise.all([
   sendAllyEmail(ally.correo,allySignedEmail(ally.nombre),[{filename:`Acuerdo-aliado-${codigo}.pdf`,content:pdf}]),
-  sendAllyEmail((admins||[]).map(a=>a.email).filter(Boolean) as string[],allyAdminNoticeEmail(ally.nombre,ally.tipo,ally.cedula,`${origin}/dashboard/aliados-directos`)),
+  avisos.length?sendAllyEmail(avisos,allyAdminNoticeEmail(ally.nombre,ally.tipo,ally.cedula,`${origin}/dashboard/aliados-directos`)):Promise.resolve(false),
  ]);
  return {codigo};
 }
