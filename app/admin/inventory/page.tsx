@@ -21,6 +21,7 @@ import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import InventoryByStatus from '@/components/InventoryByStatus';
 import InventoryRotation from '@/components/InventoryRotation';
+import InventoryCount from '@/components/InventoryCount';
 import InventoryDuplicates from '@/components/InventoryDuplicates';
 import DressRemovalDialog from '@/components/DressRemovalDialog';
 import {CLASSIFICATION_STYLES, UNCLASSIFIED_STYLE, type DressClassification} from '@/lib/inventory';
@@ -68,7 +69,7 @@ export default function InventoryPage() {
   const [categoriaFilter, setCategoriaFilter] = useState<string>('');
   const [catalogBusy, setCatalogBusy] = useState(false), [bulkOpen, setBulkOpen] = useState(false); // '' todas, 'none' sin categoría, o nombre
   const [showArchived, setShowArchived] = useState(false);
-  const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado' | 'rotacion' | 'duplicados'>(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('vista') === 'estado' ? 'estado' : 'bandeja');
+  const [inventoryTab, setInventoryTab] = useState<'bandeja' | 'estado' | 'rotacion' | 'duplicados' | 'toma'>(() => { const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null; return q?.get('tab') === 'toma' ? 'toma' : q?.get('vista') === 'estado' ? 'estado' : 'bandeja'; });
   const [removalTarget, setRemovalTarget] = useState<{id: string; codigo: string} | null>(null);
   const [user, setUser] = useState<any>(null);
   const userPermissions = usePermissions(user?.id ? String(user.id) : null);
@@ -158,6 +159,9 @@ export default function InventoryPage() {
         toast.error(`El código ${newDress.codigo} ya existe en el inventario. Cambia el código (por ejemplo agrega una letra al final).`);
         return;
       }
+
+      // Purchase cost is required: without it the dress's return (Rotación) and the inventory value can't be known.
+      if (!Number(newDress.costo_compra)) { toast.error('Escribe el costo del vestido (lo que costó).'); return; }
 
       // 1. Mapeo Quirúrgico: Solo enviamos lo que el usuario confirmó
       const insertData = {
@@ -638,7 +642,7 @@ export default function InventoryPage() {
 
         {/* Vista: bandeja o por estado */}
         <div className="flex items-center gap-1 bg-white p-1 rounded-2xl shadow-sm border border-gray-100 w-fit">
-          {([['bandeja', 'Por sede'], ['estado', 'Por estado'], ['rotacion', 'Rotación'], ['duplicados', 'Duplicados']] as const).map(([id, label]) => (
+          {([['bandeja', 'Por sede'], ['estado', 'Por estado'], ['rotacion', 'Rotación'], ['toma', 'Toma física'], ['duplicados', 'Duplicados']] as const).map(([id, label]) => (
             <button
               key={id}
               onClick={() => setInventoryTab(id)}
@@ -651,6 +655,8 @@ export default function InventoryPage() {
 
         {inventoryTab === 'duplicados' ? (
           <InventoryDuplicates />
+        ) : inventoryTab === 'toma' ? (
+          <InventoryCount sedes={(misSedes || sedes).map(x => ({ id: String(x.id), nombre: String(x.nombre) }))} />
         ) : inventoryTab === 'rotacion' ? (
           <InventoryRotation />
         ) : inventoryTab === 'estado' ? (
@@ -899,7 +905,7 @@ export default function InventoryPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Costo del vestido (lo que costó)</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Costo del vestido (lo que costó) · obligatorio</label>
                     <input type="text" inputMode="numeric" placeholder="Para el valor del inventario en el Tablero CEO"
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none"
                       value={miles(newDress.costo_compra)} onChange={(e) => setNewDress({...newDress, costo_compra: soloDigitos(e.target.value)})}/>
