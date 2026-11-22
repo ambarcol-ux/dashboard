@@ -14,6 +14,7 @@ import { hasPrexv, includedPrexv, prexvPending, prexvSummary, prexvFields, type 
 import { dateInput } from '@/lib/calendar-edit';
 import {useDepositCount} from '@/components/DepositAlert';
 import DashboardAlerts from '@/components/DashboardAlerts';
+import NovedadesContables from '@/components/NovedadesContables';
 
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -2476,6 +2477,7 @@ export default function DashboardPage() {
           entregas={alerts.entregasOmitidasCount} borradores={alerts.borradoresVencidosCount} prexv={summary?.prexvIncomplete ?? 0} porAgendar={summary?.citasPorAgendar ?? 0}
           filtroAlerta={filtroAlerta} onAlerta={f => setFiltroAlerta(f as typeof filtroAlerta)} sedeId={filtroSede !== 'Todas' && filtroSede !== 'unassigned' ? filtroSede : null} sedeNombre={sedes.find((x: any) => x.id === filtroSede)?.nombre || null}
           onPrexv={() => setFiltroTipoEvento('PREXV')} />}
+        {user && <NovedadesContables sedeId={filtroSede !== 'Todas' && filtroSede !== 'unassigned' ? filtroSede : null} />}
 
         {/* --- CITAS ANALYTICS DASHBOARD --- */}
 
