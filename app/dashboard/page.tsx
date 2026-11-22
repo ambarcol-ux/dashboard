@@ -15,6 +15,7 @@ import { dateInput } from '@/lib/calendar-edit';
 import {useDepositCount} from '@/components/DepositAlert';
 import DashboardAlerts from '@/components/DashboardAlerts';
 import NovedadesContables from '@/components/NovedadesContables';
+import {liquidarDesistimiento} from '@/lib/desistimiento';
 
 import React, { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
@@ -548,12 +549,11 @@ export default function DashboardPage() {
     const reason=window.prompt(`Motivo del desistimiento del contrato ${contract.numero_contrato}:`);
     if(reason===null)return;
     if(!reason.trim()){toast.error('Escribe el motivo del desistimiento.');return;}
-    if(!window.confirm('Se cancelará el contrato conservando pagos, depósito y bitácora. Las devoluciones se gestionan por separado. ¿Confirmas el desistimiento?'))return;
     setLoading(true);
     try {
-      const {error}=await supabase.rpc('desistir_contrato',{p_contrato:contract.id,p_motivo:reason.trim()});
-      if(error)throw error;
-      toast.success('Desistimiento registrado. Se conserva el historial del contrato.');
+      // Cancels the contract and saves its settlement (clause: retention per appointment used + alterations).
+      if(!await liquidarDesistimiento(contract.id,reason.trim()))return;
+      toast.success('Desistimiento y liquidación registrados. Registra la devolución en Depósitos y devoluciones › Desistimientos.');
       if(selectedContract?.id===contract.id)setSelectedContract({...selectedContract,estado:'cancelado'});
       await fetchContratos();
       await refreshBitacora(contract.id);

@@ -24,7 +24,8 @@ export const EVALUACIONES:Record<string,{titulo:string;preguntas:Q[]}>={
   q('c2','¿Cuándo debe firmar el contrato?',['El mismo día, en el ERP','Cuando recoja el vestido','En papel y luego se ve'],0),
   q('c3','Cada abono se registra…',['Sin soporte','Con la foto del soporte','Solo en el cuaderno'],1),
   q('c4','¿Desde dónde se crea el contrato?',['Desde la cita (Crear contrato)','Desde WhatsApp','Desde Excel'],0),
-  q('c5','Un contrato con plata recibida nunca debe quedar…',['Firmado','En borrador','Con correo'],1)]},
+  q('c5','Un contrato con plata recibida nunca debe quedar…',['Firmado','En borrador','Con correo'],1),
+  q('c6','Una clienta pagó $1.500.000, usó 3 citas y no hubo arreglos; desiste. ¿Cuánto se le devuelve?',['$1.500.000','$1.200.000 (se retienen $100.000 por cita usada)','Nada'],1)]},
  'pa-medidas':{titulo:'Medidas, arreglos y prueba final',preguntas:[
   q('d1','¿Dónde se anotan las medidas?',['En el contrato','En un papel','En el chat'],0),
   q('d2','Un arreglo se registra en…',['Adaptaciones y confección, con fotos y fecha','Gastos','No se registra'],0),
