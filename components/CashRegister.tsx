@@ -17,6 +17,7 @@ import SiigoConciliacion from '@/components/SiigoConciliacion';
 import AnulacionesPago from '@/components/AnulacionesPago';
 import CashLimitsAdmin from '@/components/CashLimitsAdmin';
 import CajaPendientes from '@/components/CajaPendientes';
+import NovedadesContables from '@/components/NovedadesContables';
 
 type Profile={id:string;rol:string;sede_id:string|null};
 const ALL='todas';
@@ -92,12 +93,15 @@ export default function CashRegister({profile}:{profile:Profile}){
  const role=profile.rol.toLowerCase(),seesAll=role==='admin'||role==='contabilidad',isAdmin=role==='admin';
  // Contabilidad has the same financial powers as administration; leaders and franchisees get them for their own site through Roles.
  const finanzas=seesAll,perms=usePermissions(profile.id),puedeCorregir=finanzas||can(perms,'caja.editar'),puedeReabrir=finanzas||can(perms,'caja.reabrir'),puedeCuentas=finanzas||can(perms,'caja.cuentas');
- const ver=typeof window==='undefined'?'':new URLSearchParams(window.location.search).get('ver')||'';
- const [sites,setSites]=useState<CashSiteSummary[]>([]),[sede,setSede]=useState(seesAll&&ver?ALL:seesAll?ALL:(profile.sede_id||'')),[fecha,setFecha]=useState(today),[desde,setDesde]=useState(()=>ver==='sedes'?new Date(Date.parse(today+'T12:00:00Z')-30*86400000).toISOString().slice(0,10):today);
+ const qs=typeof window==='undefined'?null:new URLSearchParams(window.location.search);
+ const ver=qs?.get('ver')||'';
+ // Links from «Novedades contables»: ?sede=…&fecha=…&vista=siigo open that store, day and tab directly.
+ const qSede=qs?.get('sede')||'',qFecha=/^\d{4}-\d{2}-\d{2}$/.test(qs?.get('fecha')||'')&&String(qs?.get('fecha'))<=today?String(qs?.get('fecha')):'';
+ const [sites,setSites]=useState<CashSiteSummary[]>([]),[sede,setSede]=useState(qSede&&(seesAll||qSede===profile.sede_id)?qSede:seesAll&&ver?ALL:seesAll?ALL:(profile.sede_id||'')),[fecha,setFecha]=useState(qFecha||today),[desde,setDesde]=useState(()=>ver==='sedes'?new Date(Date.parse(today+'T12:00:00Z')-30*86400000).toISOString().slice(0,10):qFecha||today);
  const [day,setDay]=useState<CashDay|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
  const [pending,setPending]=useState<PendingPayment[]>([]),[guia,setGuia]=useState(false);
  const irAbono=(p:PendingPayment)=>{setLoading(true);setNotice('');setSede(p.sede_id);setFecha(p.fecha);if(p.fecha<desde)setDesde(p.fecha);setGuia(true);setTimeout(()=>document.getElementById('guia-abonos')?.scrollIntoView({behavior:'smooth',block:'start'}),400);};
- const request=useRef(0),[view,setView]=useState<'caja'|'plata'|'depositos'|'cuentas'|'siigo'>('caja');
+ const request=useRef(0),[view,setView]=useState<'caja'|'plata'|'depositos'|'cuentas'|'siigo'>(qs?.get('vista')==='siigo'?'siigo':'caja');
 
  const load=useCallback(async()=>{
   const id=++request.current;
@@ -144,6 +148,7 @@ export default function CashRegister({profile}:{profile:Profile}){
   {guia&&sede!==ALL&&day&&day.sede_id===sede&&day.fecha===fecha?<GuiaAbonos day={day} pending={pending} onNext={irAbono} onClose={()=>setGuia(false)}/>
    :<PendingPayments abierto={ver==='abonos'} rows={sede===ALL?pending:pending.filter(p=>p.sede_id===sede)} onOpen={irAbono}/>}
   {sede!==ALL&&day&&<SiigoAlDia sedeId={day.sede_id} fecha={day.fecha}/>}
+  <NovedadesContables sedeId={sede===ALL?null:sede||null}/>
   {sede!==ALL&&day&&<CajaPendientes sedeId={day.sede_id} version={`${day.fecha}:${day.movimientos.length}:${day.cierre?1:0}`} onIr={f=>{setLoading(true);setNotice('');setFecha(f);}}/>}
   {sede===ALL?<AllSites rows={sites} loading={loading} onPick={id=>{setLoading(true);setSede(id);}}/>:day?<SiteDay key={`${day.sede_id}:${day.fecha}`} day={day} siteName={siteName} isAdmin={isAdmin} finanzas={finanzas} canFix={puedeCorregir} canReopen={puedeReabrir} onDone={done} onError={setError}/>:!error&&<p className={styles.empty}>{loading?'Cargando caja…':'No tienes una sede asignada para manejar caja.'}</p>}
  </>;
