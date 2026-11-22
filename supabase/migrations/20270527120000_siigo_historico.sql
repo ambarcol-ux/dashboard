@@ -87,7 +87,7 @@ begin
   left join lateral (select sum(valor_pagado) pagado from public.pagos x where x.contrato_id=k.id and x.anulado_at is null) p on true
   left join lateral (select sum(h.total) filter (where h.tipo='factura')-coalesce(sum(h.total) filter (where h.tipo='nota_credito'),0) facturado,
     coalesce(sum((select sum((y->>'value')::numeric) from jsonb_array_elements(coalesce(h.datos->'payments','[]')) y
-      where y->>'name' not in ('Clientes Nacionales','Crédito clientes','Clientes Extranjero','Crédito','Pago a crédito'))) filter (where h.tipo='factura'),0)
+      where y->>'name' not in ('Clientes Nacionales','Crédito clientes','Clientes Extranjero','Crédito','Pago a crédito'))) filter (where h.tipo='factura' and h.total<>0),0)
     +coalesce(sum(h.total) filter (where h.tipo='recibo'),0) cobrado
    from public.siigo_historico h where h.contrato_id=k.id) f on true
   where lower(coalesce(k.estado,'')) not in ('borrador','anulado','cancelado','cancelada','rechazado')
