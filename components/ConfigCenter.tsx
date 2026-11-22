@@ -5,7 +5,7 @@ import {toast} from 'sonner';
 import DataAuthorizationAdmin from '@/components/DataAuthorizationAdmin';
 
 type Item={lista:string;valor:string;orden:number;activo:boolean};
-type Param={clave:string;modulo:string;etiqueta:string;tipo:'entero'|'booleano';valor:number|boolean;minimo:number|null;maximo:number|null;orden:number;ayuda:string|null};
+type Param={clave:string;modulo:string;etiqueta:string;tipo:'entero'|'booleano'|'correo';valor:number|boolean|string;minimo:number|null;maximo:number|null;orden:number;ayuda:string|null};
 type Field={formulario:string;campo:string;modulo:string;etiqueta:string;estado:string;orden:number};
 type Category={id:number;clasificacion_id:number;nombre:string;precio_hasta:number|null;orden:number;activo:boolean};
 type Change={id:number;tabla:string;clave:string;accion:string;antes:Record<string,unknown>|null;despues:Record<string,unknown>|null;created_at:string;usuario_id:string|null};
@@ -47,6 +47,8 @@ export default function ConfigCenter(){
   {tab==='parametros'&&<div className={box}>{params.map(p=><div key={p.clave} className="flex flex-wrap items-center gap-3 py-2 border-b border-gray-50 text-sm">
    <span className="flex-1 min-w-[220px]"><b className="text-gray-800">{p.etiqueta}</b>{p.minimo!=null&&<span className="text-gray-400"> ({p.minimo}–{p.maximo})</span>}{p.ayuda&&<br/>}{p.ayuda&&<span className="text-xs text-gray-400">{p.ayuda}</span>}</span>
    {p.tipo==='booleano'?<select value={p.valor?'si':'no'} disabled={busy} onChange={e=>void run(()=>supabase.from('config_parametros').update({valor:e.target.value==='si'}).eq('clave',p.clave),'Parámetro guardado.')} className="px-3 py-2 border border-gray-200 rounded-xl"><option value="si">Sí</option><option value="no">No</option></select>
+    :p.tipo==='correo'?<input type="email" defaultValue={typeof p.valor==='string'?p.valor:''} disabled={busy} className="w-64 px-3 py-2 border border-gray-200 rounded-xl"
+      onBlur={e=>{const v=e.target.value.trim();if(v!==p.valor&&(!v||/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v)))void run(()=>supabase.from('config_parametros').update({valor:v}).eq('clave',p.clave),'Correo guardado.');}}/>
     :<input type="number" defaultValue={Number(p.valor)} min={p.minimo??undefined} max={p.maximo??undefined} disabled={busy} className="w-24 px-3 py-2 border border-gray-200 rounded-xl"
       onBlur={e=>{const v=Number(e.target.value);if(v!==Number(p.valor))void run(()=>supabase.from('config_parametros').update({valor:v}).eq('clave',p.clave),'Parámetro guardado.');}}/>}
   </div>)}</div>}

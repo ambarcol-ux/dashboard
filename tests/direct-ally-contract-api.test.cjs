@@ -4,7 +4,7 @@ const lib=compile('lib/ally-contract.ts');
 const id='22222222-2222-2222-2222-222222222222';
 const config={id:1,representante:'Lina Polo',representante_cedula:'123',representante_ciudad_cedula:'Bogotá',nit:'900',direccion:'Cra 15',ciudad:'Bogotá',correo:'a@b.co',telefono:'300',deposito_por_vestido:300000,mora_por_dia:50000,clausula_penal:1000000,cuenta_redes:'ambar'};
 let state;
-const table=name=>({select:()=>({order:()=>({limit:()=>({maybeSingle:async()=>({data:state.acuerdo||null,error:null})})}),eq:()=>({eq:async()=>({data:[{email:'admin@x.co'}],error:null}),maybeSingle:async()=>({data:name==='aliados'?state.ally:name==='contratos_aliado'?state.signed:state.config,error:null})})}),
+const table=name=>({select:()=>({order:()=>({limit:()=>({maybeSingle:async()=>({data:state.acuerdo||null,error:null})})}),eq:()=>({eq:async()=>({data:[{email:'admin@x.co'}],error:null}),maybeSingle:async()=>({data:name==='config_parametros'?{valor:'avisos@x.co'}:name==='aliados'?state.ally:name==='contratos_aliado'?state.signed:state.config,error:null})})}),
  insert:async row=>{if(state.signed)return {error:{code:'23505'}};state.signed={...row};return {error:null};},
  update:v=>({eq:()=>({in:async(_k,list)=>{state.updated={...v,desde:list};return {error:null};}})})});
 const storage={from:()=>({upload:async(path,buf)=>{state.pdf={path,size:buf.length};return {error:null};}})};
