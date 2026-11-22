@@ -5,9 +5,11 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: '/admin/users', destination: '/admin/accesos', permanent: false },
-      // Commission model retired: its screens go back to the Panel.
-      { source: '/dashboard/admin/escalas', destination: '/dashboard', permanent: false },
-      { source: '/dashboard/admin/liquidaciones', destination: '/dashboard', permanent: false },
+      // Red VIP / referral program retired: its screens open the Aliados module.
+      { source: '/dashboard/admin/escalas', destination: '/dashboard/aliados-directos', permanent: false },
+      { source: '/dashboard/admin/liquidaciones', destination: '/dashboard/aliados-directos', permanent: false },
+      { source: '/dashboard/admin/aliados', destination: '/dashboard/aliados-directos', permanent: false },
+      { source: '/dashboard/aliados/:slug', destination: '/dashboard/aliados-directos', permanent: false },
       // Old ally sign-up form (no data authorization): replaced by Vinculación de aliados, which asks both authorizations.
       { source: '/unete', destination: '/aliados/vincular', permanent: false },
     ];

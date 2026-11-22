@@ -12,6 +12,8 @@ export async function POST(request:Request){
  if(!bearer.startsWith('Bearer '))return reply({error:'Inicia sesión.'},401);
  const body=await request.json().catch(()=>({}));
  const directo=body?.tipo==='directo',id=String((directo?body?.aliado_id:body?.referidor_id)||'');
+ // The Red VIP / referral program was retired: links are only for Aliados (direct allies).
+ if(!directo)return reply({error:'Aliado no válido.'},400);
  if(!/^[0-9a-f-]{36}$/i.test(id))return reply({error:'Aliado no válido.'},400);
  const key=process.env.FIRST_VISIT_LINK_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY||'';
  if(!key)return reply({error:'El servidor no tiene configurados los enlaces privados.'},503);

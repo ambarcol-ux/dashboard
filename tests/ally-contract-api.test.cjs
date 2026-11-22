@@ -15,13 +15,8 @@ const firma='data:image/png;base64,AAAA';
 (async()=>{
  state={ally:{id,nombre_aliado:'Christian'},signed:null,config};
  assert.equal((await api.POST(req({token:'x.1.y'}))).status,404);
- let r=await api.POST(req({token,accion:'ver'}));let d=await r.json();assert.equal(d.firmado,false);assert.equal(d.config.nit,'900');assert.equal(d.aliado.nombre,'Christian');
- state.config={...config,nit:null};assert.equal((await api.POST(req({token,accion:'ver'}))).status,409);state.config=config;
- assert.equal((await api.POST(req({token,accion:'firmar',datos,firma,acepta:false}))).status,400);
- assert.equal((await api.POST(req({token,accion:'firmar',datos,firma:'nope',acepta:true}))).status,400);
- assert.equal((await api.POST(req({token,accion:'firmar',datos,firma,acepta:true}))).status,400,'Sin autorización de datos no firma');
- r=await api.POST(req({token,accion:'firmar',datos,firma,acepta:true,acepta_datos:true,comercial:false}));d=await r.json();
- assert.equal(r.status,200);assert.equal(d.firmado,true);assert.equal(state.inserted.referidor_id,id);assert.equal(state.updated.cedula,'1020304');assert.equal(state.updated.tipo_cuenta,'Ahorros');
- r=await api.POST(req({token,accion:'ver'}));d=await r.json();assert.equal(d.firmado,true);assert.equal(d.firma,firma);
- console.log('PASS: ally signs once through the private link; profile saved; signed copy returned afterwards');
+ // Red VIP / referral program retired: its signing links no longer open or sign anything.
+ for(const body of [{token,accion:'ver'},{token,accion:'firmar',datos,firma,acepta:true,acepta_datos:true,comercial:false}])assert.equal((await api.POST(req(body))).status,404);
+ assert.equal(state.inserted,undefined);assert.equal(state.updated,undefined);
+ console.log('PASS: retired referral (VIP) signing links are rejected and nothing is saved');
 })().catch(e=>{console.error(e);process.exitCode=1});

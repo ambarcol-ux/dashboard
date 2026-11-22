@@ -46,7 +46,6 @@ export const PANELS:Panel[]=[
  {id:'aliados_directos',label:'Aliados',href:'/dashboard/aliados-directos',block:'RED DE ALIADOS',paths:['/dashboard/aliados-directos'],staff:true,grantable:true},
  {id:'estudio_contenido',label:'Estudio de contenido',href:'/dashboard/estudio-contenido',block:'MARKETING',paths:['/dashboard/estudio-contenido'],staff:true,grantable:true},
  {id:'aliados_publicaciones',label:'Redes sociales (publicaciones de aliados)',href:'/dashboard/aliados-publicaciones',block:'MARKETING',paths:['/dashboard/aliados-publicaciones'],staff:true,grantable:true},
- {id:'aliados_admin',label:'Referidos (programa cerrado)',href:'/dashboard/admin/aliados',block:'RED DE ALIADOS',paths:['/dashboard/admin/aliados'],grantable:false},
  {id:'users',label:'Gestión de equipo',href:'/admin/users',block:'ADMINISTRACIÓN',paths:['/admin/users'],grantable:false},
  {id:'horarios',label:'Control de asistencia',href:'/dashboard/horarios',block:'ADMINISTRACIÓN',paths:['/dashboard/horarios'],grantable:true},
  {id:'config',label:'Configuración base',href:'/admin/config',block:'ADMINISTRACIÓN',paths:['/admin/config'],grantable:false},

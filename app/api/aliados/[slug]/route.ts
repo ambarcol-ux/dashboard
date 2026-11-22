@@ -17,6 +17,8 @@ async function findAlly(slug:string){
 // Public referral page (/recomendar/[slug]): only the ally's display name leaves the server.
 export async function GET(_request:Request,{params}:{params:Promise<{slug:string}>}){
  const {slug}=await params;
+ // The Red VIP / referral program was retired: no ally lookups or discount codes anymore.
+ if(slug)return publicReply({error:'El programa de referidos ya no está activo.'},410);
  if(!SLUG_RE.test(slug))return publicReply({error:'Enlace inválido.'},404);
  try{const ally=await findAlly(slug);if(!ally)return publicReply({error:'Aliado no encontrado.'},404);const t=await loadAuthTexts(publicServerClient()).catch(()=>null);return publicReply({nombre_aliado:ally.nombre_aliado,slug_unico:ally.slug_unico,estado:ally.estado,textos:{tratamiento:t?.tratamiento?.texto||null,comercial:t?.comercial?.texto||null}});}
  catch{return publicReply({error:'El servicio no está disponible.'},503);}
@@ -24,6 +26,8 @@ export async function GET(_request:Request,{params}:{params:Promise<{slug:string
 
 export async function POST(request:Request,{params}:{params:Promise<{slug:string}>}){
  const {slug}=await params;
+ // The Red VIP / referral program was retired: no ally lookups or discount codes anymore.
+ if(slug)return publicReply({error:'El programa de referidos ya no está activo.'},410);
  if(!SLUG_RE.test(slug))return publicReply({error:'Enlace inválido.'},404);
  if(request.headers.get('origin')&&request.headers.get('origin')!==new URL(request.url).origin)return publicReply({error:'Solicitud no permitida.'},403);
  let pass:ReturnType<typeof vipPassRequest>;
