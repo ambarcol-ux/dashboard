@@ -8,7 +8,7 @@ import {supabase} from '@/lib/supabase';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
 export type ShellProfile={id:string;rol:string;sede_id:string|null;nombre:string|null};
-type Page='proveedores'|'proveedores-pagos'|'proveedores-catalogo'|'aliados_directos'|'catalogo'|'correo'|'whatsapp'|'documentos'|'pipeline'|'aliados_publicaciones'|'estudio_contenido'|'historial'|'pagos_fijos'|'plan_ahorro'|'gastos'|'arreglos';
+type Page='proveedores'|'proveedores-pagos'|'proveedores-catalogo'|'aliados_directos'|'catalogo'|'correo'|'whatsapp'|'documentos'|'pipeline'|'aliados_publicaciones'|'estudio_contenido'|'historial'|'pagos_fijos'|'plan_ahorro'|'gastos'|'arreglos'|'bancos';
 
 /** Page frame for the suppliers module: verified profile, sidebar and header; optionally admin-only. */
 export default function SupplierShell({activePage,crumb,title,icon,description,adminOnly,backHref='/dashboard',children}:{activePage:Page;crumb:string;title:string;icon:ReactNode;description:string;adminOnly?:boolean;backHref?:string;children:(profile:ShellProfile)=>ReactNode}){

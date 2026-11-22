@@ -9,14 +9,14 @@ import FixedPaymentsAlert from '@/components/FixedPaymentsAlert';
 import SatisfactionAlert from '@/components/SatisfactionAlert';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
 import {
-  FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Receipt, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen, KanbanSquare, Megaphone, Tag, BarChart3, Clapperboard, History, CalendarClock, PiggyBank, Scissors
+  Landmark, FileText, Package, Settings, User, LogOut, ShieldCheck, TrendingUp, Menu, X, Receipt, Handshake, Banknote, Calendar, Clock, CalendarDays, BookOpen, ShoppingBag, Frame, Ruler, HandCoins, KeyRound, CalendarCheck, Wallet, Truck, ChevronDown, Mail, Plug, ArrowLeftRight, MessageCircle, FolderOpen, KanbanSquare, Megaphone, Tag, BarChart3, Clapperboard, History, CalendarClock, PiggyBank, Scissors
 } from 'lucide-react';
 
 interface SidebarProps {
   user: any;
   pendingDeposits?: number | null;
   handleLogout: () => void;
-  activePage?: 'arreglos' | 'gastos' | 'plan_ahorro' | 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos' | 'pipeline' | 'aliados_publicaciones' | 'estudio_contenido' | 'historial' | 'pagos_fijos';
+  activePage?: 'arreglos' | 'gastos' | 'plan_ahorro' | 'dashboard' | 'reports' | 'users' | 'inventory' | 'config' | 'profile' | 'metas' | 'calendario' | 'primeras-citas' | 'retablos' | 'retablos-tipos' | 'depositos' | 'caja' | 'proveedores' | 'proveedores-pagos' | 'proveedores-catalogo' | 'accesos' | 'aliados_directos' | 'catalogo' | 'correo' | 'integraciones' | 'traslados' | 'cobros' | 'whatsapp' | 'documentos' | 'pipeline' | 'aliados_publicaciones' | 'estudio_contenido' | 'historial' | 'pagos_fijos' | 'bancos';
 }
 
 // Deposit and balance reminders live in the Inicio alert strip (DashboardAlerts), not in the menu.
@@ -104,6 +104,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       items: [
         { id: 'cobros', label: 'CUENTAS POR COBRAR', icon: HandCoins, href: '/dashboard/cuentas-por-cobrar', color: 'amber' },
         { id: 'caja', label: 'CIERRES DE CAJA', icon: Wallet, href: '/dashboard/caja', color: 'emerald' },
+        { id: 'bancos', label: 'BANCOS Y CONCILIACIÓN', icon: Landmark, href: '/dashboard/bancos', color: 'emerald' },
         { id: 'pagos_fijos', label: 'PAGOS FIJOS DE SEDE', icon: CalendarClock, href: '/dashboard/pagos-fijos', color: 'emerald' },
         { id: 'gastos', label: 'GASTOS, SEDES Y SOCIOS', icon: Receipt, href: '/dashboard/gastos', color: 'emerald' },
         { id: 'depositos', label: 'DEPÓSITOS Y DEVOLUCIONES', icon: HandCoins, href: '/dashboard/devoluciones-depositos', color: 'emerald' },
@@ -153,7 +154,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
     'VENTAS Y CRM': ['CLIENTES', 'COTIZACIONES'],
     'INVENTARIO': ['MANTENIMIENTO Y ARREGLOS', 'TOMA FÍSICA'],
     'OPERACIONES Y LOGÍSTICA': ['ENTREGAS Y DEVOLUCIONES'],
-    'FINANZAS Y CONTABILIDAD': ['ÓRDENES DE COMPRA', 'PRESUPUESTO', 'CONCILIACIÓN BANCARIA', 'CONCILIACIÓN CON SIIGO'],
+    'FINANZAS Y CONTABILIDAD': ['ÓRDENES DE COMPRA', 'PRESUPUESTO', 'CONCILIACIÓN CON SIIGO'],
     'RECURSOS HUMANOS': ['NÓMINA', 'CONTRATOS LABORALES', 'VACACIONES E INCAPACIDADES'],
     'REPORTES E INDICADORES': ['RENTABILIDAD POR VESTIDO', 'TABLEROS POR MÓDULO'],
   };

@@ -307,13 +307,14 @@ function Suggestions({day,onDone,onError}:{day:CashDay;onDone:(m:string)=>void;o
 
 function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
  const [tipo,setTipo]=useState<'ingreso'|'egreso'>('ingreso'),[categoria,setCategoria]=useState<string>(CASH_CATEGORIES.ingreso[0]),[medio,setMedio]=useState('Efectivo'),[valor,setValor]=useState(''),[descripcion,setDescripcion]=useState('');
- const [file,setFile]=useState<File|null>(null),[saving,setSaving]=useState(false),[error,setError]=useState(''),[cuenta,setCuenta]=useState('');
+ const [file,setFile]=useState<File|null>(null),[saving,setSaving]=useState(false),[error,setError]=useState(''),[cuenta,setCuenta]=useState(''),[destino,setDestino]=useState('');
  const operation=useRef(crypto.randomUUID()),fileInput=useRef<HTMLInputElement>(null);
  const submit=async(e:React.FormEvent)=>{
   e.preventDefault();if(saving)return;setError('');
   const amount=parseCashAmount(valor);if(!amount){setError('Escribe un valor válido.');return;}
   if(categoria===CASH_BASE&&medio!=='Efectivo'){setError('La base de caja es en efectivo.');return;}
   if(tipo==='egreso'&&!file){setError('Adjunta el comprobante del egreso.');return;}
+  if(categoria==='Consignación a banco'&&!destino){setError('Elige la cuenta del banco donde se consignó.');return;}
   if(tipo==='egreso'&&descripcion.trim().length<3){setError('Describe el egreso.');return;}
   if(medio!=='Efectivo'&&!cuenta&&needsAccount(medio,accountsFor(medio,day.cuentas,day.sede_id))){setError('Elige la cuenta o banco donde llegó (o de donde salió) el dinero.');return;}
   setSaving(true);
@@ -325,7 +326,7 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
     const {error:ue}=await supabase.storage.from('comprobantes_caja').upload(path,file,{upsert:false});
     if(ue&&!/exists|duplicate/i.test(ue.message))throw Error('No se pudo subir el comprobante.');
    }
-   const {error:re}=await supabase.rpc('registrar_movimiento_caja',{p_datos:{sede_id:day.sede_id,fecha:day.fecha,tipo,categoria,medio,valor:amount,descripcion:descripcion.trim(),comprobante_path:path,cuenta_id:medio==='Efectivo'?null:(cuenta||null)}});
+   const {error:re}=await supabase.rpc('registrar_movimiento_caja',{p_datos:{sede_id:day.sede_id,fecha:day.fecha,tipo,categoria,medio,valor:amount,descripcion:descripcion.trim(),comprobante_path:path,cuenta_id:medio==='Efectivo'?null:(cuenta||null),cuenta_destino_id:categoria==='Consignación a banco'?destino:null}});
    if(re)throw Error(re.message);
    operation.current=crypto.randomUUID();setValor('');setDescripcion('');setFile(null);if(fileInput.current)fileInput.current.value='';
    onDone(`${tipo==='ingreso'?'Ingreso':'Egreso'} registrado.`);
@@ -339,6 +340,7 @@ function NewMovement({day,onDone}:{day:CashDay;onDone:(m:string)=>void}){
     <label>Categoría<ConfigSelect lista={`caja_categorias_${tipo}`} placeholder={null} fijos={tipo==='ingreso'?[CASH_BASE]:[]} value={categoria} onChange={v=>{setCategoria(v);if(v===CASH_BASE){setMedio('Efectivo');setCuenta('');}}}/></label></div>
    <div className={styles.row}><label>Medio<select value={medio} disabled={categoria===CASH_BASE} onChange={e=>{setMedio(e.target.value);setCuenta('');}}>{CASH_METHODS.map(m=><option key={m}>{m}</option>)}</select></label>
     <label>{tipo==='ingreso'?'Cuenta donde llegó':'Cuenta de donde salió'}<AccountSelect medio={medio} cuentas={day.cuentas} sedeId={day.sede_id} value={cuenta} onChange={setCuenta}/></label></div>
+   {categoria==='Consignación a banco'&&<label>Banco donde se consignó<AccountSelect medio="Transferencia" cuentas={day.cuentas} sedeId={day.sede_id} value={destino} onChange={setDestino}/></label>}
    <div className={styles.row}><label>Valor (COP)<MoneyInput inputMode="decimal" placeholder="150.000" value={valor} onChange={e=>setValor(e.target.value)}/></label></div>
    <label>Descripción{tipo==='egreso'?' (obligatoria)':''}<input maxLength={500} value={descripcion} onChange={e=>setDescripcion(e.target.value)} placeholder={tipo==='egreso'?'Ej.: taxi para entrega de vestido':'Opcional'}/></label>
    <label>Comprobante{tipo==='egreso'?' (obligatorio)':' (opcional)'}<input ref={fileInput} type="file" accept="application/pdf,image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0]||null)}/><span className={styles.help}>PDF o imagen · Máximo 10 MB · Acceso privado</span></label>
