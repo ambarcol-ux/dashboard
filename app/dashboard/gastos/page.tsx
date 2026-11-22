@@ -110,7 +110,7 @@ function Gastos(){
      <p className="text-xs text-gray-500">{m.tipo==='saldo_inicial'?`${m.destino} le debía a ${m.origen}`:`${m.origen} (${m.cuenta_origen}) → ${m.destino} (${m.cuenta_destino})`}{m.descripcion?` · ${m.descripcion}`:''}{m.anulado&&m.motivo_anulacion?` · anulado: ${m.motivo_anulacion}`:''}</p></div>
     <div className="flex gap-2">{m.comprobante_path&&<button type="button" onClick={()=>void verComprobante(m.comprobante_path!)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-gray-600">Comprobante</button>}
      {!m.anulado&&<button type="button" onClick={()=>void anular('entre_sedes_anular',m.id)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-red-600">Anular</button>}</div></div>)}</div></>}
-  {tab==='resultados'&&<EstadoResultados desde={desde} hasta={hasta}/>}
+  {tab==='resultados'&&<EstadoResultados desde={desde} hasta={hasta} finanzas={finanzas}/>}
   {tab==='socios'&&<>
    <div className="bg-white rounded-2xl border p-4"><p className="text-xs font-bold text-gray-500 mb-2">Lo que cada sede le debe a cada socio (préstamos sin interés)</p>
     {!socios?<p className="text-sm text-gray-400">Cargando…</p>:socios.saldos.length?socios.saldos.map(d=><p key={d.socio+d.sede} className="text-sm"><b>{d.sede}</b> le debe a <b>{d.socio}</b>: <b className={d.saldo>0?'text-red-600':'text-emerald-700'}>{cop(d.saldo)}</b>{d.saldo<0?' (le devolvió de más)':''}</p>)
