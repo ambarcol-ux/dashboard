@@ -155,7 +155,7 @@ function Recibir({a,onClose,onSaved}:{a:Arreglo;onClose:()=>void;onSaved:()=>voi
   <ArregloFotos antes={a.fotos_antes}/>
   <label className="block text-xs font-bold text-gray-600">Foto del después {a.tipo==='SASTRERÍA'&&<span className="text-red-600">(obligatoria)</span>}
    <input type="file" accept="image/*" capture="environment" multiple className="block mt-1 text-sm" onChange={e=>setFotos(e.target.files)}/></label>
-  <label className="block text-xs font-bold text-gray-600">Costo para Ámbar<MoneyInput className={input} value={costo} onChange={e=>setCosto(e.target.value)}/></label>
+  <label className="block text-xs font-bold text-gray-600">Costo para Ámbar {a.tipo==='SASTRERÍA'&&<span className="text-red-600">(obligatorio · 0 si lo hizo la sede)</span>}<MoneyInput className={input} value={costo} onChange={e=>setCosto(e.target.value)}/></label>
   {a.proveedor&&<p className="text-[11px] text-gray-500">Con costo, queda pendiente de pago a {a.proveedor} en Pagos a proveedores.</p>}
   {error&&<p role="alert" className="text-red-600 text-sm font-bold">{error}</p>}
   <button type="button" disabled={busy} onClick={()=>void guardar()} className="w-full py-3 rounded-2xl bg-emerald-600 text-white font-black disabled:opacity-50">{busy?'Guardando…':'Recibir y cerrar'}</button>
