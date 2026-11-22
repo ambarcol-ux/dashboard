@@ -5,6 +5,7 @@ import {useCallback,useEffect,useMemo,useState} from 'react';
 import {Receipt} from 'lucide-react';
 import SupplierShell from '@/components/suppliers/SupplierShell';
 import SiigoGasto from '@/components/SiigoGasto';
+import EstadoResultados from '@/components/EstadoResultados';
 import {supabase} from '@/lib/supabase';
 import {CASH_METHODS,accountLabel,needsAccount,type CashAccount} from '@/lib/cash';
 
@@ -52,7 +53,7 @@ export default function GastosPage(){
 }
 
 function Gastos(){
- const [tab,setTab]=useState<'gastos'|'sedes'|'socios'>(()=>{const v=typeof window!=='undefined'?new URLSearchParams(window.location.search).get('v'):null;return v==='sedes'||v==='socios'?v:'gastos';}),[desde,setDesde]=useState(()=>`${hoyBogota().slice(0,7)}-01`),[hasta,setHasta]=useState(hoyBogota),[filtro,setFiltro]=useState('todas');
+ const [tab,setTab]=useState<'gastos'|'sedes'|'socios'|'resultados'>(()=>{const v=typeof window!=='undefined'?new URLSearchParams(window.location.search).get('v'):null;return v==='sedes'||v==='socios'||v==='resultados'?v:'gastos';}),[desde,setDesde]=useState(()=>`${hoyBogota().slice(0,7)}-01`),[hasta,setHasta]=useState(hoyBogota),[filtro,setFiltro]=useState('todas');
  const [siigoG,setSiigoG]=useState<Record<string,{tipo:string;estado:string;numero:string|null;error:string|null}>>({});
  const [gastos,setGastos]=useState<Gasto[]|null>(null),[movs,setMovs]=useState<Mov[]>([]),[deudas,setDeudas]=useState<Deuda[]>([]),[finanzas,setFinanzas]=useState(false);
  const [sedes,setSedes]=useState<Sede[]>([]),[cuentas,setCuentas]=useState<CashAccount[]>([]),[error,setError]=useState('');
@@ -78,13 +79,13 @@ function Gastos(){
  };
  const tabBtn=(k:typeof tab,l:string)=><button key={k} type="button" onClick={()=>setTab(k)} className={`px-4 py-2 rounded-xl text-sm font-black ${tab===k?'bg-rose-600 text-white':'border bg-white text-gray-600'}`}>{l}</button>;
  return <div className="space-y-4">
-  <div className="flex flex-wrap gap-2 items-center">{tabBtn('gastos','Gastos')}{finanzas&&tabBtn('sedes','Entre sedes')}{tabBtn('socios','Préstamos de socios')}
+  <div className="flex flex-wrap gap-2 items-center">{tabBtn('gastos','Gastos')}{finanzas&&tabBtn('sedes','Entre sedes')}{tabBtn('socios','Préstamos de socios')}{tabBtn('resultados','Estado de resultados')}
    <label className="text-xs font-bold text-gray-600 flex items-center gap-1">Desde<input type="date" className="border border-gray-200 rounded-xl px-2 py-1.5 text-sm bg-white" value={desde} max={hasta} onChange={e=>e.target.value&&setDesde(e.target.value)}/></label>
    <label className="text-xs font-bold text-gray-600 flex items-center gap-1">Hasta<input type="date" className="border border-gray-200 rounded-xl px-2 py-1.5 text-sm bg-white" value={hasta} min={desde} onChange={e=>e.target.value&&setHasta(e.target.value)}/></label>
    {tab==='gastos'&&<select className="border border-gray-200 rounded-xl px-2 py-1.5 text-sm bg-white" value={filtro} onChange={e=>setFiltro(e.target.value)}><option value="todas">Todas</option>{finanzas&&<option value="admin">Administración</option>}{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select>}
    {tab==='sedes'&&<button type="button" onClick={()=>setSaldoSedes(true)} className="ml-auto px-4 py-2 rounded-xl border bg-white text-gray-700 text-sm font-black">+ Saldo inicial al 30/10</button>}
    {tab==='socios'&&socios?.puede_registrar&&<button type="button" onClick={()=>setNuevoSocio('saldo')} className="ml-auto px-4 py-2 rounded-xl border bg-white text-gray-700 text-sm font-black">+ Saldo inicial al 30/10</button>}
-   {(tab!=='socios'||socios?.puede_registrar)&&<button type="button" onClick={()=>tab==='gastos'?setNuevo(true):tab==='sedes'?setNuevoMov(true):setNuevoSocio('mov')} className={`${tab==='gastos'?'ml-auto ':''}px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black`}>{tab==='gastos'?'+ Registrar gasto':tab==='sedes'?'+ Registrar movimiento':'+ Préstamo o devolución'}</button>}</div>
+   {tab!=='resultados'&&(tab!=='socios'||socios?.puede_registrar)&&<button type="button" onClick={()=>tab==='gastos'?setNuevo(true):tab==='sedes'?setNuevoMov(true):setNuevoSocio('mov')} className={`${tab==='gastos'?'ml-auto ':''}px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-black`}>{tab==='gastos'?'+ Registrar gasto':tab==='sedes'?'+ Registrar movimiento':'+ Préstamo o devolución'}</button>}</div>
   {error&&<p role="alert" className="text-red-600 text-sm font-bold">{error}</p>}
   {tab==='gastos'&&<>
    <div className="grid sm:grid-cols-3 gap-3">
@@ -109,6 +110,7 @@ function Gastos(){
      <p className="text-xs text-gray-500">{m.tipo==='saldo_inicial'?`${m.destino} le debía a ${m.origen}`:`${m.origen} (${m.cuenta_origen}) → ${m.destino} (${m.cuenta_destino})`}{m.descripcion?` · ${m.descripcion}`:''}{m.anulado&&m.motivo_anulacion?` · anulado: ${m.motivo_anulacion}`:''}</p></div>
     <div className="flex gap-2">{m.comprobante_path&&<button type="button" onClick={()=>void verComprobante(m.comprobante_path!)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-gray-600">Comprobante</button>}
      {!m.anulado&&<button type="button" onClick={()=>void anular('entre_sedes_anular',m.id)} className="px-3 py-1.5 rounded-xl border text-xs font-black text-red-600">Anular</button>}</div></div>)}</div></>}
+  {tab==='resultados'&&<EstadoResultados desde={desde} hasta={hasta}/>}
   {tab==='socios'&&<>
    <div className="bg-white rounded-2xl border p-4"><p className="text-xs font-bold text-gray-500 mb-2">Lo que cada sede le debe a cada socio (préstamos sin interés)</p>
     {!socios?<p className="text-sm text-gray-400">Cargando…</p>:socios.saldos.length?socios.saldos.map(d=><p key={d.socio+d.sede} className="text-sm"><b>{d.sede}</b> le debe a <b>{d.socio}</b>: <b className={d.saldo>0?'text-red-600':'text-emerald-700'}>{cop(d.saldo)}</b>{d.saldo<0?' (le devolvió de más)':''}</p>)
