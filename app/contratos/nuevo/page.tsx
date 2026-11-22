@@ -97,12 +97,6 @@ export default function NuevoContratoPage() {
   const [crossBranchWarning, setCrossBranchWarning] = useState<{ active: boolean; origin: string; codigo: string }>({ active: false, origin: '', codigo: '' });
   const [adminAuthorizedTransfer, setAdminAuthorizedTransfer] = useState(false);
 
-  // -- VIP Discount State --
-  const [vipCodeInput, setVipCodeInput] = useState('');
-  const [vipStatus, setVipStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
-  const [vipMessage, setVipMessage] = useState('');
-  const [vipDiscount, setVipDiscount] = useState(0);
-  const [vipAliado, setVipAliado] = useState('');
 
   // -- State Principal --
   const [dataAuth, setDataAuth] = useState<AuthChoice>({ tratamiento: false, comercial: null });
@@ -166,7 +160,7 @@ export default function NuevoContratoPage() {
   }); }, []);
   const descuentoAliado = aliadoModo.tiene ? Math.round(valorAlquilerNum * aliadoPct.descuento / 100) : 0;
   const aliadoModoError = () => isEditMode ? (aliadoModo.tiene && !aliadoModo.aliado ? 'En modo Aliado busca y carga el aliado.' : null)
-    : allyModeError(aliadoModo, Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado - descuentoPromo) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0), parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, '')) || 0, aliadoPct.minimo);
+    : allyModeError(aliadoModo, Math.max(0, valorAlquilerNum - descuentoAliado - descuentoPromo) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0), parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, '')) || 0, aliadoPct.minimo);
   const sendAllyMeasures = async (contratoId: string) => {
     if (!aliadoModo.tiene) return;
     const { data: s } = await supabase.auth.getSession();
@@ -533,9 +527,6 @@ export default function NuevoContratoPage() {
             : []
         );
 
-        setVipCodeInput('');
-        setVipDiscount(0);
-        setVipStatus('idle');
       } catch (err: any) {
         console.error('Error cargando contrato para edición:', err);
         toast.error(err?.message || 'No se pudo cargar el contrato para edición.');
@@ -826,75 +817,12 @@ export default function NuevoContratoPage() {
     const sumArreglos = arreglos.reduce((acc, curr) => acc + (parseFloat(curr.precio.toString().replace(/[^0-9.-]+/g, "")) || 0), 0);
     setTotalArreglos(sumArreglos);
 
-    // Saldo Final Real = Valor Alquiler Base + Servicios Extra + Costo Arreglos - Descuento VIP - Abono Inicial
-    const nuevoSaldo = saldoContrato({ valor_total: Math.max(0, valorAlquiler - vipDiscount - descuentoAliado - descuentoPromo) + serviciosExtra, total_arreglos: sumArreglos, anticipo });
+    // Saldo Final Real = Valor Alquiler Base + Servicios Extra + Costo Arreglos - Abono Inicial
+    const nuevoSaldo = saldoContrato({ valor_total: Math.max(0, valorAlquiler - descuentoAliado - descuentoPromo) + serviciosExtra, total_arreglos: sumArreglos, anticipo });
     setSaldoCalc(Math.max(0, nuevoSaldo));
-  }, [formData.valor_total, formData.servicios_adicionales, formData.anticipo, arreglos, vipDiscount, descuentoAliado, descuentoPromo]);
+  }, [formData.valor_total, formData.servicios_adicionales, formData.anticipo, arreglos, descuentoAliado, descuentoPromo]);
 
 
-  // -- Manejadores VIP --
-  const handleValidateVIP = async () => {
-    if (!vipCodeInput.trim()) return;
-    setVipStatus('loading');
-    setVipMessage('');
-    
-    try {
-      const cleanText = formData.valor_total ? String(formData.valor_total).replace(/[^0-9.-]+/g, "") : "0";
-      const currentTotal = parseInt(cleanText, 10) || 0;
-
-      // 1. Validar código en Supabase (Solo Lectura)
-      const { data: codeData, error: codeErr } = await supabase
-        .from('codigos_descuento')
-        .select('id, usado, referidor_id')
-        .eq('codigo_seguridad', vipCodeInput.trim())
-        .single();
-
-      if (codeErr || !codeData) {
-        throw new Error('Código no existe en el sistema.');
-      }
-
-      if (codeData.usado) {
-        throw new Error('El código ya fue utilizado en otro contrato.');
-      }
-
-      // 2. Traer aliado asociado
-      const { data: refData } = await supabase
-        .from('referidores')
-        .select('nombre_aliado, estado, activo')
-        .eq('id', codeData.referidor_id)
-        .single();
-
-      if (!refData || refData.estado === 'Inactivo' || refData.activo === false) {
-        throw new Error('El aliado asociado a este código se encuentra inactivo.');
-      }
-
-      // 3. Calcular descuento
-      const { data: escalas } = await supabase
-        .from('config_escalas')
-        .select('descuento_cliente, minimo, maximo')
-        .order('minimo', { ascending: true });
-
-      let calculatedDiscount = 0;
-      if (escalas) {
-        const applicableScale = escalas.find((e: any) => 
-          currentTotal >= e.minimo && (e.maximo === null || currentTotal <= e.maximo)
-        );
-        if (applicableScale) {
-          calculatedDiscount = applicableScale.descuento_cliente || 0;
-        }
-      }
-
-      // Aplicar descuento solo en el Frontend (Reversible)
-      setVipStatus('success');
-      setVipAliado(refData.nombre_aliado || 'Referidor VIP');
-      setVipDiscount(calculatedDiscount);
-
-    } catch (err: any) {
-      console.error('Error detallado:', err?.message, err);
-      setVipStatus('error');
-      setVipMessage(err?.message || 'Error crítico al validar el código.');
-    }
-  };
 
   // -- Manejadores --
 
@@ -1224,7 +1152,7 @@ export default function NuevoContratoPage() {
       const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
       const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
       
-      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado - descuentoPromo);
+      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - descuentoAliado - descuentoPromo);
       const verdaderoValorTotal = valorAlquilerConDescuento + serviciosAdicionales;
 
       assertFirstVisitReady();
@@ -1302,21 +1230,6 @@ export default function NuevoContratoPage() {
       if (newDoc?.id) await sendAllyMeasures(newDoc.id);
       if (newDoc?.id) await syncRetablo(newDoc.id);
 
-      // Quema del código VIP (si fue usado)
-      if (vipCodeInput.trim() && newDoc && vipDiscount > 0) {
-        const { error: errorCupon } = await supabase
-          .from('codigos_descuento')
-          .update({ 
-            usado: true, 
-            fecha_uso: new Date().toISOString(),
-            contrato_id: newDoc.id 
-          })
-          .eq('codigo_seguridad', vipCodeInput.trim());
-          
-        if (errorCupon) {
-          console.error("Error al quemar el cupón VIP:", errorCupon);
-        }
-      }
 
       // 3. Vincular vestidos
       const itemPayload = resolved.map(rv => ({
@@ -1386,7 +1299,7 @@ export default function NuevoContratoPage() {
 
     const valorAlquilerBase = parseFloat(String(formData.valor_total).replace(/[^0-9.-]+/g, "")) || 0;
     const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
-    const verdaderoValorTotal = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado - descuentoPromo) + serviciosAdicionales;
+    const verdaderoValorTotal = Math.max(0, valorAlquilerBase - descuentoAliado - descuentoPromo) + serviciosAdicionales;
     // Already invoiced in Siigo: a change of value or customer is corrected there by itself (private.siigo_ajuste_contrato); warn first.
     {
       const antes = Number(editingSnapshot?.valor_total || 0), dif = Math.round(verdaderoValorTotal - antes);
@@ -1636,7 +1549,7 @@ export default function NuevoContratoPage() {
       const serviciosAdicionales = parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, "")) || 0;
       const abonoInicial = parseFloat(String(formData.anticipo).replace(/[^0-9.-]+/g, "")) || 0;
       
-      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - vipDiscount - descuentoAliado - descuentoPromo);
+      const valorAlquilerConDescuento = Math.max(0, valorAlquilerBase - descuentoAliado - descuentoPromo);
       const verdaderoValorTotal = valorAlquilerConDescuento + serviciosAdicionales;
 
       // 5. Inserción ERP: Mapeo Estricto de Columnas
@@ -1734,21 +1647,6 @@ export default function NuevoContratoPage() {
         }
       }
 
-      // Quema del código VIP (si fue usado)
-      if (vipCodeInput.trim() && insertedContract && vipDiscount > 0) {
-        const { error: errorCupon } = await supabase
-          .from('codigos_descuento')
-          .update({ 
-            usado: true, 
-            fecha_uso: new Date().toISOString(),
-            contrato_id: insertedContract.id 
-          })
-          .eq('codigo_seguridad', vipCodeInput.trim());
-          
-        if (errorCupon) {
-          console.error("Error al quemar el cupón VIP:", errorCupon);
-        }
-      }
 
       // 6. Inserción del Array Múltiple de Vestidos (usando vestido_id numérico)
       if (resolvedVestidos.length > 0 && insertedContract) {
@@ -1822,17 +1720,6 @@ export default function NuevoContratoPage() {
         toast.success(`✅ Contrato ${numero_contrato} registrado exitosamente ERP`);
       }
 
-      // 9. QUEMADO DEFINITIVO DEL CÓDIGO VIP
-      if (vipStatus === 'success' && vipCodeInput.trim()) {
-        await supabase
-          .from('codigos_descuento')
-          .update({ 
-            usado: true,
-            fecha_uso: new Date().toISOString(),
-            contrato_id: insertedContract.id
-          })
-          .eq('codigo_seguridad', vipCodeInput.trim());
-      }
 
       router.push('/dashboard');
 
@@ -1925,7 +1812,7 @@ export default function NuevoContratoPage() {
 
           {!isEditMode&&!firstVisit&&!aliadoModo.tiene&&<ContractVisitPicker onPick={id=>{if(sedesList.length)void loadVisit(id);}}/>}
           <ContractAllyMode extra={!isEditMode && <a href="/dashboard/ventas" className="px-5 py-2 rounded-xl border border-emerald-300 bg-emerald-50 text-sm font-bold text-emerald-700">Venta</a>} value={aliadoModo} onChange={setAliadoModo} descuento={descuentoAliado} descuentoPct={aliadoPct.descuento} minimoPct={aliadoPct.minimo} numero={editingContractNumber}
-            total={Math.max(0, valorAlquilerNum - vipDiscount - descuentoAliado - descuentoPromo) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0)}
+            total={Math.max(0, valorAlquilerNum - descuentoAliado - descuentoPromo) + (parseFloat(String(formData.servicios_adicionales).replace(/[^0-9.-]+/g, '')) || 0)}
             disabled={isEditMode && !['borrador','pendiente_admin'].includes(String(editingContractState).toLowerCase()) && String(userRole).toLowerCase() !== 'admin'}
             onAlly={a => setFormData(prev => ({ ...prev, cliente_nombre: a.nombre, cliente_documento: a.cedula, cliente_email: a.correo || '', whatsapp: a.celular || '', direccion: a.direccion || '' }))}
             onClienta={c => setFormData(prev => ({ ...prev, quinceanera_name: c.clienta_nombre, fecha_evento: prev.fecha_evento || c.fecha_evento }))} />
@@ -2360,63 +2247,6 @@ export default function NuevoContratoPage() {
                   </div>;
                 })()}
 
-                {/* VIP Code Section - oculto */}
-                {false && !isEditMode && (
-                <div className="p-4 bg-white border border-rose-100 rounded-xl shadow-sm">
-                  <label className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
-                    <Tag className="w-4 h-4 text-rose-500" /> Código VIP de Referido
-                  </label>
-                  <div className="flex gap-2">
-                    <input 
-                      type="text" 
-                      value={vipCodeInput}
-                      onChange={(e) => setVipCodeInput(e.target.value)}
-                      disabled={vipStatus === 'success' || vipStatus === 'loading'}
-                      placeholder="Ej: AMBAR-ABCD"
-                      className="flex-1 bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-2.5 font-medium focus:ring-2 focus:ring-rose-300 disabled:opacity-50 outline-none"
-                    />
-                    {vipStatus === 'success' ? (
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          setVipStatus('idle');
-                          setVipCodeInput('');
-                          setVipDiscount(0);
-                          setVipMessage('');
-                        }}
-                        className="bg-red-50 text-red-600 border border-red-200 px-5 py-2.5 rounded-xl font-medium hover:bg-red-100 flex items-center gap-2 transition-colors"
-                        title="Remover código y restaurar precio"
-                      >
-                        <Trash2 className="w-4 h-4" /> Remover
-                      </button>
-                    ) : (
-                      <button 
-                        type="button"
-                        onClick={handleValidateVIP}
-                        disabled={vipStatus === 'loading' || !vipCodeInput.trim()}
-                        className="bg-zinc-900 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-zinc-800 disabled:opacity-50 flex items-center gap-2 transition-colors"
-                      >
-                        {vipStatus === 'loading' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Validar'}
-                      </button>
-                    )}
-                  </div>
-                  {vipStatus === 'error' && (
-                    <p className="text-red-500 text-xs font-semibold mt-2 flex items-center gap-1">
-                      <AlertTriangle className="w-3 h-3" /> {vipMessage}
-                    </p>
-                  )}
-                  {vipStatus === 'success' && (
-                    <div className="mt-2 space-y-1">
-                      <p className="text-emerald-600 text-xs font-semibold flex items-center gap-1">
-                        <CheckCircle2 className="w-4 h-4" /> ✨ Descuento aplicado por invitación de {vipAliado}
-                      </p>
-                      <p className="text-rose-600 text-[11px] font-bold uppercase tracking-wider">
-                        Descuento Aliado: -${vipDiscount.toLocaleString('es-CO')}
-                      </p>
-                    </div>
-                  )}
-                </div>
-                )}
                 
                 <div className="grid grid-cols-2 gap-4 items-end">
                   {renderTextInput("Abono Inicial", "anticipo", <DollarSign className="w-4 h-4 text-emerald-600" />, "number", true)}
