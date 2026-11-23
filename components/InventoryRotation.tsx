@@ -30,7 +30,7 @@ function sugerencia(r:Row,mejorSede:Map<string,string>){
 
 /** Inventory › Rotación: how many times each dress was rented according to contracts, which ones do not move and what to do. */
 export default function InventoryRotation(){
- const [rows,setRows]=useState<Row[]|null>(null),[error,setError]=useState(''),[filtro,setFiltro]=useState<Filtro>('nunca'),[sede,setSede]=useState(''),[q,setQ]=useState('');
+ const [rows,setRows]=useState<Row[]|null>(null),[error,setError]=useState(''),[filtro,setFiltro]=useState<Filtro>('nunca'),[sede,setSede]=useState(''),[tipo,setTipo]=useState(''),[q,setQ]=useState('');
  // Cost and return of each dress (rotacion_vestidos_retorno): what its contracts produced against what it cost.
  const [ret,setRet]=useState<Record<string,{costo:number|null;ingresos:number;retorno:number|null}>>({});
  useEffect(()=>{let vivo=true;void supabase.rpc('rotacion_vestidos_retorno').then(({data})=>{if(vivo)setRet(Object.fromEntries(((data||[]) as {id:string;costo:number|null;ingresos:number;retorno:number|null}[]).map(x=>[x.id,x])));});return()=>{vivo=false;};},[]);
@@ -51,7 +51,8 @@ export default function InventoryRotation(){
   return out;
  },[demanda,mejorSede]);
  const sedes=[...new Set(lista.map(r=>r.sede).filter(Boolean))].sort() as string[];
- const base=lista.filter(r=>(!sede||r.sede===sede)&&(!q||`${r.codigo} ${r.nombre||''} ${r.color||''}`.toLowerCase().includes(q.toLowerCase())));
+ const tipos=[...new Set(lista.map(r=>r.clasificacion||'Sin tipo'))].sort();
+ const base=lista.filter(r=>(!sede||r.sede===sede)&&(!tipo||(r.clasificacion||'Sin tipo')===tipo)&&(!q||`${r.codigo} ${r.nombre||''} ${r.color||''}`.toLowerCase().includes(q.toLowerCase())));
  const cuenta={nunca:base.filter(nunca).length,nuevos:base.filter(nuevo).length,quietos:base.filter(quieto).length,pocas:base.filter(pocas).length,estrellas:base.filter(estrella).length,todos:base.length};
  const visibles=base.filter(filtro==='nunca'?nunca:filtro==='nuevos'?nuevo:filtro==='quietos'?quieto:filtro==='pocas'?pocas:filtro==='estrellas'?estrella:()=>true)
   .sort((a,b)=>filtro==='estrellas'||filtro==='todos'?b.veces-a.veces:b.dias_sin_alquiler-a.dias_sin_alquiler);
@@ -61,7 +62,7 @@ export default function InventoryRotation(){
   const csv=toExcelCsv(['Código','Nombre','Talla','Color','Sede','Tipo','Categoría','Estado','Ingresado al ERP','Días en el ERP','Precio','Veces alquilado','Últimos 90 días','Próximos','Último alquiler','Días sin alquilar','Foto','Produjo','Sugerencia'],
    visibles.map(r=>[r.codigo,r.nombre,r.talla,r.color,r.sede,r.clasificacion||'Sin tipo',r.categoria,r.estado,r.creado,diasEnErp(r),r.precio,r.veces,r.veces_90d,r.proximos,r.ultimo||'Nunca',r.dias_sin_alquiler,r.foto?'Sí':'No',Math.round(ret[r.id]?.ingresos||0),sugerencia(r,mejorSede).join(' ')]));
   const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
-  const nombre=[FILTROS.find(f=>f[0]===filtro)?.[1],sede||'todas las sedes',q].filter(Boolean).join(' ');
+  const nombre=[FILTROS.find(f=>f[0]===filtro)?.[1],sede||'todas las sedes',tipo,q].filter(Boolean).join(' ');
   const a=document.createElement('a');a.href=url;a.download=`rotacion-${nombre.replace(/[^\p{L}\p{N}]+/gu,'-').toLowerCase()}.csv`;a.click();
   setTimeout(()=>URL.revokeObjectURL(url),1000);
  };
@@ -82,6 +83,7 @@ export default function InventoryRotation(){
    <div className="flex flex-wrap gap-2 items-center">
     <select value={filtro} onChange={e=>setFiltro(e.target.value as Filtro)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold">{FILTROS.map(([k,l])=><option key={k} value={k}>{l} ({cuenta[k]})</option>)}</select>
     <select value={sede} onChange={e=>setSede(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold"><option value="">Todas las sedes</option>{sedes.map(s=><option key={s}>{s}</option>)}</select>
+    <select value={tipo} onChange={e=>setTipo(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold"><option value="">Todos los tipos</option>{tipos.map(t=><option key={t}>{t}</option>)}</select>
     <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Buscar código, nombre o color" className="border border-gray-200 rounded-xl px-3 py-2 text-sm flex-1 min-w-[12rem]"/>
     <button type="button" onClick={descargar} disabled={!visibles.length} className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest disabled:opacity-50">Descargar Excel ({visibles.length})</button>
    </div>
