@@ -1444,7 +1444,6 @@ export default function NuevoContratoPage() {
     // Autorización de datos (una vez por persona): obligatoria la de tratamiento en contratos nuevos.
     if (!isEditMode && dataAuthState?.estado !== 'autorizada' && !dataAuth.tratamiento) { toast.error('Marca la autorización de tratamiento de datos de la clienta (obligatoria).'); return; }
     if (!isEditMode && commercialPending(dataAuth, dataAuthState)) { toast.error(COMMERCIAL_REQUIRED); return; }
-    if (!isEditMode && Number(formData.valor_deposito || 0) > 0 && !formData.deposito_medio) { toast.error('Elige cómo pagó la clienta el depósito, o «Se paga el día de la entrega».'); return; }
     // «Efectivo» = the deposit is returned in cash at the store: no bank account is needed.
     if (!isEditMode && cuentaObligatoria && formData.deposito_banco !== DEVOLUCION_EFECTIVO && Number(formData.valor_deposito || 0) > 0 && (!formData.deposito_banco || !formData.deposito_tipo_cuenta || !formData.deposito_numero.trim() || !formData.deposito_titular.trim())) { toast.error('Completa la cuenta o llave para devolver el depósito: banco, tipo, número y titular.'); return; }
     const llaveInvalida = formData.deposito_numero.trim() ? keyError(formData.deposito_tipo_cuenta, formData.deposito_numero) : null;
@@ -2310,15 +2309,6 @@ export default function NuevoContratoPage() {
                       </div>
                     )}
                     <p className="text-sm text-emerald-700">Registra el valor PACTADO del depósito. No se suma al alquiler ni al abono. Cuando la clienta lo pague (completo o por partes), regístralo en Depósitos › «Pago de depósito»: ahí se genera su recibo en Siigo. El vestido solo se entrega con el depósito pagado.</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-semibold text-gray-700">¿Cómo pagó el depósito?{Number(formData.valor_deposito || 0) > 0 && !isEditMode ? ' *' : ''}</label>
-                    <select value={formData.deposito_medio} onChange={e => setFormData(prev => ({ ...prev, deposito_medio: e.target.value }))} className="w-full bg-white border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-medium">
-                      <option value="">Selecciona…</option>
-                      <option value="En la entrega">Se paga el día de la entrega</option>
-                      {['Efectivo', 'Transferencia', 'Tarjeta', 'Otro'].map(m => <option key={m}>{m}</option>)}
-                    </select>
-                    {formData.deposito_medio === 'En la entrega' && <p className="text-xs text-amber-700">El día de la entrega el ERP pedirá cómo pagó y su comprobante antes de entregar el vestido.</p>}
                   </div>
                   <div className="space-y-1">
                     <label className="text-sm font-semibold text-gray-700">¿Cómo se devuelve?</label>
