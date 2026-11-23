@@ -314,7 +314,8 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
                 <strong className="text-gray-900 font-bold uppercase">Depósito de garantía</strong><br />
                 {data.medio_deposito === 'En la entrega'
                   ? <><strong>Valor a pagar el día de la entrega del vestido:</strong> {formatCurrency(data.valor_deposito || 0)} (no hace parte del valor del alquiler ni del abono). Sin este pago no se entrega el vestido.<br /></>
-                  : <><strong>Valor recibido:</strong> {formatCurrency(data.valor_deposito || 0)}{data.medio_deposito ? ` en ${data.medio_deposito.toLowerCase()}` : ''} (no hace parte del valor del alquiler ni del abono).<br /></>}
+                  : data.medio_deposito ? <><strong>Valor recibido:</strong> {formatCurrency(data.valor_deposito || 0)} en {data.medio_deposito.toLowerCase()} (no hace parte del valor del alquiler ni del abono).<br /></>
+                  : <><strong>Valor del depósito:</strong> {formatCurrency(data.valor_deposito || 0)} (no hace parte del valor del alquiler ni del abono). Se paga antes de la entrega del vestido; sin este pago completo no se entrega.<br /></>}
                 {data.banco_deposito === 'Efectivo' ? <><strong>Devolución:</strong> en efectivo en la tienda.<br /></> : <><strong>Cuenta o llave para la devolución:</strong> {data.banco_deposito || '—'} · {data.tipo_cuenta_deposito || '—'} · {data.numero_cuenta_deposito || '—'}<br /></>}
                 <strong>Titular:</strong> {data.titular_cuenta_deposito || '—'}{data.documento_titular ? ` · ${docSigla(data.tipo_documento_titular)} ${data.documento_titular}` : ''}<br />
                 La devolución se programa dentro de las 72 horas siguientes a la devolución del vestido, previa inspección; de ella se descuentan los daños o la mora según las cláusulas de este contrato.
