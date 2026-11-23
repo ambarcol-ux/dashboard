@@ -17,7 +17,7 @@ export const INDICADORES:Record<string,Ind[]>={
  entrega:[{titulo:'Vestidos entregados con saldo pendiente',meta:0,inverso:true,valor:r=>n(r,'entregas_con_saldo')}],
  devolucion:[{titulo:'Depósitos sin devolver 8 días después del evento',meta:0,inverso:true,valor:r=>n(r,'depositos_atrasados')}],
  caja:[{titulo:'Días con caja cerrada (lunes a sábado)',meta:100,unidad:'%',valor:r=>pc(n(r,'dias_cerrados'),n(r,'dias_habiles'))}],
- inventario:[{titulo:'Vestidos con costo registrado',meta:100,unidad:'%',valor:r=>pc(n(r,'vestidos_con_costo'),n(r,'vestidos'))},{titulo:'Vestidos con foto',meta:100,unidad:'%',valor:r=>pc(n(r,'vestidos_con_foto'),n(r,'vestidos'))}],
+ inventario:[{titulo:'Vestidos con foto',meta:100,unidad:'%',valor:r=>pc(n(r,'vestidos_con_foto'),n(r,'vestidos'))}],
 };
 
 type Puntaje={id:string;nombre:string;puntaje:number;componentes:{nombre:string;puntos:number;max:number}[]};
