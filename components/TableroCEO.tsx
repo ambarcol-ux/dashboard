@@ -36,7 +36,7 @@ export default function TableroCEO(){
  if(error)return <p role="alert" className="text-sm font-bold text-rose-700 bg-rose-50 rounded-2xl p-4">{error}</p>;
  if(!data||!s)return <p className="text-sm text-gray-400">Cargando tablero…</p>;
  const {t,rows}=s,avance=data.dia_mes/data.dias_mes,prov=sede?0:Number(data.proveedores_por_pagar||0);
- const invCosto=rows.reduce((a,x)=>a+Number(inv[x.id]?.costo||0),0),invSin=rows.reduce((a,x)=>a+Number(inv[x.id]?.sin_costo||0),0);
+ const invCosto=rows.reduce((a,x)=>a+Number(inv[x.id]?.costo||0),0);
  const plata=t.efectivo+t.bancos,ajena=t.depositos+t.plan_ahorro+t.socios,libre=plata-ajena;
  const tienes=plata+t.por_cobrar,debes=ajena+prov+t.fijos_pendientes;
  const proyeccion=avance>0?t.vendido/avance:0,ganancia=t.vendido-t.salio,equilibrio=Math.max(t.salio_ant,t.salio+t.fijos_pendientes);
@@ -60,7 +60,7 @@ export default function TableroCEO(){
   <section><h3 className="font-black text-gray-800 mb-2">2. Lo que tienes y lo que debes</h3><div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
    <Card titulo="Tienes" valor={cop(tienes)} nota={`Plata ${cop(plata)} + te deben ${cop(t.por_cobrar)}`}/>
    <Card titulo="Debes" valor={cop(debes)} nota={`Devolver/usar ${cop(ajena)}${prov?` · proveedores ${cop(prov)}`:''} · pagos fijos del mes ${cop(t.fijos_pendientes)}`}/>
-   <Card titulo="Lo que vale la empresa" valor={cop(tienes-debes+invCosto)} nota={`Tienes menos debes + inventario ${cop(invCosto)}${invSin?` (${invSin} vestidos aún sin costo)`:''}`} tono={tienes-debes>=0?'green':'red'}/>
+   <Card titulo="Lo que vale la empresa" valor={cop(tienes-debes+invCosto)} nota={`Tienes menos debes + inventario ${cop(invCosto)}`} tono={tienes-debes>=0?'green':'red'}/>
    <Card titulo="Te deben vencido" valor={cop(t.por_cobrar_vencido)} nota="Saldos de eventos que ya pasaron" tono={t.por_cobrar_vencido>0?'red':'gray'}/>
   </div></section>
 
@@ -75,7 +75,7 @@ export default function TableroCEO(){
    <Card titulo="Proyección de ventas del mes" valor={cop(proyeccion)} nota={t.vendido_ant>0?`${pct(proyeccion,t.vendido_ant)} % del mes pasado`:undefined} tono={proyeccion>=t.vendido_ant?'green':'amber'}/>
    <Card titulo="Plata asegurada" valor={cop(t.asegurado)} nota={`Saldos por cobrar de ${t.contratos_futuros} contratos con evento futuro`}/>
    <Card titulo="Citas → contratos" valor={`${t.citas_mes} → ${t.contratos_mes}`} nota={`${pct(t.contratos_mes,t.citas_mes)} % de conversión este mes (meta 40 %)`} tono={pct(t.contratos_mes,t.citas_mes)>=40?'green':'amber'}/>
-   <Card titulo="Vestidos activos" valor={String(t.vestidos)} nota={invSin?`${invSin} sin costo registrado (Inventario › Costo)`:'Todos con costo registrado'} tono={invSin?'amber':'gray'}/>
+   <Card titulo="Vestidos activos" valor={String(t.vestidos)} tono='gray'/>
   </div></section>
 
   {!sede&&<section><h3 className="font-black text-gray-800 mb-2">5. Semáforo por sede</h3><div className="overflow-x-auto bg-white rounded-2xl border"><table className="w-full text-sm">
