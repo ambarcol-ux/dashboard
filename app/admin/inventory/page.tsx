@@ -160,9 +160,6 @@ export default function InventoryPage() {
         return;
       }
 
-      // Purchase cost is required: without it the dress's return (Rotación) and the inventory value can't be known.
-      if (!Number(newDress.costo_compra)) { toast.error('Escribe el costo del vestido (lo que costó).'); return; }
-
       // 1. Mapeo Quirúrgico: Solo enviamos lo que el usuario confirmó
       const insertData = {
         codigo: newDress.codigo,
@@ -905,12 +902,6 @@ export default function InventoryPage() {
                     />
                   </div>
                   <div className="space-y-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Costo del vestido (lo que costó) · obligatorio</label>
-                    <input type="text" inputMode="numeric" placeholder="Para el valor del inventario en el Tablero CEO"
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none"
-                      value={miles(newDress.costo_compra)} onChange={(e) => setNewDress({...newDress, costo_compra: soloDigitos(e.target.value)})}/>
-                  </div>
-                  <div className="space-y-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">7. Sede Base *</label>
                     <select 
                       className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl focus:ring-2 focus:ring-rose-200 font-bold text-gray-700 outline-none"
@@ -1048,13 +1039,6 @@ export default function InventoryPage() {
                             onChange={(e) => handleEditChange(v.id, 'precio_venta', soloDigitos(e.target.value))}
                             placeholder="—"
                           />
-                        </div>
-                        <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-1 mt-2">Costo</label>
-                        <div className="flex items-center gap-1 border border-gray-200 bg-white rounded-lg px-2 focus-within:ring-2 focus-within:ring-rose-200 transition-all text-sm w-32">
-                          <span className="text-gray-400 font-bold">$</span>
-                          <input type="text" inputMode="numeric" className="bg-transparent w-full py-1.5 text-gray-700 font-bold outline-none" placeholder="—"
-                            value={miles(editState[v.id]?.costo_compra !== undefined ? (editState[v.id].costo_compra ?? '') : (v.costo_compra ?? ''))}
-                            onChange={(e) => handleEditChange(v.id, 'costo_compra', soloDigitos(e.target.value))}/>
                         </div>
                       </td>
                       <td className="px-3 py-4 text-center">
