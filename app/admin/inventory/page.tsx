@@ -169,7 +169,7 @@ export default function InventoryPage() {
         precio_sugerido: newDress.precio ? Number(newDress.precio) : null,
         precio_venta: newDress.precio_venta ? Number(newDress.precio_venta) : null,
         costo_compra: newDress.costo_compra ? Number(newDress.costo_compra) : null,
-        silueta: newDress.estilo.silueta, corpino: newDress.estilo.corpino, escote: newDress.estilo.escote, mangas: newDress.estilo.mangas, detalles: newDress.estilo.detalles,
+        silueta: newDress.estilo.silueta, corpino: newDress.estilo.corpino, escote: newDress.estilo.escote, mangas: newDress.estilo.mangas, detalles: newDress.estilo.detalles, tela: newDress.estilo.tela || null,
         para_alquiler: newDress.para_alquiler,
         para_venta: newDress.para_venta,
         clasificacion_id: Number(newDress.clasificacion_id),
@@ -281,7 +281,7 @@ export default function InventoryPage() {
     try {
       const { data, error } = await supabase
         .from('vestidos')
-        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, costo_compra, para_alquiler, para_venta, stock_total, clasificacion_id, categoria, archivado, archivado_at, motivo_archivo, qr_token, imagen_url, foto_frente, foto_espalda, foto_detalle, silueta, corpino, escote, mangas, detalles')
+        .select('id, codigo, nombre, talla, color, sede_principal_id, sede_actual_id, estado, precio_sugerido, precio_venta, costo_compra, para_alquiler, para_venta, stock_total, clasificacion_id, categoria, archivado, archivado_at, motivo_archivo, qr_token, imagen_url, foto_frente, foto_espalda, foto_detalle, silueta, corpino, escote, mangas, detalles, tela')
         .order('codigo', { ascending: true });
       
       if (error) {
@@ -1690,6 +1690,7 @@ function EditDressModal({ dress, clasificaciones, onClose, onSaved }: { dress: E
     if (f.para_venta !== !!dress.para_venta) changes.para_venta = f.para_venta;
     if ((f.precio_venta ? Number(f.precio_venta) : null) !== (dress.precio_venta ?? null)) changes.precio_venta = f.precio_venta ? Number(f.precio_venta) : null;
     { const o = estiloDe(dress as never); for (const k of ['silueta', 'corpino', 'escote', 'mangas'] as const) if (f.estilo[k] !== o[k]) changes[k] = f.estilo[k];
+      if (f.estilo.tela !== o.tela) changes.tela = f.estilo.tela || null;
       if (f.estilo.detalles.join('|') !== o.detalles.join('|')) changes.detalles = f.estilo.detalles; }
     if (!Object.keys(changes).length) { setSaving(false); onClose(); return; }
     const { error } = await supabase.from('vestidos').update(changes).eq('id', dress.id);
