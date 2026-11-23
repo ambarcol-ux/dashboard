@@ -202,7 +202,7 @@ export const PROTOCOLOS=[
    '**Paso 2 · Elegir el grupo:** toca el tipo de novedad: contratos sin factura en Siigo, facturas con valor distinto, **facturas de Siigo por corregir**, documentos con error, acciones pendientes en Siigo, abonos sin medio o cuenta, cajas sin cerrar, cierres con diferencia o **contratos en borrador**.',
    '**Paso 3 · Ver quién resuelve:** cada novedad dice si la resuelve la Sede, Contabilidad o Administración.',
    '**Paso 4 · Resolver:** toca **Ir a resolver**: te lleva al contrato o a la caja exacta.',
-   '**Paso 5 · Facturas de Siigo por corregir:** el contrato cambió de valor, vestido, fechas o forma de pago después de facturar y Siigo no dejó editarla. Corrígela a mano en Siigo, verifica el saldo y toca **Ya lo hice**.',
+   '**Paso 5 · Facturas de Siigo por corregir:** el contrato cambió de valor, vestido, fechas o forma de pago después de facturar y Siigo no dejó editarla. Corrígela a mano en Siigo, verifica el saldo y toca **Ya lo hice en Siigo**.',
    '**Paso 6 · Lo hecho en Siigo:** cuando Contabilidad anula o ajusta algo directamente en Siigo, toca **Ya lo hice en Siigo** para que salga de la lista.',
    '**Borradores:** la sede los firma o los cierra; los que están sin factura, sin abono, duplicados o con fecha imposible los revisa Contabilidad.']},
   {type:'steps',title:'🏦 Conciliación bancaria (contabilidad, cada mes)',items:[
@@ -227,8 +227,8 @@ export const PROTOCOLOS=[
    '**Paso 2 · Contar:** cuenta el cajón y escribe **cuántos billetes hay de cada valor** y el valor de las monedas; el sistema suma.',
    '**Paso 3 · Diferencia:** si hay diferencia, escribe el motivo y sube la **foto de los billetes**.',
    '**Paso 4 · Cerrar:** toca **Cerrar caja**.',
-   '**Paso 5 · Consignar:** si el cajón quedó con **más de $500.000**, al día siguiente consigna el excedente y regístralo como **Consignación a banco**, eligiendo **el banco donde se consignó** y con el comprobante. Sin eso no deja cerrar.']},
-  {type:'checklist',title:'✅ Lista de chequeo',items:['Abonos registrados en el contrato con soporte, en el momento','No escribí abonos a mano en la caja','Gastos con comprobante y su cuenta contable','Conteo por billetes al cerrar','Diferencias explicadas con foto','Consignación si pasé de $500.000','Pendientes de la sede en cero']},
+   '**Paso 5 · Consignar:** si el cajón quedó por encima del **tope de efectivo de la sede** (lo fija administración en «Topes de efectivo por sede»), al día siguiente consigna el excedente y regístralo como **Consignación a banco**, eligiendo **el banco donde se consignó** y con el comprobante. Sin eso no deja cerrar.']},
+  {type:'checklist',title:'✅ Lista de chequeo',items:['Abonos registrados en el contrato con soporte, en el momento','No escribí abonos a mano en la caja','Gastos con comprobante y su cuenta contable','Conteo por billetes al cerrar','Diferencias explicadas con foto','Consignación si pasé el tope de efectivo','Pendientes de la sede en cero']},
   {type:'warning',title:'⚠️ Nunca',content:'**Nunca** recibas dinero sin registrarlo en el contrato. **Nunca** anules un abono para corregirlo sin motivo: la anulación la aprueba administración. **Nunca** dejes la caja sin cerrar: la revisión de cada noche le avisa a administración.'}]),
  P('pa-inventario','👗 Protocolo 8 · Inventario','Cada vestido con código, talla, fotos y estilo.',<Shirt className="w-5 h-5"/>,'inventario',[
   {type:'steps',title:'📝 Cómo se hace',items:[
