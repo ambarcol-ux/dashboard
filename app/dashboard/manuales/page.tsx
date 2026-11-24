@@ -107,7 +107,7 @@ const MANUAL_DATA = [
         '**Pedidos de estrene en riesgo (no alcanzan):** 👉 Abre Pedidos estrene.',
         '**Servicios de proveedores por pagar:** 👉 Abre Pagos a proveedores.',
         '**Ventas de vestido sin factura:** 👉 Abre Ventas y pon la factura.',
-        '**Contratos con datos por revisar:** al tocarlo se abre una tabla con **Contrato**, **Sede** y **Qué revisar**. 👉 Corrige cada uno.'
+        '**Contratos con datos por revisar:** al tocarlo se abre una tabla con **Contrato**, **Sede** y **Qué revisar**. 👉 Corrige cada uno. Si dice **«Depósito marcado como pagado sin entrada a caja»**, envía a administración la fecha, el medio y el comprobante de ese pago (o avisa si la clienta no pagó).'
       ] },
       { type: 'warning', title: '⚠️ ¡Ojo con esto!', content: 'Si un mosaico no te aparece es porque no hay pendientes o porque tu rol no ve ese módulo. Si eliges una sede en el Inicio, los mosaicos muestran solo esa sede.' },
       { type: 'example', title: '💡 Ejemplo práctico', content: 'Ves «Citas por confirmar (hoy y mañana): llámalas · 3». Lo tocas, se abre Primeras visitas con esas 3 citas, llamas a cada clienta y el mosaico baja.' }
