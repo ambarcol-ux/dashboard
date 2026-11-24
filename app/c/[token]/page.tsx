@@ -29,7 +29,7 @@ export default function PublicCatalogPage(){
     <p className="font-black text-amber-900">{p.nombre} · {p.beneficio}</p>
     <p className="text-amber-800 text-xs">Hasta el {p.hasta.split('-').reverse().join('/')}{p.categorias?.length?` · ${p.categorias.join(', ')}`:''}{p.codigo?` · Código ${p.codigo}`:''}</p>
     {p.condiciones&&<p className="text-amber-800 text-xs mt-1">{p.condiciones}</p>}</article>)}</section>}
-   {data&&<p className="text-center"><button type="button" onClick={book} className="inline-block px-5 py-3 rounded-2xl bg-gray-900 text-white text-sm font-black">Agendar cita</button></p>}
+   {data&&!data.sin_precios&&<p className="text-center"><button type="button" onClick={book} className="inline-block px-5 py-3 rounded-2xl bg-gray-900 text-white text-sm font-black">Agendar cita</button></p>}
    {error&&<p role="alert" className="bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl p-4 text-sm font-bold text-center">{error}</p>}
    {!data&&!error&&<p className="flex items-center justify-center gap-2 text-gray-500"><Loader2 className="w-5 h-5 animate-spin"/> Cargando…</p>}
    {data&&<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
