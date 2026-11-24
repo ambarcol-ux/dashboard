@@ -155,7 +155,7 @@ export const PROTOCOLOS=[
    '**Paso 3 · Filtrar (opcional):** usa la lista **«Todas las sedes disponibles»** para ver solo tu sede y la lista **«Todos los depósitos»** para ver, por ejemplo, solo los que están en «Pendiente de pago».',
    '**Paso 4 · Abrir el registro:** en la fila del contrato, columna **Gestión**, toca **«+ Pago de depósito»**. Se abre la ventana **«Pago de depósito · falta $…»**.',
    '**Si el botón dice «Adjuntar comprobante»:** el contrato tiene un depósito anterior sin soporte. Súbelo primero; después aparece «Pago de depósito».',
-   '**Si el botón está gris:** el depósito pactado ya está completo o está en $0. Para subir el valor pactado toca **«Modificar valor»** (solo si tienes ese permiso) o pídeselo a administración.',
+   '**Si el botón está gris:** el depósito pactado ya está completo o está en $0. Para subir el valor pactado toca **«Modificar valor»** (solo si tienes ese permiso) o pídeselo a administración. Si se olvidó al crear el contrato, la líder o el franquiciado lo ponen en **Editar contrato** aunque la caja de ese día ya esté cerrada (el pactado no mueve la caja); nunca puede quedar por debajo de lo ya pagado.',
    '**Paso 5 · Monto recibido (COP):** escribe lo que la clienta te pagó **en este momento**. El sistema no deja poner más de lo que falta.',
    '**Paso 6 · Fecha de recepción:** elige el día en que **realmente** recibiste el dinero (no el día en que lo registras).',
    '**Paso 7 · Método:** elige **Efectivo**, **Transferencia**, **Tarjeta** u **Otro**.',
