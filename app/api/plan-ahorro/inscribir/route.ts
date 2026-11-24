@@ -35,7 +35,13 @@ export async function POST(request:Request){
    const {data:conv}=await db.from('whatsapp_conversaciones').select('id,telefono').like('telefono',`%${link.telefono}`).eq('canal','whatsapp').order('ultimo_at',{ascending:false}).limit(1).maybeSingle();
    if(settings.token&&settings.phoneNumberId&&conv){
     const texto=`¡Listo, ${limpio(d.titular_nombre,60).split(' ')[0]}! 💛 Ya quedaste inscrita en el Plan Ahorro XV de Ámbar Couture. Este es tu contrato: léelo y fírmalo desde tu celular aquí 👉 ${firma}\n\nCuando lo firmes, la asesora de tu sede te escribe con los datos para pagar tu primera cuota.`;
-    const waId=await sendWhatsappText(settings,conv.telefono,texto),at=new Date().toISOString();
+    // Meta sometimes fails for a moment (#131000): retry up to 3 times before giving up; the 24-hour-window error is not retried.
+    let waId='';
+    for(let intento=1;;intento++){
+     try{waId=await sendWhatsappText(settings,conv.telefono,texto);break;}
+     catch(e){if(intento>=3||String(e).includes('24 horas'))throw e;await new Promise(r=>setTimeout(r,intento*2000));}
+    }
+    const at=new Date().toISOString();
     await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:waId,direccion:'saliente',origen:'erp',tipo:'automatico',texto,estado:'sent',created_at:at});
     await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:at}).eq('id',conv.id);
    }
