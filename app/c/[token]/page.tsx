@@ -60,7 +60,7 @@ export default function PublicCatalogPage(){
      <button type="button" onClick={e=>{e.stopPropagation();mover(1);}} aria-label="Foto siguiente" className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/90 text-gray-900"><ChevronRight className="w-6 h-6"/></button></>}
     <p className="absolute bottom-4 left-0 right-0 text-center text-white text-sm font-bold">{open.codigo} · {fotos[zoom].label}{fotos.length>1?` · ${zoom+1} de ${fotos.length}`:''}</p>
    </div>}
-   <p className="text-center text-xs text-gray-400">Para reservar o probarte un vestido, comunícate con Ámbar Couture.</p>
+   {!data?.sin_precios&&<p className="text-center text-xs text-gray-400">Para reservar o probarte un vestido, comunícate con Ámbar Couture.</p>}
   </div>
  </main>;
 }
