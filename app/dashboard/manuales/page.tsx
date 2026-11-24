@@ -314,7 +314,7 @@ const MANUAL_DATA = [
       { type: 'steps', title: '✍️ Enviar el contrato a firmar', items: [
         '**Paso 1 · Buscar el contrato:** en el **DASHBOARD**, escribe en el buscador el nombre, la cédula o el número del contrato.',
         '**Paso 2 · Abrir el menú:** en la fila del contrato toca **Gestionar**.',
-        '**Paso 3 · Copiar el enlace:** toca **Copiar Link de Firma** y envíaselo a la clienta por WhatsApp.',
+        '**Paso 3 · Correo automático:** al guardar, el ERP le envía el contrato al **correo** de la clienta para firmar, y si no firma le recuerda a las 24 horas, a los 3 días y a los 7 días. Si quieres que firme ya, toca **Copiar Link de Firma** y ábrelo en tu equipo o envíaselo por WhatsApp.',
         '**Paso 4 · Firma:** la clienta firma desde su celular. Logra que firme **ese mismo día**.',
         '**Paso 5 · PDF (si lo pide):** en **Gestionar** toca **Generar PDF Contrato**.'
       ] },

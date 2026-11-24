@@ -122,7 +122,7 @@ export const PROTOCOLOS=[
    '**Paso 7 · Depósito:** en **Depósito** escribe solo el valor **pactado**; no se da por pagado. Cuando la clienta lo pague, regístralo en **Depósitos › Pago de depósito** (Protocolo 5).',
    '**Paso 8 · Abono:** registra el abono con la **foto del soporte** (Protocolo 7). Si aún no tienes el comprobante, marca **«El soporte lo adjunto después»** y adjúntalo desde el contrato o desde Cierres de caja **antes de cerrar la caja de hoy**.',
    '**Paso 9 · Factura:** en sedes con Siigo activo, elige el tipo de factura. El **número de factura lo pone Siigo**: no se escribe.',
-   '**Paso 10 · Firma:** envía el enlace de firma y logra que firme **ese mismo día**. Al firmar le llega su copia al correo.',
+   '**Paso 10 · Firma:** al guardar, el ERP le envía **solo** el contrato a su **correo** para firmar (por eso el correo debe estar bien escrito). Logra que firme **ese mismo día**: en tu equipo, desde su correo o con el enlace que le mandas por WhatsApp. Si no firma, el ERP le recuerda por correo a las 24 horas, a los 3 días y a los 7 días. Al firmar le llega su copia al correo.',
    '**Si después cambias el valor o agregas un adicional:** el ERP **corrige la misma factura** en Siigo (o hace factura adicional o nota crédito si ya tiene recibos). Nunca hagas otra factura a mano.',
    '**Si hay que corregir la fecha de elaboración:** en el detalle del contrato › **Fechas del contrato**, con motivo; hasta 15 días antes.']},
   {type:'steps',title:'📝 Si la clienta desiste',items:[
