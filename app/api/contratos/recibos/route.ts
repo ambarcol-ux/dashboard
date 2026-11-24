@@ -3,6 +3,7 @@ import {authorizedVisitWorker} from '@/lib/first-visit-worker-config';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendOptionalTemplate,sendWhatsappText,WINDOW_MS} from '@/lib/whatsapp-inbox';
 import {sendEmail,type EmailConnection} from '@/lib/email-providers';
+import {sendSigningRequest,type FirmaPendiente} from '@/lib/contract-delivery';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
 
@@ -27,6 +28,21 @@ function mensaje(r:Recibo){
 export async function POST(request:Request){
  if(!authorizedVisitWorker(request))return Response.json({error:'No autorizado'},{status:401});
  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false}});
+ // {"solo":"firma"} (every 5 minutes): unsigned drafts get the contract to their e-mail for signature, then the reminders (lib/contract-delivery.ts).
+ if(((await request.json().catch(()=>({}))) as {solo?:string}).solo==='firma'){
+  const {data:conn}=await db.rpc('integracion_correo_servidor');
+  if(!conn?.secreto||!conn.activo)return Response.json({enviados:0,errores:['Sin conexión de correo activa.']});
+  const {data:pendientes,error:e}=await db.rpc('contratos_firma_por_enviar',{p_limite:20});
+  if(e)return Response.json({error:e.message},{status:500});
+  const origin=process.env.FIRST_VISIT_PUBLIC_ORIGIN||new URL(request.url).origin;let enviados=0;const errores:string[]=[];
+  for(const k of (pendientes||[]) as FirmaPendiente[]){
+   try{await sendSigningRequest(db,conn as EmailConnection,k,origin);enviados++;}
+   catch(x){const m=(x instanceof Error?x.message:'Error').slice(0,300);errores.push(m);
+    // Logged as a send so a bad address waits for the next reminder instead of retrying every 5 minutes.
+    await db.from('bitacora_contratos').insert({contrato_id:k.id,accion:'Contrato enviado para firma',detalle:`No se pudo enviar: ${m}`});}
+  }
+  return Response.json({enviados,errores});
+ }
  const {data,error}=await db.rpc('recibos_clienta_tomar',{p_limite:20});
  if(error)return Response.json({error:error.message},{status:500});
  const settings=await loadWhatsappSettings(db);

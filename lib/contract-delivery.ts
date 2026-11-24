@@ -45,3 +45,22 @@ export async function sendSignedContract(db:SupabaseClient,id:string,origin:stri
  }
  await db.from('bitacora_contratos').insert({contrato_id:id,accion:'Contrato enviado a la clienta',detalle:via?`Copia del contrato firmado enviada por ${via}${via==='correo'?` (${detalle})`:''}.`:`No se envió la copia (${detalle||'sin correo y sin WhatsApp abierto en las últimas 24 h'}): compártela desde el contrato.`});
 }
+
+export type FirmaPendiente={id:string;numero:string;nombre:string|null;email:string;sede:string|null;fecha_evento:string|null;valor:number;abono:number;envios:number};
+/** Unsigned draft: the signing link goes to her e-mail when the contract is saved, then as a reminder at 24 h, 3 and 7 days
+ *  (public.contratos_firma_por_enviar picks them; worker app/api/contratos/recibos with {"solo":"firma"}). Each send is logged in bitacora_contratos. */
+export async function sendSigningRequest(db:SupabaseClient,conn:EmailConnection,k:FirmaPendiente,origin:string){
+ const link=`${origin.replace(/\/$/,'')}/firma/${k.id}`,nombre=String(k.nombre||'').trim().split(/\s+/)[0]||'hola',sede=String(k.sede||'');
+ const recordatorio=k.envios>0,saldo=Math.max(0,Number(k.valor||0)-Number(k.abono||0)),evento=fecha(k.fecha_evento);
+ const datos:[string,string][]=[...(evento?[['Tu evento',evento] as [string,string]]:[]),['Valor del contrato',cop(Number(k.valor||0))],['Abono',cop(Number(k.abono||0))],['Saldo',cop(saldo)]];
+ const intro=recordatorio?`Tu contrato ${k.numero} con Ámbar Couture ${sede} sigue pendiente de firma. Fírmalo para dejar tu vestido y tus fechas confirmados.`:`Tu contrato ${k.numero} con Ámbar Couture ${sede} está listo. Revísalo y fírmalo desde tu celular.`;
+ const texto=`Hola ${nombre} 💛 ${intro}\n\n${datos.map(([a,b])=>`• ${a}: ${b}`).join('\n')}\n\nRevisar y firmar: ${link}\n\nAl firmar aceptas las condiciones del contrato, incluida la política de cancelación.`;
+ const html=`<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1f2937"><p style="font-size:12px;letter-spacing:.2em;color:#b45309;font-weight:bold">ÁMBAR COUTURE${sede?` · ${esc(sede).toUpperCase()}`:''}</p>
+  <h2 style="margin:4px 0 12px">${recordatorio?'Tu contrato está pendiente de firma':'Tu contrato está listo para firmar'}</h2><p>Hola ${esc(nombre)}, ${esc(intro.replace(/^Tu/,'tu'))}</p>
+  <ul>${datos.map(([a,b])=>`<li><b>${esc(a)}:</b> ${esc(b)}</li>`).join('')}</ul>
+  <p><a href="${link}" style="display:inline-block;background:#e11d48;color:#fff;padding:12px 20px;border-radius:12px;text-decoration:none;font-weight:bold">Revisar y firmar mi contrato</a></p>
+  <p style="font-size:12px;color:#6b7280">Al firmar aceptas las condiciones del contrato, incluida la política de cancelación. Si algo no está bien, responde a tu asesora antes de firmar.</p></div>`;
+ const r=await sendEmail(conn,{to:k.email,nombre:String(k.nombre||''),asunto:recordatorio?`Recordatorio: firma tu contrato ${k.numero}`:`Firma tu contrato ${k.numero} con Ámbar Couture`,html,texto});
+ if(!r.ok)throw Error(`correo a ${k.email} falló: ${r.error}`);
+ await db.from('bitacora_contratos').insert({contrato_id:k.id,accion:'Contrato enviado para firma',detalle:`${recordatorio?`Recordatorio ${k.envios} de firma`:'Enlace de firma'} enviado al correo ${k.email}.`});
+}
