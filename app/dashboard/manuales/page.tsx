@@ -731,7 +731,7 @@ const MANUAL_DATA = [
       ] },
       { type: 'steps', title: '📝 Compartir un link público', items: [
         '**Paso 1 · Filtrar:** deja elegidos el **Tipo**, la **Categoría** y la **Sede** que quieres mostrar.',
-        '**Paso 2 · Precios:** marca **Sin precios** si el link no debe mostrar precios.',
+        '**Paso 2 · Precios:** marca **Sin precios** si el link es para **aliados**: no muestra precios, promociones ni el botón «Agendar cita».',
         '**Paso 3 · Crear el link:** toca **Copiar link público**. El link queda copiado: pégalo en el chat de la clienta.',
         '**Paso 4 · Enlace fijo:** si elegiste sede y tipo, también puedes tocar **Copiar enlace fijo**; agrégale ?o=origen al final para saber de dónde llegan las citas.',
         '**Paso 5 · Administrar links:** abre **Links públicos** para **Copiar** de nuevo, **Desactivar** o **Activar** los que creaste.'

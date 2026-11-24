@@ -41,6 +41,7 @@ export async function GET(request:Request){
   const {data:promos}=await db.from('promociones').select(PROMO_FIELDS).eq('activo',true).lte('desde',today).gte('hasta',today);
   const promociones=((promos||[]) as Promotion[]).filter(p=>promoApplies(p,{sede:c!.sede_id,tipos:[c!.clasificacion_id],categorias:[c!.categoria]},today))
    .map(p=>({nombre:p.nombre,beneficio:promoBenefit(p),hasta:p.hasta,codigo:p.codigo,condiciones:p.condiciones,categorias:p.categorias}));
-  return Response.json({titulo:c.titulo,sede_id:c.sede_id,vestidos,promociones,sin_precios:sinPrecios},{headers:{'Cache-Control':'public, max-age=60, s-maxage=60','Referrer-Policy':'no-referrer'}});
+  // «Sin precios» links are for allies: no «· sin precios» in the title and no promotions.
+  return Response.json({titulo:sinPrecios?String(c.titulo||'').replace(/\s*·\s*sin precios\s*$/i,''):c.titulo,sede_id:c.sede_id,vestidos,promociones:sinPrecios?[]:promociones,sin_precios:sinPrecios},{headers:{'Cache-Control':'public, max-age=60, s-maxage=60','Referrer-Policy':'no-referrer'}});
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
 }
