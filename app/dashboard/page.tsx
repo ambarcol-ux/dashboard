@@ -157,6 +157,8 @@ export default function DashboardPage() {
   const userPermissions = usePermissions(user?.id ? String(user.id) : null);
   const pendingDeposits = useDepositCount(user ? undefined : null, user?.id);
   const isDashboardAdmin = canEditSavedRecords(user, userPermissions);
+  // Invoice numbers come from Siigo; only administration and accounting may type one (to link an invoice made directly in Siigo).
+  const canTypeInvoice = ['admin', 'contabilidad'].includes(String((user as { rol_id?: string; rol?: string } | null)?.rol_id || (user as { rol?: string } | null)?.rol || '').toLowerCase());
   // -- Modals Invoice/Factura QC --
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [invoiceContract, setInvoiceContract] = useState<any>(null);
@@ -2022,7 +2024,7 @@ export default function DashboardPage() {
                  </button>
                )}
 
-               <button 
+               {canTypeInvoice && <button 
                  onClick={() => { 
                    setOpenDropdownId(null); 
                    setInvoiceContract(c);
@@ -2032,7 +2034,7 @@ export default function DashboardPage() {
                  className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-rose-50 rounded-xl flex items-center gap-3 font-bold transition-all"
                >
                  <Tag className="w-4 h-4 text-rose-500" /> Legalizar Factura
-               </button>
+               </button>}
 
                {/* Logistics Specific */}
                <div className="h-px bg-gray-100 my-1 mx-2"></div>
@@ -3845,7 +3847,7 @@ export default function DashboardPage() {
                           {selectedContract.numero_factura || 'Sin Legalizar'}
                         </p>
                       </div>
-                      <button 
+                      {canTypeInvoice && <button 
                         onClick={() => {
                           setInvoiceContract(selectedContract);
                           setInvoiceNumber(selectedContract.numero_factura || '');
@@ -3854,7 +3856,7 @@ export default function DashboardPage() {
                         className="p-2 px-4 bg-white hover:bg-rose-50 border border-gray-100 rounded-xl text-xs font-bold text-rose-500 transition-all shadow-sm"
                       >
                         {selectedContract.numero_factura ? 'Editar' : 'Agregar'}
-                      </button>
+                      </button>}
                     </div>
                   </section>
 
