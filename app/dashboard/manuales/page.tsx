@@ -309,7 +309,8 @@ const MANUAL_DATA = [
         '**Paso 16 · Cómo se devuelve el depósito:** en **¿Cómo se devuelve?** elige **A una cuenta o llave** (llena banco, tipo de cuenta o llave Bre-B, número y titular) o **En efectivo en la tienda**.',
         '**Paso 17 · Autorizaciones:** activa la **Autorización de Uso de Imagen** si la clienta acepta y, en **Autorización de datos personales**, marca el tratamiento (obligatorio) y elige **Sí autoriza** o **No autoriza** en información comercial.',
         '**Paso 18 · Factura:** en sedes con Siigo verás **Factura en Siigo (automática)**: elige **Tipo de factura** y **Tipo de venta**. El número de factura lo pone Siigo; no se escribe.',
-        '**Paso 19 · Guardar:** toca **Procesar y Generar Contrato**. El ERP te lleva al Dashboard.'
+        '**Paso 19 · Fecha de elaboración:** escógela en el **calendario** (hoy o hasta 15 días atrás); no se escribe. Es la fecha del contrato y de su factura.',
+        '**Paso 20 · Guardar:** toca **Procesar y Generar Contrato**. Sale la **Verificación final** con el resumen (clienta, vestidos, fechas, valores, depósito): revísalo y toca **Sí, guardar**, o **Volver a revisar** para corregir. El ERP te lleva al Dashboard.'
       ] },
       { type: 'steps', title: '✍️ Enviar el contrato a firmar', items: [
         '**Paso 1 · Buscar el contrato:** en el **DASHBOARD**, escribe en el buscador el nombre, la cédula o el número del contrato.',
@@ -508,7 +509,7 @@ const MANUAL_DATA = [
         '**Paso 5 · Pago:** elige el **Medio de pago** y, si no es efectivo, la **Cuenta que recibió**.',
         '**Paso 6 · Datos para la factura:** escribe **Nombre de quien compra**, **Cédula o NIT**, **Teléfono** y **Correo**.',
         '**Paso 7 · Autorización de datos:** marca el tratamiento de datos y elige **Sí autoriza** o **No autoriza**.',
-        '**Paso 8 · Guardar:** toca **Registrar venta**. Se abre el **Comprobante** (VTA-000001…) para imprimir o guardar en PDF.'
+        '**Paso 8 · Guardar:** toca **Registrar venta**, revisa la **Verificación final** (vestido, total, pago y datos de factura) y toca **Sí, registrar venta**. Se abre el **Comprobante** (VTA-000001…) para imprimir o guardar en PDF.'
       ] },
       { type: 'steps', title: '🧾 Anotar la factura de Siigo', items: [
         '**Paso 1 · Ubicar la venta:** en **Ventas del mes** elige el **Mes** y busca la venta con factura **Pendiente**.',

@@ -14,7 +14,7 @@ const digits=(v:string)=>v.replace(/\D/g,'');
  * The income goes into today's cash register as «Venta de vestido»; Siigo will use the code + V. */
 export default function DressSaleDialog({dress,onClose,onSaved}:{dress:SaleDress;onClose:()=>void;onSaved:(ventaId?:string)=>void}){
  const precio=Number(dress.precio_venta)||0;
- const [f,setF]=useState({descuento:'',motivo_descuento:'',medio_pago:'Efectivo',cuenta_id:'',cliente_nombre:'',cliente_documento:'',cliente_telefono:'',cliente_email:'',numero_factura:''}),[busy,setBusy]=useState(false);
+ const [f,setF]=useState({descuento:'',motivo_descuento:'',medio_pago:'Efectivo',cuenta_id:'',cliente_nombre:'',cliente_documento:'',cliente_telefono:'',cliente_email:'',numero_factura:''}),[busy,setBusy]=useState(false),[revisar,setRevisar]=useState(false);
  const [cuentas,setCuentas]=useState<CashAccount[]>([]);
  // Data authorization of the buyer: processing required, commercial «Sí/No» required (same as citas and contratos).
  const [auth,setAuth]=useState<AuthChoice>({tratamiento:false,comercial:null}),[authState,setAuthState]=useState<AuthState>(null);
@@ -57,8 +57,16 @@ export default function DressSaleDialog({dress,onClose,onSaved}:{dress:SaleDress
    </div>
    <DataAuthorization documento={f.cliente_documento} telefono={f.cliente_telefono} value={auth} onChange={setAuth} onState={setAuthState}/>
    {faltaAutorizacion&&<p className="text-xs font-bold text-amber-700">Falta la autorización de datos: marca el tratamiento (obligatorio) y elige Sí o No en información comercial.</p>}
-   <div className="flex gap-3 justify-end pt-2"><button onClick={onClose} disabled={busy} className="px-5 py-3 rounded-xl border font-bold text-sm">Cancelar</button>
-    <button onClick={()=>void save()} disabled={busy||invalido} className="px-5 py-3 rounded-xl bg-emerald-600 text-white font-black text-sm disabled:opacity-50">{busy?'Registrando…':`Registrar venta · ${money(total)}`}</button></div>
+   {/* Final check (owner's order): summary and confirmation before saving. */}
+   {revisar&&<div role="alert" className="rounded-2xl border-2 border-rose-200 bg-rose-50 p-4 space-y-1 text-sm">
+    <p className="font-black text-rose-800">Verificación final antes de registrar</p>
+    <p>Vestido <b>{dress.codigo}</b> · total <b>{money(total)}</b>{dto>0?` (descuento ${money(dto)}: ${f.motivo_descuento})`:''}</p>
+    <p>Pago: <b>{f.medio_pago}</b>{f.cuenta_id?` · ${accountLabel(opciones.find(c=>c.id===f.cuenta_id)||{id:'',nombre:''} as CashAccount)}`:''}</p>
+    <p>Factura a nombre de <b>{f.cliente_nombre}</b> · {f.cliente_documento} · {f.cliente_email||'sin correo'}</p>
+    <p className="font-black text-rose-700 pt-1">¿Estás segura de que todo está correcto y ya hiciste los últimos cambios?</p>
+   </div>}
+   <div className="flex gap-3 justify-end pt-2"><button onClick={()=>{if(revisar)setRevisar(false);else onClose();}} disabled={busy} className="px-5 py-3 rounded-xl border font-bold text-sm">{revisar?'Volver a revisar':'Cancelar'}</button>
+    <button onClick={()=>{if(revisar)void save();else setRevisar(true);}} disabled={busy||invalido} className="px-5 py-3 rounded-xl bg-emerald-600 text-white font-black text-sm disabled:opacity-50">{busy?'Registrando…':revisar?'Sí, registrar venta':`Registrar venta · ${money(total)}`}</button></div>
   </div>
  </div>;
 }
