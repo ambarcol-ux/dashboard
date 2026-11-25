@@ -336,7 +336,7 @@ const MANUAL_DATA = [
         '**Paso 2 · Monto:** en **Monto del Abono ($)** escribe lo que pagó. No puede ser mayor que el saldo; si lo es, el botón dice «Monto no válido».',
         '**Paso 3 · Medio de pago:** en **Medio de Pago** elige **Transferencia**, **Efectivo** o **Tarjeta (Datafono/Link)**.',
         '**Paso 4 · Recibo:** en sedes con Siigo el **Número de Recibo de Caja** lo asigna Siigo solo. En las demás sedes escríbelo.',
-        '**Paso 5 · Fecha del pago:** elige el día en que la clienta **realmente** pagó (hasta 15 días atrás).',
+        '**Paso 5 · Fecha del pago:** elige el día en que la clienta **realmente** pagó (hoy o una fecha pasada; si esa caja ya está cerrada, primero hay que reabrirla).',
         '**Paso 6 · Observaciones (opcional):** escribe algo útil, por ejemplo el banco o la referencia.',
         '**Paso 7 · Soporte:** en **Documento soporte** sube el pantallazo de Nequi, el comprobante del banco o el voucher (foto o PDF). Es obligatorio.',
         '**Paso 8 · Guardar:** toca **Registrar Pago** y espera el mensaje «¡Abono registrado exitosamente!».',
