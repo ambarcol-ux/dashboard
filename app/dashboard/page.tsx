@@ -157,6 +157,9 @@ export default function DashboardPage() {
   const userPermissions = usePermissions(user?.id ? String(user.id) : null);
   const pendingDeposits = useDepositCount(user ? undefined : null, user?.id);
   const isDashboardAdmin = canEditSavedRecords(user, userPermissions);
+  // Stores where this user may delete contracts (administration, contabilidad, the store leader or franquiciado); contracts with money cannot be deleted.
+  const [puedeEliminar, setPuedeEliminar] = useState<string[]>([]);
+  useEffect(() => { let live = true; void supabase.rpc('eliminar_contrato_sedes').then(({ data }) => { if (live) setPuedeEliminar((data || []) as string[]); }); return () => { live = false; }; }, []);
   // Invoice numbers come from Siigo; only administration and accounting may type one (to link an invoice made directly in Siigo).
   const canTypeInvoice = ['admin', 'contabilidad'].includes(String((user as { rol_id?: string; rol?: string } | null)?.rol_id || (user as { rol?: string } | null)?.rol || '').toLowerCase());
   // -- Modals Invoice/Factura QC --
@@ -2118,7 +2121,7 @@ export default function DashboardPage() {
 
                <button onClick={()=>{setOpenDropdownId(null);void desistContract(c);}} disabled={loading||['cancelado','anulado','rechazado','finalizado','entregado','mantenimiento'].includes(String(c.estado).toLowerCase())} className="w-full text-left px-4 py-3 text-sm text-amber-700 hover:bg-amber-50 rounded-xl font-bold disabled:opacity-50">Desistir del contrato</button>
 
-               {isDashboardAdmin && (
+               {puedeEliminar.includes(String(c.sede_id || '')) && (
                   <>
                     <div className="h-px bg-gray-100 my-1 mx-2"></div>
                     <button 

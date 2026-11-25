@@ -37,7 +37,6 @@ export default function RegistrarPagoPage() {
   const [soportes, setSoportes] = useState<UploadedSupport[]>([]);
   // «Fecha del pago»: the real day the customer paid (today or up to 15 days back); the cash register and Siigo receipt take it.
   const hoyBogota = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-  const minFechaPago = new Date(Date.parse(hoyBogota) - 15 * 86400000).toISOString().slice(0, 10);
   const [fechaPago, setFechaPago] = useState(hoyBogota);
   const [subiendoSoporte, setSubiendoSoporte] = useState(false);
   const [esAdmin, setEsAdmin] = useState(false);
@@ -397,9 +396,9 @@ export default function RegistrarPagoPage() {
                       </div>}
                       <div className="space-y-1">
                         <label htmlFor="fecha_pago" className="text-sm font-medium text-gray-700">Fecha del pago</label>
-                        <input id="fecha_pago" type="date" value={fechaPago} min={minFechaPago} max={hoyBogota} onChange={e => setFechaPago(e.target.value)}
+                        <input id="fecha_pago" type="date" value={fechaPago} max={hoyBogota} onChange={e => setFechaPago(e.target.value)}
                           className="w-full bg-gray-50 border border-gray-200 text-gray-800 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-emerald-200" />
-                        <p className="text-[11px] text-gray-500">El día en que la clienta pagó (hasta 15 días atrás). La caja y el recibo de Siigo quedan con esa fecha.</p>
+                        <p className="text-[11px] text-gray-500">El día en que la clienta pagó (hoy o una fecha pasada). La caja y el recibo de Siigo quedan con esa fecha.</p>
                       </div>
                       <div className="space-y-1">
                         <label className="text-sm font-medium text-gray-700">Observaciones (Opcional)</label>
