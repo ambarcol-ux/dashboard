@@ -309,7 +309,7 @@ const MANUAL_DATA = [
         '**Paso 16 · Cómo se devuelve el depósito:** en **¿Cómo se devuelve?** elige **A una cuenta o llave** (llena banco, tipo de cuenta o llave Bre-B, número y titular) o **En efectivo en la tienda**.',
         '**Paso 17 · Autorizaciones:** activa la **Autorización de Uso de Imagen** si la clienta acepta y, en **Autorización de datos personales**, marca el tratamiento (obligatorio) y elige **Sí autoriza** o **No autoriza** en información comercial.',
         '**Paso 18 · Factura:** en sedes con Siigo verás **Factura en Siigo (automática)**: elige **Tipo de factura** y **Tipo de venta**. El número de factura lo pone Siigo; no se escribe.',
-        '**Paso 19 · Fecha de elaboración:** escógela en el **calendario** (hoy o hasta 15 días atrás); no se escribe. Es la fecha del contrato y de su factura.',
+        '**Paso 19 · Fecha de elaboración:** escógela en el **calendario** (hoy o una fecha pasada, nunca futura); no se escribe. Es la fecha del contrato y de su factura.',
         '**Paso 20 · Guardar:** toca **Procesar y Generar Contrato**. Sale la **Verificación final** con el resumen (clienta, vestidos, fechas, valores, depósito): revísalo y toca **Sí, guardar**, o **Volver a revisar** para corregir. El ERP te lleva al Dashboard.'
       ] },
       { type: 'steps', title: '✍️ Enviar el contrato a firmar', items: [
