@@ -48,7 +48,7 @@ export const EVALUACIONES:Record<string,{titulo:string;preguntas:Q[]}>={
   q('g3','El número del recibo de caja de un abono…',['Lo escribo yo del talonario','Lo asigna Siigo automáticamente','Es el número del contrato'],1),
   q('g4','Después de registrar el abono en el contrato…',['Lo vuelvo a escribir en la caja','Entra solo a la caja, a Siigo y le llega el recibo a la clienta','Le aviso a la contadora para que lo pase'],1),
   q('g5','¿Cómo se cuenta el efectivo al cerrar?',['Escribiendo el total','Escribiendo cuántos billetes hay de cada valor y las monedas','No se cuenta'],1),
-  q('g6','El cajón quedó con $900.000 y el tope es $500.000. ¿Qué haces?',['Nada','Al día siguiente consigno al menos $400.000 y lo registro como Consignación a banco con el comprobante','Me llevo el dinero a la casa'],1),
+  q('g6','Consignaste $400.000 del cajón al banco. ¿Qué haces en el ERP?',['Nada','Lo registro como egreso «Consignación a banco», con el banco y el comprobante','Lo anoto en un papel'],1),
   q('g7','Te equivocaste en el valor de un abono. ¿Qué haces?',['Lo borro','Oprimo Anular con el motivo; administración lo aprueba y registro el correcto','Lo dejo así'],1),
   q('g8','Una clienta quiere dejar $500.000 de depósito en efectivo (tope $300.000)…',['Lo recibo en efectivo','Le pido transferencia o datáfono','No le recibo depósito'],1)]},
  'pa-inventario':{titulo:'Inventario',preguntas:[

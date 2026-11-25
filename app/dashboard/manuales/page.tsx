@@ -788,7 +788,7 @@ const MANUAL_DATA = [
         '**Paso 7 · Cerrar:** toca **Cerrar caja del día** y confirma. Lo contado queda como saldo inicial del día siguiente.'
       ] },
       { type: 'steps', title: '📝 Consignar el excedente del cajón', items: [
-        '**Paso 1 · Aviso:** si el cajón empezó el día con más efectivo que el **tope del cajón** de la sede, el cierre te avisa cuánto debes consignar.',
+        '**Paso 1 · Sin tope:** hoy el cajón **no tiene tope de efectivo** (administración puede volver a fijarlo en «Topes de efectivo por sede»); consigna cuando lo indique administración.',
         '**Paso 2 · Consignar:** lleva el excedente al banco y guarda el comprobante.',
         '**Paso 3 · Registrar:** en **Nuevo movimiento** elige **Egreso**, categoría **Consignación a banco** y medio **Efectivo**.',
         '**Paso 4 · Banco:** en **Banco donde se consignó** elige la cuenta donde quedó la plata, escribe el valor y sube el comprobante.',
