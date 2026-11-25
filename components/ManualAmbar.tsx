@@ -178,7 +178,7 @@ export const PROTOCOLOS=[
    '**Paso 4 · Aprobar la devolución:** con el vestido en la tienda, entra a **DEPÓSITOS Y DEVOLUCIONES**, busca el contrato y toca **Aprobar devolución**.',
    '**Paso 5 · Descuento:** si hay daños o faltantes, escribe el **descuento (retención)** y su motivo. Lo retenido no se devuelve: va a Siigo como **Ingreso por daños**.',
    '**Paso 6 · Cómo se devuelve:** elige el método y **desde qué cuenta** se devuelve, y completa los datos bancarios de la clienta si es por transferencia.',
-   '**Paso 7 · Pagar:** devuelve el depósito en máximo **8 días** con su soporte. El estado pasa a **Devuelto**.',
+   '**Paso 7 · Pagar:** devuelve el depósito en máximo **8 días** con su soporte. Pon la **fecha real** en que salió el dinero (hasta 15 días atrás); si ese día de caja ya está cerrado, el ERP te pide reabrirlo con administración. El estado pasa a **Devuelto**.',
    '**Paso 8 · Finalizar:** finaliza el contrato.']},
   {type:'checklist',title:'✅ Lista de chequeo',items:['Revisado contra las fotos de entrega','Daños o multa registrados','Enviado a lavandería/arreglo','Depósito devuelto en 8 días con soporte','Contrato finalizado']}]),
  P('pa-caja','💵 Protocolo 7 · Caja del día','Todo lo que entra y sale, registrado y cerrado cada día.',<Wallet className="w-5 h-5"/>,'caja',[
