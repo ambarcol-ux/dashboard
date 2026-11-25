@@ -197,6 +197,7 @@ export const PROTOCOLOS=[
    '**Gasto · Paso 1:** en **Cierres de caja** registra el gasto como **egreso** con su comprobante.',
    '**Gasto · Paso 2:** toca el botón **Siigo** del gasto y elige tipo de documento, NIT del proveedor y **cuenta contable** (buscar o «Ver todas»). Llega a Siigo al cerrar la caja.',
    '**Otro ingreso:** debe decir de dónde viene el dinero.']},
+  {type:'warning',title:'⏳ Hasta el 10 de diciembre: la líder hace lo contable de su sede',content:'Mientras nos ponemos al día, la **asesora líder** puede, **solo en su sede**: registrar gastos y pagos fijos, pasar gastos a Siigo, resolver las **Novedades contables** («Ya lo hice en Siigo»), corregir abonos y depósitos en días ya cerrados y **aprobar anulaciones de abonos que pidió otra persona** (nunca las suyas). Todo queda con su nombre y lo revisa administración cada noche. El 11 de diciembre vuelve solo a contabilidad.'},
   {type:'steps',title:'📝 Novedades contables (administración, contabilidad y franquiciado)',items:[
    '**Paso 1 · Abrir:** en **Inicio** o en **Cierres de caja** abre el recuadro **Novedades contables**.',
    '**Paso 2 · Elegir el grupo:** toca el tipo de novedad: contratos sin factura en Siigo, facturas con valor distinto, **facturas de Siigo por corregir**, documentos con error, acciones pendientes en Siigo, abonos sin medio o cuenta, cajas sin cerrar, cierres con diferencia o **contratos en borrador**.',

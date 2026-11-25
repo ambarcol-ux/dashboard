@@ -136,7 +136,8 @@ export default function CashRegister({profile}:{profile:Profile}){
  if(view==='cuentas')return <>{tabs}{seesAll&&<CashStartAdmin isAdmin={finanzas} today={today}/>}{seesAll&&<CashLimitsAdmin sites={sites}/>}<AccountsAdmin sites={sites} isAdmin={finanzas} canManage={puedeCuentas}/></>;
  return <>
   {tabs}
-  {finanzas&&<AnulacionesPago/>}
+  {/* Hidden when empty; the store leader sees her store's requests while she has temporary accounting powers (private.lider_contable). */}
+  <AnulacionesPago/>
   <div className={styles.toolbar} style={{marginBottom:18}}>
    <label>Sede<select value={sede} onChange={e=>{setLoading(true);setNotice('');setSede(e.target.value);}}>{seesAll&&<option value={ALL}>Todas las sedes</option>}{sites.map(s=><option key={s.sede_id} value={s.sede_id}>{s.sede}</option>)}</select></label>
    {sede===ALL&&<label>Desde<input type="date" max={fecha} value={desde} onChange={e=>{if(e.target.value){setLoading(true);setDesde(e.target.value);}}}/></label>}
