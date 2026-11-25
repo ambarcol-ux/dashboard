@@ -125,7 +125,7 @@ export const PROTOCOLOS=[
    '**Paso 9b · Antes de guardar:** escoge la **fecha de elaboración** en el calendario y revisa la **Verificación final**: clienta, vestidos, fechas, valores y depósito. Solo guarda cuando todo esté correcto.',
    '**Paso 10 · Firma:** al guardar, el ERP le envía **solo** el contrato a su **correo** para firmar (por eso el correo debe estar bien escrito). Logra que firme **ese mismo día**: en tu equipo, desde su correo o con el enlace que le mandas por WhatsApp. Si no firma, el ERP le recuerda por correo a las 24 horas, a los 3 días y a los 7 días. Al firmar le llega su copia al correo.',
    '**Si después cambias el valor o agregas un adicional:** el ERP **corrige la misma factura** en Siigo (o hace factura adicional o nota crédito si ya tiene recibos). Nunca hagas otra factura a mano.',
-   '**Si hay que corregir la fecha de elaboración:** en el detalle del contrato › **Fechas del contrato**, con motivo; hasta 15 días antes.']},
+   '**Si hay que corregir la fecha de elaboración:** en el detalle del contrato › **Fechas del contrato**, con motivo; puede ser cualquier fecha pasada (nunca futura). Si la caja de ese día ya está cerrada, primero hay que reabrirla.']},
   {type:'steps',title:'📝 Si la clienta desiste',items:[
    '**Paso 1 · Por escrito:** pide el desistimiento **por escrito** por los canales oficiales.',
    '**Paso 2 · Desistir:** en el contrato toca **Desistir** y escribe el motivo.',
