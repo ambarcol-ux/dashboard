@@ -239,7 +239,7 @@ export const PROTOCOLOS=[
    '**Paso 2 · Contar:** cuenta el cajón y escribe **cuántos billetes hay de cada valor** y el valor de las monedas; el sistema suma.',
    '**Paso 3 · Diferencia:** si hay diferencia, escribe el motivo y sube la **foto de los billetes**.',
    '**Paso 4 · Cerrar:** toca **Cerrar caja**.',
-   '**Paso 5 · Consignar:** si el cajón quedó por encima del **tope de efectivo de la sede** (lo fija administración en «Topes de efectivo por sede»), al día siguiente consigna el excedente y regístralo como **Consignación a banco**, eligiendo **el banco donde se consignó** y con el comprobante. Sin eso no deja cerrar.']},
+   '**Paso 5 · Consignar:** hoy **no hay tope de efectivo** en el cajón. Cuando consignes efectivo al banco, regístralo como **Consignación a banco**, eligiendo **el banco donde se consignó** y con el comprobante, para que el cajón cuadre.']},
   {type:'checklist',title:'✅ Lista de chequeo',items:['Abonos registrados en el contrato con soporte, en el momento','No escribí abonos a mano en la caja','Gastos con comprobante y su cuenta contable','Conteo por billetes al cerrar','Diferencias explicadas con foto','Consignación si pasé el tope de efectivo','Pendientes de la sede en cero']},
   {type:'warning',title:'⚠️ Nunca',content:'**Nunca** recibas dinero sin registrarlo en el contrato. **Nunca** anules un abono para corregirlo sin motivo: la anulación la aprueba administración. **Nunca** dejes la caja sin cerrar: la revisión de cada noche le avisa a administración.'}]),
  P('pa-inventario','👗 Protocolo 8 · Inventario','Cada vestido con código, talla, fotos y estilo.',<Shirt className="w-5 h-5"/>,'inventario',[
