@@ -65,6 +65,9 @@ export default function NuevoContratoPage() {
   const [editingSnapshot, setEditingSnapshot] = useState<any>(null);
   const [loadingEditContract, setLoadingEditContract] = useState(false);
   const isEditMode = Boolean(editingContractId);
+  const [verificar, setVerificar] = useState(false);
+  const hoyElab = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
+  const minElab = new Date(Date.now() - 15 * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   // Stores with «Enviar a Siigo» on: the invoice is created by the ERP in Siigo when the contract is saved (its number arrives by itself).
   const [siigoFactura, setSiigoFactura] = useState({ activa: false, tipo_factura: 'electronica', tipo_venta: 'alquiler' });
   const [firstVisit,setFirstVisit]=useState<any>(null);
@@ -104,6 +107,7 @@ export default function NuevoContratoPage() {
   const [formData, setFormData] = useState({
     // Básicos
     numero_factura: '',
+    fecha_elaboracion: '', // chosen in the calendar by whoever makes the contract (required)
     sede: '',
     sede_id: '',
     asesora: '',
@@ -433,6 +437,7 @@ export default function NuevoContratoPage() {
 
         setFormData({
           numero_factura: contract.numero_factura || '',
+          fecha_elaboracion: String(contract.fecha_elaboracion || '').slice(0, 10),
           sede: contract.sede || '',
           sede_id: contract.sede_id || '',
           asesora: contract.asesora || '',
@@ -1090,6 +1095,7 @@ export default function NuevoContratoPage() {
       toast.error('En modo edición no se crea una solicitud nueva. Ajusta las fechas o guarda el contrato existente.');
       return;
     }
+    if (!formData.fecha_elaboracion) { toast.error('Elige la fecha de elaboración en el calendario.'); document.querySelector<HTMLInputElement>('[name="fecha_elaboracion"]')?.focus(); return; }
     let depositoInicial: number;
     try { depositoInicial = initialDepositAmount(formData.valor_deposito); }
     catch { toast.error('El depósito debe ser un valor válido mayor o igual a cero.'); return; }
@@ -1162,6 +1168,7 @@ export default function NuevoContratoPage() {
         numero_factura: numeroFactura,
         ...(siigoFactura.activa && !isEditMode ? { siigo_tipo_factura: siigoFactura.tipo_factura, siigo_tipo_venta: siigoFactura.tipo_venta } : {}),
         estado: 'borrador',
+        ...(formData.fecha_elaboracion ? { fecha_elaboracion: formData.fecha_elaboracion } : {}),
 
         // Cliente
         cliente_nombre: formData.cliente_nombre.trim(),
@@ -1406,8 +1413,9 @@ export default function NuevoContratoPage() {
     router.push(`/dashboard?contratoId=${encodeURIComponent(editingContractId)}`);
   };
 
-  const handleSubmit = async (e?: React.FormEvent) => {
+  const handleSubmit = async (e?: React.FormEvent, confirmado = false) => {
     if (e) e.preventDefault();
+    if (!isEditMode && !formData.fecha_elaboracion) { toast.error('Elige la fecha de elaboración en el calendario.'); document.querySelector<HTMLInputElement>('[name="fecha_elaboracion"]')?.focus(); return; }
     if (prexv.prexv_componentes?.length && !formData.fecha_fotografia) { toast.error('Indica la fecha de sesión PRE-XV.'); return; }
     const conceptoError = errorConceptos(conceptosLineas);
     if (conceptoError) { toast.error(conceptoError); return; }
@@ -1452,6 +1460,10 @@ export default function NuevoContratoPage() {
       if (subiendoSoporte) { toast.error('Espera a que termine de subir el soporte del anticipo.'); return; }
       if (!anticipoSoportes.length && !soporteDespues) { toast.error('Falta el soporte de ingreso. Adjunta el comprobante del anticipo o marca «El soporte lo adjunto después».'); return; }
     }
+
+    // Final check (owner's order): the advisor reviews a summary and confirms before anything is saved.
+    if (!confirmado) { setVerificar(true); return; }
+    setVerificar(false);
 
     setLoading(true);
 
@@ -1559,6 +1571,7 @@ export default function NuevoContratoPage() {
         numero_factura: numeroFactura,
         ...(siigoFactura.activa && !isEditMode ? { siigo_tipo_factura: siigoFactura.tipo_factura, siigo_tipo_venta: siigoFactura.tipo_venta } : {}),
         estado: 'borrador',
+        ...(formData.fecha_elaboracion ? { fecha_elaboracion: formData.fecha_elaboracion } : {}),
 
         // Cliente
         cliente_nombre: formData.cliente_nombre.trim(),
@@ -2415,6 +2428,15 @@ export default function NuevoContratoPage() {
 
           {!isEditMode && <DataAuthorization documento={formData.cliente_documento} telefono={formData.whatsapp} value={dataAuth} onChange={setDataAuth} onState={setDataAuthState} />}
 
+          {!isEditMode && <section className="space-y-1">
+            <label htmlFor="fecha_elaboracion" className="text-sm font-semibold text-gray-700">Fecha de elaboración del contrato <span className="text-rose-500">*</span></label>
+            <input id="fecha_elaboracion" name="fecha_elaboracion" type="date" required min={minElab} max={hoyElab} value={formData.fecha_elaboracion}
+              onKeyDown={e => { if (e.key !== 'Tab') e.preventDefault(); }} onClick={e => { try { e.currentTarget.showPicker(); } catch { /* older browsers open it on their own */ } }}
+              onChange={e => setFormData(prev => ({ ...prev, fecha_elaboracion: e.target.value }))}
+              className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300 cursor-pointer" />
+            <p className="text-xs text-gray-500">Escógela en el calendario (hoy o hasta 15 días atrás). Es la fecha del contrato y de su factura.</p>
+          </section>}
+
           {/* Factura al final, junto a los pagos (sigue obligatoria) */}
           {siigoFactura.activa && !isEditMode ? <section className="space-y-3 rounded-2xl border border-indigo-100 bg-indigo-50/50 p-4">
             <p className="text-sm font-semibold text-indigo-900">Factura en Siigo (automática)</p>
@@ -2482,6 +2504,37 @@ export default function NuevoContratoPage() {
             </div>
           </div>
 
+          {verificar && (() => {
+            const num = (v: unknown) => parseFloat(String(v ?? '').replace(/[^0-9.-]+/g, '')) || 0;
+            const cop = (v: unknown) => `$${num(v).toLocaleString('es-CO')}`;
+            const fd = (v: string) => v ? v.split('-').reverse().join('/') : '—';
+            const filas: [string, string][] = [
+              ['Clienta', `${formData.cliente_nombre || '—'} · ${formData.tipo_documento_cliente} ${formData.cliente_documento || '—'}`],
+              ['WhatsApp y correo', `${formData.whatsapp || '—'} · ${formData.cliente_email || 'sin correo'}`],
+              ['Vestidos', vestidos.map(v => v.referencia || '').filter(Boolean).join(', ') || '—'],
+              ['Fecha del evento', fd(formData.fecha_evento)],
+              ['Medidas · prueba · entrega', formData.por_agendar ? 'Por agendar' : `${fd(formData.cita_medidas)} · ${fd(formData.prueba_final)} · ${fd(formData.fecha_entrega)}`],
+              ['Valor del alquiler', cop(formData.valor_total)],
+              ['Servicios adicionales', cop(formData.servicios_adicionales)],
+              ['Abono', cop(formData.anticipo)],
+              ['Depósito pactado', cop(formData.valor_deposito)],
+              ...(!isEditMode ? [['Fecha de elaboración', fd(formData.fecha_elaboracion)] as [string, string]] : []),
+            ];
+            return <div role="dialog" aria-modal="true" aria-labelledby="verificar-titulo" className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4">
+                <h2 id="verificar-titulo" className="text-lg font-black text-gray-900">Verificación final antes de guardar</h2>
+                <p className="text-sm text-gray-600">Revisa cada dato. Después de guardar, los cambios quedan auditados y pueden afectar la factura.</p>
+                <dl className="divide-y divide-gray-100 rounded-2xl border border-gray-100 text-sm">
+                  {filas.map(([k, v]) => <div key={k} className="flex justify-between gap-3 px-3 py-2"><dt className="text-gray-500">{k}</dt><dd className="font-bold text-gray-900 text-right">{v}</dd></div>)}
+                </dl>
+                <p className="text-sm font-black text-rose-700">¿Estás segura de que todo está correcto y ya hiciste los últimos cambios?</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setVerificar(false)} className="py-3 rounded-2xl border-2 border-gray-200 font-black text-gray-600">Volver a revisar</button>
+                  <button type="button" onClick={() => void handleSubmit(undefined, true)} className="py-3 rounded-2xl bg-rose-600 text-white font-black">Sí, guardar</button>
+                </div>
+              </div>
+            </div>;
+          })()}
         </form>
         {/* Modal de Conflicto de Disponibilidad */}
         {showConflictModal && (
