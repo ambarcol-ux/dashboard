@@ -67,7 +67,6 @@ export default function NuevoContratoPage() {
   const isEditMode = Boolean(editingContractId);
   const [verificar, setVerificar] = useState(false);
   const hoyElab = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
-  const minElab = new Date(Date.now() - 15 * 864e5).toLocaleDateString('en-CA', { timeZone: 'America/Bogota' });
   // Stores with «Enviar a Siigo» on: the invoice is created by the ERP in Siigo when the contract is saved (its number arrives by itself).
   const [siigoFactura, setSiigoFactura] = useState({ activa: false, tipo_factura: 'electronica', tipo_venta: 'alquiler' });
   const [firstVisit,setFirstVisit]=useState<any>(null);
@@ -2430,11 +2429,11 @@ export default function NuevoContratoPage() {
 
           {!isEditMode && <section className="space-y-1">
             <label htmlFor="fecha_elaboracion" className="text-sm font-semibold text-gray-700">Fecha de elaboración del contrato <span className="text-rose-500">*</span></label>
-            <input id="fecha_elaboracion" name="fecha_elaboracion" type="date" required min={minElab} max={hoyElab} value={formData.fecha_elaboracion}
+            <input id="fecha_elaboracion" name="fecha_elaboracion" type="date" required max={hoyElab} value={formData.fecha_elaboracion}
               onKeyDown={e => { if (e.key !== 'Tab') e.preventDefault(); }} onClick={e => { try { e.currentTarget.showPicker(); } catch { /* older browsers open it on their own */ } }}
               onChange={e => setFormData(prev => ({ ...prev, fecha_elaboracion: e.target.value }))}
               className="w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-4 py-3 font-bold focus:ring-2 focus:ring-rose-300 cursor-pointer" />
-            <p className="text-xs text-gray-500">Escógela en el calendario (hoy o hasta 15 días atrás). Es la fecha del contrato y de su factura.</p>
+            <p className="text-xs text-gray-500">Escógela en el calendario (hoy o una fecha pasada, nunca futura). Es la fecha del contrato y de su factura.</p>
           </section>}
 
           {/* Factura al final, junto a los pagos (sigue obligatoria) */}
