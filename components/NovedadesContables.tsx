@@ -3,12 +3,14 @@ import {useCallback,useEffect,useState} from 'react';
 import Link from 'next/link';
 import {toast} from 'sonner';
 import {supabase} from '@/lib/supabase';
+import {useResponsableContable} from '@/lib/aprobador-contable';
 
 type Novedad={clave:string;tipo:string;sede:string;sede_id:string;titulo:string;detalle:string;href:string;responsable:string;resoluble:boolean;fecha:string|null};
 
 /** Accounting alerts (public.novedades_contables): administración and contabilidad see every store, the franquiciado his own.
  *  Each one opens the process where it is solved; manual Siigo actions can be marked done. Shows nothing for other roles. */
 export default function NovedadesContables({sedeId=null}:{sedeId?:string|null}){
+ const responsable=useResponsableContable();
  const [rows,setRows]=useState<Novedad[]|null>(null),[abierto,setAbierto]=useState<string|null>(null),[busy,setBusy]=useState('');
  const load=useCallback(async()=>{const {data,error}=await supabase.rpc('novedades_contables',{p_sede:sedeId});if(!error)setRows((data||[]) as Novedad[]);},[sedeId]);
  useEffect(()=>{const t=setTimeout(()=>void load(),0);const i=setInterval(()=>void load(),120000);return()=>{clearTimeout(t);clearInterval(i);};},[load]);
@@ -21,7 +23,7 @@ export default function NovedadesContables({sedeId=null}:{sedeId?:string|null}){
   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
    {grupos.map(g=><button key={g.tipo} type="button" onClick={()=>setAbierto(abierto===g.tipo?null:g.tipo)}
     className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left bg-amber-50 border-amber-200 text-amber-900 hover:shadow-md ${abierto===g.tipo?'ring-2 ring-amber-400':''}`}>
-    <span className="text-2xl font-black leading-none">{g.items.length}</span><span className="text-xs font-bold leading-tight">{g.tipo}<br/><span className="font-medium opacity-70">Responsable: {g.items[0].responsable}</span></span></button>)}
+    <span className="text-2xl font-black leading-none">{g.items.length}</span><span className="text-xs font-bold leading-tight">{g.tipo}<br/><span className="font-medium opacity-70">Responsable: {g.items[0].responsable==='Contabilidad'?responsable(g.items[0].sede_id):g.items[0].responsable}</span></span></button>)}
   </div>
   {abierto&&<div className="max-h-80 overflow-y-auto rounded-xl border border-amber-100 divide-y divide-amber-50">
    {grupos.find(g=>g.tipo===abierto)?.items.map(r=><div key={r.clave} className="flex flex-wrap items-center gap-2 p-3 text-xs">

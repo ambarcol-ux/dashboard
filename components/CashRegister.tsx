@@ -15,6 +15,7 @@ import styles from '@/app/dashboard/caja/caja.module.css';
 import SiigoAlDia from '@/components/SiigoAlDia';
 import SiigoConciliacion from '@/components/SiigoConciliacion';
 import AnulacionesPago from '@/components/AnulacionesPago';
+import {useAprobadorSedes} from '@/lib/aprobador-contable';
 import CashLimitsAdmin from '@/components/CashLimitsAdmin';
 import CajaPendientes from '@/components/CajaPendientes';
 import NovedadesContables from '@/components/NovedadesContables';
@@ -208,6 +209,7 @@ function AssignAccountBulk({day,canEdit,canFix,onDone,onError}:{day:CashDay;canE
 }
 
 function SiteDay({day,siteName,isAdmin,finanzas,canFix,canReopen,onDone,onError}:{day:CashDay;siteName:string;isAdmin:boolean;finanzas:boolean;canFix:boolean;canReopen:boolean;onDone:(m:string)=>void;onError:(m:string)=>void}){
+ const aprueba=useAprobadorSedes();
  const open=!day.cierre,canWork=open&&day.puede_operar;
  // Cash deposits received minus cash returned are in the drawer, though they are not income of the day.
  const dep=Number(day.totales.depositos_efectivo||0),ie=Number(day.totales.ingresos_efectivo||0),ee=Number(day.totales.egresos_efectivo||0),esperado=expectedCash(day.saldo_inicial,ie+dep,ee);
@@ -272,7 +274,7 @@ function SiteDay({day,siteName,isAdmin,finanzas,canFix,canReopen,onDone,onError}
   {canWork&&<div className={styles.grid2}><NewMovement day={day} onDone={onDone}/><CloseForm day={day} esperado={esperado} pendingSupports={missing.length} onDone={onDone}/></div>}
   {!open&&canReopen&&<Reopen day={day} onDone={onDone}/>}
   {!open&&canReopen&&<p className={styles.help}>Para editar un movimiento de un día cerrado, primero reabre la caja de ese día.</p>}
-  {editing&&<EditMovement soloCuenta={!finanzas} day={day} movement={editing} onClose={()=>setEditing(null)} onDone={m=>{setEditing(null);onDone(m);}}/>}
+  {editing&&<EditMovement soloCuenta={!finanzas&&!aprueba.includes(day.sede_id)} day={day} movement={editing} onClose={()=>setEditing(null)} onDone={m=>{setEditing(null);onDone(m);}}/>}
  </>;
 }
 

@@ -1,5 +1,6 @@
 'use client';
 import {useCallback,useEffect,useRef,useState} from 'react';
+import {useAprobadorSedes} from '@/lib/aprobador-contable';
 import DepositAccountSelect from '@/components/DepositAccountSelect';
 import {supabase} from '@/lib/supabase';
 import {money} from '@/lib/deposits';
@@ -15,6 +16,7 @@ const ESTADO={pendiente:'Devolución pendiente',devuelto:'Devuelto',sin_devoluci
 /** Depósitos y devoluciones › Desistimientos: cancelled contracts with payments, their settlement (paid − retention = return, per the
  *  contract clause) and the registered return (cash-register expense «Devolución por desistimiento» with receipt). */
 export default function Desistimientos({finanzas}:{finanzas:boolean}){
+ const aprueba=useAprobadorSedes();
  const [rows,setRows]=useState<Fila[]|null>(null),[error,setError]=useState(''),[notice,setNotice]=useState(''),[devolver,setDevolver]=useState<Fila|null>(null);
  const load=useCallback(async()=>{const {data,error:e}=await supabase.rpc('desistimientos_listar');if(e)setError(e.message);else setRows((data||[]) as Fila[]);},[]);
  useEffect(()=>{const t=setTimeout(()=>void load(),0);return()=>clearTimeout(t);},[load]);
@@ -34,7 +36,7 @@ export default function Desistimientos({finanzas}:{finanzas:boolean}){
     <td><div className={styles.rowActions}>{!r.liquidado?<button onClick={()=>void liquidar(r)}>Liquidar</button>:r.estado==='pendiente'?<button onClick={()=>{setNotice('');setDevolver(r);}}>Registrar devolución</button>:null}</div></td></tr>)}
   </tbody></table></div>
   {!rows.length&&<p className={styles.empty}>No hay contratos cancelados con abonos.</p>}
-  {devolver&&<FormDevolucion fila={devolver} finanzas={finanzas} onClose={()=>setDevolver(null)} onDone={async()=>{setDevolver(null);setNotice('Devolución registrada en la caja de la sede.');await load();}}/>}
+  {devolver&&<FormDevolucion fila={devolver} finanzas={finanzas||aprueba.includes(devolver.sede_id)} onClose={()=>setDevolver(null)} onDone={async()=>{setDevolver(null);setNotice('Devolución registrada en la caja de la sede.');await load();}}/>}
  </section>;
 }
 

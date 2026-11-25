@@ -1,6 +1,7 @@
 'use client';
 
 import MoneyInput from '@/components/MoneyInput';
+import { useAprobadorSedes } from '@/lib/aprobador-contable';
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
@@ -40,6 +41,7 @@ export default function RegistrarPagoPage() {
   const [fechaPago, setFechaPago] = useState(hoyBogota);
   const [subiendoSoporte, setSubiendoSoporte] = useState(false);
   const [esAdmin, setEsAdmin] = useState(false);
+  const aprueba = useAprobadorSedes();
   const [condonar, setCondonar] = useState<{ valor: string; motivo: string } | null>(null);
   const [condonando, setCondonando] = useState(false);
   useEffect(() => { void supabase.rpc('es_finanzas').then(({ data }) => setEsAdmin(data === true)); }, []);
@@ -274,7 +276,7 @@ export default function RegistrarPagoPage() {
                     <div className="flex flex-wrap gap-2">
                       <button type="button" onClick={() => setFormData(prev => ({ ...prev, valor_pagado: String(multaPendiente), observaciones: prev.observaciones || 'Pago de multa' }))}
                         className="px-4 py-2.5 rounded-xl bg-violet-600 text-white text-sm font-black hover:bg-violet-700">Pagar multa</button>
-                      {esAdmin && <button type="button" onClick={() => setCondonar({ valor: String(multaPendiente), motivo: '' })}
+                      {(esAdmin || aprueba.includes(String(contrato?.sede_id || ''))) && <button type="button" onClick={() => setCondonar({ valor: String(multaPendiente), motivo: '' })}
                         className="px-4 py-2.5 rounded-xl border-2 border-violet-300 bg-white text-violet-800 text-sm font-black hover:bg-violet-100">Condonar multa</button>}
                     </div>
                   )}
