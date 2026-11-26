@@ -55,6 +55,7 @@ Reglas fijas (siempre se cumplen, aunque las instrucciones de administración di
 - Cita primero: el objetivo de cada chat nuevo es su primera cita (no tiene costo). Si en los datos de la clienta viene «sede_del_chat» (por ejemplo, llegó por un anuncio de esa sede) o ya dijo su ciudad, ofrécele la cita desde tu primera o segunda respuesta con «agendar», aunque aún no sepas el tipo de evento ni la fecha: responde en una frase lo que preguntó y envíale los horarios. No pidas la fecha del evento ni el tipo de vestido antes de ofrecer la cita: pregúntalos después o deduce el tipo por el anuncio o lo que escribió. Si escribe que quiere agendar, agenda de una. Si vive lejos de las sedes, ofrécele cita virtual con la sede más cercana. Si no sabes su ciudad, pregúntala en tu primera respuesta junto con lo que te preguntó. Si dice qué día puede ir, pon ese día en «agendar_desde» para que la lista empiece ese día (no le vuelvas a mandar la misma lista). Si ya le enviaste los horarios y no pidió otro día ni otra modalidad, no los envíes de nuevo («agendar» vacío): solo recuérdale tocar «Elegir horario» en la lista de arriba.
 - Vestidos para niñas: si el vestido es para una niña (pajecita, niña de cortejo o de honor, menor de 13 años), ofrece solo vestidos de tipo Pajecita y mira «Vestidos para niñas» en <catalogos> para saber qué sedes los tienen. Las tallas con número (6, 8, 10, 12…) de Gala, XV y Novia son tallas de mujer, no edades: nunca se las ofrezcas para una niña. Si su sede no tiene pajecitas, díselo de una vez y ofrécele la sede que sí tiene (cita presencial o virtual).
 - Plan Ahorro XV: si la fecha del evento es a 6 meses o más, o la clienta dice que el presupuesto no le alcanza o que quiere ir pagando, ofrécele el Plan Ahorro XV con las condiciones de <documentos_de_la_marca> (cuota desde $150.000 al mes, extra del 10 % sobre lo ahorrado y premios en préstamo). Si el evento es en menos de 6 meses no lo ofrezcas: va por la venta normal. Cuando pregunte por el plan o quiera inscribirse, pon «plan_ahorro»=true y dile que al final de tu mensaje va su enlace para inscribirse ella misma y firmar el contrato desde el celular, y que al firmar la asesora de su sede le escribe para la primera cuota (no escribas tú el enlace: el sistema lo agrega).
+- Cómo nos conoció: si en los datos de la clienta no vienen «llego_por_anuncio» ni «como_se_entero», pregúntale una sola vez, con naturalidad y sin frenar lo que está preguntando, cómo nos conoció (por ejemplo: «Por cierto, ¿cómo nos encontraste: Google, Instagram, una recomendación…?»), idealmente en tu primera o segunda respuesta. Cuando lo diga, pon la opción en «como_se_entero» (Google y Google Maps van como «Google / Google Maps»); si no lo ha dicho, déjalo vacío. No lo vuelvas a preguntar si ya está en el historial.
 - Datos tras reservar: cuando ya reservó por WhatsApp, el ERP le pide su nombre completo y correo (opcionales). Si los escribe, ponlos en «nombre_completo» y «correo» y agradécele corto; si no quiere darlos, no insistas.
 - No le pidas a la clienta que escriba «confirmo» u otra palabra para confirmar o cambiar su cita: la confirmación, el recordatorio y el cambio de horario le llegan con botones.
 - Reagendar o cancelar la primera cita (no confundir con cancelar un contrato): si quiere reagendar y escribe por WhatsApp, pon «agendar» con la modalidad de su cita: el ERP le envía la lista de horarios libres para cambiarla con un toque, sin cédula (dile que se la envías). Por Instagram o Messenger, envíale el enlace para reprogramar que aparece en <sedes>; ahí escribe su cédula y elige el nuevo horario. Si dice que no la encuentra con su cédula, marca atender_persona=true. Si quiere cancelar, ofrécele primero reagendar para no perder su cita; si insiste en cancelar, dile que una asesora la ayuda y marca atender_persona=true con el motivo «Cancelar cita». Si ya tiene contrato y quiere cambiar las citas de medidas, prueba o entrega, marca atender_persona=true.
@@ -70,7 +71,7 @@ Lo que no sabes: si la clienta pregunta algo que no está en tus conocimientos n
 
 Además: elige la etiqueta del tema principal, la sede de la clienta (solo si es clara; si no, cadena vacía) y un resumen de una frase para la asesora.`;
 
-const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento','falta_informacion','fecha_evento_nueva','fotos','agendar','agendar_desde','tipo_vestido_cita','nombre_completo','correo','plan_ahorro'],properties:{
+const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento','falta_informacion','fecha_evento_nueva','fotos','agendar','agendar_desde','tipo_vestido_cita','nombre_completo','correo','plan_ahorro','como_se_entero'],properties:{
  etiqueta:{type:'string',enum:[...WHATSAPP_TAGS]},
  sede:{type:'string',description:'Nombre exacto de una de las sedes, o cadena vacía'},
  resumen:{type:'string'},
@@ -86,11 +87,12 @@ const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sed
  tipo_vestido_cita:{type:'string',enum:['','Quince','Gala','Novia'],description:'Tipo de vestido de la cita que se agenda; cadena vacía si no se agenda'},
  nombre_completo:{type:'string',description:'Nombre y apellido que la clienta escribió en este chat para sus datos (no el nombre del perfil); cadena vacía si no lo escribió'},
  correo:{type:'string',description:'Correo electrónico que la clienta escribió en este chat; cadena vacía si no lo escribió'},
+ como_se_entero:{type:'string',enum:['','Google / Google Maps','Instagram','Facebook','TikTok','Recomendación','Pasaba por la tienda','Un aliado (fotógrafo, maquilladora…)','Otro'],description:'Cómo conoció a Ámbar, solo si la clienta lo dijo en el chat; si no lo ha dicho, cadena vacía'},
  plan_ahorro:{type:'boolean',description:'true si la clienta pregunta por el Plan Ahorro XV (plan separe o plan reserva) o muestra interés en inscribirse; false si no'},
 }};
 
 export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string;promociones?:string;aliados?:string};
-export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string;fotos?:string[];agendar_desde?:string;agendar?:string;tipo_vestido_cita?:string;nombre_completo?:string;correo?:string;plan_ahorro?:boolean};
+export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string;fotos?:string[];agendar_desde?:string;agendar?:string;tipo_vestido_cita?:string;nombre_completo?:string;correo?:string;plan_ahorro?:boolean;como_se_entero?:string};
 type Msg={direccion:string;texto:string|null;created_at:string;media_id?:string|null;media_tipo?:string|null};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null;parqueadero?:string|null};
 
@@ -294,7 +296,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
  if(!process.env.ANTHROPIC_API_KEY)return;
  try{
   const [{data:conv},{data:msgs},{cfg,sites,clauses,catalogs}]=await Promise.all([
-   db.from('whatsapp_conversaciones').select('id,telefono,nombre,sede_id,ia_pausada,ia_pausada_at,canal,contacto_id,anuncio_titulo').eq('id',conversationId).single(),
+   db.from('whatsapp_conversaciones').select('id,telefono,nombre,sede_id,ia_pausada,ia_pausada_at,canal,contacto_id,anuncio_titulo,como_se_entero').eq('id',conversationId).single(),
    db.from('whatsapp_mensajes').select('id,direccion,texto,created_at,media_id,media_tipo').eq('conversacion_id',conversationId).order('created_at',{ascending:false}).limit(20),
    loadBasics(db),
   ]);
@@ -317,13 +319,20 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   if(extra.length)extra.push(...await inventoryCandidates(db,extra).catch(()=>[]));
   // The store of the chat (from the ad she clicked or assigned by an adviser) and the ad, so the AI offers the visit right away.
   const sedeChat=sites.find(s=>s.id===conv.sede_id)?.nombre;
-  const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(sedeChat?{sede_del_chat:sedeChat}:{}),...(conv.anuncio_titulo?{llego_por_anuncio:conv.anuncio_titulo}:{}),...(ctx||{}),...(seguimiento?{seguimiento}:{})},chat+(opts.empujon?EMPUJON:''),clauses,catalogs,extra,db);
+  const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(sedeChat?{sede_del_chat:sedeChat}:{}),...(conv.anuncio_titulo?{llego_por_anuncio:conv.anuncio_titulo}:{}),...(conv.como_se_entero?{como_se_entero:conv.como_se_entero}:{}),...(ctx||{}),...(seguimiento?{seguimiento}:{})},chat+(opts.empujon?EMPUJON:''),clauses,catalogs,extra,db);
   out.respuesta=marcarCanal(out.respuesta,conv.canal);
   // She said she already rented, is not interested or wants no more messages: the follow-up of her phone is closed.
   if(!social&&out.cierre_seguimiento)await db.rpc('seguimiento_cerrar_por_chat',{p_tel:conv.telefono,p_motivo:out.cierre_seguimiento});
   // She told her (new) event date: it is saved on her latest open visit and her follow-up plan is recalculated.
   if(!social&&/^\d{4}-\d{2}-\d{2}$/.test(String(out.fecha_evento_nueva||'')))await db.rpc('cita_evento_por_chat',{p_tel:conv.telefono,p_fecha:out.fecha_evento_nueva});
   // Interested in the Plan Ahorro XV: the chat is flagged once (filter «Plan Ahorro» in WhatsApp 304) so an adviser enrolls her.
+  // How she found Ámbar (asked once by the AI): kept on the chat; first visits from this phone take it (private.primeras_citas_anuncio),
+  // and a recent visit already booked as plain «WhatsApp» is corrected.
+  if(out.como_se_entero&&!conv.como_se_entero){
+   await db.from('whatsapp_conversaciones').update({como_se_entero:out.como_se_entero}).eq('id',conversationId).is('como_se_entero',null);
+   const tel=String(conv.telefono||'').replace(/\D/g,'').slice(-10);
+   if(tel.length===10)await db.from('primeras_citas').update({como_se_entero:out.como_se_entero}).like('telefono',`%${tel}`).eq('como_se_entero','WhatsApp').gte('created_at',new Date(Date.now()-30*864e5).toISOString());
+  }
   if(!social&&out.plan_ahorro)await db.from('whatsapp_conversaciones').update({plan_ahorro_at:new Date().toISOString()}).eq('id',conversationId).is('plan_ahorro_at',null);
   // …and gets her own enrollment link once (she enrolls and signs from her phone; the store is told when she signs).
   if(!social&&out.plan_ahorro&&out.respuesta.trim()&&!history.some(m=>/plan-ahorro-inscripcion/.test(String(m.texto||'')))){
