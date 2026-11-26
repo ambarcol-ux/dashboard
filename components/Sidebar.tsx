@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import UpcomingVisitsAlert from '@/components/UpcomingVisitsAlert';
 import PersonAttentionAlert from '@/components/PersonAttentionAlert';
+import AnnouncementsAlert from '@/components/AnnouncementsAlert';
 import FixedPaymentsAlert from '@/components/FixedPaymentsAlert';
 import SatisfactionAlert from '@/components/SatisfactionAlert';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
@@ -326,6 +327,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       </aside>
       {canSee('primeras-citas') && <UpcomingVisitsAlert />}
       {canSee('whatsapp') && <PersonAttentionAlert />}
+      {user && <AnnouncementsAlert />}
       {canSee('pagos_fijos') && <FixedPaymentsAlert />}
       {isAdminProfile(user) && <SatisfactionAlert />}
     </>
