@@ -74,7 +74,7 @@ export function outcomeLabel(v:FirstVisit,now=Date.now()){
 // Vitrina: clienta que llega a la tienda sin cita.
 export const noRentalReasons=['Precio','No encontré vestido','Visitaré otras tiendas','Debo consultarlo','Fecha del evento','Talla / diseño / ajuste','Otro'];
 export const walkInEventTypes=['XV años','Grado','Gala','Otro'] as const;
-export const walkInSources=['Instagram','Recomendación','Pasaba por la tienda','Otro'] as const;
+export const walkInSources=['Instagram','Google / Google Maps','Recomendación','Pasaba por la tienda','Otro'] as const;
 export const walkInResults=['Cerrado','Contrato pendiente','En seguimiento','No cerró'] as const;
 export const walkInStates=['asistio','seguimiento','no_cerro'];
 /** datetime-local value (Bogotá) → ISO instant; Colombia has no DST. */
