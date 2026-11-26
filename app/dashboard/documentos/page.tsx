@@ -60,6 +60,8 @@ function Documentos({profile}:{profile:ShellProfile}){
  const [areas,setAreas]=useState<Area[]>([]),[docs,setDocs]=useState<Doc[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[roles,setRoles]=useState<{id:string;nombre:string}[]>([]);
  const [sel,setSel]=useState(''),[q,setQ]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(''),[modo,setModo]=useState<''|'areas'|'subir'>('');
  const [versiones,setVersiones]=useState<{doc:Doc;lista:Version[];puede:boolean}|null>(null),[editando,setEditando]=useState<Doc|null>(null),[ia,setIa]=useState<Record<string,{estado:string;version:number}>>({});
+ // ?area=<id>: opened from a «Comunicados» alert, the folder opens selected.
+ useEffect(()=>{const a=new URLSearchParams(window.location.search).get('area');if(a)setSel(a);},[]);
  const load=useCallback(async()=>{
   const [a,d,s,r]=await Promise.all([
    supabase.from('doc_areas').select('*').order('orden').order('nombre'),

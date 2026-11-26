@@ -1222,7 +1222,8 @@ const MANUAL_DATA = [
         '**Paso 1 · Elegir área:** a la izquierda toca el área o subárea.',
         '**Paso 2 · Buscar:** o escribe en **Buscar en todas las áreas**.',
         '**Paso 3 · Abrir:** toca el nombre del documento o el botón **Abrir**.',
-        '**Paso 4 · Versiones:** toca el botón **v1, v2…** para ver las versiones anteriores.'
+        '**Paso 4 · Versiones:** toca el botón **v1, v2…** para ver las versiones anteriores.',
+        '**Paso 5 · Comunicados:** todo documento que se sube a la carpeta **Comunicados** aparece 24 horas a todo el equipo en el botón morado **📣 Comunicados nuevos** (abajo a la izquierda). Toca **Ver en Documentos de la marca** para leerlo completo o **Ya lo vi** para ocultarlo.'
       ] },
       { type: 'steps', title: '📝 Subir archivos o enlaces', items: [
         '**Paso 1 · Abrir:** elige el área y toca **Subir documento** (solo sale si tu rol puede subir en esa área).',
