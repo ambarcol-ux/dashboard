@@ -1188,7 +1188,9 @@ const MANUAL_DATA = [
         '**Paso 2 · O créalo tú:** toca **Nuevo aliado**, llena **Nombre completo**, **Cédula**, **Celular**, **Correo electrónico**, **Dirección**, **Tipo de aliado**, **Sede principal** y la **Cuenta bancaria**; toca **Guardar**.',
         '**Paso 3 · Firma:** si lo creaste tú, ábrelo y toca **Enviar contrato para firma**; el enlace se copia y puedes mandarlo por WhatsApp.',
         '**Paso 4 · Aprobar:** cuando firme queda «Pendiente de aprobación»; ábrelo y toca **Aprobar** (o **Rechazar** con motivo). Le llega por correo su código y enlaces.',
-        '**Paso 5 · Validar la cuenta (Contabilidad):** en **Cuenta bancaria** sube el archivo en **Validar con certificación bancaria**.'
+        '**Paso 5 · Validar la cuenta (Contabilidad):** en **Cuenta bancaria** sube el archivo en **Validar con certificación bancaria**.',
+        '**Paso 6 · Sin certificación no se aprueba:** si dice **Falta certificación bancaria**, el ERP no deja aprobar y le envía al aliado un correo con el enlace para subirla (también con **Pedir certificación bancaria por correo**). Cuando la sube, ya puedes aprobar.',
+        '**Paso 7 · Eliminar (archivar):** abre el aliado y toca **Eliminar (archivar)** con el motivo: queda Inactivo y sale de la lista, sin borrar su historial. Para verlo marca **Ver archivados**; desde ahí puedes **Restaurar aliado**.'
       ] },
       { type: 'steps', title: '📝 Compartir los enlaces del aliado', items: [
         '**Paso 1 · Abrir:** en **Perfiles** toca el aliado activo.',

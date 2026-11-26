@@ -3,6 +3,7 @@ import {isKeyType,keyError} from './bank-keys';
 export type AllyType={id:number;nombre:string;activo:boolean};
 export type DirectAlly={id:string;nombre:string;cedula:string;celular:string;correo:string;direccion:string;tipo_aliado_id:number;tipo:string;sede_principal:string|null;sede:string|null;
  estado:'pendiente_firma'|'pendiente'|'activo'|'rechazado'|'inactivo';codigo:string|null;origen:'erp'|'enlace';acuerdo_version:string|null;datos_autorizados_at:string|null;datos_texto_version:string|null;acuerdo_pdf_path:string|null;motivo_rechazo:string|null;banco:string|null;tipo_cuenta:string|null;numero_cuenta:string|null;cuenta_mascara:string|null;titular_cuenta:string|null;cuenta_validada:boolean;certificacion_path:string|null;
+ archivado?:boolean;motivo_archivo?:string|null;tiene_certificacion?:boolean;
  cambio_pendiente:{id:number;banco:string;tipo_cuenta:string;numero_cuenta:string;titular_cuenta:string;solicitado_at:string;certificacion_path:string|null}|null;
  firma:{fecha:string;version:string;codigo:string}|null;contratos:number;ventas:number};
 export type AllySearchResult={id:string;nombre:string;cedula:string;celular:string;correo:string;direccion:string;tipo_aliado_id:number;tipo:string};
@@ -17,7 +18,7 @@ export const ALLY_STATUS:Record<DirectAlly['estado'],{label:string;cls:string}>=
 
 export const onlyDigits=(v:string)=>v.replace(/\D/g,'');
 /** Public links of an ally: sign-up form (same for everyone) and, once Active, client registration and availability (by token). */
-export const allyLinks=(origin:string,token:string)=>({vincular:`${origin}/aliados/vincular`,clientas:`${origin}/aliados/clientas#${token}`,disponibilidad:`${origin}/aliados/disponibilidad#${token}`,catalogo:`${origin}/aliados/catalogo#${token}`});
+export const allyLinks=(origin:string,token:string)=>({vincular:`${origin}/aliados/vincular`,clientas:`${origin}/aliados/clientas#${token}`,disponibilidad:`${origin}/aliados/disponibilidad#${token}`,catalogo:`${origin}/aliados/catalogo#${token}`,certificado:`${origin}/aliados/certificado#${token}`});
 /** Validates the public sign-up form; returns the clean data or throws a message for the visitor. */
 export function allySignup(input:Record<string,unknown>,tipos:number[],sedes?:string[]){
  const t=(k:string,max=200)=>String(input[k]??'').trim().slice(0,max);
