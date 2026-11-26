@@ -35,7 +35,7 @@ export default function AnnouncementsAlert(){
     </div>
     <p className="font-black text-gray-900 text-sm mt-0.5">{d.nombre}</p>
     {d.descripcion&&<p className="text-xs text-gray-600 line-clamp-3">{d.descripcion}</p>}
-    <Link href={`/dashboard/documentos?area=${d.area_id}`} onClick={()=>setAbierto(false)} className="inline-block mt-2 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-black">Ver en Documentos de la marca</Link>
+    <Link href={`/dashboard/documentos?area=${d.area_id}&doc=${d.id}`} onClick={()=>setAbierto(false)} className="inline-block mt-2 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-black">Ver comunicado</Link>
    </div>)}
   </div>}
   <button type="button" onClick={()=>setAbierto(v=>!v)} aria-expanded={abierto}

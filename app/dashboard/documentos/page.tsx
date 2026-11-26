@@ -1,6 +1,6 @@
 'use client';
-import {useCallback,useEffect,useMemo,useState} from 'react';
-import type {DriveDoc} from '@/lib/drive-docs';
+import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
+import {driveId,type DriveDoc} from '@/lib/drive-docs';
 import {FolderOpen,Upload,Link2,Settings2,Plus,History,Archive,ExternalLink,Search,Pencil} from 'lucide-react';
 import SupplierShell,{type ShellProfile} from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
@@ -58,9 +58,10 @@ export default function DocumentosPage(){
 function Documentos({profile}:{profile:ShellProfile}){
  const admin=profile.rol==='admin';
  const [areas,setAreas]=useState<Area[]>([]),[docs,setDocs]=useState<Doc[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]),[roles,setRoles]=useState<{id:string;nombre:string}[]>([]);
+ const [vista,setVista]=useState<{nombre:string;url:string;descarga:string;clase:'img'|'pdf'|'video'|'docx'|'frame'|'otro'}|null>(null);
  const [sel,setSel]=useState(''),[q,setQ]=useState(''),[error,setError]=useState(''),[notice,setNotice]=useState(''),[busy,setBusy]=useState(''),[modo,setModo]=useState<''|'areas'|'subir'>('');
  const [versiones,setVersiones]=useState<{doc:Doc;lista:Version[];puede:boolean}|null>(null),[editando,setEditando]=useState<Doc|null>(null),[ia,setIa]=useState<Record<string,{estado:string;version:number}>>({});
- // ?area=<id>: opened from a «Comunicados» alert, the folder opens selected.
+ // ?area=<id>&doc=<id>: opened from a «Comunicados» alert: the folder opens selected and the document in the viewer.
  useEffect(()=>{const a=new URLSearchParams(window.location.search).get('area');if(a)setSel(a);},[]);
  const load=useCallback(async()=>{
   const [a,d,s,r]=await Promise.all([
@@ -81,14 +82,26 @@ function Documentos({profile}:{profile:ShellProfile}){
  const area=areas.find(a=>a.id===sel)||null;
  const ruta=(a:Area|null):Area[]=>a?[...ruta(areas.find(x=>x.id===a.padre_id)||null),a]:[];
  const puedeSubir=!!area&&(admin||ruta(area).some(a=>a.editar_roles.includes(profile.rol)));
+ const docParam=useRef<string|null>(null);
+ useEffect(()=>{docParam.current=new URLSearchParams(window.location.search).get('doc');},[]);
+ useEffect(()=>{const id=docParam.current;const d=id?docs.find(x=>x.id===id):null;if(d){docParam.current=null;void abrir(d);}},[docs]); // eslint-disable-line react-hooks/exhaustive-deps
  const lista=useMemo(()=>{const t=q.trim().toLowerCase();
   return docs.filter(d=>t?`${d.nombre} ${d.descripcion||''}`.toLowerCase().includes(t):d.area_id===sel);},[docs,q,sel]);
  const porVencer=docs.filter(d=>d.vence&&diasPara(d.vence)<=30);
  const run=async(name:string,fn:()=>Promise<void>)=>{setBusy(name);setError('');setNotice('');try{await fn();}catch(e){const m=e instanceof Error?e.message:String((e as {message?:string})?.message||'');setError(/row-level|policy/i.test(m)?'No tienes permiso para hacer esto en esta área.':m||'No se pudo completar.');}finally{setBusy('');}};
- const abrir=(d:{ruta:string|null;enlace:string|null})=>run('abrir',async()=>{
-  if(d.enlace&&!d.ruta){window.open(d.enlace,'_blank','noopener');return;}
-  const {data,error:e}=await supabase.storage.from(BUCKET).createSignedUrl(String(d.ruta),300);
-  if(e||!data?.signedUrl)throw Error('No se pudo abrir el archivo.');window.open(data.signedUrl,'_blank','noopener');});
+ // Opening a document shows it in a pop-up viewer (Word, PDF, images, videos, Google Drive links); other types offer «Descargar».
+ const abrir=(d:{ruta:string|null;enlace:string|null;tipo?:string|null;nombre?:string})=>run('abrir',async()=>{
+  const nombre=d.nombre||'Documento';
+  if(d.enlace&&!d.ruta){const e=d.enlace,id=driveId(e);
+   const previa=/docs\.google\.com\/(document|spreadsheets|presentation)\/d\//.test(e)?e.replace(/\/(edit|view|pub)[^/]*$/,'').replace(/[?#].*$/,'')+'/preview'
+    :id&&/drive\.google\.com\/(file|open)/.test(e)?`https://drive.google.com/file/d/${id}/preview`:null;
+   if(previa)setVista({nombre,url:previa,descarga:e,clase:'frame'});else window.open(e,'_blank','noopener');return;}
+  const {data,error:e}=await supabase.storage.from(BUCKET).createSignedUrl(String(d.ruta),600);
+  if(e||!data?.signedUrl)throw Error('No se pudo abrir el archivo.');
+  const t=(d.tipo||'').toLowerCase(),ext=String(d.ruta).toLowerCase().split('.').pop()||'';
+  const clase=t.startsWith('image/')||['png','jpg','jpeg','gif','webp'].includes(ext)?'img':t==='application/pdf'||ext==='pdf'?'pdf':t.startsWith('video/')||['mp4','webm','mov'].includes(ext)?'video'
+   :t.includes('wordprocessingml')||ext==='docx'?'docx':t.startsWith('text/')||ext==='txt'?'frame':'otro';
+  setVista({nombre,url:data.signedUrl,descarga:data.signedUrl,clase});});
  const verVersiones=(doc:Doc)=>run('ver',async()=>{const {data}=await supabase.from('doc_versiones').select('id,version,ruta,enlace,tipo,tamano,created_at').eq('archivo_id',doc.id).order('version',{ascending:false});setVersiones({doc,lista:(data||[]) as Version[],puede:admin||ruta(areas.find(a=>a.id===doc.area_id)||null).some(a=>a.editar_roles.includes(profile.rol))});});
  // Restores an earlier version as a new one (the history keeps all of them).
  const restaurar=(doc:Doc,v:Version)=>run('restaurar',async()=>{
@@ -137,7 +150,7 @@ function Documentos({profile}:{profile:ShellProfile}){
     <div className={styles.tableScroll}><table className={styles.table}><thead><tr><th>Documento</th><th>Sede</th><th>Versión</th><th>Vence</th><th></th></tr></thead><tbody>
      {lista.map(d=>{const dias=d.vence?diasPara(d.vence):null,editable=admin||ruta(areas.find(a=>a.id===d.area_id)||null).some(a=>a.editar_roles.includes(profile.rol));
       return <tr key={d.id}>
-      <td><button type="button" onClick={()=>abrir(d)} style={{border:0,background:'none',padding:0,textAlign:'left',cursor:'pointer',fontWeight:700,color:'#be123c'}}>{d.enlace&&!d.ruta?<Link2 size={13} style={{display:'inline',verticalAlign:'-2px'}}/>:null} {d.nombre}</button>
+      <td><button type="button" onClick={()=>abrir({...d,nombre:d.nombre})} style={{border:0,background:'none',padding:0,textAlign:'left',cursor:'pointer',fontWeight:700,color:'#be123c'}}>{d.enlace&&!d.ruta?<Link2 size={13} style={{display:'inline',verticalAlign:'-2px'}}/>:null} {d.nombre}</button>
        {d.descripcion&&<small style={{display:'block',color:'#64748b'}}>{d.descripcion}</small>}
        {admin&&iaLee(d.area_id)&&d.ruta&&<small style={{display:'block',color:ia[d.id]?.version===d.version?IA_ESTADO[ia[d.id].estado]?.[1]:'#b45309'}}>{ia[d.id]?.version===d.version?IA_ESTADO[ia[d.id].estado]?.[0]:'🤖 Pendiente: la IA lo lee en unos minutos o mañana temprano'}</small>}
        <small style={{color:'#94a3b8'}}>{q.trim()?`${ruta(areas.find(a=>a.id===d.area_id)||null).map(a=>a.nombre).join(' › ')} · `:''}Actualizado {fecha(d.updated_at)}{d.tamano?` · ${peso(d.tamano)}`:''}</small></td>
@@ -145,7 +158,7 @@ function Documentos({profile}:{profile:ShellProfile}){
       <td><button type="button" className={styles.button} disabled={!!busy} onClick={()=>verVersiones(d)}><History size={13} style={{display:'inline',verticalAlign:'-2px'}}/> v{d.version}</button></td>
       <td>{d.vence?<span className={styles.badge} style={dias!==null&&dias<=30?{background:'#fee2e2',color:'#b91c1c'}:undefined}>{fecha(d.vence)}{dias!==null&&dias<0?' · vencido':''}</span>:'—'}</td>
       <td><div style={{display:'flex',gap:4,flexWrap:'nowrap',alignItems:'center',justifyContent:'flex-end'}}>
-       <button type="button" className={styles.button} disabled={!!busy} onClick={()=>abrir(d)} title="Abrir"><ExternalLink size={13}/></button>
+       <button type="button" className={styles.button} disabled={!!busy} onClick={()=>abrir({...d,nombre:d.nombre})} title="Abrir"><ExternalLink size={13}/></button>
        {editable&&<button type="button" className={styles.button} disabled={!!busy} onClick={()=>setEditando(d)} title="Editar nombre, sede o vencimiento"><Pencil size={13}/></button>}
        {editable&&<label className={styles.button} title={d.ruta?'Subir nueva versión':'Cambiar el enlace por un archivo'} style={{cursor:'pointer',display:'inline-flex',alignItems:'center',margin:0}}><Upload size={13}/><input type="file" hidden accept={ACEPTA} onChange={e=>{const f=e.target.files?.[0];if(f)void nuevaVersion(d,f);e.target.value='';}}/></label>}
        {editable&&<button type="button" className={styles.button} disabled={!!busy} onClick={()=>archivar(d)} title="Archivar"><Archive size={13}/></button>}
@@ -158,10 +171,11 @@ function Documentos({profile}:{profile:ShellProfile}){
   {editando&&<Editar doc={editando} sedes={sedes} onClose={()=>setEditando(null)} onDone={async(ids)=>{const a=editando.area_id;setEditando(null);setNotice(ids?.length?`Cambios guardados: ${ids.length} archivo${ids.length>1?'s':''} subido${ids.length>1?'s':''}.`:'Cambios guardados.');await load();
    if(ids?.length&&iaLee(a))void (async()=>{for(const id of ids.slice(0,10))await leerConIA(id);await load();})();}}/>}
   {modo==='areas'&&admin&&<AdminAreas areas={areas} roles={roles} onClose={()=>setModo('')} onChange={load}/>}
+  {vista&&<Visor vista={vista} onClose={()=>setVista(null)}/>}
   {versiones&&<div role="dialog" aria-label="Versiones" style={{position:'fixed',inset:0,background:'rgba(15,23,42,.45)',display:'grid',placeItems:'center',zIndex:50,padding:16}} onClick={()=>setVersiones(null)}>
    <div className={styles.card} style={{maxWidth:480,width:'100%',display:'grid',gap:8}} onClick={e=>e.stopPropagation()}>
     <h2 style={{margin:0}}>Versiones de «{versiones.doc.nombre}»</h2>
-    {versiones.lista.map(v=><div key={v.id} style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><b>v{v.version}</b><span style={{flex:1}}>{fecha(v.created_at)}{v.enlace&&!v.ruta?' · enlace':''}</span><button type="button" className={styles.button} onClick={()=>abrir(v)}>Abrir</button>
+    {versiones.lista.map(v=><div key={v.id} style={{display:'flex',gap:8,alignItems:'center',flexWrap:'wrap'}}><b>v{v.version}</b><span style={{flex:1}}>{fecha(v.created_at)}{v.enlace&&!v.ruta?' · enlace':''}</span><button type="button" className={styles.button} onClick={()=>abrir({...v,nombre:`${versiones.doc.nombre} · v${v.version}`})}>Abrir</button>
      {versiones.puede&&v.version!==versiones.doc.version&&<button type="button" className={styles.button} disabled={!!busy} onClick={()=>restaurar(versiones.doc,v)}>Volver a esta versión</button>}</div>)}
     {versiones.puede&&<p className={styles.help}>«Volver a esta versión» crea una versión nueva igual a la elegida; ninguna versión se borra.</p>}
     <button type="button" className={styles.button} onClick={()=>setVersiones(null)}>Cerrar</button>
@@ -335,4 +349,25 @@ function VenceInput({value,onChange}:{value:string;onChange:(v:string)=>void}){
   <input style={{width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:10,boxSizing:'border-box',flex:1}} type="date" value={value} disabled={nunca} onChange={e=>onChange(e.target.value)}/>
   <span style={{display:'flex',gap:4,alignItems:'center',whiteSpace:'nowrap',fontSize:13}}><input type="checkbox" checked={nunca} onChange={e=>{setNunca(e.target.checked);if(e.target.checked)onChange('');}}/>Nunca</span>
  </span></label>;
+}
+
+/** Pop-up viewer of a document: the team reads it in the ERP instead of downloading it. */
+function Visor({vista,onClose}:{vista:{nombre:string;url:string;descarga:string;clase:string};onClose:()=>void}){
+ const ref=useRef<HTMLDivElement>(null),[error,setError]=useState('');
+ useEffect(()=>{if(vista.clase!=='docx')return;let live=true;void (async()=>{try{
+  const r=await fetch(vista.url);const buf=await r.arrayBuffer();const {renderDocx}=await import('@/lib/docx-view');if(live&&ref.current)await renderDocx(buf,ref.current);
+ }catch(e){if(live)setError(e instanceof Error?e.message:'No se pudo mostrar el documento.');}})();return()=>{live=false;};},[vista]);
+ const caja={width:'100%',height:'72vh',border:'1px solid #e2e8f0',borderRadius:12,background:'#fff'};
+ return <div role="dialog" aria-label={vista.nombre} style={{position:'fixed',inset:0,background:'rgba(15,23,42,.55)',display:'grid',placeItems:'center',zIndex:60,padding:12}} onClick={onClose}>
+  <div style={{background:'#f8fafc',borderRadius:16,padding:14,width:'min(960px,100%)',display:'grid',gap:10}} onClick={e=>e.stopPropagation()}>
+   <div style={{display:'flex',gap:8,alignItems:'center'}}><h2 style={{margin:0,flex:1,fontSize:16,fontWeight:900}}>{vista.nombre}</h2>
+    <a href={vista.descarga} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:700,color:'#be123c'}}>Descargar</a>
+    <button type="button" onClick={onClose} style={{border:'1px solid #e2e8f0',background:'#fff',borderRadius:10,padding:'6px 12px',fontWeight:700,cursor:'pointer'}}>Cerrar</button></div>
+   {vista.clase==='img'?<div style={{...caja,overflow:'auto',display:'grid',placeItems:'center'}}><img src={vista.url} alt={vista.nombre} style={{maxWidth:'100%'}}/></div>
+   :vista.clase==='video'?<video src={vista.url} controls style={caja}/>
+   :vista.clase==='pdf'||vista.clase==='frame'?<iframe src={vista.url} title={vista.nombre} style={caja}/>
+   :vista.clase==='docx'?<div style={{...caja,overflow:'auto',padding:'24px 28px',boxSizing:'border-box',fontSize:14,lineHeight:1.5,color:'#0f172a'}}>{error?<p role="alert">{error}</p>:null}<div ref={ref}><p style={{color:'#64748b'}}>Cargando documento…</p></div></div>
+   :<div style={{...caja,display:'grid',placeItems:'center',height:'auto',padding:24,textAlign:'center'}}><p>Este tipo de archivo (Excel, PowerPoint u otro) no se puede ver aquí. Toca <b>Descargar</b> para abrirlo.</p></div>}
+  </div>
+ </div>;
 }
