@@ -9,7 +9,7 @@ export const maxDuration = 60;
 const headers = {'Cache-Control':'private, no-store'};
 // Only fields required by the existing filters and indicators. No customer details,
 // signatures, payment account information, dresses or arrangements in this index.
-const SUMMARY_COLUMNS = 'id,created_at,sede_id,estado,saldo,total_multas,valor_total,total_arreglos,anticipo,numero_factura,fecha_entrega_envio,fecha_cita_medidas,fecha_prueba_final,fecha_pre_xv,tipo_evento,prexv_componentes,prexv_fotografo,prexv_maquilladora,prexv_locacion,prexv_fotografo_agendado,prexv_maquilladora_agendada,prexv_locacion_confirmada';
+const SUMMARY_COLUMNS = 'id,created_at,sede_id,estado,saldo,total_multas,valor_total,total_arreglos,anticipo,numero_factura,fecha_entrega_envio,fecha_cita_medidas,fecha_prueba_final,hora_cita_medidas,hora_prueba_final,fecha_pre_xv,tipo_evento,prexv_componentes,prexv_fotografo,prexv_maquilladora,prexv_locacion,prexv_fotografo_agendado,prexv_maquilladora_agendada,prexv_locacion_confirmada';
 async function pages(build: () => any) {
   const rows:any[]=[];
   for(let offset=0;;offset+=500){

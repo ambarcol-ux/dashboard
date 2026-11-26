@@ -357,6 +357,8 @@ export default function DashboardPage() {
 
       fecha_cita_medidas: contrato.fecha_cita_medidas,
       fecha_prueba_final: contrato.fecha_prueba_final,
+      hora_cita_medidas: String(contrato.hora_cita_medidas || '').slice(0, 5),
+      hora_prueba_final: String(contrato.hora_prueba_final || '').slice(0, 5),
       fecha_entrega_envio: contrato.fecha_entrega_envio,
       tipo_entrega: contrato.tipo_entrega,
       accesorios: Array.isArray(contrato.accesorios) ? contrato.accesorios : (contrato.accesorios ? [contrato.accesorios] : []),
@@ -895,6 +897,8 @@ export default function DashboardPage() {
         fecha_pre_xv: editForm.fecha_pre_xv || null,
         fecha_cita_medidas: editForm.fecha_cita_medidas || null,
         fecha_prueba_final: editForm.fecha_prueba_final || null,
+        hora_cita_medidas: editForm.hora_cita_medidas || null,
+        hora_prueba_final: editForm.hora_prueba_final || null,
         fecha_entrega_envio: editForm.fecha_entrega_envio || null,
         fecha_disponibilidad_real: (editForm.fecha_entrega_envio || editForm.fecha_evento) ? calculateReturnDate(editForm.fecha_entrega_envio || editForm.fecha_evento, editForm.tipo_evento) : null,
         fechas_bloqueo_especial: Array.from(new Set(
@@ -4049,6 +4053,7 @@ export default function DashboardPage() {
                               onChange={(e) => handleEditChange('fecha_cita_medidas', e.target.value)}
                               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-amber-500 transition-all font-bold text-gray-900 text-xs"
                             />
+                            <input type="time" aria-label="Hora" value={editForm.hora_cita_medidas || ''} onChange={(e) => handleEditChange('hora_cita_medidas', e.target.value)} className="mt-1 w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-amber-500 font-bold text-gray-900 text-xs" />
                           </div>
                           <div>
                             <label className="text-[10px] font-black text-gray-400 uppercase ml-1 block mb-1">Prueba Final</label>
@@ -4058,6 +4063,7 @@ export default function DashboardPage() {
                               onChange={(e) => handleEditChange('fecha_prueba_final', e.target.value)}
                               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-amber-500 transition-all font-bold text-gray-900 text-xs"
                             />
+                            <input type="time" aria-label="Hora" value={editForm.hora_prueba_final || ''} onChange={(e) => handleEditChange('hora_prueba_final', e.target.value)} className="mt-1 w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:border-amber-500 font-bold text-gray-900 text-xs" />
                           </div>
                           <div className="col-span-2">
                             <label className="text-[10px] font-black text-gray-400 uppercase ml-1 block mb-1">Fecha Entrega / Envío</label>

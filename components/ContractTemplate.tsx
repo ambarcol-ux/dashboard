@@ -25,6 +25,8 @@ interface ContractDataBase extends PrexvData {
   fecha_pre_xv?: string;
   fecha_cita_medidas?: string;
   fecha_prueba_final?: string;
+  hora_cita_medidas?: string;
+  hora_prueba_final?: string;
   fecha_entrega_envio?: string;
   tipo_entrega?: string;
 
@@ -274,8 +276,8 @@ export default function ContractTemplate({ data, plantillas: propPlantillas }: C
             </div>
             <div className="col-span-2 mt-2 pt-2 border-t border-dashed border-gray-400 grid grid-cols-2 gap-4">
               <div className="col-span-2 sm:col-span-1 border-b sm:border-b-0 sm:border-r border-dashed border-gray-400 pb-2 sm:pb-0 sm:pr-4">
-                <strong>Cita Medidas:</strong> {formatDate(data.fecha_cita_medidas)} <br />
-                <strong>Prueba Final:</strong> {formatDate(data.fecha_prueba_final)} <br />
+                <strong>Cita Medidas:</strong> {formatDate(data.fecha_cita_medidas)}{data.hora_cita_medidas ? ` · ${data.hora_cita_medidas}` : ''} <br />
+                <strong>Prueba Final:</strong> {formatDate(data.fecha_prueba_final)}{data.hora_prueba_final ? ` · ${data.hora_prueba_final}` : ''} <br />
                 {data.tipo_evento !== 'PreXV' && (
                   <><strong>Entrega {data.tipo_entrega === 'Nacional' ? '(Nacional)' : '(Local)'}:</strong> {formatDate(data.fecha_entrega_envio)}</>
                 )}

@@ -117,7 +117,7 @@ export const PROTOCOLOS=[
    '**Paso 1 · Crear el contrato:** desde la cita en **Primeras visitas**, toca **Crear contrato** para que quede ligado a su origen.',
    '**Paso 2 · Datos de la clienta:** completa **cédula, celular y correo**. Sin correo no le llega su contrato ni su factura.',
    '**Paso 3 · Vestidos:** cárgalos por **código**.',
-   '**Paso 4 · Fechas:** escribe las fechas de **medidas, prueba final, entrega y evento**.',
+   '**Paso 4 · Fechas:** escribe las fechas de **medidas, prueba final, entrega y evento**, y elige con el reloj la **hora de la cita de medidas y de la prueba final**: así la IA de WhatsApp le confirma a la clienta cuándo venir.',
    '**Paso 5 · Valor:** escribe el valor del alquiler.',
    '**Paso 6 · Adicionales:** en **Qué incluye además del vestido** agrega cada adicional con su valor (Pre XV, lavandería, moños, accesorios, vestido de cambio…). Cada uno sale en la factura.',
    '**Paso 7 · Depósito:** en **Depósito** escribe solo el valor **pactado**; no se da por pagado. Cuando la clienta lo pague, regístralo en **Depósitos › Pago de depósito** (Protocolo 5).',

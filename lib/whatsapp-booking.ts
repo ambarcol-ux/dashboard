@@ -27,7 +27,7 @@ export async function horariosLibres(db:SupabaseClient,sedeId:string,modalidad:'
  const out:{fecha:string;hora:string}[]=[],limite=Date.now()+3*3600000;
  for(let i=0;i<21&&out.length<max;i++){
   const fecha=hoyMas(i);if(desde&&fecha<=desde)continue;
-  const {data}=await db.rpc('disponibilidad_primera_cita',{p_fecha:fecha,p_modalidad:modalidad,p_sede:modalidad==='virtual'?null:sedeId});
+  const {data}=await db.rpc('disponibilidad_primera_cita',{p_fecha:fecha,p_modalidad:modalidad,p_sede:sedeId});
   for(const s of (Array.isArray(data)?data:[]) as {hora:string;cupos:number}[])
    if(s.cupos>0&&Date.parse(`${fecha}T${s.hora}:00-05:00`)>limite&&out.length<max)out.push({fecha,hora:s.hora.slice(0,5)});
  }

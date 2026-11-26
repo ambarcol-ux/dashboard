@@ -15,7 +15,7 @@ async function nearestSlots(db:{rpc:(f:string,a:Record<string,unknown>)=>Promise
  const out:{fecha:string;hora:string}[]=[],limit=Date.now()+3*3600000;
  for(let i=0;i<10&&out.length<2;i++){
   const fecha=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Bogota'}).format(new Date(Date.now()+i*86400000));
-  const {data}=await db.rpc('disponibilidad_primera_cita',{p_fecha:fecha,p_modalidad:c.modalidad,p_sede:c.modalidad==='virtual'?null:c.sede_id});
+  const {data}=await db.rpc('disponibilidad_primera_cita',{p_fecha:fecha,p_modalidad:c.modalidad,p_sede:c.sede_id});
   for(const s of (Array.isArray(data)?data:[]) as {hora:string;cupos:number}[])if(s.cupos>0&&Date.parse(`${fecha}T${s.hora}:00-05:00`)>limit&&out.length<2)out.push({fecha,hora:s.hora});
  }
  return out;
