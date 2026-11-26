@@ -128,6 +128,8 @@ export default function NuevoContratoPage() {
     cita_medidas: '',
     por_agendar: false,
     prueba_final: '',
+    hora_cita_medidas: '',
+    hora_prueba_final: '',
     fecha_entrega: '',
     tipo_entrega: 'Local', // Local | Nacional
 
@@ -456,6 +458,8 @@ export default function NuevoContratoPage() {
           cita_medidas: contract.fecha_cita_medidas || '',
           por_agendar: !contract.fecha_cita_medidas || !contract.fecha_prueba_final || !contract.fecha_entrega_envio,
           prueba_final: contract.fecha_prueba_final || '',
+          hora_cita_medidas: String(contract.hora_cita_medidas || '').slice(0, 5),
+          hora_prueba_final: String(contract.hora_prueba_final || '').slice(0, 5),
           fecha_entrega: contract.fecha_entrega_envio || '',
           tipo_entrega: contract.tipo_entrega || 'Local',
           valor_total: contract.valor_total == null ? '' : String(contract.valor_total),
@@ -1190,6 +1194,8 @@ export default function NuevoContratoPage() {
         ...prexvPayload(),
         fecha_cita_medidas: formData.cita_medidas || null,
         fecha_prueba_final: formData.prueba_final || null,
+        hora_cita_medidas: formData.hora_cita_medidas || null,
+        hora_prueba_final: formData.hora_prueba_final || null,
         fecha_entrega_envio: formData.fecha_entrega || null,
 
         // Finanzas Recalculadas
@@ -1337,6 +1343,8 @@ export default function NuevoContratoPage() {
       fecha_pre_xv: formData.fecha_fotografia || null,
       fecha_cita_medidas: formData.cita_medidas || null,
       fecha_prueba_final: formData.prueba_final || null,
+      hora_cita_medidas: formData.hora_cita_medidas || null,
+      hora_prueba_final: formData.hora_prueba_final || null,
       fecha_entrega_envio: formData.fecha_entrega || null,
       fecha_fotografia: prexv.fecha_fotografia || null,
       fecha_maquillaje: prexv.fecha_maquillaje || null,
@@ -1593,6 +1601,8 @@ export default function NuevoContratoPage() {
         ...prexvPayload(),
         fecha_cita_medidas: formData.cita_medidas || null,
         fecha_prueba_final: formData.prueba_final || null,
+        hora_cita_medidas: formData.hora_cita_medidas || null,
+        hora_prueba_final: formData.hora_prueba_final || null,
         fecha_entrega_envio: formData.fecha_entrega || null,
 
         // Finanzas Recalculadas
@@ -1939,6 +1949,8 @@ export default function NuevoContratoPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
               {renderTextInput("Cita Medidas", "cita_medidas", <Calendar className="w-4 h-4 text-rose-500" />, "date", !formData.por_agendar)}
               {renderTextInput("Prueba Final", "prueba_final", <Calendar className="w-4 h-4 text-rose-500" />, "date", !formData.por_agendar)}
+              {renderTextInput("Hora cita medidas", "hora_cita_medidas", <Calendar className="w-4 h-4 text-rose-500" />, "time")}
+              {renderTextInput("Hora prueba final", "hora_prueba_final", <Calendar className="w-4 h-4 text-rose-500" />, "time")}
               {renderTextInput("Entrega/Envío Vestido", "fecha_entrega", <Calendar className="w-4 h-4 text-rose-500" />, "date", !formData.por_agendar)}
             </div>
             <label className="flex items-start gap-2 text-sm text-gray-700">
