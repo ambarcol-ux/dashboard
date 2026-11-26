@@ -341,6 +341,7 @@ const MANUAL_DATA = [
         '**Paso 6 · Observaciones (opcional):** escribe algo útil, por ejemplo el banco o la referencia.',
         '**Paso 7 · Soporte:** en **Documento soporte** sube el pantallazo de Nequi, el comprobante del banco o el voucher (foto o PDF). Es obligatorio.',
         '**Paso 8 · Guardar:** toca **Registrar Pago** y espera el mensaje «¡Abono registrado exitosamente!».',
+        '**Paso 9 · No duplicar:** toca **Registrar Pago** una sola vez. El ERP no deja usar el mismo soporte en otro abono del mismo valor, y si ya hay un abono igual ese día te pregunta si es un pago diferente.',
         '**Paso 9 · Revisar:** el pago aparece a la derecha en **Historial de Pagos** con su botón **Ver soporte**.'
       ] },
       { type: 'steps', title: '📎 Adjuntar un soporte que quedó pendiente', items: [

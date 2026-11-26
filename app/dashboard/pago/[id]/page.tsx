@@ -153,6 +153,9 @@ export default function RegistrarPagoPage() {
       return; // No impacta la base de datos bajo ninguna circunstancia
     }
     // ─────────────────────────────────────────────────────────────────────
+    // Same value on the same day in this contract: usually a payment registered twice. Ask before saving.
+    const repetido = pagos.find(p => !p.anulado_at && Number(p.valor_pagado) === montoAbono && String(p.fecha_pago || '').slice(0, 10) === fechaPago);
+    if (repetido && !window.confirm(`Ya hay un abono de ${formatCurrency(montoAbono)} con fecha ${fechaPago} en este contrato. ¿Es un pago diferente y quieres registrarlo de todas formas?`)) return;
 
     setSubmitting(true);
     try {
