@@ -552,7 +552,7 @@ const MANUAL_DATA = [
         '**Paso 7 · Descargar:** **Exportar** baja la lista filtrada para Excel, **Catálogo PDF** arma el catálogo con fotos y **Etiquetas QR** genera el PDF de etiquetas.'
       ] },
       { type: 'steps', title: '📝 Cambiar de sede, dar de baja o archivar', items: [
-        '**Paso 1 · Cambiar de sede:** en la columna **Ubicación** elige la nueva sede y confirma el traslado. Para préstamos entre sedes usa el módulo **Traslados**.',
+        '**Paso 1 · Cambiar de sede:** en la columna **Ubicación** elige la nueva sede: se abre la **Nueva solicitud** en **Traslados** con el vestido y la sede ya puestos. Todo cambio de sede pasa por solicitud y aprobación (solo un vestido **sin sede** se asigna directo).',
         '**Paso 2 · Abrir acciones:** toca **⋯** al final de la fila.',
         '**Paso 3 · Dar de baja o vender:** toca **Dar de baja**. Acepta (OK) si es por daño; cancela si es por venta y se abre la venta (el vestido debe estar marcado para **Venta**).',
         '**Paso 4 · Eliminar o archivar:** toca **Eliminar o archivar**. Si el código no tiene historial se borra; si tiene contratos, traslados o mantenimientos, escribe el **Motivo** y se archiva.',

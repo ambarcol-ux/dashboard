@@ -80,7 +80,7 @@ export default function TransfersModule({profile}:{profile:{id:string;sede_id:st
   {notice&&<p role="status" className={styles.notice}>{notice}</p>}
   {tab==='pendientes'&&(loading?<p className={styles.empty}>Cargando…</p>:pendientes?buckets.filter(b=>b.rows.length).map(b=><section key={b.title} className={styles.card} style={{marginBottom:16}}><h2>{b.title} ({b.rows.length})</h2>{b.help&&<p>{b.help}</p>}{table(b.rows)}</section>)
    :<p className={styles.empty}>No tienes traslados pendientes.</p>)}
-  {tab==='nuevo'&&<NewTransfer sedes={sedes} defaultSede={profile.sede_id} initialDress={params.get('vestido')} onDone={m=>{setTab('pendientes');done(m);}} onError={setError}/>}
+  {tab==='nuevo'&&<NewTransfer sedes={sedes} defaultSede={params.get('destino')||profile.sede_id} initialDress={params.get('vestido')} onDone={m=>{setTab('pendientes');done(m);}} onError={setError}/>}
   {tab==='historial'&&<section className={styles.card}><div className={styles.toolbar} style={{marginBottom:12}}><label>Buscar<input value={filtro} onChange={e=>setFiltro(e.target.value)} placeholder="Código, sede o contrato"/></label></div>
    {visibles.length?table(visibles.slice(0,300),false):<p className={styles.empty}>Sin traslados.</p>}</section>}
   {action&&<ActionDialog action={action} busy={busy} onClose={()=>setAction(null)} onRun={async(fields)=>{setBusy(true);setError('');try{

@@ -383,12 +383,10 @@ export default function InventoryPage() {
     }
   };
 
+  // Moving a dress to another store always goes through a request in Traslados (loan with return date or definitive, approved by its store).
   const handleTransfer = (v: any, newSedeId: string) => {
     if (!newSedeId || newSedeId === v.sede_actual_id) return;
-    setTransferVestido(v);
-    setTransferTargetSede(newSedeId);
-    setTransferForm({ motivo: '', realizado_por: '', autorizado_por: '' });
-    setShowTransferModal(true);
+    window.location.assign(`/dashboard/traslados?vestido=${v.id}&destino=${newSedeId}`);
   };
 
   const confirmTransfer = async () => {
@@ -1062,7 +1060,7 @@ export default function InventoryPage() {
                               value={v.sede_actual_id || ''}
                               disabled={updatingId === v.id}
                               onChange={(e) => {
-                                if (window.confirm(sedes.some(s => s.id === v.sede_actual_id) ? `¿Confirmar traslado de ${v.codigo} a la sede seleccionada?` : `¿Asignar esta sede a ${v.codigo}? El estado no cambia.`)) {
+                                if (window.confirm(sedes.some(s => s.id === v.sede_actual_id) ? `Para mover ${v.codigo} a otra sede se crea una solicitud en Traslados (préstamo o definitivo). ¿Abrir la solicitud?` : `¿Asignar esta sede a ${v.codigo}? El estado no cambia.`)) {
                                   changeSede(v, e.target.value);
                                 }
                               }}
@@ -1206,7 +1204,7 @@ export default function InventoryPage() {
                           value={v.sede_actual_id || ''}
                           disabled={updatingId === v.id}
                           onChange={(e) => {
-                            if (window.confirm(sedes.some(s => s.id === v.sede_actual_id) ? `¿Confirmar traslado de ${v.codigo} a la sede seleccionada?` : `¿Asignar esta sede a ${v.codigo}? El estado no cambia.`)) {
+                            if (window.confirm(sedes.some(s => s.id === v.sede_actual_id) ? `Para mover ${v.codigo} a otra sede se crea una solicitud en Traslados (préstamo o definitivo). ¿Abrir la solicitud?` : `¿Asignar esta sede a ${v.codigo}? El estado no cambia.`)) {
                               changeSede(v, e.target.value);
                             }
                           }}
