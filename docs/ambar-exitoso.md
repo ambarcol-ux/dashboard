@@ -28,6 +28,14 @@ Puntaje Ámbar por sede (0–100), auditorías mensuales con lista de chequeo, A
 ## Etapa 4 · Paquete de franquicia (4–12 meses)
 Qué recibe el franquiciado (marca, manual, ERP con IA, marketing central, catálogo compartido, capacitación, aliados); modelo económico (entrada, regalía medida por el ERP, fondo de publicidad); perfil y ciudades; contrato con abogado y protección de marca; tablero del franquiciado y tablero de red.
 
+## Futuro · Nuevos canales de marketing (cuando beneficien a Ámbar)
+Ya en el ERP: WhatsApp con IA, Meta Ads, correo, contenido en redes y aliados. Por orden de beneficio esperado:
+1. **Instagram y Messenger con IA** (construido; falta la aprobación de Meta para que conteste a todas).
+2. **Google**: perfil de Google Maps por sede con reseñas, y Google Ads de búsqueda («alquiler vestidos de 15 en [ciudad]»), con sus resultados en el ERP.
+3. **TikTok**: videos cortos de vestidos por sede y sus métricas en el ERP.
+4. **YouTube y SEO** (página con catálogo y contenido que salga en Google). LinkedIn y SMS no aplican.
+Cada canal entra en su módulo de Mercadeo (regla de organización) y se mide con la meta «chat o visita → cita».
+
 ## Metas para medirse
 Cita → contrato > 40 % · chat de anuncio → cita > 10 % · contratos por aliados 30 % · margen por sede > 25 % · satisfacción «Excelente» > 90 % · caja cuadrada 100 % de los días.
 
