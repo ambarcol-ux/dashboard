@@ -190,6 +190,7 @@ const MANUAL_DATA = [
         '**Paso 8 · Enviar:** toca **Enviar**.',
         '**Paso 9 · Atender persona:** si sale **Atender persona** en rojo, atiéndela tú y luego toca **✓ Marcar resuelto**.',
         '**Paso 10 · Plan Ahorro:** si sale **Interesada en el Plan Ahorro XV**, toca **Inscribir en el plan**.',
+        '**Paso 11 · Cómo nos conoció:** si la clienta no llegó por un anuncio, la IA le pregunta una vez cómo nos encontró (Google, Instagram, recomendación…) y lo guarda en su cita; si atiendes tú, pregúntalo también.',
         '**Paso 11 · Pausar la IA en un chat:** cuando la respuesta automática está encendida, toca **IA activa · Pausar** para que no conteste sola; **IA pausada · Reactivar** la vuelve a encender.'
       ] },
       { type: 'steps', title: '📝 Escribirle a una clienta después de 24 horas', items: [
