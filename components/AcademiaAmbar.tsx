@@ -58,7 +58,7 @@ export const EVALUACIONES:Record<string,{titulo:string;preguntas:Q[]}>={
   q('h4','Si se daña o se vende…',['Se actualiza su estado','Se deja igual','Se archiva sin motivo'],0)]},
  'pa-seguimiento':{titulo:'Seguimiento, reseñas y aliados',preguntas:[
   q('i1','¿Cuántos toques de seguimiento como máximo?',['2','5','Ilimitados'],1),
-  q('i2','¿Cuándo se pide la reseña en Google?',['Cuando la clienta califica «Excelente»','A todas antes del evento','Nunca'],0),
+  q('i2','¿Qué haces para que a la clienta le llegue la encuesta y la reseña?',['Marcarla como «Asistió» apenas la atiendo','Nada, solo a las que alquilan','Pedírsela yo por mi WhatsApp'],0),
   q('i3','¿Por qué invitar aliados?',['Traen clientas sin pagar publicidad','Para regalarles vestidos','No sirven'],0)]},
 };
 const CLAVES=Object.keys(EVALUACIONES);

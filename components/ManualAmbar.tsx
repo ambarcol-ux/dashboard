@@ -20,7 +20,7 @@ export const INDICADORES:Record<string,Ind[]>={
  inventario:[{titulo:'Vestidos con foto',meta:100,unidad:'%',valor:r=>pc(n(r,'vestidos_con_foto'),n(r,'vestidos'))}],
 };
 
-type Puntaje={id:string;nombre:string;puntaje:number;componentes:{nombre:string;puntos:number;max:number}[]};
+type Puntaje={id:string;nombre:string;puntaje:number;componentes:{nombre:string;puntos:number;max:number}[];satisfaccion?:{respuestas:number;excelente_pct:number;mejorar:number;por_asesora:{nombre:string;respuestas:number;excelente_pct:number}[]}};
 /** Puntaje Ámbar por sede (0–100, public.puntaje_ambar): Tablero CEO and Manual Ámbar. */
 export function PuntajeAmbar(){
  const [rows,setRows]=useState<Puntaje[]|null>(null),[abierta,setAbierta]=useState('');
@@ -33,6 +33,7 @@ export function PuntajeAmbar(){
   {rows.filter(r=>r.id===abierta).map(r=><div key={r.id} className="bg-white rounded-2xl border p-4"><p className="font-black mb-2">{r.nombre}: cómo se calcula (últimos 30 días)</p>
    {r.componentes.map(c=><div key={c.nombre} className="flex items-center gap-3 text-sm py-1 border-b last:border-0"><span className="flex-1">{c.nombre}</span>
     {c.max>0?<><div className="w-28 h-2 bg-gray-100 rounded-full overflow-hidden"><div className="h-full bg-indigo-500" style={{width:`${Math.max(0,Math.min(100,c.puntos/c.max*100))}%`}}/></div><b className="w-16 text-right">{c.puntos}/{c.max}</b></>:<b className={`w-16 text-right ${c.puntos<0?'text-rose-700':''}`}>{c.puntos}</b>}</div>)}
+   {!!r.satisfaccion?.respuestas&&<p className="text-xs mt-2"><b>Satisfacción (30 días):</b> {r.satisfaccion.respuestas} respuestas · {r.satisfaccion.excelente_pct}% Excelente · {r.satisfaccion.mejorar} «Puede mejorar». Por asesora: {r.satisfaccion.por_asesora.map(a=>`${a.nombre} ${a.excelente_pct}% (${a.respuestas})`).join(' · ')}</p>}
    <p className="text-[11px] text-gray-500 mt-2">Para subir: lo que está más lejos de su máximo. Cada punto sale de los indicadores de los protocolos del Manual Ámbar.</p></div>)}
   <p className="text-[11px] text-gray-500">🟢 85 o más · 🟡 70 a 84 · 🔴 menos de 70. La operación vale 90 puntos (ventas, conversión, caja, asistencia, atención, contratos completos, inventario y datos limpios) y la auditoría mensual cerrada 10, menos penalizaciones.</p>
  </div>;
@@ -259,7 +260,7 @@ export const PROTOCOLOS=[
    '**Paso 1 · Seguimientos del día:** en **Primeras visitas › Seguimientos** haz los que corresponden a hoy (máximo 5 toques por clienta).',
    '**Paso 2 · Registrar el resultado:** anota qué pasó en cada uno (agendó, pidió precios, no contestó, desistió…).',
    '**Paso 3 · No llamar a las cerradas:** cada mañana el ERP cierra solo las clientas cuyo **evento ya pasó** o que **ya firmaron contrato**.',
-   '**Paso 4 · Reseña:** después del evento, cuando la clienta califica «Excelente», pídele la **reseña** en Google.',
+   '**Paso 4 · Encuesta y reseña:** marca **Asistió** apenas atiendas (vitrina, cita en tienda o virtual): 3 horas después el ERP le pregunta por WhatsApp cómo la atendieron (después de las 8 p. m. va a las 10 a. m.) y luego le pide la **reseña** en Google. Con contrato, la encuesta va 1 a 3 días después del **evento**. Máximo una encuesta cada 30 días por clienta. Revisa tu resultado en **Puntaje Ámbar › Satisfacción**.',
    '**Paso 5 · Aliados:** invita a fotógrafos, maquilladoras y organizadores a ser **aliados**: traen clientas sin pagar publicidad.']},
-  {type:'checklist',title:'✅ Lista de chequeo',items:['Seguimientos del día hechos','Reseña pedida a las clientas felices','Un aliado nuevo contactado esta semana']}]),
+  {type:'checklist',title:'✅ Lista de chequeo',items:['Seguimientos del día hechos','Toda atención marcada como Asistió (para que llegue la encuesta)','Un aliado nuevo contactado esta semana']}]),
 ];
