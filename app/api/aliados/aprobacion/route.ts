@@ -1,6 +1,6 @@
 import {createClient} from '@supabase/supabase-js';
 import {allyLinks} from '@/lib/direct-allies';
-import {allyApprovedEmail,allyRejectedEmail,sendAllyEmail,type AllyStore} from '@/lib/ally-emails';
+import {allyApprovedEmail,allyCertificateEmail,allyRejectedEmail,sendAllyEmail,type AllyStore} from '@/lib/ally-emails';
 import {allySlug} from '@/lib/ally-validation';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {conversationFor,sendWhatsappText,sendAllyWelcome,allyWelcomeText,WINDOW_MS} from '@/lib/whatsapp-inbox';
@@ -18,10 +18,14 @@ export async function POST(request:Request){
  try{
   const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,{global:{headers:{Authorization:bearer}},auth:{persistSession:false,autoRefreshToken:false}});
   const [{data:isAdmin},{data:perms}]=await Promise.all([db.rpc('es_admin'),db.rpc('mis_permisos')]);
-  const need=body.accion==='reenviar'?'aliados.gestionar':'aliados.aprobar';
+  const need=body.accion==='reenviar'||body.accion==='pedir_certificacion'?'aliados.gestionar':'aliados.aprobar';
   if(isAdmin!==true&&!(perms as string[]|null)?.includes(need))return reply({error:'No tienes permiso para esta acción.'},403);
   const origin=process.env.FIRST_VISIT_PUBLIC_ORIGIN?.replace(/\/$/,'')||new URL(request.url).origin;
   let a:{id:string;estado:string;codigo:string|null;token:string;nombre:string;correo:string;motivo:string|null};
+  // Without the bank certification an ally is not approved: the ally gets an email with the link to upload it.
+  const pedirCertificado=async()=>{const {data}=await db.from('aliados').select('token,nombre:nombre_completo,correo').eq('id',id).maybeSingle();
+   if(!data)return false;return sendAllyEmail(data.correo,allyCertificateEmail(data.nombre,allyLinks(origin,data.token).certificado));};
+  if(body.accion==='pedir_certificacion'){const ok=await pedirCertificado();return ok?reply({correo:true}):reply({error:'No se pudo enviar el correo al aliado.'},502);}
   if(body.accion==='reenviar'){
    const {data,error}=await db.from('aliados').select('id,estado,codigo,token,nombre:nombre_completo,correo').eq('id',id).maybeSingle();
    if(error||!data)return reply({error:'Aliado no encontrado.'},404);
@@ -29,6 +33,8 @@ export async function POST(request:Request){
    a={...data,motivo:null};
   }else{
    const {data,error}=await db.rpc('resolver_aliado',{p_id:id,p_aprobar:body.aprobar===true,p_motivo:String(body.motivo||'').slice(0,300)});
+   if(error&&error.message.includes('FALTA_CERTIFICACION')){const ok=await pedirCertificado();
+    return reply({error:`No se puede aprobar sin la certificación bancaria. ${ok?'Le enviamos un correo al aliado para que la suba; apruébalo cuando aparezca.':'No se pudo enviar el correo al aliado: pídesela por WhatsApp.'}`},409);}
    if(error)return reply({error:error.message},400);
    a=data;
   }

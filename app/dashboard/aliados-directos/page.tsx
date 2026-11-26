@@ -36,6 +36,7 @@ function DirectAllies({profile}:{profile:ShellProfile}){
  const [allies,setAllies]=useState<DirectAlly[]>([]),[types,setTypes]=useState<AllyType[]>([]),[sedes,setSedes]=useState<{id:string;nombre:string}[]>([]);
  const [error,setError]=useState(''),[notice,setNotice]=useState(''),[version,setVersion]=useState(0),[loaded,setLoaded]=useState(false);
  const [editing,setEditing]=useState<DirectAlly|'nuevo'|null>(null),[detailId,setDetailId]=useState<string|null>(null),[q,setQ]=useState('');
+ const [verArchivados,setVerArchivados]=useState(false);
  useEffect(()=>{
   let live=true;
   void (async()=>{
@@ -50,7 +51,7 @@ function DirectAllies({profile}:{profile:ShellProfile}){
  const reload=(msg?:string)=>{if(msg)setNotice(msg);setVersion(v=>v+1);};
  const detail=detailId?allies.find(a=>a.id===detailId)||null:null;
  const text=q.trim().toLowerCase();
- const list=allies.filter(a=>!text||`${a.nombre} ${a.cedula} ${a.tipo}`.toLowerCase().includes(text));
+ const list=allies.filter(a=>!!a.archivado===verArchivados&&(!text||`${a.nombre} ${a.cedula} ${a.tipo}`.toLowerCase().includes(text)));
  const cambios=allies.filter(a=>a.cambio_pendiente).length,sinValidar=allies.filter(a=>a.numero_cuenta&&!a.cuenta_validada).length;
 
  return <>
@@ -65,6 +66,7 @@ function DirectAllies({profile}:{profile:ShellProfile}){
   {tab==='perfiles'&&<section className={styles.card}>
    <div className={styles.toolbar} style={{marginBottom:12}}>
     <label>Buscar<input value={q} onChange={e=>setQ(e.target.value)} placeholder="Nombre, cédula o tipo"/></label>
+    <label style={{display:'flex',flexDirection:'row',gap:6,alignItems:'center'}}><input type="checkbox" checked={verArchivados} onChange={e=>setVerArchivados(e.target.checked)}/>Ver archivados ({allies.filter(a=>a.archivado).length})</label>
     <div className={styles.actions} style={{marginLeft:'auto'}}><button className={styles.button} onClick={()=>void navigator.clipboard.writeText(allyLinks(window.location.origin,'').vincular+(!owner&&profile.sede_id?`?sede=${profile.sede_id}`:'')).then(()=>setNotice('Enlace de vinculación copiado. Compártelo con los aliados.'),()=>setError('No se pudo copiar el enlace.'))}>Copiar enlace</button>{isAdmin&&<button className={`${styles.button} ${styles.primary}`} onClick={()=>setEditing('nuevo')}>Nuevo aliado</button>}</div>
    </div>
    <div className={styles.tableScroll}><table className={styles.table}>
@@ -73,7 +75,7 @@ function DirectAllies({profile}:{profile:ShellProfile}){
      <td><b>{a.nombre}</b><small>{a.codigo?`${a.codigo} · `:''}C.C. {a.cedula} · {a.celular}</small></td><td>{a.tipo}</td><td>{a.sede||'—'}</td>
      <td>{a.cuenta_mascara?<>{a.banco} · {a.cuenta_mascara}<small>{a.cuenta_validada?'Validada por Contabilidad':'Sin validar'}{a.cambio_pendiente?' · cambio pendiente':''}</small></>:'Sin cuenta'}</td>
      <td>{a.firma?<>Firmado<small>{new Date(a.firma.fecha).toLocaleDateString('es-CO')}</small></>:'Sin firmar'}</td>
-     <td>{chip(ALLY_STATUS[a.estado].cls,ALLY_STATUS[a.estado].label)}</td></tr>)}</tbody>
+     <td>{a.archivado?chip('bg-gray-100 text-gray-600 border-gray-300','Archivado'):chip(ALLY_STATUS[a.estado].cls,ALLY_STATUS[a.estado].label)}{!a.tiene_certificacion&&!a.archivado&&<small style={{color:'#b45309'}}>Falta certificación bancaria</small>}</td></tr>)}</tbody>
    </table></div>
    {!list.length&&<p className={styles.empty}>{loaded?(isAdmin?'Aún no hay aliados. Crea el primero con «Nuevo aliado».':'No hay aliados para tu sede.'):'Cargando…'}</p>}
   </section>}
@@ -181,7 +183,7 @@ function AllyDetail({ally,isAdmin,canApprove,gestion,onClose,onEdit,onChanged}:{
   const r=await fetch('/api/aliados/aprobacion',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${ss.session?.access_token||''}`},body:JSON.stringify({id:ally.id,...body})}),d=await r.json().catch(()=>({}));
   if(!r.ok)throw Error(d.error||'No se pudo completar la acción.');
   if(!d.correo)throw Error(`${d.estado==='activo'?`Aprobado con código ${d.codigo}`:'Rechazado'}, pero no se pudo enviar el correo.`);
- },body.accion==='reenviar'?'Enlaces reenviados al correo del aliado.':body.aprobar?'Aliado aprobado. Le enviamos su código y enlaces por correo.':'Aliado rechazado. Le enviamos el aviso por correo.');
+ },body.accion==='pedir_certificacion'?'Le enviamos al aliado un correo con el enlace para subir su certificación bancaria.':body.accion==='reenviar'?'Enlaces reenviados al correo del aliado.':body.aprobar?'Aliado aprobado. Le enviamos su código y enlaces por correo.':'Aliado rechazado. Le enviamos el aviso por correo.');
  const cuenta=useMemo(()=>gestion?ally.numero_cuenta:ally.cuenta_mascara,[gestion,ally]);
  return <div className={styles.overlay} onClick={onClose}><div className={styles.dialog} onClick={e=>e.stopPropagation()} style={{maxWidth:900,maxHeight:'92vh',overflowY:'auto'}}>
   <div style={{display:'flex',justifyContent:'space-between',gap:12,alignItems:'flex-start'}}><div><h2>{ally.nombre}</h2><p className={styles.help}>{ally.tipo} · {ally.sede||'Sin sede'} · C.C. {ally.cedula}</p></div>{chip(ALLY_STATUS[ally.estado].cls,ALLY_STATUS[ally.estado].label)}</div>
@@ -190,6 +192,7 @@ function AllyDetail({ally,isAdmin,canApprove,gestion,onClose,onEdit,onChanged}:{
    <div className={styles.card}><b>Datos</b><p className={styles.help}>{ally.celular}<br/>{ally.correo}<br/>{ally.direccion}</p>{isAdmin&&<div className={styles.actions}><button className={styles.button} onClick={onEdit}>Editar perfil</button></div>}</div>
    <div className={styles.card}><b>Cuenta bancaria</b>{ally.numero_cuenta||ally.cuenta_mascara?<p className={styles.help}>Banco: {ally.banco}<br/>Tipo: {ally.tipo_cuenta}<br/>Número: {cuenta}<br/>Titular: {ally.titular_cuenta}</p>:<p className={styles.help}>Sin cuenta registrada.</p>}
     <p>{ally.cuenta_validada?chip('bg-emerald-50 text-emerald-700 border-emerald-300','Validada por Contabilidad'):chip('bg-amber-50 text-amber-700 border-amber-300','Sin validar')}</p>
+    {!ally.tiene_certificacion&&<p className={styles.help} style={{color:'#b45309',fontWeight:700}}>Falta la certificación bancaria: no se puede aprobar hasta que el aliado la suba.</p>}
     {gestion&&ally.certificacion_path&&<button className={styles.button} onClick={()=>void openAllyFile(ally.certificacion_path!).catch(e=>setError(errText(e,'')))}>Ver certificación</button>}
     {gestion&&ally.numero_cuenta&&!ally.cuenta_validada&&<label className={styles.help} style={{display:'block',marginTop:8}}>Validar con certificación bancaria<input type="file" accept="application/pdf,image/*" disabled={busy} onChange={e=>{const file=e.target.files?.[0];if(file)void validate(file);e.target.value='';}}/></label>}
     {ally.cambio_pendiente&&<div className={styles.banner+' '+styles.open} style={{marginTop:8}}>Cambio pendiente: {ally.cambio_pendiente.banco} · {ally.cambio_pendiente.tipo_cuenta} · {ally.cambio_pendiente.numero_cuenta} · {ally.cambio_pendiente.titular_cuenta}
@@ -208,6 +211,9 @@ function AllyDetail({ally,isAdmin,canApprove,gestion,onClose,onEdit,onChanged}:{
     {gestion&&ally.cambio_pendiente?.certificacion_path&&<button className={styles.button} onClick={()=>void openAllyFile(ally.cambio_pendiente!.certificacion_path!).catch(e=>setError(errText(e,'')))}>Certificación de la nueva cuenta</button>}
     {canApprove&&ally.estado==='pendiente'&&<><button className={`${styles.button} ${styles.primary}`} disabled={busy} onClick={()=>void decide({aprobar:true})}>Aprobar</button><button className={styles.button} disabled={busy} onClick={()=>{const motivo=window.prompt('Motivo del rechazo (se envía al aliado, opcional):');if(motivo!==null)void decide({aprobar:false,motivo});}}>Rechazar</button></>}
     {isAdmin&&ally.estado==='activo'&&ally.codigo&&<button className={styles.button} disabled={busy} onClick={()=>void decide({accion:'reenviar'})}>Reenviar enlaces</button>}
+    {isAdmin&&!ally.tiene_certificacion&&!ally.archivado&&ally.estado!=='rechazado'&&<button className={styles.button} disabled={busy} onClick={()=>void decide({accion:'pedir_certificacion'})}>Pedir certificación bancaria por correo</button>}
+    {isAdmin&&<button className={styles.button} disabled={busy} onClick={()=>{if(ally.archivado){void run(async()=>{const {error:e}=await supabase.rpc('archivar_aliado',{p_id:ally.id,p_archivar:false,p_motivo:''});if(e)throw e;},'Aliado restaurado. Si debe volver a operar, actívalo de nuevo.');return;}
+     const motivo=window.prompt('Motivo para archivar este aliado (queda Inactivo y sale de la lista; no se borra nada):');if(motivo!==null)void run(async()=>{const {error:e}=await supabase.rpc('archivar_aliado',{p_id:ally.id,p_archivar:true,p_motivo:motivo});if(e)throw e;},'Aliado archivado.');}}>{ally.archivado?'Restaurar aliado':'Eliminar (archivar)'}</button>}
     {isAdmin&&ally.estado==='activo'&&(['disponibilidad','clientas','catalogo'] as const).map(k=><button key={k} className={styles.button} onClick={()=>void copyLink(k)}>Copiar enlace de {k==='clientas'?'registro de clientas':k==='catalogo'?'catálogo con precios':'disponibilidad'}</button>)}
    </div></div>
   {gestion&&history.length>0&&<><h3 style={{fontWeight:900,margin:'14px 0 6px'}}>Historial de cambios</h3><ul className={styles.help}>{history.map(h=><li key={h.id}>{new Date(h.fecha_hora).toLocaleString('es-CO',{timeZone:'America/Bogota'})} · {h.campo}: {h.valor_anterior??'—'} → {h.valor_nuevo??'—'}</li>)}</ul></>}
