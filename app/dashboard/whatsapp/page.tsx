@@ -402,10 +402,20 @@ function Inbox(){
   const first=setTimeout(()=>void load(),0),t=setInterval(()=>{if(document.visibilityState==='visible')void load();},30000);
   return()=>{clearTimeout(first);clearInterval(t);if(pending)clearTimeout(pending);void supabase.removeChannel(channel);};
  },[load]);
+ // Search also looks beyond the 300 most recent chats: older ones matching the name or number come from the database.
+ const [halladas,setHalladas]=useState<Conv[]>([]);
+ useEffect(()=>{
+  const t=q.trim().replace(/[,()%*\\]/g,' ').trim(),dig=t.replace(/\D/g,'');
+  if(t.length<3){setHalladas([]);return;}
+  const h=setTimeout(()=>{void supabase.from('whatsapp_conversaciones').select('*').or(dig.length>=4?`nombre.ilike.%${t}%,telefono.like.%${dig}%`:`nombre.ilike.%${t}%`).order('ultimo_at',{ascending:false}).limit(30)
+   .then(({data})=>setHalladas((data||[]) as Conv[]));},400);
+  return()=>clearTimeout(h);
+ },[q]);
+ const todas=useMemo(()=>[...convs,...halladas.filter(h=>!convs.some(c=>c.id===h.id))],[convs,halladas]);
  const sedeName=(id:string|null)=>sedes.find(s=>s.id===id)?.nombre||'Sin sede';
- const lista=useMemo(()=>convs.filter(c=>(filtro==='todas'||(filtro==='sin_leer'&&c.no_leidos>0)||(filtro==='atender'&&c.ia_atender)||(filtro.startsWith('atender:')&&c.ia_atender&&c.sede_id===filtro.slice(8))||(filtro==='sin_sede'&&!c.sede_id)||(filtro==='plan_ahorro'&&!!c.plan_ahorro_at)||c.sede_id===filtro)
-  &&`${c.nombre||''} ${c.telefono}`.toLowerCase().includes(q.trim().toLowerCase())),[convs,filtro,q]);
- const current=convs.find(c=>c.id===sel)||null;
+ const lista=useMemo(()=>todas.filter(c=>(filtro==='todas'||(filtro==='sin_leer'&&c.no_leidos>0)||(filtro==='atender'&&c.ia_atender)||(filtro.startsWith('atender:')&&c.ia_atender&&c.sede_id===filtro.slice(8))||(filtro==='sin_sede'&&!c.sede_id)||(filtro==='plan_ahorro'&&!!c.plan_ahorro_at)||c.sede_id===filtro)
+  &&`${c.nombre||''} ${c.telefono}`.toLowerCase().includes(q.trim().toLowerCase())),[todas,filtro,q]);
+ const current=todas.find(c=>c.id===sel)||null;
  return <>
   {error&&<p role="alert" className={styles.error}>{error}</p>}
   {sinChat&&<p role="status" className={styles.notice}>Esta clienta todavía no ha escrito al 304. Puedes iniciar la conversación con un saludo aprobado por Meta; cuando responda, sigues escribiéndole normal desde aquí. <button type="button" className={`${styles.button} ${styles.primary}`} disabled={iniciando} onClick={()=>void iniciar(sinChat)}>{iniciando?'Enviando…':'Enviarle un saludo desde el ERP'}</button> · <a href={`https://wa.me/${sinChat}`} target="_blank" rel="noopener noreferrer">o desde el celular del 304</a> · <button type="button" onClick={()=>setSinChat('')}>Cerrar</button></p>}
