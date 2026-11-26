@@ -20,6 +20,8 @@ export function whatsappPayload(type:string,c:NotificationVisit,site:string,link
  else if(type==='pregunta_motivo')content={type:'interactive',interactive:{type:'list',body:{text:'¿Cuál fue la principal razón por la que no alquilaste?'},action:{button:'Elegir motivo',sections:[{title:'Motivo principal',rows:[['mot_precio','Precio'],['mot_no_vestido','No encontré vestido'],['mot_otras_tiendas','Visitaré otras tiendas'],['mot_consultar','Debo consultarlo'],['mot_fecha_evento','Fecha del evento'],['mot_talla_diseno','Talla / diseño / ajuste'],['mot_otro','Otro']].map(([id,title])=>({id,title}))}]}}};
  else if(type==='reagendar')content={type:'text',text:{preview_url:false,body:`Puedes reprogramar tu primera cita aquí:\n${link}`}};
  else if(type==='recuperar')content=template(RECOVERY_TEMPLATE,[c.cliente_nombre,link],lang);
+ // Survey after every attended visit (vitrina, store or virtual) when her 24 hours are closed: template with the same three buttons.
+ else if(type==='encuesta_visita')content={type:'template',template:{name:VISIT_SURVEY_TEMPLATE,language:{code:lang},components:[{type:'body',parameters:[text(c.cliente_nombre.split(' ')[0]),text(site)]},...['sat_excelente','sat_bien','sat_mejorar'].map((payload,i)=>({type:'button',sub_type:'quick_reply',index:String(i),parameters:[{type:'payload',payload}]}))]}};
  else throw Error('Tipo de notificación desconocido');
  return {messaging_product:'whatsapp',to:whatsappPhone(c.telefono),...content};
 }
@@ -35,6 +37,7 @@ export const POST_VISIT_V2_TEMPLATE='ambar_post_cita_v2';
 export const POST_VISIT_ACTIONS=['pc_alquile','pc_no_decido','pc_no_asisti'] as const;
 /** Google review request (see docs/plantillas-whatsapp.md): «Dejar reseña» (link to the store's review form) and «Ahora no». */
 export const REVIEW_TEMPLATE='ambar_resena';
+export const VISIT_SURVEY_TEMPLATE='ambar_satisfaccion_visita';
 /** Reschedule with the 2 nearest free times as buttons (ids rg_<fecha>_<HH:MM>) and «Otro día»; without free times, the button to the schedule page. */
 export function rescheduleChoices(c:NotificationVisit,slots:{fecha:string;hora:string}[],link:string){
  const to=whatsappPhone(c.telefono),name=c.cliente_nombre.split(' ')[0];
@@ -94,7 +97,7 @@ export function openWindowPayload(type:string,c:NotificationVisit,siteName:strin
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'rc_confirmo',title:'✅ Ahí estaré'}},{type:'reply',reply:{id:'rc_reagendar',title:'🔄 Cambiar hora'}},{type:'reply',reply:{id:'rc_no_puedo',title:'❌ No puedo'}}]}}}};}
  if(type==='post_cita'){const texto=`Hola ${name} 💛 ¿Cómo te fue en tu cita en Ámbar Couture ${siteName}?`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'pc_alquile',title:'💃 Fui y alquilé'}},{type:'reply',reply:{id:'pc_no_decido',title:'🤔 Aún no decido'}},{type:'reply',reply:{id:'pc_no_asisti',title:'📅 No pude ir'}}]}}}};}
- if(type==='satisfaccion'){const texto=`${name}, ¿cómo te sentiste con la atención en Ámbar?`;
+ if(type==='satisfaccion'||type==='encuesta_visita'){const texto=`${name}, ¿cómo te sentiste con la atención en Ámbar?`;
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'button',body:{text:texto},action:{buttons:[{type:'reply',reply:{id:'sat_excelente',title:'😍 Excelente'}},{type:'reply',reply:{id:'sat_bien',title:'🙂 Bien'}},{type:'reply',reply:{id:'sat_mejorar',title:'😕 Puede mejorar'}}]}}}};}
  if(type==='satisfaccion_falla'){const texto='Gracias por decírnoslo. ¿Qué podemos mejorar?';
   return {texto,payload:{messaging_product:'whatsapp',to,type:'interactive',interactive:{type:'list',body:{text:texto},action:{button:'Elegir',sections:[{title:'Qué mejorar',rows:[['fa_atencion','Atención'],['fa_espera','Tiempo de espera'],['fa_vestidos','Vestidos'],['fa_precio','Precio'],['fa_instalaciones','Instalaciones'],['fa_otro','Otro']].map(([id,title])=>({id,title}))}]}}}};}
@@ -127,7 +130,7 @@ export function inboxCopy(type:string,c:NotificationVisit,site:string,payload:Re
   return `${String(i.body?.text||'')}${opts.length?`\n[${opts.join(' · ')}]`:''}`;}
  const when=`${visitDate(c.fecha)} a las ${visitTime(c.hora)}`,name=String(payload.template?.name||'');
  const label:Record<string,string>={confirmacion:`✅ Confirmación de su primera cita: ${when} · ${c.modalidad==='virtual'?'virtual':site}`,recordatorio24:`⏰ Recordatorio: su cita es mañana, ${when} · ${site}`,recordatorio2:`⏰ Recordatorio: su cita es hoy, ${when} · ${site}`,
-  post_cita:'¿Asististe a tu cita?\n[Asistí · No asistí]',recuperar:'💛 Te esperábamos en tu cita: elige una nueva fecha (enlace para reprogramar).'};
+  post_cita:'¿Asististe a tu cita?\n[Asistí · No asistí]',encuesta_visita:`¿Cómo te sentiste con la atención en Ámbar ${site}?\n[Excelente · Bien · Puede mejorar]`,recuperar:'💛 Te esperábamos en tu cita: elige una nueva fecha (enlace para reprogramar).'};
  return `${name===POST_VISIT_V2_TEMPLATE?'¿Cómo te fue en tu cita en Ámbar?\n[Fui y alquilé · Aún no decido · No pude ir]':label[type]||'Mensaje automático'}${name===REMINDER_CONFIRM_V2_TEMPLATE||name===REMINDER_CONFIRM_V3_TEMPLATE?'\n[✅ Ahí estaré · 🔄 Cambiar hora · ❌ No puedo]':name===REMINDER_CONFIRM_TEMPLATE?'\n[Confirmo · Reagendar]':''}\n(plantilla ${name})`;
 }
 /** Meta's delivery error codes, in words the team can act on. */
