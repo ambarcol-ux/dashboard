@@ -202,7 +202,7 @@ function Editar({doc,sedes,onClose,onDone}:{doc:Doc;sedes:{id:string;nombre:stri
    {soloEnlace&&<label>Enlace<input style={input} value={f.enlace} onChange={e=>setF({...f,enlace:e.target.value})} placeholder="https://…"/></label>}
    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
     <label>Sede<select style={input} value={f.sede_id} onChange={e=>setF({...f,sede_id:e.target.value})}><option value="">Todas las sedes</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
-    <label>Vence (opcional)<input style={input} type="date" value={f.vence} onChange={e=>setF({...f,vence:e.target.value})}/></label>
+    <VenceInput value={f.vence} onChange={v=>setF({...f,vence:v})}/>
    </div>
    <div style={{border:'1px dashed #e2e8f0',borderRadius:12,padding:10,display:'grid',gap:6}}>
     <strong style={{fontSize:13}}>{soloEnlace?'Cambiar el enlace por archivo(s)':'Reemplazar el archivo'}</strong>
@@ -279,7 +279,7 @@ function Subir({area,sedes,onClose,onDone}:{area:Area;sedes:{id:string;nombre:st
    <label>Descripción (opcional)<input style={input} value={f.descripcion} onChange={e=>setF({...f,descripcion:e.target.value})}/></label>
    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
     <label>Sede<select style={input} value={f.sede_id} onChange={e=>setF({...f,sede_id:e.target.value})}><option value="">Todas las sedes</option>{sedes.map(s=><option key={s.id} value={s.id}>{s.nombre}</option>)}</select></label>
-    <label>Vence (opcional)<input style={input} type="date" value={f.vence} onChange={e=>setF({...f,vence:e.target.value})}/></label>
+    <VenceInput value={f.vence} onChange={v=>setF({...f,vence:v})}/>
    </div>
    {faltan.length>0&&<p className={styles.help}>Para guardar falta: {faltan.join(' y ')}.</p>}
    {progreso&&<p className={styles.help}>{progreso}</p>}
@@ -326,4 +326,13 @@ function AdminAreas({areas,roles,onClose,onChange}:{areas:Area[];roles:{id:strin
    </tbody></table></div>
    <button type="button" className={styles.button} onClick={onClose}>Listo</button>
   </div></div>;
+}
+
+/** Expiry date of a document, or «Nunca» (no expiry: the date is cleared). */
+function VenceInput({value,onChange}:{value:string;onChange:(v:string)=>void}){
+ const [nunca,setNunca]=useState(false);
+ return <label>Vence (opcional)<span style={{display:'flex',gap:8,alignItems:'center'}}>
+  <input style={{width:'100%',padding:'8px 10px',border:'1px solid #e2e8f0',borderRadius:10,boxSizing:'border-box',flex:1}} type="date" value={value} disabled={nunca} onChange={e=>onChange(e.target.value)}/>
+  <span style={{display:'flex',gap:4,alignItems:'center',whiteSpace:'nowrap',fontSize:13}}><input type="checkbox" checked={nunca} onChange={e=>{setNunca(e.target.checked);if(e.target.checked)onChange('');}}/>Nunca</span>
+ </span></label>;
 }
