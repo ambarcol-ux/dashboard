@@ -19,6 +19,7 @@ begin
  if not found then raise exception 'Aliado no encontrado o sin cambios.'; end if;
 end $$;
 revoke all on function private.archivar_aliado(uuid,boolean,text) from public,anon;
+grant execute on function private.archivar_aliado(uuid,boolean,text) to authenticated;
 create or replace function public.archivar_aliado(p_id uuid,p_archivar boolean,p_motivo text) returns void language sql set search_path='' as $$ select private.archivar_aliado(p_id,p_archivar,p_motivo); $$;
 grant execute on function public.archivar_aliado(uuid,boolean,text) to authenticated;
 
