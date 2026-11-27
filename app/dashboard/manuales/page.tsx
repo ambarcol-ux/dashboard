@@ -856,7 +856,7 @@ const MANUAL_DATA = [
       ] },
       { type: 'steps', title: '📝 Consultar el historial de un contrato', items: [
         '**Paso 1 · Abrir:** toca **Historial** en la fila del contrato.',
-        '**Paso 2 · Leer:** abajo sale **«Historial de depósitos y devoluciones»** con **Pactado**, **Pagado**, **Estado** y **Disponible**.',
+        '**Paso 2 · Leer:** abajo sale **«Historial de depósitos y devoluciones»** con **Pactado**, **Pagado**, **Estado** y **Disponible**. Las filas **«Ingreso del depósito en Caja»** muestran cada parte del depósito registrada en Caja (por ejemplo un saldo en efectivo sin foto); son informativas y no suman de nuevo.',
         '**Paso 3 · Filtrar fechas:** usa **Desde** y **Hasta**.',
         '**Paso 4 · Soporte:** toca **Ver comprobante** en cada movimiento.',
         '**Paso 5 · Contrato:** toca **Ver contrato completo** para abrir el contrato.'
