@@ -67,7 +67,9 @@ export async function POST(request:Request){
    const [{data:sd},{data:tp}]=await Promise.all([p.sede_id?db.from('sedes').select('nombre').eq('id',p.sede_id).maybeSingle():Promise.resolve({data:null}),
     db.from('config_parametros').select('valor').eq('clave','anuncios_tope_diario').maybeSingle()]);
    const audienciaId=/^\d+$/.test(String(b.audiencia||''))?String(b.audiencia):undefined;
-   const publico=String(b.publico||'abierto') as keyof typeof PUBLICOS;if(!audienciaId&&!(publico in PUBLICOS))return publicReply({error:'Elige el público.'},400);
+   const audiencias=(Array.isArray(b.audiencias)?b.audiencias:[]).filter((a):a is {id:string;nombre?:string}=>!!a&&/^\d+$/.test(String((a as {id?:unknown}).id))).slice(0,20);
+   const publico=String(b.publico||'abierto') as keyof typeof PUBLICOS;if(!(publico in PUBLICOS))return publicReply({error:'Elige el público.'},400);
+   const publicoTxt=[...(publico!=='abierto'?[publico]:[]),...audiencias.map(a=>String(a.nombre||'Público guardado')),...(audienciaId?[String(b.audiencia_nombre||'Público guardado')]:[])].join(' + ').slice(0,300)||'abierto';
    // Location: «Toda Colombia», the chosen stores (one, several or all) or, as before, the piece's store.
    let ciudades:string[]=[(sd as {nombre?:string}|null)?.nombre||''].filter(Boolean);
    if(b.colombia===true)ciudades=[];
@@ -77,9 +79,9 @@ export async function POST(request:Request){
    }
    const ciudad=ciudades.length===1?ciudades[0]:null,lugar=!ciudades.length?'Colombia':ciudades.length===1?ciudades[0]:`${ciudades.length} sedes`;
    try{
-    const ids=await adsPromote({nombre:`ERP ${p.codigo||''} · ${lugar} · ${FORMATO_TXT[p.formato as string]||p.formato}`,ciudad,ciudades,radio:Number(b.radio),edadMin:Number(b.edad_min),edadMax:Number(b.edad_max),audienciaId,presupuesto:Number(b.presupuesto),dias:Number(b.dias),publico,
+    const ids=await adsPromote({nombre:`ERP ${p.codigo||''} · ${lugar} · ${FORMATO_TXT[p.formato as string]||p.formato}`,ciudad,ciudades,radio:Number(b.radio),edadMin:Number(b.edad_min),edadMax:Number(b.edad_max),audienciaId,audienciaIds:audiencias.map(a=>String(a.id)),presupuesto:Number(b.presupuesto),dias:Number(b.dias),publico,
      pageId:s.pageId,igId:s.instagramId,igMediaId:r.instagram?.id,fbPostId:r.facebook?.id,tope:Number((tp as {valor?:unknown}|null)?.valor)||100000});
-    const anuncio={...ids,publico:audienciaId?String(b.audiencia_nombre||'Público guardado').slice(0,120):publico,lugar,presupuesto:Number(b.presupuesto),dias:Number(b.dias),creado_por:uid,creado_at:new Date().toISOString()};
+    const anuncio={...ids,publico:publicoTxt,lugar,presupuesto:Number(b.presupuesto),dias:Number(b.dias),creado_por:uid,creado_at:new Date().toISOString()};
     await db.from('contenido_piezas').update({anuncio,updated_at:new Date().toISOString()}).eq('id',id);
     return publicReply({ok:true});
    }catch(e){return publicReply({error:e instanceof Error?e.message:'Meta no creó el anuncio.'},400);}

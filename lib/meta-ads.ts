@@ -127,7 +127,7 @@ export async function adsChange({id,tipo,valor,tope,maxPct}:AdChange){
  *  are created PAUSED: nothing spends until administration activates it in the portfolio (fase 2). Campaign budget (daily) and end date
  *  on the ad set. Audience: lookalike or renters (looked up by name in the account), or open, in the city of the piece's sede. */
 export const PUBLICOS={similar:'Similar 1% | ERP Alquiló 180D',clientas:'ERP | Alquiló | 180D',abierto:''} as const;
-export type Promocion={nombre:string;ciudad:string|null;ciudades?:string[];radio?:number;edadMin?:number;edadMax?:number;audienciaId?:string;presupuesto:number;dias:number;publico:keyof typeof PUBLICOS;pageId:string;igId?:string;igMediaId?:string;fbPostId?:string;tope:number};
+export type Promocion={nombre:string;ciudad:string|null;ciudades?:string[];radio?:number;edadMin?:number;edadMax?:number;audienciaId?:string;audienciaIds?:string[];presupuesto:number;dias:number;publico:keyof typeof PUBLICOS;pageId:string;igId?:string;igMediaId?:string;fbPostId?:string;tope:number};
 /** Saved audiences of the ad account (for the «Público» list when promoting). */
 export async function adsAudiences(){
  const token=process.env.META_ADS_TOKEN;if(!token)throw Error('Falta META_ADS_TOKEN');
@@ -160,12 +160,14 @@ export async function adsPromote(p:Promocion){
  if(cities.length){delete geo.countries;geo.cities=cities;}
  const edadMin=Math.min(65,Math.max(18,Math.round(Number(p.edadMin)||18))),edadMax=Math.min(65,Math.max(edadMin,Math.round(Number(p.edadMax)||55)));
  const targeting:Record<string,unknown>={geo_locations:geo,age_min:edadMin,age_max:edadMax,genders:[2],targeting_automation:{advantage_audience:0}};
- if(p.audienciaId&&/^\d+$/.test(p.audienciaId))targeting.custom_audiences=[{id:p.audienciaId}];
- else if(PUBLICOS[p.publico]){
+ // Audiences: one or several (the ad reaches whoever is in any of them); none = open in the location.
+ const audIds=new Set([...(p.audienciaIds||[]),p.audienciaId||''].filter(x=>/^\d+$/.test(x)));
+ if(PUBLICOS[p.publico]){
   const a=await call(`${act}/customaudiences?fields=id,name&limit=200`) as {data?:{id:string;name:string}[]};
   const aud=a.data?.find(x=>x.name===PUBLICOS[p.publico]);if(!aud)throw Error(`No encontré el público «${PUBLICOS[p.publico]}» en la cuenta de anuncios.`);
-  targeting.custom_audiences=[{id:aud.id}];
+  audIds.add(aud.id);
  }
+ if(audIds.size)targeting.custom_audiences=[...audIds].slice(0,20).map(id=>({id}));
  const nombre=p.nombre.slice(0,90),fin=new Date(Date.now()+p.dias*86400000).toISOString();
  const {currency}=await call(`${act}?fields=currency`) as {currency?:string};
  const camp=String((await call(`${act}/campaigns`,{name:nombre,objective:'OUTCOME_ENGAGEMENT',status:'PAUSED',special_ad_categories:[],daily_budget:String(Math.round(p.presupuesto)*metaOffset(currency)),bid_strategy:'LOWEST_COST_WITHOUT_CAP'})).id);
