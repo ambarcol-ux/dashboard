@@ -9,7 +9,7 @@ import {prepararReel,mp4Soportado,fotosAReel,mp4VideoSoportado} from '@/componen
 
 type Medio={url:string;tipo:'imagen'|'video';fuente:string;ref:string;nota?:string;original?:string;diseno?:string;fotos?:Medio[]};
 type Pieza={id:string;formato:string;redes:string[];sede_id:string|null;orden:string|null;texto:string|null;idea:string|null;medios:Medio[];programada_at:string|null;estado:string;
- resultado:Record<string,{estado?:string;enlace?:string;error?:string;id?:string}>;error:string|null;created_at:string;codigo:string|null;metricas:Record<string,Record<string,number|string>>;metricas_at:string|null;anuncio:{campana_id:string;publico:string;presupuesto:number;dias:number;creado_at:string}|null};
+ resultado:Record<string,{estado?:string;enlace?:string;error?:string;id?:string}>;error:string|null;created_at:string;codigo:string|null;metricas:Record<string,Record<string,number|string>>;metricas_at:string|null;anuncio:{campana_id:string;publico:string;lugar?:string;presupuesto:number;dias:number;creado_at:string}|null};
 type Resultado={pieza_id:string;chats:number;citas:number;asistieron:number;contratos:number;valor:number};
 type Lib={id:string;url:string;tipo:'imagen'|'video';titulo:string|null;etiquetas:string[];sede_id:string|null;tiene_clienta:boolean;autorizada:boolean};
 type Sede={id:string;nombre:string};
@@ -85,7 +85,7 @@ function Estudio(){
    {!piezas?<p className="text-gray-400 font-bold">Cargando…</p>:
    (()=>{const lista=piezas.filter(p=>VISTAS.find(v=>v[0]===vista)![2].includes(p.estado));
     return !lista.length?<p className="text-sm text-gray-500">No hay piezas aquí. Usa «Crear con IA» para pedir una.</p>:
-    <div className="grid gap-4 lg:grid-cols-2">{lista.map(p=><Tarjeta key={`${p.id}:${p.estado}:${p.texto}:${p.programada_at}`} p={p} res={resultados[p.id]} kit={kit} admin={admin} sede={sede(p.sede_id)} busy={busy} run={run} setError={setError}/>)}</div>;})()}
+    <div className="grid gap-4 lg:grid-cols-2">{lista.map(p=><Tarjeta key={`${p.id}:${p.estado}:${p.texto}:${p.programada_at}`} p={p} res={resultados[p.id]} kit={kit} admin={admin} sede={sede(p.sede_id)} sedes={sedes} busy={busy} run={run} setError={setError}/>)}</div>;})()}
   </>}
  </div>;
 }
@@ -108,7 +108,7 @@ function Nueva({sedes,busy,onCrear}:{sedes:Sede[];busy:string;onCrear:(b:Record<
  </section>;
 }
 
-function Tarjeta({p,res,kit,admin,sede,busy,run,setError}:{p:Pieza;res?:Resultado;kit:Kit|null;setError:(e:string)=>void;admin:boolean;sede:string;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>}){
+function Tarjeta({p,res,kit,admin,sede,sedes,busy,run,setError}:{p:Pieza;res?:Resultado;kit:Kit|null;sedes:Sede[];setError:(e:string)=>void;admin:boolean;sede:string;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>}){
  const [texto,setTexto]=useState(p.texto||''),[fecha,setFecha]=useState(local(p.programada_at));
  const editable=['por_aprobar','aprobada','error'].includes(p.estado),cambio=texto!==(p.texto||'')||fecha!==local(p.programada_at);
  const b=(k:string)=>busy===`${k}:${p.id}`;
@@ -119,7 +119,7 @@ function Tarjeta({p,res,kit,admin,sede,busy,run,setError}:{p:Pieza;res?:Resultad
   </div>
   <p className="text-xs text-gray-500">{sede} · publicar {verFecha(p.programada_at)}{p.codigo?` · código ${p.codigo}`:''}</p>
   {(p.estado==='publicada'||p.estado==='publicando')&&<Medicion p={p} res={res}/>}
-  {admin&&p.estado==='publicada'&&p.formato!=='historia'&&(p.resultado?.instagram?.id||p.resultado?.facebook?.id||p.anuncio)&&<Promocion p={p} busy={busy} run={run}/>}
+  {admin&&p.estado==='publicada'&&p.formato!=='historia'&&(p.resultado?.instagram?.id||p.resultado?.facebook?.id||p.anuncio)&&<Promocion p={p} sedes={sedes} busy={busy} run={run}/>}
   {p.idea&&<p className="text-xs text-gray-600 italic">{p.idea}</p>}
   <div className="flex gap-2 overflow-x-auto pb-1">{p.medios.map(m=><div key={m.url} className="relative shrink-0">
    {m.tipo==='video'?<video src={m.url} className="h-40 rounded-xl" controls preload="metadata"/>:/* eslint-disable-next-line @next/next/no-img-element */<img src={m.url} alt={m.nota||''} className="h-40 rounded-xl object-cover"/>}
@@ -247,11 +247,11 @@ function ImportarIG({sedes,busy,run}:{sedes:Sede[];busy:string;run:(k:string,b:R
  const [enlace,setEnlace]=useState(''),[sede,setSede]=useState('');
  return <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 space-y-2 text-xs">
   <p className="font-black text-indigo-900">Promocionar una publicación de Instagram</p>
-  <p className="text-gray-500">Pega el enlace de un reel o publicación que se subió directo en Instagram y elige la sede (la ciudad del anuncio). Aparece abajo en Publicadas con el botón «Promocionar con anuncio a WhatsApp».</p>
+  <p className="text-gray-500">Pega el enlace de un reel o publicación que se subió directo en Instagram y, si quieres, la sede. Aparece abajo en Publicadas con el botón «Promocionar con anuncio a WhatsApp».</p>
   <div className="grid gap-2 sm:grid-cols-[1fr_12rem_auto]">
    <input className={input} value={enlace} onChange={e=>setEnlace(e.target.value)} placeholder="https://www.instagram.com/reel/…"/>
-   <select className={input} value={sede} onChange={e=>setSede(e.target.value)}><option value="">Sede…</option>{sedes.map(x=><option key={x.id} value={x.id}>{x.nombre}</option>)}</select>
-   <button type="button" disabled={!!busy||!/instagram\.com\//.test(enlace)||!sede} onClick={()=>void run('importar_ig',{accion:'importar_ig',enlace:enlace.trim(),sede_id:sede},()=>{setEnlace('');setSede('');})} className="px-3 py-2 rounded-lg bg-indigo-600 text-white font-black disabled:opacity-50">{busy==='importar_ig'?'Buscando…':'Traer'}</button>
+   <select className={input} value={sede} onChange={e=>setSede(e.target.value)}><option value="">Sede (opcional)</option>{sedes.map(x=><option key={x.id} value={x.id}>{x.nombre}</option>)}</select>
+   <button type="button" disabled={!!busy||!/instagram\.com\//.test(enlace)} onClick={()=>void run('importar_ig',{accion:'importar_ig',enlace:enlace.trim(),sede_id:sede},()=>{setEnlace('');setSede('');})} className="px-3 py-2 rounded-lg bg-indigo-600 text-white font-black disabled:opacity-50">{busy==='importar_ig'?'Buscando…':'Traer'}</button>
   </div>
  </div>;
 }
@@ -259,20 +259,43 @@ function ImportarIG({sedes,busy,run}:{sedes:Sede[];busy:string;run:(k:string,b:R
 const PUBLICO:Record<string,string>={similar:'Parecidas a clientas que alquilaron (1%)',clientas:'Clientas que alquilaron (180 días)',abierto:'Abierto en la ciudad'};
 /** Anuncios fase 3: promote a published piece as a WhatsApp ad. It is created paused; it starts when administration activates it in
  *  WhatsApp › Anuncios › Portafolio (with the caps of Configuración). */
-function Promocion({p,busy,run}:{p:Pieza;busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>}){
+function Promocion({p,sedes,busy,run}:{p:Pieza;sedes:Sede[];busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>}){
  const [abierto,setAbierto]=useState(false),[presupuesto,setPresupuesto]=useState('10000'),[dias,setDias]=useState('7'),[publico,setPublico]=useState('similar');
- if(p.anuncio)return <p className="text-xs font-bold text-indigo-700 bg-indigo-50 rounded-lg px-2 py-1">Anuncio creado en pausa · {PUBLICO[p.anuncio.publico]||p.anuncio.publico} · ${p.anuncio.presupuesto.toLocaleString('es-CO')}/día · {p.anuncio.dias} días. Actívalo en WhatsApp › Anuncios › Portafolio.</p>;
+ const [donde,setDonde]=useState<string[]>(p.sede_id?[p.sede_id]:[]),[colombia,setColombia]=useState(false),[radio,setRadio]=useState('40'),[edadMin,setEdadMin]=useState('18'),[edadMax,setEdadMax]=useState('55');
+ const [audiencias,setAudiencias]=useState<{id:string;nombre:string}[]>([]),[aviso,setAviso]=useState('');
+ useEffect(()=>{if(!abierto||audiencias.length)return;api({accion:'audiencias'}).then(d=>setAudiencias((d as {audiencias?:{id:string;nombre:string}[]}).audiencias||[])).catch(e=>setAviso(e instanceof Error?e.message:'No cargaron los públicos guardados.'));},[abierto,audiencias.length]);
+ if(p.anuncio)return <p className="text-xs font-bold text-indigo-700 bg-indigo-50 rounded-lg px-2 py-1">Anuncio creado en pausa · {PUBLICO[p.anuncio.publico]||p.anuncio.publico}{p.anuncio.lugar?` · ${p.anuncio.lugar}`:''} · ${p.anuncio.presupuesto.toLocaleString('es-CO')}/día · {p.anuncio.dias} días. Actívalo en WhatsApp › Anuncios › Portafolio.</p>;
  if(!abierto)return <button type="button" disabled={!!busy} onClick={()=>setAbierto(true)} className="text-xs font-black text-indigo-700 underline">Promocionar con anuncio a WhatsApp</button>;
- const k=`promocionar:${p.id}`;
+ const k=`promocionar:${p.id}`,guardada=audiencias.find(a=>a.id===publico);
+ const todas=!colombia&&sedes.length>1&&donde.length===sedes.length;
+ const lugar=colombia?'toda Colombia':todas?'todas las sedes':sedes.filter(x=>donde.includes(x.id)).map(x=>x.nombre).join(', ');
+ const listo=!!Number(presupuesto)&&!!Number(dias)&&(colombia||donde.length>0)&&Number(edadMin)>=18&&Number(edadMax)>=Number(edadMin)&&Number(edadMax)<=65;
  return <div className="rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 space-y-2 text-xs">
   <p className="font-black text-indigo-900">Promocionar esta pieza</p>
-  <label className="block font-bold text-gray-600">Público<select className={`${input} mt-1`} value={publico} onChange={e=>setPublico(e.target.value)}>{Object.entries(PUBLICO).map(([v,t])=><option key={v} value={v}>{t}</option>)}</select></label>
+  <div className="font-bold text-gray-600">Ubicación
+   <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1">
+    <label className="flex items-center gap-1"><input type="checkbox" checked={todas} onChange={e=>{setColombia(false);setDonde(e.target.checked?sedes.map(x=>x.id):[]);}}/>Todas las sedes</label>
+    {sedes.map(x=><label key={x.id} className="flex items-center gap-1"><input type="checkbox" checked={!colombia&&donde.includes(x.id)} onChange={e=>{setColombia(false);setDonde(d=>e.target.checked?[...d,x.id]:d.filter(y=>y!==x.id));}}/>{x.nombre}</label>)}
+    <label className="flex items-center gap-1"><input type="checkbox" checked={colombia} onChange={e=>setColombia(e.target.checked)}/>Toda Colombia</label>
+   </div>
+  </div>
+  <div className="grid grid-cols-3 gap-2">
+   <label className="block font-bold text-gray-600">Radio<select className={`${input} mt-1`} value={radio} disabled={colombia} onChange={e=>setRadio(e.target.value)}>{['10','20','40','80'].map(r=><option key={r} value={r}>{r} km</option>)}</select></label>
+   <label className="block font-bold text-gray-600">Edad desde<input inputMode="numeric" className={`${input} mt-1`} value={edadMin} onChange={e=>setEdadMin(e.target.value.replace(/\D/g,''))}/></label>
+   <label className="block font-bold text-gray-600">hasta<input inputMode="numeric" className={`${input} mt-1`} value={edadMax} onChange={e=>setEdadMax(e.target.value.replace(/\D/g,''))}/></label>
+  </div>
+  <label className="block font-bold text-gray-600">Público<select className={`${input} mt-1`} value={publico} onChange={e=>setPublico(e.target.value)}>
+   {Object.entries(PUBLICO).map(([v,t])=><option key={v} value={v}>{t}</option>)}
+   {audiencias.length>0&&<optgroup label="Públicos guardados en Meta">{audiencias.map(a=><option key={a.id} value={a.id}>{a.nombre}</option>)}</optgroup>}
+  </select></label>
+  {aviso&&<p className="text-amber-700">{aviso}</p>}
   <div className="grid grid-cols-2 gap-2">
    <label className="block font-bold text-gray-600">Presupuesto diario (COP)<MoneyInput inputMode="numeric" className={`${input} mt-1`} value={presupuesto} onChange={e=>setPresupuesto(e.target.value.replace(/\D/g,''))}/></label>
    <label className="block font-bold text-gray-600">Días<input inputMode="numeric" className={`${input} mt-1`} value={dias} onChange={e=>setDias(e.target.value.replace(/\D/g,''))}/></label>
   </div>
-  <p className="text-gray-500">Mujeres de 18 a 55 años en la ciudad de la sede, con botón a WhatsApp. Se crea en pausa: no gasta hasta que lo actives en el portafolio.</p>
-  <div className="flex gap-2"><button type="button" disabled={!!busy||!Number(presupuesto)||!Number(dias)} onClick={()=>{if(window.confirm(`¿Crear el anuncio en pausa con $${Number(presupuesto).toLocaleString('es-CO')} diarios por ${dias} días?`))void run(k,{accion:'promocionar',id:p.id,publico,presupuesto:Number(presupuesto),dias:Number(dias)});}} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-black disabled:opacity-40">{busy===k?'Creando…':'Crear anuncio en pausa'}</button>
+  <p className="text-gray-500">Mujeres de {edadMin||'?'} a {edadMax||'?'} años en {lugar||'…'}{colombia?'':` (${radio} km)`}, con botón a WhatsApp. Se crea en pausa: no gasta hasta que lo actives en el portafolio.</p>
+  <div className="flex gap-2"><button type="button" disabled={!!busy||!listo} onClick={()=>{if(window.confirm(`¿Crear el anuncio en pausa en ${lugar} con $${Number(presupuesto).toLocaleString('es-CO')} diarios por ${dias} días?`))void run(k,{accion:'promocionar',id:p.id,...(guardada?{audiencia:guardada.id,audiencia_nombre:guardada.nombre}:{publico}),
+    ...(colombia?{colombia:true}:{sedes:donde}),radio:Number(radio),edad_min:Number(edadMin),edad_max:Number(edadMax),presupuesto:Number(presupuesto),dias:Number(dias)});}} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-black disabled:opacity-40">{busy===k?'Creando…':'Crear anuncio en pausa'}</button>
    <button type="button" onClick={()=>setAbierto(false)} className="px-3 py-1.5 rounded-lg border font-black text-gray-600">Cancelar</button></div>
  </div>;
 }
