@@ -18,8 +18,10 @@ export const metadata: Metadata = {
   description: "Sistema centralizado de inventario, contratos y logística para Ámbar Couture.",
   icons: {
     icon: "https://ambarcouture.com/wp-content/uploads/2025/09/logo-ambar-e1761158401478.jpeg",
-    apple: "https://ambarcouture.com/wp-content/uploads/2025/09/logo-ambar-e1761158401478.jpeg",
+    apple: "/app-icon/180",
   },
+  // Installed on the phone's home screen it opens full screen, titled «Ámbar».
+  appleWebApp: { capable: true, title: "Ámbar", statusBarStyle: "default" },
   openGraph: {
     title: "Ámbar Couture ERP",
     description: "Sistema centralizado de inventario, contratos y logística para Ámbar Couture.",

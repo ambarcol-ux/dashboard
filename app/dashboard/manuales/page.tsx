@@ -27,6 +27,12 @@ const MANUAL_DATA = [
         '**Paso 8 · Abajo del menú:** **MANUAL DE USUARIO**, **MI PERFIL** y **CERRAR SESIÓN**.',
         '**Paso 9 · Lo que ves depende de tu rol:** cada persona ve solo los módulos de su rol y su sede. Si te falta uno que necesitas, pídelo a administración (se da en **EQUIPO Y ACCESOS**).'
       ] },
+      { type: 'steps', title: '📱 Instalar el ERP como app en el celular', items: [
+        '**Paso 1 · Abrir:** en el celular entra a **erp.ambarcouture.com** e inicia sesión.',
+        '**Paso 2 · iPhone (Safari):** toca **Compartir** (el cuadro con la flecha) y elige **Agregar a pantalla de inicio** › **Agregar**.',
+        '**Paso 3 · Android (Chrome):** toca los **tres puntos** y elige **Instalar app** o **Agregar a pantalla principal**.',
+        '**Paso 4 · Usar:** queda el ícono de **Ámbar** junto a tus apps; ábrelo desde ahí y el ERP se ve a pantalla completa. Es el mismo ERP: se actualiza solo.'
+      ] },
       { type: 'steps', title: '📝 Cómo usar este manual', items: [
         '**Paso 1 · Buscar:** escribe una palabra en **Buscar tema...** (por ejemplo «abono», «traslado» o «caja») y la lista muestra solo los módulos que la mencionan.',
         '**Paso 2 · Abrir un módulo:** tócalo en la lista. Cada módulo trae: para qué sirve, cómo llegar, el paso a paso, lo que debes cuidar y un ejemplo.',
