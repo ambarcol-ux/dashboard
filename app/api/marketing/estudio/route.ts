@@ -1,7 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply} from '@/lib/public-db';
 import {createPiece,publishPiece,type Formato,type Red,type Pieza} from '@/lib/content-studio';
-import {loadSocialSettings} from '@/lib/social-inbox';
+import {loadSocialSettings,pageToken} from '@/lib/social-inbox';
 import {adsPromote,PUBLICOS} from '@/lib/meta-ads';
 import {FUENTES} from '@/components/BrandDesign';
 export const dynamic='force-dynamic';
@@ -75,6 +75,31 @@ export async function POST(request:Request){
     await db.from('contenido_piezas').update({anuncio,updated_at:new Date().toISOString()}).eq('id',id);
     return publicReply({ok:true});
    }catch(e){return publicReply({error:e instanceof Error?e.message:'Meta no creó el anuncio.'},400);}
+  }
+  // A post published straight on Instagram (pasted link) becomes a «publicada» piece with its own code, so it can be promoted and measured like the rest.
+  if(b.accion==='importar_ig'){
+   if(!esAdmin)return soloAdmin();
+   const corto=String(b.enlace||'').match(/instagram\.com\/(?:[\w.]+\/)?(?:p|reels?|tv)\/([A-Za-z0-9_-]+)/)?.[1];
+   if(!corto)return publicReply({error:'Pega el enlace de una publicación o reel de Instagram (instagram.com/reel/…).'},400);
+   const s=await loadSocialSettings(db);if(!s?.instagramId)return publicReply({error:'Instagram no está conectado (Integraciones).'},400);
+   const tk=await pageToken(s);
+   type M={id:string;shortcode?:string;permalink?:string;media_product_type?:string;media_type?:string;caption?:string;media_url?:string;thumbnail_url?:string;timestamp?:string};
+   let m:M|undefined,url=`https://graph.facebook.com/${process.env.META_GRAPH_VERSION||'v21.0'}/${s.instagramId}/media?fields=id,shortcode,permalink,media_product_type,media_type,caption,media_url,thumbnail_url,timestamp&limit=50&access_token=${encodeURIComponent(tk)}`;
+   for(let i=0;i<6&&url&&!m;i++){
+    const r=await fetch(url,{signal:AbortSignal.timeout(15000)}).catch(()=>null);const d=await r?.json().catch(()=>null) as {data?:M[];paging?:{next?:string};error?:{message?:string}}|null;
+    if(!r?.ok)return publicReply({error:d?.error?.message||'Instagram no respondió.'},400);
+    m=(d?.data||[]).find(x=>x.shortcode===corto||String(x.permalink||'').includes(`/${corto}/`));url=d?.paging?.next||'';
+   }
+   if(!m)return publicReply({error:'No encontré esa publicación en la cuenta de Instagram conectada (solo las 300 más recientes de Ámbar).'},400);
+   const {data:ya}=await db.from('contenido_piezas').select('id').eq('resultado->instagram->>id',m.id).maybeSingle();
+   if(ya)return publicReply({error:'Esa publicación ya está en Piezas › Publicadas.'},400);
+   const formato=m.media_product_type==='REELS'?'reel':m.media_type==='CAROUSEL_ALBUM'?'carrusel':'publicacion';
+   const foto=m.media_type==='VIDEO'?m.thumbnail_url:m.media_url;
+   const codigo='P'+Array.from(crypto.getRandomValues(new Uint8Array(5)),x=>'0123456789ABCDEFGHJKLMNPQRSTUVWXYZ'[x%34]).join('');
+   const {error}=await db.from('contenido_piezas').insert({codigo,formato,redes:['instagram'],sede_id:uuid(b.sede_id),orden:`Publicada directamente en Instagram: ${m.permalink||b.enlace}`.slice(0,1000),
+    texto:(m.caption||'').slice(0,2200)||null,medios:foto?[{url:foto,tipo:'imagen',fuente:'biblioteca',ref:'instagram',nota:'Publicada en Instagram'}]:[],estado:'publicada',
+    resultado:{instagram:{id:m.id,estado:'publicada',...(m.permalink?{enlace:m.permalink}:{})}},publicado_at:m.timestamp||new Date().toISOString(),creado_por:uid,aprobado_por:uid,aprobado_at:new Date().toISOString()});
+   if(error)throw error;return publicReply({ok:true});
   }
   if(b.accion==='aprobar'||b.accion==='publicar_ya'||b.accion==='reintentar'){
    if(!esAdmin)return soloAdmin();
