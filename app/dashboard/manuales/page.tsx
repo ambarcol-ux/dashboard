@@ -44,7 +44,7 @@ const MANUAL_DATA = [
         '**Paso 3 · Presentar la evaluación:** al final de cada protocolo responde la **evaluación**. Se aprueba con **80 % o más** y puedes repetirla.',
         '**Paso 4 · Certificarte:** con todos los protocolos aprobados quedas **«Certificada Ámbar»**. Tu avance se ve en **Academia Ámbar**.'
       ] },
-      { type: 'warning', title: '⚠️ Reglas de oro', content: '**Nunca escribas a mano lo que el ERP ya trae** (por ejemplo, un abono en la caja: se confirma desde la sugerencia). **Todo pago lleva soporte** (foto o PDF del comprobante). **Usa siempre el código del vestido**, nunca solo el nombre. **Todo queda registrado:** quién hizo cada cambio y cuándo. Fechas, citas y cierres se manejan en **hora de Colombia**.' },
+      { type: 'warning', title: '⚠️ Reglas de oro', content: '**Nunca escribas a mano lo que el ERP ya trae** (por ejemplo, un abono en la caja: se confirma desde la sugerencia). **Las fechas siempre se eligen con el calendario**: al tocar un campo de fecha se abre el calendario y no se deja escribir, para evitar años mal digitados (como «0202»). **Todo pago lleva soporte** (foto o PDF del comprobante). **Usa siempre el código del vestido**, nunca solo el nombre. **Todo queda registrado:** quién hizo cada cambio y cuándo. Fechas, citas y cierres se manejan en **hora de Colombia**.' },
       { type: 'example', title: '💡 Ejemplo práctico', content: 'Una asesora nueva entra el primer día: abre **MANUAL DE USUARIO**, busca «abono» para aprender a cobrar, y en la semana presenta las evaluaciones de los protocolos del Manual Ámbar hasta quedar «Certificada Ámbar».' }
     ]
   },
