@@ -127,7 +127,15 @@ export async function adsChange({id,tipo,valor,tope,maxPct}:AdChange){
  *  are created PAUSED: nothing spends until administration activates it in the portfolio (fase 2). Campaign budget (daily) and end date
  *  on the ad set. Audience: lookalike or renters (looked up by name in the account), or open, in the city of the piece's sede. */
 export const PUBLICOS={similar:'Similar 1% | ERP Alquiló 180D',clientas:'ERP | Alquiló | 180D',abierto:''} as const;
-export type Promocion={nombre:string;ciudad:string|null;presupuesto:number;dias:number;publico:keyof typeof PUBLICOS;pageId:string;igId?:string;igMediaId?:string;fbPostId?:string;tope:number};
+export type Promocion={nombre:string;ciudad:string|null;ciudades?:string[];radio?:number;edadMin?:number;edadMax?:number;audienciaId?:string;presupuesto:number;dias:number;publico:keyof typeof PUBLICOS;pageId:string;igId?:string;igMediaId?:string;fbPostId?:string;tope:number};
+/** Saved audiences of the ad account (for the «Público» list when promoting). */
+export async function adsAudiences(){
+ const token=process.env.META_ADS_TOKEN;if(!token)throw Error('Falta META_ADS_TOKEN');
+ const r=await fetch(graph(`act_${process.env.META_AD_ACCOUNT_ID||'298134381906490'}/customaudiences?fields=id,name&limit=200`),{headers:{Authorization:`Bearer ${token}`},signal:AbortSignal.timeout(15000)});
+ const d=await r.json().catch(()=>({})) as {data?:{id:string;name:string}[];error?:{message?:string}};
+ if(!r.ok)throw Error(d.error?.message||'Meta no respondió.');
+ return (d.data||[]).map(a=>({id:a.id,nombre:a.name})).sort((a,b)=>a.nombre.localeCompare(b.nombre));
+}
 export async function adsPromote(p:Promocion){
  const token=process.env.META_ADS_TOKEN;if(!token)throw Error('Falta META_ADS_TOKEN');
  const act=`act_${process.env.META_AD_ACCOUNT_ID||'298134381906490'}`;
@@ -141,13 +149,19 @@ export async function adsPromote(p:Promocion){
   if(!r.ok||d.error)throw Error(d.error?.error_user_msg||d.error?.message||`Meta respondió ${r.status}`);
   return d;
  };
- const geo:Record<string,unknown>={countries:['CO']};
- if(p.ciudad){
-  const g=await call(`search?type=adgeolocation&location_types=${encodeURIComponent('["city"]')}&country_code=CO&q=${encodeURIComponent(p.ciudad)}`) as {data?:{key:string}[]};
-  const key=g.data?.[0]?.key;if(key){delete geo.countries;geo.cities=[{key,radius:40,distance_unit:'kilometer'}];}
+ // Location: one or several store cities (radius around each), or all Colombia when none is given.
+ const geo:Record<string,unknown>={countries:['CO']},radio=[10,20,40,80].includes(Number(p.radio))?Number(p.radio):40;
+ const ciudades=[...new Set((p.ciudades?.length?p.ciudades:p.ciudad?[p.ciudad]:[]).filter(Boolean))];
+ const cities:{key:string;radius:number;distance_unit:string}[]=[];
+ for(const c of ciudades){
+  const g=await call(`search?type=adgeolocation&location_types=${encodeURIComponent('["city"]')}&country_code=CO&q=${encodeURIComponent(c)}`) as {data?:{key:string}[]};
+  const key=g.data?.[0]?.key;if(!key)throw Error(`Meta no encontró la ciudad «${c}».`);cities.push({key,radius:radio,distance_unit:'kilometer'});
  }
- const targeting:Record<string,unknown>={geo_locations:geo,age_min:18,age_max:55,genders:[2],targeting_automation:{advantage_audience:0}};
- if(PUBLICOS[p.publico]){
+ if(cities.length){delete geo.countries;geo.cities=cities;}
+ const edadMin=Math.min(65,Math.max(18,Math.round(Number(p.edadMin)||18))),edadMax=Math.min(65,Math.max(edadMin,Math.round(Number(p.edadMax)||55)));
+ const targeting:Record<string,unknown>={geo_locations:geo,age_min:edadMin,age_max:edadMax,genders:[2],targeting_automation:{advantage_audience:0}};
+ if(p.audienciaId&&/^\d+$/.test(p.audienciaId))targeting.custom_audiences=[{id:p.audienciaId}];
+ else if(PUBLICOS[p.publico]){
   const a=await call(`${act}/customaudiences?fields=id,name&limit=200`) as {data?:{id:string;name:string}[]};
   const aud=a.data?.find(x=>x.name===PUBLICOS[p.publico]);if(!aud)throw Error(`No encontré el público «${PUBLICOS[p.publico]}» en la cuenta de anuncios.`);
   targeting.custom_audiences=[{id:aud.id}];

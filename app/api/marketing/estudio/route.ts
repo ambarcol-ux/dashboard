@@ -2,7 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply} from '@/lib/public-db';
 import {createPiece,publishPiece,type Formato,type Red,type Pieza} from '@/lib/content-studio';
 import {loadSocialSettings,pageToken} from '@/lib/social-inbox';
-import {adsPromote,PUBLICOS} from '@/lib/meta-ads';
+import {adsPromote,adsAudiences,PUBLICOS} from '@/lib/meta-ads';
 import {FUENTES} from '@/components/BrandDesign';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -66,15 +66,27 @@ export async function POST(request:Request){
    const r=(p.resultado||{}) as Record<string,Record<string,string>>;
    const [{data:sd},{data:tp}]=await Promise.all([p.sede_id?db.from('sedes').select('nombre').eq('id',p.sede_id).maybeSingle():Promise.resolve({data:null}),
     db.from('config_parametros').select('valor').eq('clave','anuncios_tope_diario').maybeSingle()]);
-   const publico=String(b.publico) as keyof typeof PUBLICOS;if(!(publico in PUBLICOS))return publicReply({error:'Elige el público.'},400);
-   const ciudad=(sd as {nombre?:string}|null)?.nombre||null;
+   const audienciaId=/^\d+$/.test(String(b.audiencia||''))?String(b.audiencia):undefined;
+   const publico=String(b.publico||'abierto') as keyof typeof PUBLICOS;if(!audienciaId&&!(publico in PUBLICOS))return publicReply({error:'Elige el público.'},400);
+   // Location: «Toda Colombia», the chosen stores (one, several or all) or, as before, the piece's store.
+   let ciudades:string[]=[(sd as {nombre?:string}|null)?.nombre||''].filter(Boolean);
+   if(b.colombia===true)ciudades=[];
+   else if(Array.isArray(b.sedes)){
+    const ids=b.sedes.map(uuid).filter((x):x is string=>!!x);if(!ids.length)return publicReply({error:'Elige al menos una sede o «Toda Colombia».'},400);
+    const {data:ss}=await db.from('sedes').select('nombre').in('id',ids);ciudades=(ss||[]).map(x=>String(x.nombre));
+   }
+   const ciudad=ciudades.length===1?ciudades[0]:null,lugar=!ciudades.length?'Colombia':ciudades.length===1?ciudades[0]:`${ciudades.length} sedes`;
    try{
-    const ids=await adsPromote({nombre:`ERP ${p.codigo||''} · ${ciudad||'Colombia'} · ${FORMATO_TXT[p.formato as string]||p.formato}`,ciudad,presupuesto:Number(b.presupuesto),dias:Number(b.dias),publico,
+    const ids=await adsPromote({nombre:`ERP ${p.codigo||''} · ${lugar} · ${FORMATO_TXT[p.formato as string]||p.formato}`,ciudad,ciudades,radio:Number(b.radio),edadMin:Number(b.edad_min),edadMax:Number(b.edad_max),audienciaId,presupuesto:Number(b.presupuesto),dias:Number(b.dias),publico,
      pageId:s.pageId,igId:s.instagramId,igMediaId:r.instagram?.id,fbPostId:r.facebook?.id,tope:Number((tp as {valor?:unknown}|null)?.valor)||100000});
-    const anuncio={...ids,publico,presupuesto:Number(b.presupuesto),dias:Number(b.dias),creado_por:uid,creado_at:new Date().toISOString()};
+    const anuncio={...ids,publico:audienciaId?String(b.audiencia_nombre||'Público guardado').slice(0,120):publico,lugar,presupuesto:Number(b.presupuesto),dias:Number(b.dias),creado_por:uid,creado_at:new Date().toISOString()};
     await db.from('contenido_piezas').update({anuncio,updated_at:new Date().toISOString()}).eq('id',id);
     return publicReply({ok:true});
    }catch(e){return publicReply({error:e instanceof Error?e.message:'Meta no creó el anuncio.'},400);}
+  }
+  if(b.accion==='audiencias'){
+   if(!esAdmin)return soloAdmin();
+   try{return publicReply({ok:true,audiencias:await adsAudiences()});}catch(e){return publicReply({error:e instanceof Error?e.message:'Meta no respondió.'},400);}
   }
   // A post published straight on Instagram (pasted link) becomes a «publicada» piece with its own code, so it can be promoted and measured like the rest.
   if(b.accion==='importar_ig'){
