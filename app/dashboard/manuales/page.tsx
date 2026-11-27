@@ -71,7 +71,7 @@ const MANUAL_DATA = [
         '**Paso 3 · Abrir el menú:** toca **Gestionar** para ver las acciones.',
         '**Paso 4 · Ver todo el contrato:** en el menú toca **Abrir Vista 360 (Bitácora)** para ver datos, pagos, vestidos, entregas e historial.',
         '**Paso 5 · Cobrar:** toca **Registrar Abono** (ver «💳 Registrar abono y multas»).',
-        '**Paso 6 · Firma y documentos:** usa **Copiar Link de Firma** para enviarlo a la clienta, **Generar PDF Contrato** para descargarlo y **Legalizar Factura** para poner el número de factura.',
+        '**Paso 6 · Firma y documentos:** usa **Copiar Link de Firma** para enviarlo a la clienta, **Generar PDF Contrato** para descargarlo y **Legalizar Factura** para poner el número de factura (si la factura se hizo a mano en Siigo, ver «🔗 Vincular una factura hecha a mano en Siigo» en Facturación por sede).',
         '**Paso 7 · Entregar:** toca **Registrar Entrega**. Elige el **Tipo de Entrega**, la **Asesora Responsable**, escribe el **Estado Físico y Accesorios**, sube las **Evidencias Fotográficas** y toca **Sellar Acta y Generar Firma**.',
         '**Paso 8 · Después de entregar:** en el menú aparecen **Ver Acta de Entrega** (copia el enlace del acta) y **WhatsApp Entrega** (le envía el enlace a la clienta).',
         '**Paso 9 · Si la clienta desiste:** toca **Desistir del contrato** y escribe el motivo.',
@@ -1024,6 +1024,16 @@ const MANUAL_DATA = [
         '**Paso 9 · Activar:** marca **Enviar a Siigo** y confirma. Desde ese momento la sede trabaja solo en el ERP: no se digita a mano en Siigo.',
         '**Herramientas:** **Cruzar vestidos con Siigo** (une productos), **Vincular facturas hechas a mano** y **Enviar cola ahora** (manda lo pendiente). Abajo ves **Documentos para Siigo** con su estado.',
         '**Factura que ya existe en Siigo:** si la clienta ya tiene en Siigo una factura hecha a mano por el mismo valor (60 días alrededor de la fecha del contrato), el ERP **no factura de nuevo** y deja el aviso «Esta clienta ya tiene en Siigo la factura FV-…». Toca **Vincular facturas hechas a mano** o, si esa factura sobra, anúlala con nota crédito y reenvía la cola.'
+      ] },
+      { type: 'steps', title: '🔗 Vincular una factura hecha a mano en Siigo', items: [
+        '**¿Cuándo?:** cuando la venta ya se facturó directamente en Siigo (ej.: FV-1-372). Sin vincular, el ERP no factura de nuevo pero deja el aviso «Esta clienta ya tiene en Siigo la factura FV-…» y el contrato sale como **sin factura**.',
+        '**Paso 1 · Número (líder o cobradora):** en Siigo copia el número completo de la factura de la clienta (ej.: **FV-1-372**).',
+        '**Paso 2 · Contrato (líder o cobradora):** en el Dashboard abre el contrato › **Gestionar** › **Legalizar Factura**, escribe el número tal como sale en Siigo y guarda. Si estás creando el contrato, escríbelo antes de guardarlo.',
+        '**Paso 3 · Avisar:** pasa a administración o a la contadora el número del contrato y el de la factura.',
+        '**Paso 4 · Vincular (administración o contadora):** aquí, en la tarjeta de la sede, toca **Vincular facturas hechas a mano**.',
+        '**Paso 5 · Revisar el resultado:** **Vinculados** (ej.: «VILL-0260 → FV-1-372») quedan listos; **No encontrados** tienen el número mal escrito o la factura es de otra sede: corrige el número en el contrato y repite el paso 4.',
+        '**Después:** el contrato queda con su factura y sale de «Contrato sin factura en Siigo»; los abonos siguientes van a Siigo como recibos de caja contra esa factura.',
+        '**Ojo:** no factures a mano en Siigo lo que se registra en el ERP. Si ya existen la factura del ERP y la hecha a mano (duplicadas), no se vincula: la contadora anula una con nota crédito.'
       ] },
       { type: 'steps', title: '📝 Conceptos del contrato', items: [
         '**Paso 1 · Ubicar:** baja hasta **Conceptos del contrato**.',
