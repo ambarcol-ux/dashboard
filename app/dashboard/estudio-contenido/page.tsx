@@ -260,13 +260,14 @@ const PUBLICO:Record<string,string>={similar:'Parecidas a clientas que alquilaro
 /** Anuncios fase 3: promote a published piece as a WhatsApp ad. It is created paused; it starts when administration activates it in
  *  WhatsApp › Anuncios › Portafolio (with the caps of Configuración). */
 function Promocion({p,sedes,busy,run}:{p:Pieza;sedes:Sede[];busy:string;run:(k:string,b:Record<string,unknown>)=>Promise<void>}){
- const [abierto,setAbierto]=useState(false),[presupuesto,setPresupuesto]=useState('10000'),[dias,setDias]=useState('7'),[publico,setPublico]=useState('similar');
+ const [abierto,setAbierto]=useState(false),[presupuesto,setPresupuesto]=useState('10000'),[dias,setDias]=useState('7'),[publicos,setPublicos]=useState<string[]>(['similar']);
  const [donde,setDonde]=useState<string[]>(p.sede_id?[p.sede_id]:[]),[colombia,setColombia]=useState(false),[radio,setRadio]=useState('40'),[edadMin,setEdadMin]=useState('18'),[edadMax,setEdadMax]=useState('55');
  const [audiencias,setAudiencias]=useState<{id:string;nombre:string}[]>([]),[aviso,setAviso]=useState('');
  useEffect(()=>{if(!abierto||audiencias.length)return;api({accion:'audiencias'}).then(d=>setAudiencias((d as {audiencias?:{id:string;nombre:string}[]}).audiencias||[])).catch(e=>setAviso(e instanceof Error?e.message:'No cargaron los públicos guardados.'));},[abierto,audiencias.length]);
- if(p.anuncio)return <p className="text-xs font-bold text-indigo-700 bg-indigo-50 rounded-lg px-2 py-1">Anuncio creado en pausa · {PUBLICO[p.anuncio.publico]||p.anuncio.publico}{p.anuncio.lugar?` · ${p.anuncio.lugar}`:''} · ${p.anuncio.presupuesto.toLocaleString('es-CO')}/día · {p.anuncio.dias} días. Actívalo en WhatsApp › Anuncios › Portafolio.</p>;
+ if(p.anuncio)return <p className="text-xs font-bold text-indigo-700 bg-indigo-50 rounded-lg px-2 py-1">Anuncio creado en pausa · {p.anuncio.publico.split(' + ').map(x=>PUBLICO[x]||x).join(' + ')}{p.anuncio.lugar?` · ${p.anuncio.lugar}`:''} · ${p.anuncio.presupuesto.toLocaleString('es-CO')}/día · {p.anuncio.dias} días. Actívalo en WhatsApp › Anuncios › Portafolio.</p>;
  if(!abierto)return <button type="button" disabled={!!busy} onClick={()=>setAbierto(true)} className="text-xs font-black text-indigo-700 underline">Promocionar con anuncio a WhatsApp</button>;
- const k=`promocionar:${p.id}`,guardada=audiencias.find(a=>a.id===publico);
+ const k=`promocionar:${p.id}`,elegidas=audiencias.filter(a=>publicos.includes(a.id)),base=publicos.find(x=>x==='similar'||x==='clientas')||'abierto';
+ const marcar=(id:string,on:boolean)=>setPublicos(l=>on?[...l.filter(x=>x!==id),id]:l.filter(x=>x!==id));
  const todas=!colombia&&sedes.length>1&&donde.length===sedes.length;
  const lugar=colombia?'toda Colombia':todas?'todas las sedes':sedes.filter(x=>donde.includes(x.id)).map(x=>x.nombre).join(', ');
  const listo=!!Number(presupuesto)&&!!Number(dias)&&(colombia||donde.length>0)&&Number(edadMin)>=18&&Number(edadMax)>=Number(edadMin)&&Number(edadMax)<=65;
@@ -284,17 +285,20 @@ function Promocion({p,sedes,busy,run}:{p:Pieza;sedes:Sede[];busy:string;run:(k:s
    <label className="block font-bold text-gray-600">Edad desde<input inputMode="numeric" className={`${input} mt-1`} value={edadMin} onChange={e=>setEdadMin(e.target.value.replace(/\D/g,''))}/></label>
    <label className="block font-bold text-gray-600">hasta<input inputMode="numeric" className={`${input} mt-1`} value={edadMax} onChange={e=>setEdadMax(e.target.value.replace(/\D/g,''))}/></label>
   </div>
-  <label className="block font-bold text-gray-600">Público<select className={`${input} mt-1`} value={publico} onChange={e=>setPublico(e.target.value)}>
-   {Object.entries(PUBLICO).map(([v,t])=><option key={v} value={v}>{t}</option>)}
-   {audiencias.length>0&&<optgroup label="Públicos guardados en Meta">{audiencias.map(a=><option key={a.id} value={a.id}>{a.nombre}</option>)}</optgroup>}
-  </select></label>
+  <div className="font-bold text-gray-600">Públicos <span className="font-normal text-gray-400">(marca uno o varios; le llega a quien esté en cualquiera. Sin marcar = abierto en la ubicación)</span>
+   <div className="mt-1 max-h-48 overflow-y-auto rounded-lg border bg-white p-2 space-y-1">
+    {(['similar','clientas'] as const).map(v=><label key={v} className="flex items-center gap-2 font-normal"><input type="checkbox" checked={publicos.includes(v)} onChange={e=>setPublicos(l=>e.target.checked?[...l.filter(x=>x!=='similar'&&x!=='clientas'),v]:l.filter(x=>x!==v))}/>{PUBLICO[v]}</label>)}
+    {audiencias.length>0&&<p className="pt-1 text-[10px] uppercase tracking-widest text-gray-400">Públicos guardados en Meta</p>}
+    {audiencias.map(a=><label key={a.id} className="flex items-center gap-2 font-normal"><input type="checkbox" checked={publicos.includes(a.id)} onChange={e=>marcar(a.id,e.target.checked)}/>{a.nombre}</label>)}
+   </div>
+  </div>
   {aviso&&<p className="text-amber-700">{aviso}</p>}
   <div className="grid grid-cols-2 gap-2">
    <label className="block font-bold text-gray-600">Presupuesto diario (COP)<MoneyInput inputMode="numeric" className={`${input} mt-1`} value={presupuesto} onChange={e=>setPresupuesto(e.target.value.replace(/\D/g,''))}/></label>
    <label className="block font-bold text-gray-600">Días<input inputMode="numeric" className={`${input} mt-1`} value={dias} onChange={e=>setDias(e.target.value.replace(/\D/g,''))}/></label>
   </div>
   <p className="text-gray-500">Mujeres de {edadMin||'?'} a {edadMax||'?'} años en {lugar||'…'}{colombia?'':` (${radio} km)`}, con botón a WhatsApp. Se crea en pausa: no gasta hasta que lo actives en el portafolio.</p>
-  <div className="flex gap-2"><button type="button" disabled={!!busy||!listo} onClick={()=>{if(window.confirm(`¿Crear el anuncio en pausa en ${lugar} con $${Number(presupuesto).toLocaleString('es-CO')} diarios por ${dias} días?`))void run(k,{accion:'promocionar',id:p.id,...(guardada?{audiencia:guardada.id,audiencia_nombre:guardada.nombre}:{publico}),
+  <div className="flex gap-2"><button type="button" disabled={!!busy||!listo} onClick={()=>{if(window.confirm(`¿Crear el anuncio en pausa en ${lugar} con $${Number(presupuesto).toLocaleString('es-CO')} diarios por ${dias} días?`))void run(k,{accion:'promocionar',id:p.id,publico:base,audiencias:elegidas.map(a=>({id:a.id,nombre:a.nombre})),
     ...(colombia?{colombia:true}:{sedes:donde}),radio:Number(radio),edad_min:Number(edadMin),edad_max:Number(edadMax),presupuesto:Number(presupuesto),dias:Number(dias)});}} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white font-black disabled:opacity-40">{busy===k?'Creando…':'Crear anuncio en pausa'}</button>
    <button type="button" onClick={()=>setAbierto(false)} className="px-3 py-1.5 rounded-lg border font-black text-gray-600">Cancelar</button></div>
  </div>;
