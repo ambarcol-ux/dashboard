@@ -22,6 +22,14 @@ export function etiquetaHorario(fecha:string,hora:string){
  return `${dia} · ${h%12||12}:00 ${h<12?'a. m.':'p. m.'}`.slice(0,24);
 }
 
+/** «sáb 29 nov 10 a. m.» (20 characters max, WhatsApp reply buttons). */
+function etiquetaBoton(fecha:string,hora:string){
+ const d=new Date(`${fecha}T12:00:00-05:00`);
+ const dia=new Intl.DateTimeFormat('es-CO',{timeZone:zona,weekday:'short',day:'numeric',month:'short'}).format(d).replace(/\./g,'').replace(',','').replace(' de ',' ');
+ const h=Number(hora.slice(0,2));
+ return `${dia} ${h%12||12} ${h<12?'a. m.':'p. m.'}`.slice(0,20);
+}
+
 /** Free first-visit slots from a date on (at least 3 hours ahead), up to «max», looking 21 days ahead. */
 export async function horariosLibres(db:SupabaseClient,sedeId:string,modalidad:'presencial'|'virtual',max=9,desde?:string){
  const out:{fecha:string;hora:string}[]=[],limite=Date.now()+3*3600000;
@@ -69,6 +77,16 @@ export async function enviarHorarios(db:SupabaseClient,settings:Settings,c:{conv
  if(!libres.length){
   const texto='En los próximos días no quedan horarios libres por aquí. Escríbeme qué día te sirve y lo revisamos con la sede 💛';
   await guardar(db,c.conversacion,await sendWhatsappText(settings,c.telefono,texto),texto,origen);return true;
+ }
+ // First offer: two slots as visible buttons (the earliest and the first on another day) + «Más horarios», which sends the full list.
+ // The list alone was rarely opened (Pereira, Nov 2026: 1 choice in 138 chats).
+ if(!desde){
+  const otro=libres.find(s=>s.fecha!==libres[0].fecha)||libres[1];
+  const dos=[libres[0],...(otro?[otro]:[])];
+  const botones=[...dos.map(s=>({id:`ag_s_${m}_${compacta(s.fecha)}_${s.hora.slice(0,2)}_${t}`,titulo:etiquetaBoton(s.fecha,s.hora)})),{id:`ag_o_${m}_${t}_${compacta(hoyMas(-1))}`,titulo:'Más horarios'}];
+  const texto=`Tengo estos horarios para tu cita ${modalidad==='virtual'?'virtual':'en la sede'} (1 hora, sin costo). Toca el que te sirva o «Más horarios» para ver otros 📅`;
+  await guardar(db,c.conversacion,await sendWhatsappButtons(settings,c.telefono,texto,botones),`${texto}\n[${botones.map(b=>b.titulo).join(' · ')}]`,origen);
+  return true;
  }
  const filas=libres.map(s=>({id:`ag_s_${m}_${compacta(s.fecha)}_${s.hora.slice(0,2)}_${t}`,titulo:etiquetaHorario(s.fecha,s.hora)}));
  filas.push({id:`ag_o_${m}_${t}_${compacta(libres[libres.length-1].fecha)}`,titulo:'Ver más días'});

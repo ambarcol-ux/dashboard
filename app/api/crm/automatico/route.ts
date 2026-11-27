@@ -1,4 +1,4 @@
-import {createClient} from '@supabase/supabase-js';
+import {createClient,type SupabaseClient} from '@supabase/supabase-js';
 import {authorizedVisitWorker} from '@/lib/first-visit-worker-config';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
 import {sendBestFollowup,sendAllyReminder,allyReminderText} from '@/lib/whatsapp-inbox';
@@ -8,6 +8,17 @@ export const dynamic='force-dynamic';
 export const maxDuration=60;
 
 type Lead={conv_id:string;telefono:string;nombre:string|null;sede:string|null;sede_id:string|null;intento:number;resumen:string|null};
+async function rescate(db:SupabaseClient,ids:string[]){
+ const [{data:cs,error},{data:ss}]=await Promise.all([db.from('whatsapp_conversaciones').select('id,telefono,nombre,sede_id,ia_resumen,reactivacion_n').in('id',ids).eq('ia_pausada',false).is('cierre_crm_at',null),db.from('sedes').select('id,nombre')]);
+ if(error)return {data:null,error};
+ const sedes=new Map(((ss||[]) as {id:string;nombre:string}[]).map(s=>[s.id,s.nombre])),now=new Date().toISOString(),data:Lead[]=[];
+ for(const c of (cs||[]) as {id:string;telefono:string;nombre:string|null;sede_id:string|null;ia_resumen:string|null;reactivacion_n:number|null}[]){
+  const intento=(c.reactivacion_n||0)+1;
+  await db.from('whatsapp_conversaciones').update({reactivacion_n:intento,reactivacion_at:now}).eq('id',c.id);
+  data.push({conv_id:c.id,telefono:c.telefono,nombre:c.nombre,sede:c.sede_id?sedes.get(c.sede_id)||null:null,sede_id:c.sede_id,intento,resumen:c.ia_resumen});
+ }
+ return {data,error:null};
+}
 
 /** Supabase cron. Self-managed «Interesada» leads (chats without a visit), only with the AI's automatic replies on:
  *  · empujon (every 30 min, 8 a. m.–8 p. m.): the AI writes one short message 16–23 h after her last message, while the 24 h window is open.
@@ -16,7 +27,7 @@ type Lead={conv_id:string;telefono:string;nombre:string|null;sede:string|null;se
 export async function POST(request:Request){
  if(!authorizedVisitWorker(request))return Response.json({error:'No autorizado'},{status:401});
  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false}});
- const {tipo}=await request.json().catch(()=>({})) as {tipo?:string};
+ const {tipo,ids}=await request.json().catch(()=>({})) as {tipo?:string;ids?:unknown};
  const {data:cfg}=await db.from('whatsapp_ia_config').select('auto_activa').eq('id',1).maybeSingle();
  if(!cfg?.auto_activa)return Response.json({activo:false,motivo:'Respuestas automáticas de la IA apagadas'});
  if(tipo==='empujon'){
@@ -47,7 +58,9 @@ export async function POST(request:Request){
  if(tipo!=='reactivacion')return Response.json({error:'Tipo no válido'},{status:400});
  const settings=await loadWhatsappSettings(db);
  if(!settings.token||!settings.phoneNumberId)return Response.json({activo:false,motivo:'WhatsApp sin configurar'});
- const [{data,error},{data:promos}]=await Promise.all([db.rpc('crm_reactivacion_tomar',{p_limite:40}),db.from('promociones').select(PROMO_FIELDS).eq('activo',true)]);
+ // «ids» (worker only): a one-off rescue of chosen chats (e.g. told «no slots» by a fixed bug), same template; paused chats stay with their adviser.
+ const pedidos=Array.isArray(ids)?ids.filter((x):x is string=>typeof x==='string'&&/^[0-9a-f-]{36}$/i.test(x)).slice(0,50):[];
+ const [{data,error},{data:promos}]=await Promise.all([pedidos.length?rescate(db,pedidos):db.rpc('crm_reactivacion_tomar',{p_limite:40}),db.from('promociones').select(PROMO_FIELDS).eq('activo',true)]);
  if(error)return Response.json({error:error.message},{status:500});
  let enviados=0;const errores:string[]=[];
  for(const l of (data||[]) as Lead[]){
