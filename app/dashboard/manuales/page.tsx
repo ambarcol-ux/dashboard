@@ -1165,8 +1165,8 @@ const MANUAL_DATA = [
       { type: 'steps', title: '📣 Promocionar una pieza o un reel subido directo en Instagram (administración)', items: [
         '**Paso 1 · Enlace:** en Instagram abre el reel › **Compartir** › **Copiar enlace**.',
         '**Paso 2 · Traer:** en **Piezas › Publicadas**, en **Promocionar una publicación de Instagram**, pega el enlace, si quieres elige la **Sede** y toca **Traer**.',
-        '**Paso 3 · Promocionar:** la publicación aparece en **Publicadas** con su código; toca **Promocionar con anuncio a WhatsApp** y elige: **Ubicación** (una sede, varias, **Todas las sedes** o **Toda Colombia**), **Radio** alrededor de cada ciudad, **Edad desde/hasta**, **Públicos** (marca uno o varios, de los del ERP o los guardados en Meta: le llega a quien esté en cualquiera; sin marcar es abierto), presupuesto diario y días; confirma. Queda **en pausa**.',
-        '**Paso 4 · Activar:** actívalo en **WhatsApp › Anuncios › Portafolio**. Los chats que lleguen por ese anuncio se cuentan en los resultados de la pieza.'
+        '**Paso 3 · Promocionar:** la publicación aparece en **Publicadas** con su código; toca **Promocionar con anuncio a WhatsApp** y elige: **Ubicación** (una sede, varias, **Todas las sedes** o **Toda Colombia**), **Radio** alrededor de cada ciudad, **Edad desde/hasta**, **Públicos** (marca uno o varios, de los del ERP o los guardados en Meta: le llega a quien esté en cualquiera; sin marcar es abierto), presupuesto diario y días. Toca **Crear anuncio en pausa** (no gasta hasta activarlo) o **Crear y activar ya** (empieza apenas Meta lo apruebe).',
+        '**Paso 4 · Activar:** si lo creaste en pausa, actívalo en **WhatsApp › Anuncios › Portafolio**. Los chats que lleguen por ese anuncio se cuentan en los resultados de la pieza.'
       ] },
       { type: 'steps', title: '📝 Reglas automáticas y biblioteca', items: [
         '**Paso 1 · Nueva regla (administración):** en **Reglas** toca **Nueva regla** o uno de los ejemplos.',
