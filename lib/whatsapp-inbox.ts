@@ -52,6 +52,9 @@ export async function storeInboxEvents(db:SupabaseClient,data:Payload,accepted:s
    if(ref?.source_id&&/^\d+$/.test(String(ref.source_id))&&(!ref.source_type||ref.source_type==='ad')){
     await db.from('whatsapp_conversaciones').update({anuncio_id:String(ref.source_id),anuncio_titulo:String(ref.headline||ref.body||'').slice(0,300)||null,anuncio_url:String(ref.source_url||'').slice(0,500)||null,ctwa_clid:ref.ctwa_clid?String(ref.ctwa_clid).slice(0,300):null,anuncio_at:at}).eq('id',conv.id);
     ads.push({conversacion:conv.id,anuncio:String(ref.source_id)});
+    // An ad created from Estudio de contenido: the chat also counts for that piece (its results).
+    const {data:pza}=await db.from('contenido_piezas').select('id').eq('anuncio->>anuncio_id',String(ref.source_id)).maybeSingle();
+    if(pza)await db.from('whatsapp_conversaciones').update({contenido_pieza_id:pza.id,contenido_pieza_at:at}).eq('id',conv.id);
    }
    // Buttons of the automatic first-visit messages (Asistí, Sí alquilé, Confirmo, motives…) are handled by the ERP: the AI does not answer them.
    const accion=String(m.button?.payload||m.interactive?.button_reply?.id||m.interactive?.list_reply?.id||'');

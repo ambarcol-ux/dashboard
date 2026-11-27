@@ -1162,6 +1162,12 @@ const MANUAL_DATA = [
         '**Paso 4 · WhatsApp:** si la pieza incluye estado de WhatsApp, toca **Descargar** en cada foto y **Copiar texto para el estado de WhatsApp**.',
         '**Paso 5 · Errores:** si queda en **Con error**, lee el aviso y toca **Reintentar**. Lo que no sirva, **Descartar**.'
       ] },
+      { type: 'steps', title: '📣 Promocionar un reel o publicación subida directo en Instagram (administración)', items: [
+        '**Paso 1 · Enlace:** en Instagram abre el reel › **Compartir** › **Copiar enlace**.',
+        '**Paso 2 · Traer:** en **Piezas › Publicadas**, en **Promocionar una publicación de Instagram**, pega el enlace, elige la **Sede** (ciudad del anuncio) y toca **Traer**.',
+        '**Paso 3 · Promocionar:** la publicación aparece en **Publicadas** con su código; toca **Promocionar con anuncio a WhatsApp**, elige público, presupuesto diario y días, y confirma. Queda **en pausa**.',
+        '**Paso 4 · Activar:** actívalo en **WhatsApp › Anuncios › Portafolio**. Los chats que lleguen por ese anuncio se cuentan en los resultados de la pieza.'
+      ] },
       { type: 'steps', title: '📝 Reglas automáticas y biblioteca', items: [
         '**Paso 1 · Nueva regla (administración):** en **Reglas** toca **Nueva regla** o uno de los ejemplos.',
         '**Paso 2 · Cuándo:** escribe el **Nombre** y en **Cuándo** elige **Días fijos de la semana** o **Cada vestido nuevo del inventario**.',

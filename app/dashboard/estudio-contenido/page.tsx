@@ -81,6 +81,7 @@ function Estudio(){
   {tab==='biblioteca'&&<Biblioteca lib={lib} sedes={sedes} sede={sede} onChange={load} setError={setError} run={run} busy={busy}/>}
   {tab==='piezas'&&<>
    <div className="flex gap-2 flex-wrap">{VISTAS.map(([k,l,e])=><button key={k} type="button" onClick={()=>setVista(k)} className={`px-3 py-1.5 rounded-xl text-xs font-black ${vista===k?'bg-gray-900 text-white':'bg-white border'}`}>{l} · {cuenta(e)}</button>)}</div>
+   {admin&&vista==='publicadas'&&<ImportarIG sedes={sedes} busy={busy} run={run}/>}
    {!piezas?<p className="text-gray-400 font-bold">Cargando…</p>:
    (()=>{const lista=piezas.filter(p=>VISTAS.find(v=>v[0]===vista)![2].includes(p.estado));
     return !lista.length?<p className="text-sm text-gray-500">No hay piezas aquí. Usa «Crear con IA» para pedir una.</p>:
@@ -238,6 +239,20 @@ function Medicion({p,res}:{p:Pieza;res?:Resultado}){
   {redes.length?redes.map(([red,m])=><p key={red}><b>{RED[red]||red}:</b> {m.error?<span className="text-amber-700">sin métricas ({String(m.error)})</span>:<>alcance {n(m.alcance)} · {red==='facebook'?`reacciones ${n(m.reacciones)}`:`interacciones ${n(m.interacciones)}`} · comentarios {n(m.comentarios)} · compartidos {n(m.compartidos)}{m.guardados!==undefined?` · guardados ${n(m.guardados)}`:''}</>}</p>)
    :<p className="text-gray-500">Las métricas de alcance llegan al día siguiente de publicar.</p>}
   <p><b>Resultados (código {p.codigo||'—'}):</b> {n(res?.chats)} chats · {n(res?.citas)} citas · {n(res?.asistieron)} asistieron · {n(res?.contratos)} contratos{res?.valor?` · $${n(res.valor)}`:''}</p>
+ </div>;
+}
+
+/** A post published straight on Instagram: paste its link and it joins «Publicadas» with its own code, ready for «Promocionar». */
+function ImportarIG({sedes,busy,run}:{sedes:Sede[];busy:string;run:(k:string,b:Record<string,unknown>,ok?:()=>void)=>Promise<void>}){
+ const [enlace,setEnlace]=useState(''),[sede,setSede]=useState('');
+ return <div className="rounded-2xl border border-indigo-100 bg-indigo-50/50 p-3 space-y-2 text-xs">
+  <p className="font-black text-indigo-900">Promocionar una publicación de Instagram</p>
+  <p className="text-gray-500">Pega el enlace de un reel o publicación que se subió directo en Instagram y elige la sede (la ciudad del anuncio). Aparece abajo en Publicadas con el botón «Promocionar con anuncio a WhatsApp».</p>
+  <div className="grid gap-2 sm:grid-cols-[1fr_12rem_auto]">
+   <input className={input} value={enlace} onChange={e=>setEnlace(e.target.value)} placeholder="https://www.instagram.com/reel/…"/>
+   <select className={input} value={sede} onChange={e=>setSede(e.target.value)}><option value="">Sede…</option>{sedes.map(x=><option key={x.id} value={x.id}>{x.nombre}</option>)}</select>
+   <button type="button" disabled={!!busy||!/instagram\.com\//.test(enlace)||!sede} onClick={()=>void run('importar_ig',{accion:'importar_ig',enlace:enlace.trim(),sede_id:sede},()=>{setEnlace('');setSede('');})} className="px-3 py-2 rounded-lg bg-indigo-600 text-white font-black disabled:opacity-50">{busy==='importar_ig'?'Buscando…':'Traer'}</button>
+  </div>
  </div>;
 }
 
