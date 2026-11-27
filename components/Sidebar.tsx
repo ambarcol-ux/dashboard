@@ -283,6 +283,13 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
           onClick={() => {
             setIsOpen(false);
             handleLogout();
+            // Safety net: if the page's sign-out hangs (stale session in this browser), leave anyway after 2.5 s.
+            setTimeout(() => {
+              if (location.pathname === '/login') return;
+              document.cookie = 'sb-access-token=; path=/; max-age=0';
+              try { Object.keys(localStorage).filter(k => k.startsWith('sb-')).forEach(k => localStorage.removeItem(k)); } catch {}
+              location.href = '/login';
+            }, 2500);
           }}
           className="w-full flex items-center gap-3 px-4 py-3 text-gray-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl font-black text-sm transition-all"
         >
