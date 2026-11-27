@@ -159,6 +159,19 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   const previa=((await siigo(c,`/v1/invoices?created_start=${desde}&page_size=100`).catch(()=>({results:[]}))).results||[] as Value[])
    .find((x:Value)=>String((x.customer as Value)?.identification||'')===String(id)&&Math.abs(Number(x.total)-total)<=1000&&!/ERP Ámbar/.test(String(x.observations||'')));
   if(previa&&!d.adicional)return {siigoId:String(previa.id),numero:String(previa.name),respuesta:{...previa,total,hecha_en_siigo:true}};
+  // Older invoices made by hand in Siigo (imported daily to siigo_historico): an invoice of this customer for the same value within 60
+  // days of the contract date is not duplicated; the invoice waits until someone links it to the contract (or annuls it with a credit note).
+  if(!d.adicional){
+   const ref=Date.parse(String(d.fecha||hoy()));const de=new Date(ref-60*86400000).toISOString().slice(0,10),a2=new Date(ref+60*86400000).toISOString().slice(0,10);
+   const {data:hs}=await db.from('siigo_historico').select('numero,fecha,total,contrato_id').eq('sede_id',j.sede_id).eq('tipo','factura').eq('tercero_doc',String(id)).gte('fecha',de).lte('fecha',a2);
+   const {data:ncs}=await db.from('siigo_historico').select('datos').eq('sede_id',j.sede_id).eq('tipo','nota_credito').eq('tercero_doc',String(id));
+   const anuladas=JSON.stringify(ncs||[]);
+   const {data:propias}=await db.from('siigo_documentos').select('siigo_numero').eq('sede_id',j.sede_id).eq('tipo','factura').eq('estado','enviado').not('siigo_numero','is',null);
+   const delErp=new Set(((propias||[]) as Value[]).map(x=>String(x.siigo_numero)));
+   const dup=((hs||[]) as Value[]).find(h=>Math.abs(Number(h.total)-total)<=1000&&!delErp.has(String(h.numero))&&!new RegExp(`${String(h.numero).replace(/[-]/g,'\\-')}(?![0-9])`).test(anuladas)
+    &&(!h.contrato_id||h.contrato_id===j.contrato_id));
+   if(dup)throw new SiigoError(`Esta clienta ya tiene en Siigo la factura ${dup.numero} del ${dup.fecha} por el mismo valor: vincúlala al contrato (Facturación por sede › Facturas hechas a mano) o anúlala con nota crédito antes de facturar de nuevo.`);
+  }
   const credito=c.parametros.formas_pago?.credito;if(!credito)throw new SiigoError('Falta la forma de pago «crédito / clientes nacionales» en Facturación por sede.');
   const electronica=d.tipo_factura!=='ingreso';
   // The invoice shows what the customer already paid (as the stores did by hand): each payment registered in the ERP whose receipt was
