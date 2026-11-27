@@ -72,7 +72,7 @@ export function vipPassEmail(nombreQuinceanera:string,codigoVip:string,nombreAli
           </div>
 
           <div style="text-align: center;">
-            <a href="https://wa.me/573017307411?text=Hola,%20tengo%20un%20Pase%20VIP%20Dorado%20(${encodeURIComponent(codigoVip)})%20gracias%20a%20${encodeURIComponent(nombreAliado)}.%20Quiero%20agendar%20mi%20cita!" 
+            <a href="https://erp.ambarcouture.com/agendar-primera-cita" 
                style="display: inline-block; background: linear-gradient(to right, #fbbf24, #f59e0b); color: #451a03; padding: 16px 36px; border-radius: 12px; font-weight: bold; font-size: 14px; text-decoration: none; letter-spacing: 0.05em; text-transform: uppercase; box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);">
               ✨ Agendar mi Cita VIP
             </a>
