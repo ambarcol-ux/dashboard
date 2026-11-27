@@ -7,8 +7,8 @@ type Doc={id:string;nombre:string;descripcion:string|null;created_at:string;area
 const KEY='comunicados-vistos';
 const read=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'[]') as string[];}catch{return [];}};
 
-/** Announcements for the whole team: every document uploaded to a «Comunicados» folder of Documentos de la marca shows here for 24 hours
- *  (small button at the bottom left, like the other alerts). «Ya lo vi» hides it for this person; the full document stays in Documentos de la marca. */
+/** Announcements for the whole team: every document uploaded to a «Comunicados» folder of Documentos de la marca shows here until the person taps «Ya lo vi»
+ *  (small button at the bottom left, like the other alerts) or its expiry date passes. «Ya lo vi» hides it for this person on this device; the full document stays in Documentos de la marca. */
 export default function AnnouncementsAlert(){
  const [docs,setDocs]=useState<Doc[]>([]),[vistos,setVistos]=useState<string[]>([]),[abierto,setAbierto]=useState(false);
  useEffect(()=>{
@@ -18,7 +18,7 @@ export default function AnnouncementsAlert(){
    const ids=(areas||[]).map(a=>a.id as string);
    if(!ids.length){if(live)setDocs([]);return;}
    const {data}=await supabase.from('doc_archivos').select('id,nombre,descripcion,created_at,area_id').in('area_id',ids).eq('archivado',false)
-    .gte('created_at',new Date(Date.now()-24*3600000).toISOString()).order('created_at',{ascending:false}).limit(10);
+    .or(`vence.is.null,vence.gte.${new Date().toLocaleDateString('en-CA',{timeZone:'America/Bogota'})}`).order('created_at',{ascending:false}).limit(10);
    if(live){setVistos(read());setDocs((data||[]) as Doc[]);}
   };
   void load();const t=setInterval(()=>void load(),300000);return()=>{live=false;clearInterval(t);};

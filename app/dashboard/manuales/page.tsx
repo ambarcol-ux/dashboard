@@ -1251,7 +1251,7 @@ const MANUAL_DATA = [
         '**Paso 2 · Buscar:** o escribe en **Buscar en todas las áreas**.',
         '**Paso 3 · Abrir:** toca el nombre del documento o el botón **Abrir**: se ve en una ventana dentro del ERP (Word, PDF, imágenes, videos y enlaces de Google Drive). Excel y PowerPoint se abren con **Descargar**.',
         '**Paso 4 · Versiones:** toca el botón **v1, v2…** para ver las versiones anteriores.',
-        '**Paso 5 · Comunicados:** todo documento que se sube a la carpeta **Comunicados** aparece 24 horas a todo el equipo en el botón morado **📣 Comunicados nuevos** (abajo a la izquierda). Toca **Ver comunicado** para leerlo en pantalla o **Ya lo vi** para ocultarlo.'
+        '**Paso 5 · Comunicados:** todo documento que se sube a la carpeta **Comunicados** le aparece a todo el equipo en el botón morado **📣 Comunicados nuevos** (abajo a la izquierda) hasta que cada persona toque **Ya lo vi** (o hasta su fecha de vencimiento). Toca **Ver comunicado** para leerlo en pantalla.'
       ] },
       { type: 'steps', title: '📝 Subir archivos o enlaces', items: [
         '**Paso 1 · Abrir:** elige el área y toca **Subir documento** (solo sale si tu rol puede subir en esa área).',
