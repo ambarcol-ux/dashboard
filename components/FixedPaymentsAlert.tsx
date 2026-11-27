@@ -30,7 +30,7 @@ export default function FixedPaymentsAlert(){
  const apagar=async(id:string)=>{const {error}=await supabase.rpc('pagos_fijos_alerta_apagar',{p_id:id});if(!error)setCuotas(cs=>cs.filter(c=>c.id!==id));};
  const vencidas=lista.filter(vencida).length;
  const cuando=(c:Cuota)=>c.estado==='pagada'?'Pagada · falta visto bueno de administración':c.dias<0?`Vencida hace ${-c.dias} ${c.dias===-1?'día':'días'}`:c.dias===0?'Vence hoy':`Vence en ${c.dias} ${c.dias===1?'día':'días'}`;
- return <div className="fixed bottom-16 left-4 z-[90] w-[min(22rem,calc(100vw-2rem))]">
+ return <div className="w-full">
   {abierto&&<div className="mb-2 max-h-[55vh] overflow-y-auto space-y-2 rounded-2xl">
    {lista.map(c=><div key={c.id} className={`rounded-2xl border bg-white p-3 shadow-xl ${vencida(c)?'border-red-400':c.estado==='pagada'?'border-emerald-300':'border-amber-300'}`}>
     <div className="flex items-start justify-between gap-2">

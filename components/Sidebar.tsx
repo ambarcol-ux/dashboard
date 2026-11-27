@@ -327,10 +327,13 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
         {renderSidebarContent()}
       </aside>
       {canSee('primeras-citas') && <UpcomingVisitsAlert />}
-      {canSee('whatsapp') && <PersonAttentionAlert />}
-      {user && <AnnouncementsAlert />}
-      {canSee('pagos_fijos') && <FixedPaymentsAlert />}
-      {isAdminProfile(user) && <SatisfactionAlert />}
+      {/* Bottom-left alerts stacked together, without gaps when one is hidden (first child = lowest). */}
+      <div className="fixed bottom-4 left-4 z-[90] w-[min(22rem,calc(100vw-2rem))] flex flex-col-reverse gap-2">
+        {canSee('whatsapp') && <PersonAttentionAlert />}
+        {canSee('pagos_fijos') && <FixedPaymentsAlert />}
+        {isAdminProfile(user) && <SatisfactionAlert />}
+        {user && <AnnouncementsAlert />}
+      </div>
       {isAdminProfile(user) && <AiCreditAlert />}
     </>
   );
