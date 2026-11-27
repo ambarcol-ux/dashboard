@@ -362,6 +362,13 @@ const MANUAL_DATA = [
         '**Paso 3 · Condonar multa (administración y contabilidad):** toca **Condonar multa**, revisa el **Valor a condonar** y escribe el **Motivo**.',
         '**Paso 4 · Confirmar:** toca **Confirmar condonación**. No entra dinero y queda registrado quién y por qué.'
       ] },
+      { type: 'steps', title: '📅 Cambiar la fecha de un abono (la plata entró otro día)', items: [
+        '**¿Quién?:** la asesora líder de la sede (en Pereira también el franquiciado) o administración. No hace falta anular el abono.',
+        '**Paso 1 · Ubicar el pago:** en **Registrar Abono** del contrato, en **Historial de Pagos**, toca **Cambiar fecha** en el abono.',
+        '**Paso 2 · Fecha real:** elige el día en que entró la plata y escribe el **motivo** (ej.: «la transferencia entró ayer»).',
+        '**Paso 3 · Guardar:** toca **Guardar fecha**. El abono y su movimiento de caja pasan a ese día y queda en el historial del contrato.',
+        '**Ojo:** si la caja de alguno de los dos días ya está cerrada, primero pide reabrir ese día. Si el recibo ya estaba en Siigo, Contabilidad recibe el aviso para cambiar su fecha allá (Siigo no deja hacerlo desde el ERP).'
+      ] },
       { type: 'steps', title: '↩️ Anular un abono mal registrado', items: [
         '**Paso 1 · Ubicar el pago:** en **Historial de Pagos** toca **Anular** en el pago equivocado.',
         '**Paso 2 · Motivo:** escribe el motivo (mínimo 10 caracteres).',

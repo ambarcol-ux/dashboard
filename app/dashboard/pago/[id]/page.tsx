@@ -41,6 +41,18 @@ export default function RegistrarPagoPage() {
   const [subiendoSoporte, setSubiendoSoporte] = useState(false);
   const [esAdmin, setEsAdmin] = useState(false);
   const aprueba = useAprobadorSedes();
+  // «Cambiar fecha»: store leader, franquiciado who approves accounting or administration move a payment to the day the money came in.
+  const [fechaSedes, setFechaSedes] = useState<string[]>([]);
+  useEffect(() => { void supabase.rpc('cambio_fecha_abono_sedes').then(({ data }) => setFechaSedes((data || []) as string[])); }, []);
+  const [cambioFecha, setCambioFecha] = useState<{ id: string; fecha: string; motivo: string } | null>(null);
+  const guardarFecha = async () => {
+    if (!cambioFecha) return;
+    const { data: res, error } = await supabase.rpc('cambiar_fecha_abono', { p_pago: cambioFecha.id, p_fecha: cambioFecha.fecha, p_motivo: cambioFecha.motivo });
+    if (error) { toast.error(error.message); return; }
+    const rc = (res as { siigo?: string | null } | null)?.siigo;
+    toast.success(rc ? `Fecha cambiada. Contabilidad cambiará la fecha de ${rc} en Siigo.` : 'Fecha del abono cambiada.');
+    setCambioFecha(null); await fetchData();
+  };
   const [condonar, setCondonar] = useState<{ valor: string; motivo: string } | null>(null);
   const [condonando, setCondonando] = useState(false);
   useEffect(() => { void supabase.rpc('es_finanzas').then(({ data }) => setEsAdmin(data === true)); }, []);
@@ -481,6 +493,18 @@ export default function RegistrarPagoPage() {
                           // Only administración or contabilidad annul: anyone else sends a request that they approve.
                           if (error) toast.error(error.message); else if ((res as { solicitud?: boolean; mensaje?: string } | null)?.solicitud) toast.success((res as { mensaje?: string }).mensaje || 'Solicitud enviada a administración.'); else { toast.success('Pago anulado. El saldo se recalculó.'); fetchData(); }
                         }}>Anular</button>
+                      )}
+                      {!pago.anulado_at && fechaSedes.includes(String(contrato?.sede_id || '')) && (
+                        <button type="button" className="float-right mr-3 text-[11px] font-bold text-indigo-600 underline" onClick={() => setCambioFecha({ id: pago.id, fecha: String(pago.fecha_pago || '').slice(0, 10), motivo: '' })}>Cambiar fecha</button>
+                      )}
+                      {cambioFecha && cambioFecha.id === pago.id && (
+                        <div className="clear-both mb-2 p-3 rounded-lg bg-white border border-indigo-200 space-y-2">
+                          <p className="text-xs font-bold text-gray-700">¿Qué día entró realmente la plata?</p>
+                          <input type="date" max={hoyBogota} value={cambioFecha.fecha} onChange={e => { const v = e.target.value; setCambioFecha(c => c && { ...c, fecha: v }); }} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                          <input type="text" placeholder="Motivo (ej.: la transferencia entró ayer)" value={cambioFecha.motivo} onChange={e => { const v = e.target.value; setCambioFecha(c => c && { ...c, motivo: v }); }} className="w-full px-3 py-2 border rounded-lg text-sm" />
+                          <div className="flex gap-2"><button type="button" onClick={() => void guardarFecha()} disabled={cambioFecha.motivo.trim().length < 5} className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-black disabled:opacity-50">Guardar fecha</button>
+                            <button type="button" onClick={() => setCambioFecha(null)} className="px-3 py-1.5 rounded-lg border text-xs font-bold">Cancelar</button></div>
+                        </div>
                       )}
                       <div className="flex justify-between items-start mb-2">
                         <span className="font-bold text-emerald-600">{formatCurrency(Number(pago.valor_pagado))}</span>
