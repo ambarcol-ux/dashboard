@@ -2,7 +2,7 @@ import {createClient} from '@supabase/supabase-js';
 import {publicServerClient,publicReply} from '@/lib/public-db';
 import {createPiece,publishPiece,type Formato,type Red,type Pieza} from '@/lib/content-studio';
 import {loadSocialSettings,pageToken} from '@/lib/social-inbox';
-import {adsPromote,adsAudiences,PUBLICOS} from '@/lib/meta-ads';
+import {adsPromote,adsAudiences,adsChange,PUBLICOS} from '@/lib/meta-ads';
 import {FUENTES} from '@/components/BrandDesign';
 export const dynamic='force-dynamic';
 export const maxDuration=60;
@@ -81,8 +81,16 @@ export async function POST(request:Request){
    try{
     const ids=await adsPromote({nombre:`ERP ${p.codigo||''} · ${lugar} · ${FORMATO_TXT[p.formato as string]||p.formato}`,ciudad,ciudades,radio:Number(b.radio),edadMin:Number(b.edad_min),edadMax:Number(b.edad_max),audienciaId,audienciaIds:audiencias.map(a=>String(a.id)),presupuesto:Number(b.presupuesto),dias:Number(b.dias),publico,
      pageId:s.pageId,igId:s.instagramId,igMediaId:r.instagram?.id,fbPostId:r.facebook?.id,tope:Number((tp as {valor?:unknown}|null)?.valor)||100000});
-    const anuncio={...ids,publico:publicoTxt,lugar,presupuesto:Number(b.presupuesto),dias:Number(b.dias),creado_por:uid,creado_at:new Date().toISOString()};
+    // «Crear y activar ya»: the ad, its ad set and its campaign go ACTIVE right away (same audited change as the portfolio's «Activar»).
+    let activo=false;
+    if(b.activar===true){
+     try{for(const id of [ids.anuncio_id,ids.conjunto_id,ids.campana_id]){const {antes,despues}=await adsChange({id,tipo:'activar',tope:Number((tp as {valor?:unknown}|null)?.valor)||100000,maxPct:100});
+      const {error:ea}=await userDb.rpc('anuncios_registrar',{p_id:id,p_accion:'activar',p_antes:antes,p_despues:despues});if(ea)console.error('anuncios_registrar',ea.message);}activo=true;}
+     catch(e){console.error('activar anuncio',e);}
+    }
+    const anuncio={...ids,activo,publico:publicoTxt,lugar,presupuesto:Number(b.presupuesto),dias:Number(b.dias),creado_por:uid,creado_at:new Date().toISOString()};
     await db.from('contenido_piezas').update({anuncio,updated_at:new Date().toISOString()}).eq('id',id);
+    if(b.activar===true&&!activo)return publicReply({error:'El anuncio se creó en pausa, pero Meta no dejó activarlo: actívalo en WhatsApp › Anuncios › Portafolio.'},400);
     return publicReply({ok:true});
    }catch(e){return publicReply({error:e instanceof Error?e.message:'Meta no creó el anuncio.'},400);}
   }
