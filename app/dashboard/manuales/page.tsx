@@ -30,7 +30,7 @@ const MANUAL_DATA = [
       { type: 'steps', title: '📝 Cómo usar este manual', items: [
         '**Paso 1 · Buscar:** escribe una palabra en **Buscar tema...** (por ejemplo «abono», «traslado» o «caja») y la lista muestra solo los módulos que la mencionan.',
         '**Paso 2 · Abrir un módulo:** tócalo en la lista. Cada módulo trae: para qué sirve, cómo llegar, el paso a paso, lo que debes cuidar y un ejemplo.',
-        '**Paso 3 · Imprimir:** toca **Imprimir manual completo** para guardarlo en PDF o entregarlo impreso al equipo. Para un solo tutorial, abre el módulo y toca **Imprimir / descargar este módulo**; en la ventana elige **Guardar como PDF**.'
+        '**Paso 3 · Imprimir:** toca **Imprimir manual completo** para guardarlo en PDF o entregarlo impreso al equipo. Para un solo módulo toca **Imprimir / descargar este módulo**, y para una sola parte (por ejemplo «Anular un abono mal registrado») toca **Imprimir esta parte** encima de ella; en la ventana elige **Guardar como PDF**.'
       ] },
       { type: 'steps', title: '📝 Cómo usar el Manual Ámbar (protocolos)', items: [
         '**Paso 1 · Ubicarlo:** baja en la lista hasta **✨ Manual Ámbar · Protocolos**. Ahí están el Puntaje Ámbar, la Auditoría mensual, la Academia Ámbar y los protocolos de trabajo.',
@@ -1453,6 +1453,9 @@ export default function ManualUsuarioPage() {
   // «Imprimir este módulo»: the print version holds only the open module (PDF of one tutorial).
   const [soloModulo, setSoloModulo] = useState(false);
   const imprimirModulo = () => { setSoloModulo(true); setTimeout(() => { window.print(); setSoloModulo(false); }, 80); };
+  // «Imprimir esta parte»: only one tutorial of the module (e.g. «Anular un abono mal registrado»).
+  const [soloSeccion, setSoloSeccion] = useState<number | null>(null);
+  const imprimirSeccion = (i: number) => { setSoloSeccion(i); setTimeout(() => { window.print(); setSoloSeccion(null); }, 80); };
 
   const filteredData = useMemo(() => {
     if (!search.trim()) return MANUAL_ALL;
@@ -1669,7 +1672,12 @@ export default function ManualUsuarioPage() {
           {/* Cuerpo del Artículo */}
           <div className="p-8 md:p-12">
             {activeContent.indicador === 'puntaje' ? <div className="mb-8"><PuntajeAmbar /></div> : activeContent.indicador === 'auditoria' || activeContent.indicador === 'academia' ? null : activeContent.indicador && <IndicadorAmbar clave={activeContent.indicador} />}
-            {activeContent.sections.map((sec, i) => renderSection(sec, i))}
+            {activeContent.sections.map((sec, i) => sec.type === 'steps' ? (
+              <div key={i}>
+                <div className="flex justify-end -mb-6 relative z-10"><button type="button" onClick={() => imprimirSeccion(i)} title="Imprimir o descargar solo esta parte" className="flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-200 bg-white text-[11px] font-bold text-gray-600 hover:text-indigo-700 hover:border-indigo-300"><Printer className="w-3.5 h-3.5" /> Imprimir esta parte</button></div>
+                {renderSection(sec, i)}
+              </div>
+            ) : renderSection(sec, i))}
             {activeContent.indicador === 'auditoria' && <AuditoriaSede />}
             {activeContent.indicador === 'academia' && <AcademiaAvance />}
             {activeContent.grupo === 'ambar' && <EvaluacionAmbar key={activeContent.id} clave={activeContent.id} />}
@@ -1687,8 +1695,8 @@ export default function ManualUsuarioPage() {
       {/* Versión para imprimir: todos los módulos seguidos (Imprimir manual completo) */}
       <div className="hidden print:block w-full p-6 text-black">
         <h1 className="text-3xl font-black mb-2">Manual de usuario · ERP Ámbar Couture</h1>
-        <p className="mb-6 text-gray-600">{soloModulo ? 'Tutorial del módulo' : 'Guía módulo por módulo para todo el equipo.'}</p>
-        {(soloModulo ? [activeContent] : MANUAL_DATA).map(m => (
+        <p className="mb-6 text-gray-600">{soloSeccion !== null || soloModulo ? 'Tutorial del módulo' : 'Guía módulo por módulo para todo el equipo.'}</p>
+        {(soloSeccion !== null ? [{ ...activeContent, sections: [activeContent.sections[soloSeccion]].filter(Boolean) }] : soloModulo ? [activeContent] : MANUAL_DATA).map(m => (
           <section key={m.id} className="mb-10" style={{ breakInside: 'avoid-page' }}>
             <h2 className="text-2xl font-black border-b-2 border-gray-300 pb-2 mb-2">{m.title}</h2>
             <p className="mb-4 text-gray-600">{m.description}</p>
