@@ -6,6 +6,7 @@ import Link from 'next/link';
 import UpcomingVisitsAlert from '@/components/UpcomingVisitsAlert';
 import PersonAttentionAlert from '@/components/PersonAttentionAlert';
 import AnnouncementsAlert from '@/components/AnnouncementsAlert';
+import AiCreditAlert from '@/components/AiCreditAlert';
 import FixedPaymentsAlert from '@/components/FixedPaymentsAlert';
 import SatisfactionAlert from '@/components/SatisfactionAlert';
 import { panelAccess, isAccountingProfile, isAdminProfile } from '@/lib/panel-access';
@@ -330,6 +331,7 @@ export default function Sidebar({ user, handleLogout, activePage }: SidebarProps
       {user && <AnnouncementsAlert />}
       {canSee('pagos_fijos') && <FixedPaymentsAlert />}
       {isAdminProfile(user) && <SatisfactionAlert />}
+      {isAdminProfile(user) && <AiCreditAlert />}
     </>
   );
 }

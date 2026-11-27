@@ -14,6 +14,7 @@ import {estiloTexto} from './dress-style';
 import {planEnrollToken} from './plan-ahorro-contrato';
 import {enviarHorarios} from './whatsapp-booking';
 import {aiClient} from './ai-usage';
+import {avisoSinSaldoIA,finSinSaldoIA} from './ai-credit-alert';
 import {PROMO_FIELDS,promoState,promoBenefit,type Promotion} from './promotions';
 
 /** Ventas y CRM › WhatsApp 304: the AI reads the chat, labels it, detects the store, flags chats a person must take and leaves a suggested reply. It never sends anything. */
@@ -364,6 +365,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   const sugerencia=conAgenda?`${out.respuesta}\n\n${(process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,'')}/agendar-primera-cita?sede=${sedeCita}&o=ia-whatsapp`:out.respuesta;
   await db.from('whatsapp_conversaciones').update({etiqueta:out.etiqueta,ia_resumen:out.resumen.slice(0,500),ia_sugerencia:sugerencia.slice(0,2000),
    ia_atender:!!out.atender_persona,ia_motivo:out.atender_persona?out.motivo.slice(0,300):null,ia_at:new Date().toISOString(),ia_error:null,...((!conv.sede_id||sedeElegida)&&sede?{sede_id:sede.id}:{})}).eq('id',conversationId);
+  await finSinSaldoIA(db).catch(()=>null);
   // Automatic reply: general switch on and chat not paused by a person (or paused longer than the configured hours).
   // When a person must continue, the reply is still sent (it helps with what the AI can solve) and the chat stays flagged.
   if(!cfg.auto_activa||!out.respuesta.trim())return;
@@ -390,6 +392,7 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   if(agenda)await agenda();
  }catch(e){
   await db.from('whatsapp_conversaciones').update({ia_error:aiErrorText(e).slice(0,300),ia_at:new Date().toISOString()}).eq('id',conversationId);
+  await avisoSinSaldoIA(db,aiErrorText(e)).catch(()=>null);
  }
 }
 
