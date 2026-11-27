@@ -1022,7 +1022,8 @@ const MANUAL_DATA = [
         '**Paso 7 · Socios:** en **Socios** escribe uno por línea como Nombre=cédula.',
         '**Paso 8 · Guardar:** toca **Guardar parámetros de** la sede.',
         '**Paso 9 · Activar:** marca **Enviar a Siigo** y confirma. Desde ese momento la sede trabaja solo en el ERP: no se digita a mano en Siigo.',
-        '**Herramientas:** **Cruzar vestidos con Siigo** (une productos), **Vincular facturas hechas a mano** y **Enviar cola ahora** (manda lo pendiente). Abajo ves **Documentos para Siigo** con su estado.'
+        '**Herramientas:** **Cruzar vestidos con Siigo** (une productos), **Vincular facturas hechas a mano** y **Enviar cola ahora** (manda lo pendiente). Abajo ves **Documentos para Siigo** con su estado.',
+        '**Factura que ya existe en Siigo:** si la clienta ya tiene en Siigo una factura hecha a mano por el mismo valor (60 días alrededor de la fecha del contrato), el ERP **no factura de nuevo** y deja el aviso «Esta clienta ya tiene en Siigo la factura FV-…». Toca **Vincular facturas hechas a mano** o, si esa factura sobra, anúlala con nota crédito y reenvía la cola.'
       ] },
       { type: 'steps', title: '📝 Conceptos del contrato', items: [
         '**Paso 1 · Ubicar:** baja hasta **Conceptos del contrato**.',
