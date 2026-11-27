@@ -42,7 +42,7 @@ export async function POST(request:Request){
   const sent=a.estado==='activo'?await sendAllyEmail(a.correo,allyApprovedEmail({nombre:a.nombre,id:a.id,codigo:a.codigo!},allyLinks(origin,a.token),sede)):await sendAllyEmail(a.correo,allyRejectedEmail(a.nombre,a.motivo));
   // Welcome by WhatsApp when approved: a normal message while the 24 h window is open, otherwise the welcome template (once Meta approves it).
   let whatsapp=false;
-  if(a.estado==='activo'&&body.accion!=='reenviar')try{whatsapp=await allyWelcomeWhatsapp(a.id,a.nombre,a.codigo!,sede);}catch(e){console.error('Bienvenida por WhatsApp no enviada:',e);}
+  if(a.estado==='activo'&&body.accion!=='reenviar')try{whatsapp=await allyWelcomeWhatsapp(a.id,a.nombre,a.codigo!,sede,allyLinks(origin,a.token).catalogo);}catch(e){console.error('Bienvenida por WhatsApp no enviada:',e);}
   return reply({estado:a.estado,codigo:a.codigo,correo:sent,whatsapp});
  }catch{return reply({error:'El servicio no está disponible.'},503);}
 }
@@ -57,7 +57,7 @@ async function allyStore(id:string,origin:string):Promise<AllyStore|null>{
  const {data:cats}=await db.from('catalogos_publicos').select('titulo,ruta').eq('activo',true).like('ruta',`${allySlug(s.nombre)}/%`).order('ruta');
  return {nombre:s.nombre,telefono:s.telefono,whatsapp:s.whatsapp,catalogos:((cats||[]) as {titulo:string;ruta:string}[]).map(c=>({titulo:c.titulo,url:`${origin}/${c.ruta}?o=aliado`}))};
 }
-async function allyWelcomeWhatsapp(id:string,nombre:string,codigo:string,sede:AllyStore|null){
+async function allyWelcomeWhatsapp(id:string,nombre:string,codigo:string,sede:AllyStore|null,catalogo:string){
  const db=createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,process.env.SUPABASE_SERVICE_ROLE_KEY!,{auth:{persistSession:false,autoRefreshToken:false}});
  const [{data:ally},settings]=await Promise.all([db.from('aliados').select('celular').eq('id',id).maybeSingle(),loadWhatsappSettings(db)]);
  const digits=String(ally?.celular||'').replace(/\D/g,'');
@@ -66,7 +66,7 @@ async function allyWelcomeWhatsapp(id:string,nombre:string,codigo:string,sede:Al
  const conv=await conversationFor(db,tel,nombre);
  const {data:c}=await db.from('whatsapp_conversaciones').select('ultimo_entrante_at').eq('id',conv.id).maybeSingle();
  const open=c?.ultimo_entrante_at&&Date.now()-Date.parse(c.ultimo_entrante_at)<WINDOW_MS;
- const texto=allyWelcomeText(first,codigo)+(sede?`\n\nTu sede: Ámbar Couture ${sede.nombre}${sede.whatsapp?` · WhatsApp https://wa.me/${sede.whatsapp}`:''}${sede.catalogos.length?`\nCatálogos para tus clientas:\n${sede.catalogos.map(c=>`${c.titulo}: ${c.url}`).join('\n')}`:''}`:'');
+ const texto=allyWelcomeText(first,codigo)+(sede?`\n\nTu sede: Ámbar Couture ${sede.nombre}${sede.whatsapp?` · WhatsApp https://wa.me/${sede.whatsapp}`:''}`:'')+`\n\nTu catálogo con precios de aliado (ahí sacas el enlace sin precios para tus clientas): ${catalogo}`;
  // The template has a fixed text: with it, the inbox keeps only that part.
  const waId=open?await sendWhatsappText(settings,tel,texto):await sendAllyWelcome(settings,tel,first,codigo);
  if(!waId)return false;
