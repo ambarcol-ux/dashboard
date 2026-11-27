@@ -15,7 +15,7 @@ export default function SatisfactionAlert(){
  const cerrar=async(c:Caso)=>{const nota=window.prompt('¿Qué se habló con la clienta? (opcional)','');if(nota===null)return;
   const {error}=await supabase.rpc('satisfaccion_cerrar',{p_id:c.id,p_nota:nota});if(!error)setCasos(cs=>cs.filter(x=>x.id!==c.id));};
  const tel=(t:string)=>{const d=t.replace(/\D/g,'');return d.length===10?`57${d}`:d;};
- return <div className="fixed bottom-28 left-4 z-[90] w-[min(22rem,calc(100vw-2rem))]">
+ return <div className="w-full">
   {abierto&&<div className="mb-2 max-h-[55vh] overflow-y-auto space-y-2 rounded-2xl">
    {casos.map(c=><div key={c.id} className="rounded-2xl border border-purple-300 bg-white p-3 shadow-xl">
     <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">{c.sede||'Sin sede'} · cita del {new Date(c.fecha+'T12:00:00').toLocaleDateString('es-CO',{day:'numeric',month:'short'})} · asesora {c.asesora}</p>

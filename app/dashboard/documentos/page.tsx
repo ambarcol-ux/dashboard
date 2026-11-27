@@ -157,7 +157,7 @@ function Documentos({profile}:{profile:ShellProfile}){
       <td>{d.sede_id?sedes.find(s=>s.id===d.sede_id)?.nombre||'—':'Todas'}</td>
       <td><button type="button" className={styles.button} disabled={!!busy} onClick={()=>verVersiones(d)}><History size={13} style={{display:'inline',verticalAlign:'-2px'}}/> v{d.version}</button></td>
       <td>{d.vence?<span className={styles.badge} style={dias!==null&&dias<=30?{background:'#fee2e2',color:'#b91c1c'}:undefined}>{fecha(d.vence)}{dias!==null&&dias<0?' · vencido':''}</span>:'—'}</td>
-      <td><div style={{display:'flex',gap:4,flexWrap:'nowrap',alignItems:'center',justifyContent:'flex-end'}}>
+      <td><div className="flex flex-col sm:flex-row gap-1 items-end sm:items-center justify-end">
        <button type="button" className={styles.button} disabled={!!busy} onClick={()=>abrir({...d,nombre:d.nombre})} title="Abrir"><ExternalLink size={13}/></button>
        {editable&&<button type="button" className={styles.button} disabled={!!busy} onClick={()=>setEditando(d)} title="Editar nombre, sede o vencimiento"><Pencil size={13}/></button>}
        {editable&&<label className={styles.button} title={d.ruta?'Subir nueva versión':'Cambiar el enlace por un archivo'} style={{cursor:'pointer',display:'inline-flex',alignItems:'center',margin:0}}><Upload size={13}/><input type="file" hidden accept={ACEPTA} onChange={e=>{const f=e.target.files?.[0];if(f)void nuevaVersion(d,f);e.target.value='';}}/></label>}

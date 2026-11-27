@@ -26,7 +26,7 @@ export default function AnnouncementsAlert(){
  const lista=docs.filter(d=>!vistos.includes(d.id));
  if(!lista.length)return null;
  const visto=(id:string)=>{const v=[...read().slice(-50),id];try{localStorage.setItem(KEY,JSON.stringify(v));}catch{}setVistos(v);};
- return <div className="fixed bottom-40 left-4 z-[90] w-[min(22rem,calc(100vw-2rem))]">
+ return <div className="w-full">
   {abierto&&<div className="mb-2 max-h-[55vh] overflow-y-auto space-y-2 rounded-2xl">
    {lista.map(d=><div key={d.id} className="rounded-2xl border border-indigo-200 bg-white p-3 shadow-xl">
     <div className="flex items-start justify-between gap-2">

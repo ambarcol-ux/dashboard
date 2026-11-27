@@ -26,7 +26,7 @@ export default function PersonAttentionAlert(){
  const espera=(c:Chat)=>{const m=Math.max(0,Math.round((now-Date.parse(c.desde))/60000));return m<60?`${m} min`:m<1440?`${Math.round(m/60)} h`:`${Math.round(m/1440)} d`;};
  const tel=(t:string)=>t.replace(/\D/g,'').slice(-10);
  const urgentes=lista.filter(c=>now-Date.parse(c.desde)>30*60000).length;
- return <div className="fixed bottom-4 left-4 z-[90] w-[min(22rem,calc(100vw-2rem))]">
+ return <div className="w-full">
   {abierto&&<div className="mb-2 max-h-[55vh] overflow-y-auto space-y-2 rounded-2xl">
    {lista.map(c=>{const larga=now-Date.parse(c.desde)>30*60000;
     return <div key={c.id} className={`rounded-2xl border bg-white p-3 shadow-xl ${larga?'border-red-300':'border-amber-300'}`}>
