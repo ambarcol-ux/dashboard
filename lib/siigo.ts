@@ -367,11 +367,11 @@ export async function sendJob(db:SupabaseClient,c:SiigoCred,j:Job):Promise<Sent>
   return {siigoId:r.id||null,numero:r.name||null,respuesta:r};
  }
  if(j.tipo==='comprobante'){
-  // Internal journal (money between stores, partner loans): accounts from the parameters, caja/banco by the ERP account used.
+  // Internal journal (money between stores, partner loans, cash deposited in the bank): accounts from the parameters, caja/banco by the ERP account used.
   const k=c.parametros.cuentas||{},valor=Number(d.valor);
   const tercero=String((d.socio&&c.parametros.socios?.[String(d.socio)])||c.parametros.tercero_defecto||'').replace(/\D/g,'');
   if(!tercero)throw new SiigoError(d.socio?`Falta la cédula del socio «${d.socio}» en Facturación por sede.`:'Falta el NIT de la empresa (tercero de comprobantes internos) en Facturación por sede.');
-  const items=((d.lineas||[]) as Value[]).map(l=>{const code=l.cuenta==='caja'?cuentaCaja(c,'Transferencia',l.cuenta_id||null):k[String(l.cuenta)];
+  const items=((d.lineas||[]) as Value[]).map(l=>{const code=l.cuenta==='caja'?cuentaCaja(c,String(l.medio||'Transferencia'),(l.cuenta_id as string)||null):k[String(l.cuenta)];
    if(!code)throw new SiigoError(`Falta la cuenta contable «${l.cuenta==='entre_sedes'?'Entre sedes':l.cuenta==='socios'?'Préstamos de socios':l.cuenta}» en Facturación por sede.`);
    return {account:{code,movement:l.mov},customer:{identification:tercero,branch_office:0},description:String(d.descripcion||'').slice(0,300),value:valor};});
   const r=await siigo(c,'/v1/journals',{method:'POST',body:{document:doc(c,'comprobante_interno','Comprobante interno (traslados)'),date:fecha(d.fecha),observations:String(d.descripcion||'').slice(0,500),items}});
