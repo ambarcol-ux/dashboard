@@ -35,13 +35,15 @@ export async function POST(request:Request){
   type V={id:string;codigo:string;nombre:string|null;color:string|null;talla:string|null;precio_sugerido:number|null;foto_frente:string|null;imagen_url:string|null;foto_espalda:string|null;foto_detalle:string|null;archivado:boolean|null;estado:string|null};
   const lista=((ves||[]) as V[]).filter(x=>cods.includes(String(x.codigo).trim().toUpperCase())&&!x.archivado);
   const fecha=c.fecha_evento as string|null;
+  const {data:ap}=await db.from('apartados_vestido').select('codigo,hasta').eq('cita_id',c.id).gt('hasta',new Date().toISOString());
+  const apartado=new Map(((ap||[]) as {codigo:string;hasta:string}[]).map(a=>[a.codigo,a.hasta]));
   const vestidos=await Promise.all(cods.map(async cod=>{
    const x=lista.find(y=>String(y.codigo).trim().toUpperCase()===cod);if(!x)return null;
    const foto=[x.foto_frente,x.imagen_url,x.foto_espalda,x.foto_detalle].find(u=>u&&/^https:\/\//.test(u))||null;
    let disponible:boolean|null=null;
    if(/vendido|baja/i.test(String(x.estado||'')))disponible=false;
    else if(fecha){const r=await availabilityAnswer(db,{fecha,vestidoId:x.id});disponible='error' in r?null:r.disponible;}
-   return {codigo:x.codigo,nombre:x.nombre,color:x.color,talla:x.talla,precio:x.precio_sugerido,foto,disponible};
+   return {codigo:x.codigo,nombre:x.nombre,color:x.color,talla:x.talla,precio:x.precio_sugerido,foto,disponible,apartado_hasta:apartado.get(cod)||null};
   }));
   return publicReply({nombre:String(c.cliente_nombre||'').trim().split(/\s+/)[0]||'',sede:s?.nombre||'',sede_id:c.sede_id,fecha,vestidos:vestidos.filter(Boolean)});
  }catch{return publicReply({error:'El servicio no está disponible.'},503);}
