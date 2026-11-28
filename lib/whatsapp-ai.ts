@@ -70,9 +70,16 @@ Seguimiento (clientas que ya tuvieron cita o visitaron la tienda y no alquilaron
 
 Lo que no sabes: si la clienta pregunta algo que no está en tus conocimientos ni en los datos del ERP, no lo inventes. Dile con naturalidad que lo confirmas y, en «falta_informacion», escribe en una frase corta qué dato le falta a Ámbar darte (ej.: «Horario de atención los domingos en Pereira», «Si se puede pagar con tarjeta de crédito»), para que administración lo complete y la próxima vez respondas sola. Si no falta nada, cadena vacía.
 
+Temperatura del prospecto (solo clientas, no aliados ni proveedores): califica en «temperatura» qué tan probable es que alquile, con lo que muestra el chat:
+- caliente: dio evento y fecha (dentro de los próximos 6 meses) y vive en la ciudad de una sede o acepta cita virtual, y además muestra intención concreta: pregunta por un vestido, talla o color, pide cita con sus palabras, o dice que viene con quien decide.
+- frio: evento a más de 6 meses o sin fecha tras preguntarle, vive lejos y no acepta virtual, solo pregunta precio y no responde lo demás, contesta con monosílabos o deja de responder, o el presupuesto no le alcanza.
+- tibio: todo lo demás (por ejemplo, solo escribió el mensaje del anuncio o apenas está conociendo).
+En «temperatura_motivo» escribe en pocas palabras las señales (ej.: «XV 14 mar, Pereira, preguntó por el 1001»).
+Cómo tratarla: caliente → ofrece la cita más cercana de una y sé concreta con los vestidos que le gustan; tibio → conversa, muestra opciones y ofrece la cita cuando muestre interés; frio → no insistas con la cita: ofrece cita virtual si vive lejos, Plan Ahorro si el evento es lejano o el presupuesto no le alcanza, o la promoción vigente, y deja la puerta abierta. Nunca le niegues una cita a quien la pida.
+
 Además: elige la etiqueta del tema principal, la sede de la clienta (solo si es clara; si no, cadena vacía) y un resumen de una frase para la asesora.`;
 
-const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento','falta_informacion','fecha_evento_nueva','fotos','agendar','agendar_desde','tipo_vestido_cita','nombre_completo','correo','plan_ahorro','como_se_entero'],properties:{
+const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sede','resumen','respuesta','atender_persona','motivo','cierre_seguimiento','falta_informacion','fecha_evento_nueva','fotos','agendar','agendar_desde','tipo_vestido_cita','nombre_completo','correo','plan_ahorro','como_se_entero','temperatura','temperatura_motivo'],properties:{
  etiqueta:{type:'string',enum:[...WHATSAPP_TAGS]},
  sede:{type:'string',description:'Nombre exacto de una de las sedes, o cadena vacía'},
  resumen:{type:'string'},
@@ -89,11 +96,13 @@ const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sed
  nombre_completo:{type:'string',description:'Nombre y apellido que la clienta escribió en este chat para sus datos (no el nombre del perfil); cadena vacía si no lo escribió'},
  correo:{type:'string',description:'Correo electrónico que la clienta escribió en este chat; cadena vacía si no lo escribió'},
  como_se_entero:{type:'string',enum:['','Google / Google Maps','Instagram','Facebook','TikTok','Recomendación','Pasaba por la tienda','Un aliado (fotógrafo, maquilladora…)','Otro'],description:'Cómo conoció a Ámbar, solo si la clienta lo dijo en el chat; si no lo ha dicho, cadena vacía'},
+ temperatura:{type:'string',enum:['caliente','tibio','frio'],description:'Qué tan probable es que alquile según las señales del chat'},
+ temperatura_motivo:{type:'string',description:'Señales en pocas palabras'},
  plan_ahorro:{type:'boolean',description:'true si la clienta pregunta por el Plan Ahorro XV (plan separe o plan reserva) o muestra interés en inscribirse; false si no'},
 }};
 
 export type IaConfig={conocimientos:string;instrucciones:string;escalamiento:string;documentos?:string;promociones?:string;aliados?:string};
-export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string;fotos?:string[];agendar_desde?:string;agendar?:string;tipo_vestido_cita?:string;nombre_completo?:string;correo?:string;plan_ahorro?:boolean;como_se_entero?:string};
+export type IaOutput={etiqueta:string;sede:string;resumen:string;respuesta:string;atender_persona:boolean;motivo:string;cierre_seguimiento?:string;falta_informacion?:string;fecha_evento_nueva?:string;fotos?:string[];agendar_desde?:string;agendar?:string;tipo_vestido_cita?:string;nombre_completo?:string;correo?:string;plan_ahorro?:boolean;como_se_entero?:string;temperatura?:string;temperatura_motivo?:string};
 type Msg={direccion:string;texto:string|null;created_at:string;media_id?:string|null;media_tipo?:string|null};
 type Site={id:string;nombre:string;direccion:string|null;direccion_clientes:string|null;whatsapp:string|null;mapa_url:string|null;parqueadero?:string|null};
 
@@ -325,6 +334,8 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(sedeChat?{sede_del_chat:sedeChat}:{}),...(conv.anuncio_titulo?{llego_por_anuncio:conv.anuncio_titulo}:{}),...(delAnuncio?{primer_mensaje_del_anuncio:true}:{}),...(conv.como_se_entero?{como_se_entero:conv.como_se_entero}:{}),...(ctx||{}),...(seguimiento?{seguimiento}:{})},chat+(opts.empujon?EMPUJON:''),clauses,catalogs,extra,db);
   out.respuesta=marcarCanal(out.respuesta,conv.canal);
   // She said she already rented, is not interested or wants no more messages: the follow-up of her phone is closed.
+  // Prospect temperature (v1): kept on the chat; the first visit booked from this phone copies it (trigger primeras_citas_temperatura).
+  if(['caliente','tibio','frio'].includes(String(out.temperatura))&&out.etiqueta!=='aliado')await db.from('whatsapp_conversaciones').update({temperatura:out.temperatura,temperatura_motivo:String(out.temperatura_motivo||'').slice(0,200)||null,temperatura_at:new Date().toISOString()}).eq('id',conversationId);
   if(!social&&out.cierre_seguimiento)await db.rpc('seguimiento_cerrar_por_chat',{p_tel:conv.telefono,p_motivo:out.cierre_seguimiento});
   // She told her (new) event date: it is saved on her latest open visit and her follow-up plan is recalculated.
   if(!social&&/^\d{4}-\d{2}-\d{2}$/.test(String(out.fecha_evento_nueva||'')))await db.rpc('cita_evento_por_chat',{p_tel:conv.telefono,p_fecha:out.fecha_evento_nueva});
