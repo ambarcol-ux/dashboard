@@ -40,3 +40,12 @@ export function visitVideoLink(origin:string,id:string,expires:number,key:string
 export function verifyVideoLink(token:string,key:string,now=Date.now()){
  return key?verifyVisitLink(token,videoKey(key),now):null;
 }
+
+// Favorites link for whoever decides (mom, dad, fiancé): shows only that visit's favorite dresses and their availability for her date.
+const favKey=(key:string)=>createHmac('sha256',key).update('first-visit-favorites-only').digest('hex');
+export function favoritesLink(origin:string,id:string,expires:number,key:string){
+ return `${origin}/favoritos#${signVisitLink(id,expires,favKey(key))}`;
+}
+export function verifyFavoritesLink(token:string,key:string,now=Date.now()){
+ return key?verifyVisitLink(token,favKey(key),now):null;
+}

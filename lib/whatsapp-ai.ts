@@ -8,6 +8,7 @@ import {isPublicCatalogDress,type CatalogDress} from './catalog-public';
 import {WHATSAPP_TOOLS,runWhatsappTool} from './whatsapp-tools';
 import {loadSocialSettings,sendSocialText,replyComment,privateReplyComment,chatFromPrivateReply,COMMENT_GONE} from './social-inbox';
 import {marcarCanal} from './event-channel';
+import {favoritesLink} from './first-visit-links';
 import {documentsForAI} from './doc-ia';
 import {inventoryCandidates} from './dress-photo-match';
 import {estiloTexto} from './dress-style';
@@ -76,6 +77,8 @@ Temperatura del prospecto (solo clientas, no aliados ni proveedores): califica e
 - tibio: todo lo demás (por ejemplo, solo escribió el mensaje del anuncio o apenas está conociendo).
 En «temperatura_motivo» escribe en pocas palabras las señales (ej.: «XV 14 mar, Pereira, preguntó por el 1001»).
 Cómo tratarla: caliente → ofrece la cita más cercana de una y sé concreta con los vestidos que le gustan; tibio → conversa, muestra opciones y ofrece la cita cuando muestre interés; frio → no insistas con la cita: ofrece cita virtual si vive lejos, Plan Ahorro si el evento es lejano o el presupuesto no le alcanza, o la promoción vigente, y deja la puerta abierta. Nunca le niegues una cita a quien la pida.
+
+Favoritos de su visita: si en los datos vienen «favoritos_vestidos» y «enlace_favoritos», son los vestidos que se midió en la tienda. Menciónalos por su código cuando ayude, y si dice que debe consultarlo o mostrárselo a alguien (mamá, papá, novio), envíale «enlace_favoritos» tal cual para que lo comparta: ahí ven las fotos, el precio y si están disponibles para su fecha.
 
 Además: elige la etiqueta del tema principal, la sede de la clienta (solo si es clara; si no, cadena vacía) y un resumen de una frase para la asesora.`;
 
@@ -331,7 +334,13 @@ export async function suggestWhatsappReply(db:SupabaseClient,conversationId:stri
   const sedeChat=sites.find(s=>s.id===conv.sede_id)?.nombre;
   // Came from an ad and has written only once: that text is the ad's pre-filled message, not her own decision to book.
   const delAnuncio=!!conv.anuncio_id&&history.length<20&&history.filter(m=>m.direccion==='entrante').length===1;
-  const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(sedeChat?{sede_del_chat:sedeChat}:{}),...(conv.anuncio_titulo?{llego_por_anuncio:conv.anuncio_titulo}:{}),...(delAnuncio?{primer_mensaje_del_anuncio:true}:{}),...(conv.como_se_entero?{como_se_entero:conv.como_se_entero}:{}),...(ctx||{}),...(seguimiento?{seguimiento}:{})},chat+(opts.empujon?EMPUJON:''),clauses,catalogs,extra,db);
+  // Her latest visit with favorite dresses (last 60 days): the AI can send the favorites link to whoever decides.
+  let favs:{favoritos_vestidos:string[];enlace_favoritos:string}|null=null;
+  if(!social){const tel=String(conv.telefono||'').replace(/\D/g,'').slice(-10);
+   if(tel.length===10){const {data:fc}=await db.from('primeras_citas').select('id,favoritos').like('telefono',`%${tel}`).gte('created_at',new Date(Date.now()-60*864e5).toISOString()).neq('favoritos','{}').order('created_at',{ascending:false}).limit(1).maybeSingle();
+    const f=fc as {id:string;favoritos:string[]}|null,k=process.env.FIRST_VISIT_LINK_SECRET||process.env.SUPABASE_SERVICE_ROLE_KEY||'';
+    if(f?.favoritos?.length&&k)favs={favoritos_vestidos:f.favoritos,enlace_favoritos:favoritesLink((process.env.FIRST_VISIT_PUBLIC_ORIGIN||'https://erp.ambarcouture.com').replace(/\/$/,''),f.id,Date.now()+45*864e5,k)};}}
+  const out=await runWhatsappAI(cfg,sites,{canal:conv.canal||'whatsapp',nombre_perfil:conv.nombre,...(sedeChat?{sede_del_chat:sedeChat}:{}),...(conv.anuncio_titulo?{llego_por_anuncio:conv.anuncio_titulo}:{}),...(delAnuncio?{primer_mensaje_del_anuncio:true}:{}),...(favs||{}),...(conv.como_se_entero?{como_se_entero:conv.como_se_entero}:{}),...(ctx||{}),...(seguimiento?{seguimiento}:{})},chat+(opts.empujon?EMPUJON:''),clauses,catalogs,extra,db);
   out.respuesta=marcarCanal(out.respuesta,conv.canal);
   // She said she already rented, is not interested or wants no more messages: the follow-up of her phone is closed.
   // Prospect temperature (v1): kept on the chat; the first visit booked from this phone copies it (trigger primeras_citas_temperatura).
