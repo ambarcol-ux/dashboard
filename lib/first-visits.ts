@@ -32,7 +32,7 @@ export function visitRented(v:FirstVisit,now=Date.now()):boolean|null{
 const pct=(a:number,b:number)=>b?Math.round(a/b*100):0;
 /** Simple statistics: each visit counts once in attendance and once in rental. */
 export function visitMetrics(rows:FirstVisit[],now=Date.now()){
- const m={total:0,citas:0,vitrinas:0,canceladas:0,porAtender:0,asistieron:0,noAsistieron:0,sinAsistencia:0,alquilaron:0,noAlquilaron:0,sinResultado:0,seguimiento:0,conversion:0,conversionCitas:0,conversionVitrinas:0};
+ const m={total:0,citas:0,vitrinas:0,canceladas:0,porAtender:0,asistieron:0,noAsistieron:0,sinAsistencia:0,alquilaron:0,noAlquilaron:0,sinMotivo:0,sinResultado:0,seguimiento:0,conversion:0,conversionCitas:0,conversionVitrinas:0};
  const by={cita:{a:0,r:0},vitrina:{a:0,r:0}};
  for(const v of rows){
   const a=visitAttendance(v,now),o=visitOrigin(v);
@@ -44,13 +44,13 @@ export function visitMetrics(rows:FirstVisit[],now=Date.now()){
   m.asistieron++;by[o].a++;
   const r=visitRented(v,now);
   if(r===true){m.alquilaron++;by[o].r++;}
-  else if(r===false){m.noAlquilaron++;if(v.posible_seguimiento)m.seguimiento++;}
+  else if(r===false){m.noAlquilaron++;if(!v.motivo_no_alquiler)m.sinMotivo++;if(v.posible_seguimiento)m.seguimiento++;}
   else m.sinResultado++;
  }
  m.conversion=pct(m.alquilaron,m.asistieron);m.conversionCitas=pct(by.cita.r,by.cita.a);m.conversionVitrinas=pct(by.vitrina.r,by.vitrina.a);
  return m;
 }
-export const VISIT_STATUS:Record<string,string>={por_atender:'Por atender',sin_registrar:'Sin registrar asistencia',alquilo:'Asistió · Alquiló',no_alquilo:'Asistió · No alquiló',sin_resultado:'Asistió · falta registrar si alquiló',no_asistio:'No asistió',cancelada:'Cancelada'};
+export const VISIT_STATUS:Record<string,string>={por_atender:'Por atender',sin_registrar:'Sin registrar asistencia',alquilo:'Asistió · Alquiló',no_alquilo:'Asistió · No alquiló',sin_motivo:'Asistió · No alquiló · falta el motivo',sin_resultado:'Asistió · falta registrar si alquiló',no_asistio:'No asistió',cancelada:'Cancelada'};
 /** Key of VISIT_STATUS for filtering the list. */
 export function visitStatus(v:FirstVisit,now=Date.now()){
  const a=visitAttendance(v,now);

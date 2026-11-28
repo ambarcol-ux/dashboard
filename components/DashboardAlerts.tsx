@@ -37,12 +37,14 @@ export default function DashboardAlerts({canSee,pendingDeposits,entregas,borrado
  // In-page alerts filter the contract list and scroll to it; the rest open their module already filtered.
  const verLista=()=>setTimeout(()=>document.getElementById('lista-contratos')?.scrollIntoView({behavior:'smooth',block:'start'}),50);
  const d=data,toggle=(f:string)=>{onAlerta(filtroAlerta===f?'ninguna':f);if(filtroAlerta!==f)verLista();};
+ // After 4 p. m. (Bogotá) unconfirmed visits not yet called turn red: the advisor must call them before closing.
+ const tarde=Number(new Intl.DateTimeFormat('en-US',{timeZone:'America/Bogota',hour:'numeric',hourCycle:'h23'}).format(new Date()))>=16;
  const hoy=hoyBogota(),manana=new Date(Date.parse(hoy+'T12:00:00Z')+86400000).toISOString().slice(0,10);
  const tiles:Tile[]=[
   {key:'dep',label:'Depósitos por devolver',count:(sedeId?depSede:pendingDeposits)||0,color:'bg-rose-50 border-rose-200 text-rose-700',panel:'depositos',href:'/dashboard/devoluciones-depositos#pendientes'},
   {key:'cob',label:cobros?.tres?`Saldos por cobrar (7 días) · ${cobros.tres} urgentes`:'Saldos por cobrar (7 días)',count:cobros?.total||0,color:'bg-amber-50 border-amber-200 text-amber-800',panel:'cobros',href:'/dashboard/cuentas-por-cobrar'},
   {key:'seg',label:`Seguimientos · ${seg?.hoy||0} hoy · ${seg?.vencidos||0} vencidos`,count:(seg?.hoy||0)+(seg?.vencidos||0),color:'bg-yellow-50 border-yellow-300 text-yellow-800',panel:'primeras-citas',href:'/dashboard/primeras-citas?tab=seguimientos&estado=pendientes'},
-  {key:'pcf',label:'Citas por confirmar (hoy y mañana): llámalas',count:d?.citas_por_confirmar||0,color:'bg-amber-50 border-amber-200 text-amber-700',panel:'primeras-citas',href:`/dashboard/primeras-citas?dia=${hoy}&hasta=${manana}&cita=por_confirmar`},
+  {key:'pcf',label:tarde?'Citas por confirmar sin llamar · ya son las 4 p. m.':'Citas por confirmar (hoy y mañana): llámalas',count:d?.citas_por_confirmar||0,color:tarde?'bg-red-50 border-red-300 text-red-700':'bg-amber-50 border-amber-200 text-amber-700',panel:'primeras-citas',href:`/dashboard/primeras-citas?dia=${hoy}&hasta=${manana}&cita=por_confirmar`},
   {key:'sol',label:'Citas solicitadas hoy (nuevas)',count:d?.citas_solicitadas_hoy||0,color:'bg-rose-50 border-rose-200 text-rose-700',panel:'primeras-citas',href:`/dashboard/primeras-citas?solicitadas=${hoy}`},
   {key:'cit',label:'Primeras citas de hoy',count:d?.citas_hoy||0,color:'bg-amber-100 border-amber-300 text-amber-900',panel:'primeras-citas',href:`/dashboard/primeras-citas?dia=${hoy}`},
   {key:'hoy',label:'Agenda de hoy (medidas, pruebas, entregas)',count:d?.agenda_hoy||0,color:'bg-sky-50 border-sky-200 text-sky-800',panel:'calendario',href:`/dashboard/calendario?dia=${hoy}`},
