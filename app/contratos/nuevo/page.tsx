@@ -30,6 +30,7 @@ import { cop } from '@/lib/rental-price';
 import AccountTypeOptions from '@/components/AccountTypeOptions';
 import { accountLabel, keyError } from '@/lib/bank-keys';
 import { useFieldRequired } from '@/lib/module-config';
+import ApartadoAviso from '@/components/ApartadoAviso';
 import { PROMO_FIELDS, promoApplies, promoBenefit, promoDiscount, type Promotion } from '@/lib/promotions';
 import ContratoConceptos, { errorConceptos, guardarConceptosContrato, leerConceptosContrato, totalConceptos, type LineaConcepto } from '@/components/ContratoConceptos';
 
@@ -2028,6 +2029,7 @@ export default function NuevoContratoPage() {
                 ))}
               </datalist>
 
+              <ApartadoAviso sede={formData.sede_id || ''} codigos={vestidos.map(v => v.referencia)} fecha={formData.fecha_evento || ''} />
               {vestidos.map((v, idx) => (
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-gray-50 p-6 rounded-2xl border border-gray-200 relative group transition-all hover:border-rose-200">
                   {vestidos.length > 1 && (

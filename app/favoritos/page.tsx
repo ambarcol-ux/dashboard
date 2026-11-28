@@ -2,7 +2,7 @@
 import {useEffect,useState} from 'react';
 import {Loader2} from 'lucide-react';
 
-type Vestido={codigo:string;nombre:string|null;color:string|null;talla:string|null;precio:number|null;foto:string|null;disponible:boolean|null};
+type Vestido={codigo:string;nombre:string|null;color:string|null;talla:string|null;precio:number|null;foto:string|null;disponible:boolean|null;apartado_hasta?:string|null};
 type Data={nombre:string;sede:string;sede_id:string;fecha:string|null;vestidos:Vestido[]};
 const cop=(n:number)=>'$'+Math.round(n).toLocaleString('es-CO');
 
@@ -28,6 +28,7 @@ export default function Favoritos(){
      <p className="font-black text-gray-900">Vestido {v.codigo}{v.nombre?` · ${v.nombre}`:''}</p>
      <p className="text-sm text-gray-500">{[v.color,v.talla?`Talla ${v.talla}`:''].filter(Boolean).join(' · ')}</p>
      {v.precio?<p className="text-sm font-bold text-gray-800">Alquiler {cop(v.precio)}</p>:null}
+     {v.apartado_hasta&&<p className="text-sm font-black text-amber-700">🔒 Apartado para ella hasta el {new Date(v.apartado_hasta).toLocaleString('es-CO',{timeZone:'America/Bogota',weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'})}</p>}
      {v.disponible!==null&&<p className={`text-sm font-black ${v.disponible?'text-emerald-700':'text-rose-700'}`}>{v.disponible?'✓ Disponible para su fecha':'Ya está reservado para su fecha'}</p>}
     </div>
    </article>)}
