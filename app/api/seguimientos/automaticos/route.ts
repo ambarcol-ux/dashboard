@@ -1,7 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import {authorizedVisitWorker} from '@/lib/first-visit-worker-config';
 import {loadWhatsappSettings} from '@/lib/whatsapp-config';
-import {conversationFor,sendBestFollowup} from '@/lib/whatsapp-inbox';
+import {conversationFor,sendBestFollowup,sendExpertFollowup} from '@/lib/whatsapp-inbox';
 import {PROMO_FIELDS,promoForGreeting,type Promotion} from '@/lib/promotions';
 import {whatsappPhone} from '@/lib/first-visit-links';
 export const dynamic='force-dynamic';
@@ -29,12 +29,19 @@ export async function POST(request:Request){
   try{
    // The promotion in force for her store and dress type goes in the greeting as the hook to answer (plain greeting if none or template pending).
    const promo=promoForGreeting(promos,sedes.get(sede.toLowerCase())||null,e.tipo_vestido);
-   const {waId,texto}=await sendBestFollowup(settings,phone,nombre,sede,promo),now=new Date().toISOString();
+   // Expert message (her favorite, why she did not rent, who decides, weeks to her event) signed by her advisor; plain follow-up otherwise.
+   const {data:ci}=await db.from('primeras_citas').select('favoritos,quien_decide,asesora_id,responsable_id').eq('id',e.cita_id).maybeSingle();
+   const c=(ci||{}) as {favoritos?:string[]|null;quien_decide?:string|null;asesora_id?:string|null;responsable_id?:string|null};
+   const quien=c.asesora_id||c.responsable_id;
+   const {data:pf}=quien?await db.from('profiles').select('nombre').eq('id',quien).maybeSingle():{data:null};
+   const asesora=String((pf as {nombre?:string}|null)?.nombre||'').trim().split(/\s+/)[0]||null;
+   const experto=await sendExpertFollowup(settings,phone,{nombre,asesora,sede,etapa:e.etapa,motivo:e.motivo,favoritos:c.favoritos||[],decide:c.quien_decide||null,fechaEvento:e.fecha_evento});
+   const {waId,texto}=experto||await sendBestFollowup(settings,phone,nombre,sede,promo),now=new Date().toISOString();
    // Mirrored in the inbox: when she answers, the AI knows why we wrote and continues the conversation.
    const conv=await conversationFor(db,phone,e.nombre);
    await db.from('whatsapp_mensajes').insert({conversacion_id:conv.id,wa_id:waId,direccion:'saliente',origen:'ia',tipo:'template',texto,estado:'sent',created_at:now});
    await db.from('whatsapp_conversaciones').update({ultimo_mensaje:texto.slice(0,200),ultimo_at:now,ia_pausada:false,ia_pausada_at:null,ia_pausada_por:null,
-    ia_resumen:`Seguimiento automático ${e.etapa}/${e.total}: ${TIPO[e.tipo]||'no alquiló'}${e.tipo_vestido?` · ${e.tipo_vestido}`:''}${e.motivo?` · Motivo: ${e.motivo}`:''}`.slice(0,500)}).eq('id',conv.id);
+    ia_resumen:`Seguimiento automático ${e.etapa}/${e.total}: ${TIPO[e.tipo]||'no alquiló'}${e.tipo_vestido?` · ${e.tipo_vestido}`:''}${e.motivo?` · Motivo: ${e.motivo}`:''}${c.favoritos?.length?` · Se midió: ${c.favoritos.join(', ')}`:''}${c.quien_decide?` · Decide: ${c.quien_decide}`:''}`.slice(0,500)}).eq('id',conv.id);
    await db.rpc('seguimiento_auto_registrar',{p_id:e.seguimiento_id,p_ok:true,p_texto:texto,p_error:null});
    enviados++;
   }catch(err){

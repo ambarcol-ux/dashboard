@@ -127,6 +127,37 @@ export async function sendBestFollowup(settings:{token:string;phoneNumberId:stri
  if(waId)return {waId,texto:followupV2Text(nombre,sede)};
  return {waId:await sendWhatsappFollowup(settings,to,nombre,sede),texto:followupText(nombre,sede)};
 }
+/** Expert follow-up: the stage's message depends on what we know of her visit (favorite dress, why she did not rent, who decides,
+ *  weeks to her event) and is signed by her advisor. Stage N takes the N-th applicable message; null when none applies or its
+ *  template is not approved yet (the caller then sends the plain follow-up). */
+const SEG:Record<string,{t:string;txt:(v:string[])=>string}>={
+ favorito:{t:'ambar_seg_favorito',txt:v=>`Hola ${v[0]} 💛 Soy ${v[1]}, tu asesora de Ámbar Couture ${v[2]}. Me quedé pensando en el vestido ${v[3]} que te mediste: te quedaba hermoso. ¿Quieres que te lo separemos para tu fecha?`},
+ precio:{t:'ambar_seg_precio',txt:v=>`Hola ${v[0]} 💛 Soy ${v[1]}, tu asesora de Ámbar Couture ${v[2]}. Sé que el presupuesto importa: puedes asegurar tu vestido con un abono y pagar el resto en cuotas antes de tu evento. ¿Te cuento cómo?`},
+ decide:{t:'ambar_seg_decide',txt:v=>`Hola ${v[0]} 💛 Soy ${v[1]}, tu asesora de Ámbar Couture ${v[2]}. ¿Ya pudiste mostrarle a tu ${v[3]} los vestidos que te mediste? Con gusto las esperamos para que los vean juntas en persona.`},
+ fecha:{t:'ambar_seg_fecha',txt:v=>`Hola ${v[0]} 💛 Soy ${v[1]}, tu asesora de Ámbar Couture ${v[2]}. Faltan ${v[3]} semanas para tu evento: es buen momento para asegurar tu vestido, porque los ajustes toman su tiempo. ¿Agendamos tu segunda cita?`},
+ tiendas:{t:'ambar_seg_tiendas',txt:v=>`Hola ${v[0]} 💛 Soy ${v[1]}, tu asesora de Ámbar Couture ${v[2]}. ¿Cómo te fue viendo opciones? Si quieres comparar con calma, te agendamos para que te midas de nuevo tu favorito y resolvamos tus dudas.`},
+ nuevos:{t:'ambar_seg_nuevos',txt:v=>`Hola ${v[0]} 💛 Soy ${v[1]}, tu asesora de Ámbar Couture ${v[2]}. Llegaron vestidos nuevos que pueden gustarte. ¿Te mostramos opciones o agendamos para que te los midas?`},
+};
+export type SeguimientoExperto={nombre:string;asesora:string|null;sede:string;etapa:number;motivo:string|null;favoritos:string[];decide:string|null;fechaEvento:string|null};
+export function planExperto(e:SeguimientoExperto){
+ const semanas=e.fechaEvento?Math.ceil((Date.parse(`${e.fechaEvento}T12:00:00-05:00`)-Date.now())/(7*86400000)):0;
+ const quien:Record<string,string>={'Mamá':'mamá','Papá':'papá','Novio':'novio','Otra persona':'familia'};
+ const porMotivo:Record<string,string>={'Precio':'precio','Debo consultarlo':'decide','Visitaré otras tiendas':'tiendas','No encontré vestido':'nuevos','Talla / diseño / ajuste':'nuevos','Fecha del evento':'fecha'};
+ const lista:[string,string[]][]=[];
+ if(e.favoritos[0])lista.push(['favorito',[e.favoritos[0]]]);
+ const m=e.motivo?porMotivo[e.motivo]:undefined;
+ if(m==='decide'||(e.decide&&e.decide!=='Ella'))lista.push(['decide',[quien[e.decide||'']||'familia']]);
+ if(m&&m!=='decide'&&!(m==='fecha'&&!(semanas>=1&&semanas<=26)))lista.push([m,m==='fecha'?[String(semanas)]:[]]);
+ if(semanas>=1&&semanas<=26&&!lista.some(([k])=>k==='fecha'))lista.push(['fecha',[String(semanas)]]);
+ return lista[e.etapa-1]||null;
+}
+export async function sendExpertFollowup(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,e:SeguimientoExperto){
+ if(!e.asesora)return null;
+ const paso=planExperto(e);if(!paso)return null;
+ const v=[e.nombre.trim()||'hola',e.asesora,lugar(e.sede),...paso[1]],s=SEG[paso[0]];
+ const waId=await sendOptionalTemplate(settings,to,s.t,v,['crm_agendar','crm_ver','crm_no']);
+ return waId?{waId,texto:`${s.txt(v)}\n[Agendar cita · Ver vestidos · No me interesa]`,tipo:paso[0]}:null;
+}
 /** Ally program templates (docs/plantillas-whatsapp.md); while Meta has not approved them, nothing is sent. */
 export const allyReminderText=(nombre:string)=>`Hola ${nombre} 💛 Te escribimos de Ámbar Couture. ¿Pudiste revisar el programa de aliados? Incluye en tus paquetes nuestros vestidos de XV y gala con descuentos especiales para aliados y más de 600 vestidos en 4 sedes. Responde este mensaje y te ayudamos a completar tu vinculación.`;
 export const sendAllyReminder=(settings:{token:string;phoneNumberId:string;templateLang?:string},to:string,nombre:string)=>sendOptionalTemplate(settings,to,'ambar_aliado_recordatorio',[nombre.trim()||'hola']);
