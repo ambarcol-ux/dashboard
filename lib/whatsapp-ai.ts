@@ -71,7 +71,7 @@ Seguimiento (clientas que ya tuvieron cita o visitaron la tienda y no alquilaron
 
 Lo que no sabes: si la clienta pregunta algo que no está en tus conocimientos ni en los datos del ERP, no lo inventes. Dile con naturalidad que lo confirmas y, en «falta_informacion», escribe en una frase corta qué dato le falta a Ámbar darte (ej.: «Horario de atención los domingos en Pereira», «Si se puede pagar con tarjeta de crédito»), para que administración lo complete y la próxima vez respondas sola. Si no falta nada, cadena vacía.
 
-Temperatura del prospecto (solo clientas, no aliados ni proveedores): califica en «temperatura» qué tan probable es que alquile, con lo que muestra el chat:
+Temperatura del prospecto: califica en «temperatura» qué tan probable es que alquile, con lo que muestra el chat. Si no es una clienta buscando vestido (proveedor, aliado, empleo, o ya tuvo su evento con nosotras y solo responde encuesta, reseña, devolución o pagos de su contrato), deja «temperatura» y «temperatura_motivo» vacíos:
 - caliente: dio evento y fecha (dentro de los próximos 6 meses) y vive en la ciudad de una sede o acepta cita virtual, y además muestra intención concreta: pregunta por un vestido, talla o color, pide cita con sus palabras, o dice que viene con quien decide.
 - frio: evento a más de 6 meses o sin fecha tras preguntarle, vive lejos y no acepta virtual, solo pregunta precio y no responde lo demás, contesta con monosílabos o deja de responder, o el presupuesto no le alcanza.
 - tibio: todo lo demás (por ejemplo, solo escribió el mensaje del anuncio o apenas está conociendo).
@@ -99,7 +99,7 @@ const SCHEMA={type:'object',additionalProperties:false,required:['etiqueta','sed
  nombre_completo:{type:'string',description:'Nombre y apellido que la clienta escribió en este chat para sus datos (no el nombre del perfil); cadena vacía si no lo escribió'},
  correo:{type:'string',description:'Correo electrónico que la clienta escribió en este chat; cadena vacía si no lo escribió'},
  como_se_entero:{type:'string',enum:['','Google / Google Maps','Instagram','Facebook','TikTok','Recomendación','Pasaba por la tienda','Un aliado (fotógrafo, maquilladora…)','Otro'],description:'Cómo conoció a Ámbar, solo si la clienta lo dijo en el chat; si no lo ha dicho, cadena vacía'},
- temperatura:{type:'string',enum:['caliente','tibio','frio'],description:'Qué tan probable es que alquile según las señales del chat'},
+ temperatura:{type:'string',enum:['','caliente','tibio','frio'],description:'Qué tan probable es que alquile según las señales del chat; vacía si no es una clienta buscando vestido'},
  temperatura_motivo:{type:'string',description:'Señales en pocas palabras'},
  plan_ahorro:{type:'boolean',description:'true si la clienta pregunta por el Plan Ahorro XV (plan separe o plan reserva) o muestra interés en inscribirse; false si no'},
 }};
@@ -272,9 +272,11 @@ export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,c
  const messages:Anthropic.MessageParam[]=[{role:'user',content:[...extra,{type:'text',text:`Hoy es ${today}.\n\nDatos de la clienta en el ERP (nombre, sede, primeras citas y contratos):\n${JSON.stringify(customer)}\n\nConversación (la más reciente al final):\n${chat}${extra.length?'\n\n(Los archivos de arriba los envió la clienta en sus últimos mensajes, salvo los de <candidatos_inventario>, que son del inventario de Ámbar.)':''}`}]}];
  // With the database, the AI can look up dress availability and free visit slots (up to 4 rounds of lookups).
  let response:Anthropic.Message;
+ // A long reply (photos, dress list) could hit the limit and come back cut, so nothing was sent: room for 4,000 tokens and one retry with 8,000.
+ let maxTokens=4000;
  for(let round=0;;round++){
   response=await client.messages.create({
-   model:MODEL,max_tokens:2000,
+   model:MODEL,max_tokens:maxTokens,
    system:[{type:'text',text:systemPrompt(cfg,sites,clauses,catalogs),cache_control:{type:'ephemeral'}}],
    output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},
    ...(db?{tools:WHATSAPP_TOOLS,tool_choice:{type:'auto' as const}}:{}),
@@ -288,10 +290,15 @@ export async function runWhatsappAI(cfg:IaConfig,sites:Site[],customer:unknown,c
   }));
   messages.push({role:'assistant',content:response.content},{role:'user',content:results});
  }
+ if(response.stop_reason==='max_tokens'&&maxTokens<8000){
+  maxTokens=8000;
+  response=await client.messages.create({model:MODEL,max_tokens:maxTokens,system:[{type:'text',text:systemPrompt(cfg,sites,clauses,catalogs),cache_control:{type:'ephemeral'}}],
+   output_config:{effort:'low',format:{type:'json_schema',schema:SCHEMA}},messages});
+ }
  if(response.stop_reason==='refusal')throw Error('La IA no quiso responder este chat.');
  const text=response.content.find(b=>b.type==='text');
  if(!text||text.type!=='text')throw Error('La IA no devolvió respuesta.');
- return JSON.parse(text.text) as IaOutput;
+ try{return JSON.parse(text.text) as IaOutput;}catch{throw Error('La respuesta de la IA llegó incompleta; se reintenta en el próximo mensaje.');}
 }
 export const aiErrorText=(e:unknown)=>e instanceof Anthropic.APIError?`Anthropic ${e.status}: ${e.message}`:e instanceof Error?e.message:'Error de la IA';
 
