@@ -1340,7 +1340,7 @@ const MANUAL_DATA = [
         '**Paso 3 · Dónde está la plata:** **Efectivo en cajas**, **Bancos**, **No es tuya todavía** (depósitos, Plan Ahorro y socios) y **Plata libre**.',
         '**Paso 4 · Lo que tienes y lo que debes:** **Tienes**, **Debes**, **Lo que vale la empresa** y **Te deben vencido**.',
         '**Paso 5 · Cómo va el mes:** **Vendido**, **Entró / salió de caja**, **Ganancia del mes (aprox.)** y **Punto de equilibrio**.',
-        '**Paso 6 · Para dónde vas:** **Proyección de ventas del mes**, **Plata asegurada**, **Citas → contratos** (meta 40 %) y **Vestidos activos**.',
+        '**Paso 6 · Para dónde vas:** **Proyección de ventas del mes**, **Plata asegurada**, **Citas → contratos** (meta 40 %) y **Vestidos activos**. Toca **Ver comparativo mes a mes por sede** para abrir en **Análisis comercial** la tabla **Mes a mes por sede**: conversión, registros, atendidas y alquilaron de cada mes y sede, con ▲▼ frente al mes anterior (cambia el periodo con **Desde** y **Hasta**).',
         '**Paso 7 · Semáforo por sede:** 🟢 vende al ritmo del mes pasado o más y gana · 🟡 se está quedando atrás · 🔴 pierde plata o va por debajo del 70 % del mes pasado.',
         '**Paso 8 · Embudo por sede:** revisa **Chats de WhatsApp**, citas, asistencia, **Contrataron (de esas citas)**, ticket promedio, anuncios y **De dónde llegan**.'
       ] },
