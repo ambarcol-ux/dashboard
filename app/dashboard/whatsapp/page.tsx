@@ -7,7 +7,7 @@ import SupplierShell from '@/components/suppliers/SupplierShell';
 import {supabase} from '@/lib/supabase';
 import styles from '@/app/dashboard/caja/caja.module.css';
 
-type Conv={id:string;telefono:string;canal?:string|null;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null;ia_pausada:boolean;ia_pausada_at:string|null;anuncio_id:string|null;anuncio_titulo:string|null;plan_ahorro_at?:string|null};
+type Conv={temperatura?:string|null;temperatura_motivo?:string|null;id:string;telefono:string;canal?:string|null;nombre:string|null;sede_id:string|null;ultimo_mensaje:string|null;ultimo_at:string;ultimo_entrante_at:string|null;no_leidos:number;etiqueta:string|null;ia_resumen:string|null;ia_sugerencia:string|null;ia_at:string|null;ia_error:string|null;ia_atender:boolean;ia_motivo:string|null;ia_pausada:boolean;ia_pausada_at:string|null;anuncio_id:string|null;anuncio_titulo:string|null;plan_ahorro_at?:string|null};
 type Msg={id:string;direccion:'entrante'|'saliente';origen:'clienta'|'erp'|'celular'|'ia';texto:string|null;estado:string|null;created_at:string;media_id?:string|null};
 type Ficha={nombre:string|null;citas:{id:string;fecha:string;hora:string;estado:string;modalidad:string;sede:string|null;tipo_vestido:string|null}[];contratos:{id:string;numero_contrato:string;estado:string;fecha_evento:string|null;sede:string|null}[]};
 const WINDOW_MS=24*3600*1000;
@@ -435,7 +435,7 @@ function Inbox(){
     <div style={{display:'grid',gap:4,gridAutoRows:'max-content',alignContent:'start',height:'calc(100vh - 300px)',minHeight:320,overflowY:'auto',overflowX:'hidden'}}>
      {lista.map(c=><button key={c.id} type="button" onClick={()=>setSel(c.id)} style={{display:'grid',gap:2,flexShrink:0,minHeight:64,width:'100%',minWidth:0,boxSizing:'border-box',overflow:'hidden',textAlign:'left',padding:'8px 10px',borderRadius:12,border:'1px solid',borderColor:sel===c.id?'#10b981':'#f1f5f9',background:sel===c.id?'#ecfdf5':'#fff',cursor:'pointer'}}>
       <span style={{display:'flex',alignItems:'center',gap:6,minWidth:0}}>
-       <strong style={{flex:1,minWidth:0,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.nombre||tel(c.telefono)}</strong>
+       <strong style={{flex:1,minWidth:0,fontSize:14,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.temperatura==='caliente'?'🔥 ':c.temperatura==='frio'?'❄ ':c.temperatura==='tibio'?'🌤 ':''}{c.nombre||tel(c.telefono)}</strong>
        <small style={{flexShrink:0,color:c.no_leidos>0?'#047857':'#64748b',fontWeight:c.no_leidos>0?800:400}}>{horaCorta(c.ultimo_at)}</small>
        {c.no_leidos>0&&<span style={{flexShrink:0,background:'#10b981',color:'#fff',borderRadius:999,fontSize:11,fontWeight:800,padding:'1px 7px'}}>{c.no_leidos}</span>}
       </span>
