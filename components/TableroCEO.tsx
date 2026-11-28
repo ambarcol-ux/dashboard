@@ -1,4 +1,5 @@
 'use client';
+import Link from 'next/link';
 import {useCallback,useEffect,useMemo,useState} from 'react';
 import {supabase} from '@/lib/supabase';
 import {PuntajeAmbar} from '@/components/ManualAmbar';
@@ -74,7 +75,7 @@ export default function TableroCEO(){
   <section><h3 className="font-black text-gray-800 mb-2">4. Para dónde vas</h3><div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
    <Card titulo="Proyección de ventas del mes" valor={cop(proyeccion)} nota={t.vendido_ant>0?`${pct(proyeccion,t.vendido_ant)} % del mes pasado`:undefined} tono={proyeccion>=t.vendido_ant?'green':'amber'}/>
    <Card titulo="Plata asegurada" valor={cop(t.asegurado)} nota={`Saldos por cobrar de ${t.contratos_futuros} contratos con evento futuro`}/>
-   <Card titulo="Citas → contratos" valor={`${t.citas_mes} → ${t.contratos_mes}`} nota={`${pct(t.contratos_mes,t.citas_mes)} % de conversión este mes (meta 40 %)`} tono={pct(t.contratos_mes,t.citas_mes)>=40?'green':'amber'}/>
+   <Card titulo="Citas → contratos" valor={`${t.citas_mes} → ${t.contratos_mes}`} nota={`${pct(t.contratos_mes,t.citas_mes)} % de conversión este mes (meta 40 %)`} tono={pct(t.contratos_mes,t.citas_mes)>=40?'green':'amber'}/><Link href="/dashboard/calendario/analisis#mes-a-mes" className="col-span-2 lg:col-span-4 text-xs font-black text-indigo-700 underline">Ver comparativo mes a mes por sede →</Link>
    <Card titulo="Vestidos activos" valor={String(t.vestidos)} tono='gray'/>
   </div></section>
 
